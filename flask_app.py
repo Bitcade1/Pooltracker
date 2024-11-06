@@ -335,14 +335,13 @@ def counting_wood():
         current_count_value = current_count_entry.count if current_count_entry else 0
 
         if action == 'increment':
-            # Increment the count
+            # Single increment action
             new_count = WoodCount(
                 section=section,
                 count=current_count_value + 1,
                 date=datetime.utcnow().date(),
                 time=datetime.utcnow().time()
             )
-
             # Adjust MDF inventory based on the section
             if section == 'Body':
                 if inventory.black_mdf > 0:
@@ -358,19 +357,45 @@ def counting_wood():
                     return redirect(url_for('counting_wood'))
 
         elif action == 'decrement' and current_count_value > 0:
-            # Decrement the count, ensuring it doesn't go below zero
+            # Single decrement action, ensuring it doesn't go below zero
             new_count = WoodCount(
                 section=section,
                 count=current_count_value - 1,
                 date=datetime.utcnow().date(),
                 time=datetime.utcnow().time()
             )
-
             # Add back to MDF inventory based on the section
             if section == 'Body':
                 inventory.black_mdf += 1
             elif section in ['Pod Sides', 'Bases']:
                 inventory.plain_mdf += 1
+
+        elif action == 'bulk_increment':
+            # Handle bulk addition
+            bulk_amount = int(request.form.get('bulk_amount', 0))
+            if bulk_amount > 0:
+                new_count = WoodCount(
+                    section=section,
+                    count=current_count_value + bulk_amount,
+                    date=datetime.utcnow().date(),
+                    time=datetime.utcnow().time()
+                )
+                # Adjust MDF inventory based on the section and bulk amount
+                if section == 'Body':
+                    if inventory.black_mdf >= bulk_amount:
+                        inventory.black_mdf -= bulk_amount
+                    else:
+                        flash("Not enough Black MDF available for bulk addition!", "error")
+                        return redirect(url_for('counting_wood'))
+                elif section in ['Pod Sides', 'Bases']:
+                    if inventory.plain_mdf >= bulk_amount:
+                        inventory.plain_mdf -= bulk_amount
+                    else:
+                        flash(f"Not enough Plain MDF available for bulk addition to {section.lower()}!", "error")
+                        return redirect(url_for('counting_wood'))
+            else:
+                flash("Please enter a valid bulk amount.", "error")
+                return redirect(url_for('counting_wood'))
 
         else:
             flash(f"No {section} cuts to decrement.", "error")
@@ -379,7 +404,7 @@ def counting_wood():
         # Save the new count and updated inventory to the database
         db.session.add(new_count)
         db.session.commit()
-        flash(f"{section} count {'incremented' if action == 'increment' else 'decremented'} successfully!", "success")
+        flash(f"{section} count {'incremented' if action == 'increment' else 'bulk incremented' if action == 'bulk_increment' else 'decremented'} successfully!", "success")
         return redirect(url_for('counting_wood'))
 
     # Fetch the latest counts for each section without resetting daily
@@ -395,6 +420,7 @@ def counting_wood():
         pod_sides_count=pod_sides_count.count if pod_sides_count else 0,
         bases_count=bases_count.count if bases_count else 0
     )
+
 
 @app.route('/dashboard')
 def dashboard():
