@@ -692,6 +692,16 @@ def manage_raw_data():
                 entry.serial_number = request.form.get('serial_number')
                 entry.issue = request.form.get('issue')
                 entry.lunch = request.form.get('lunch')
+
+                # Update date if provided
+                date_input = request.form.get('date')
+                if date_input:
+                    try:
+                        entry.date = datetime.strptime(date_input, "%Y-%m-%d").date()
+                    except ValueError:
+                        flash("Invalid date format. Please use YYYY-MM-DD.", "error")
+                        return redirect(url_for('manage_raw_data', serial_number=serial_number_query))
+
                 db.session.commit()
                 flash(f"{table.capitalize()} entry updated successfully!", "success")
 
