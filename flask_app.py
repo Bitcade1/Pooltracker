@@ -508,7 +508,6 @@ def manage_mdf_inventory():
 
     return render_template('manage_mdf_inventory.html', inventory=inventory)
 
-
 @app.route('/counting_3d_printing_parts', methods=['GET', 'POST'])
 def counting_3d_printing_parts():
     today = datetime.utcnow().date()
@@ -518,8 +517,8 @@ def counting_3d_printing_parts():
 
         if 'reject' in request.form:  # Check if rejection request
             reject_amount = int(request.form['reject_amount'])
-            # Fetch today's entry for the selected part
-            current_count = PrintedPartsCount.query.filter_by(part_name=part, date=today).first()
+            # Fetch the most recent entry for the selected part
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first()
 
             if current_count and current_count.count >= reject_amount:
                 current_count.count -= reject_amount
@@ -530,12 +529,15 @@ def counting_3d_printing_parts():
         else:
             # Handle normal increment
             increment_amount = int(request.form['increment_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part, date=today).first()
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first()
 
             if current_count:
+                # Update the existing count
                 current_count.count += increment_amount
+                current_count.date = today  # Update date to today
                 flash(f"Incremented {part} count by {increment_amount}!", "success")
             else:
+                # Add as a new entry if no existing count found
                 new_count = PrintedPartsCount(
                     part_name=part,
                     count=increment_amount,
@@ -549,11 +551,14 @@ def counting_3d_printing_parts():
 
         return redirect(url_for('counting_3d_printing_parts'))
 
+    # Retrieve the most recent count for each part to display
     parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing"]
-    parts_counts = {part: PrintedPartsCount.query.filter_by(part_name=part, date=today).first() for part in parts}
+    parts_counts = {part: PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first() for part in parts}
     parts_counts = {part: count.count if count else 0 for part, count in parts_counts.items()}
 
     return render_template('counting_3d_printing_parts.html', parts_counts=parts_counts)
+
+
 
 @app.route('/inventory')
 def inventory():
