@@ -2,11 +2,14 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
+import os
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pool_table_tracker.db'
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+app.config['SQLALCHEMY_DATABASE_URI'] = ''sqlite:///' + os.path.join(basedir, 'pool_table_tracker.db''
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
