@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////var/www/pooltabletracker.com/pool_table_tracker.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pool_table_tracker.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
