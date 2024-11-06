@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Menu - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="menu-container">
+        <h1>Pool Table Tracker</h1>
+        <div class="menu-buttons">
+            <a href="{{ url_for('bodies') }}" class="menu-button">Manage Bodies</a>
+            <a href="{{ url_for('top_rails') }}" class="menu-button">Manage Top Rails</a>
+            <a href="{{ url_for('pods') }}" class="menu-button">Manage Pods</a>
+            <a href="{{ url_for('counting_wood') }}" class="menu-button">Counting Wood</a>
+            <a href="{{ url_for('counting_3d_printing_parts') }}" class="menu-button">Counting 3D Printing Parts</a>
+            <a href="{{ url_for('inventory') }}" class="menu-button">Inventory</a>
+            <a href="{{ url_for('admin') }}" class="menu-button">Admin Area</a>
+            <a href="{{ url_for('dashboard') }}" class="menu-button">Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>

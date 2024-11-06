@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counting 3D Printing Parts</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Collapsible Styles */
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Counting 3D Printing Parts</h1>
+
+        <!-- Flash Messages for Success and Error Notifications -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Add Part to Inventory (Collapsible) -->
+        <button class="collapsible" onclick="toggleCollapsible('addPart')">Add 3D Printed Part to Inventory</button>
+        <div id="addPart" class="collapsible-content">
+            <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
+                <label for="part">Select Part:</label>
+                <select name="part" id="part" required>
+                    {% for part in parts_counts.keys() %}
+                        <option value="{{ part }}">{{ part }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="increment_amount">Amount:</label>
+                <input type="number" id="increment_amount" name="increment_amount" min="1" value="1" required>
+
+                <button type="submit" class="button">Add to Inventory</button>
+            </form>
+        </div>
+
+        <!-- Reject Part from Inventory (Collapsible) -->
+        <button class="collapsible" onclick="toggleCollapsible('rejectPart')">Reject Part</button>
+        <div id="rejectPart" class="collapsible-content">
+            <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
+                <label for="part">Select Part:</label>
+                <select name="part" id="part" required>
+                    {% for part in parts_counts.keys() %}
+                        <option value="{{ part }}">{{ part }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="reject_amount">Reject Amount:</label>
+                <input type="number" id="reject_amount" name="reject_amount" min="1" value="1" required>
+
+                <button type="submit" name="reject" class="button">Reject Part</button>
+            </form>
+        </div>
+
+        <!-- Link Back to Main Menu -->
+        <div class="menu-link" style="margin-top: 30px;">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Raw Data Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .back-to-menu {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .menu-button {
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        .menu-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Manage Raw Data</h1>
+
+        <!-- Search by Serial Number -->
+        <form method="GET" action="{{ url_for('manage_raw_data') }}">
+            <label for="serial_number">Search by Serial Number:</label>
+            <input type="text" id="serial_number" name="serial_number" placeholder="Enter serial number">
+            <button type="submit" class="button">Search</button>
+        </form>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Collapsible Section for Completed Pods -->
+        <button class="collapsible" onclick="toggleCollapsible('podsData')">Completed Pods</button>
+        <div id="podsData" class="collapsible-content">
+            {% for pod in pods %}
+                <form method="POST" action="{{ url_for('manage_raw_data') }}">
+                    <input type="hidden" name="table" value="pods">
+                    <input type="hidden" name="id" value="{{ pod.id }}">
+                    <label>Worker:</label> <input type="text" name="worker" value="{{ pod.worker }}">
+                    <label>Start Time:</label> <input type="text" name="start_time" value="{{ pod.start_time }}">
+                    <label>Finish Time:</label> <input type="text" name="finish_time" value="{{ pod.finish_time }}">
+                    <label>Serial Number:</label> <input type="text" name="serial_number" value="{{ pod.serial_number }}">
+                    <label>Issue:</label> <input type="text" name="issue" value="{{ pod.issue }}">
+                    <label>Lunch:</label> <input type="text" name="lunch" value="{{ pod.lunch }}">
+                    <button type="submit" name="update">Update</button>
+                    <button type="submit" name="delete">Delete</button>
+                </form>
+            {% endfor %}
+        </div>
+
+        <!-- Collapsible Section for Top Rails -->
+        <button class="collapsible" onclick="toggleCollapsible('topRailsData')">Top Rails</button>
+        <div id="topRailsData" class="collapsible-content">
+            {% for top_rail in top_rails %}
+                <form method="POST" action="{{ url_for('manage_raw_data') }}">
+                    <input type="hidden" name="table" value="top_rails">
+                    <input type="hidden" name="id" value="{{ top_rail.id }}">
+                    <label>Worker:</label> <input type="text" name="worker" value="{{ top_rail.worker }}">
+                    <label>Start Time:</label> <input type="text" name="start_time" value="{{ top_rail.start_time }}">
+                    <label>Finish Time:</label> <input type="text" name="finish_time" value="{{ top_rail.finish_time }}">
+                    <label>Serial Number:</label> <input type="text" name="serial_number" value="{{ top_rail.serial_number }}">
+                    <label>Issue:</label> <input type="text" name="issue" value="{{ top_rail.issue }}">
+                    <label>Lunch:</label> <input type="text" name="lunch" value="{{ top_rail.lunch }}">
+                    <button type="submit" name="update">Update</button>
+                    <button type="submit" name="delete">Delete</button>
+                </form>
+            {% endfor %}
+        </div>
+
+        <!-- Collapsible Section for Completed Bodies -->
+        <button class="collapsible" onclick="toggleCollapsible('bodiesData')">Completed Bodies</button>
+        <div id="bodiesData" class="collapsible-content">
+            {% for body in bodies %}
+                <form method="POST" action="{{ url_for('manage_raw_data') }}">
+                    <input type="hidden" name="table" value="bodies">
+                    <input type="hidden" name="id" value="{{ body.id }}">
+                    <label>Worker:</label> <input type="text" name="worker" value="{{ body.worker }}">
+                    <label>Start Time:</label> <input type="text" name="start_time" value="{{ body.start_time }}">
+                    <label>Finish Time:</label> <input type="text" name="finish_time" value="{{ body.finish_time }}">
+                    <label>Serial Number:</label> <input type="text" name="serial_number" value="{{ body.serial_number }}">
+                    <label>Issue:</label> <input type="text" name="issue" value="{{ body.issue }}">
+                    <label>Lunch:</label> <input type="text" name="lunch" value="{{ body.lunch }}">
+                    <button type="submit" name="update">Update</button>
+                    <button type="submit" name="delete">Delete</button>
+                </form>
+            {% endfor %}
+        </div>
+
+        <!-- Back to Admin Menu -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('admin') }}" class="menu-button">Back to Admin Menu</a>
+        </div>
+    </div>
+</body>
+</html>

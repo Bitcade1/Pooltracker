@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .dashboard-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        .metric-card {
+            flex: 1 1 160px;
+            max-width: 200px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.2s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        .metric-title {
+            font-size: 1em;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        @media (max-width: 768px) {
+            .metric-card {
+                flex: 1 1 48%;
+                max-width: 48%;
+            }
+        }
+        @media (max-width: 480px) {
+            .metric-card {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard</h1>
+
+        <!-- Top Rails Section -->
+        <button class="collapsible" onclick="toggleCollapsible('topRails')">Top Rails</button>
+        <div id="topRails" class="collapsible-content">
+            <div class="dashboard-metrics">
+                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ top_rails.today }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ top_rails.week }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ top_rails.month }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ top_rails.year }}</p></div>
+            </div>
+        </div>
+
+        <!-- Bodies Section -->
+        <button class="collapsible" onclick="toggleCollapsible('bodies')">Bodies</button>
+        <div id="bodies" class="collapsible-content">
+            <div class="dashboard-metrics">
+                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ bodies.today }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ bodies.week }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ bodies.month }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ bodies.year }}</p></div>
+            </div>
+        </div>
+
+        <!-- Pods Section -->
+        <button class="collapsible" onclick="toggleCollapsible('pods')">Pods</button>
+        <div id="pods" class="collapsible-content">
+            <div class="dashboard-metrics">
+                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ pods.today }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ pods.week }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ pods.month }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ pods.year }}</p></div>
+            </div>
+        </div>
+
+        <!-- Wood Pieces Section -->
+        <button class="collapsible" onclick="toggleCollapsible('woodPieces')">Wood Pieces</button>
+        <div id="woodPieces" class="collapsible-content">
+            <h3>Body</h3>
+            <div class="dashboard-metrics">
+                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ wood.body.today }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ wood.body.week }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ wood.body.month }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ wood.body.year }}</p></div>
+            </div>
+
+            <h3>Pod Sides</h3>
+            <div class="dashboard-metrics">
+                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ wood.pod_sides.today }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ wood.pod_sides.week }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ wood.pod_sides.month }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ wood.pod_sides.year }}</p></div>
+            </div>
+
+            <h3>Bases</h3>
+            <div class="dashboard-metrics">
+                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ wood.bases.today }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ wood.bases.week }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ wood.bases.month }}</p></div>
+                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ wood.bases.year }}</p></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

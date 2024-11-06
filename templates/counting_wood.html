@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counting Wood - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Collapsible styles */
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .up-arrow, .down-arrow {
+            font-size: 1.5em;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: #007bff;
+            transition: color 0.3s ease;
+        }
+
+        .up-arrow:hover, .down-arrow:hover {
+            color: #0056b3;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Counting Wood</h1>
+
+        <!-- Flash Messages Display (Success) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Body Counter -->
+        <button class="collapsible" onclick="toggleCollapsible('bodyContent')">Body</button>
+        <div id="bodyContent" class="collapsible-content">
+            <p class="count">Current Count: {{ body_count }}</p>
+            <form method="POST" action="{{ url_for('counting_wood') }}">
+                <input type="hidden" name="section" value="Body">
+                <input type="hidden" name="action" value="increment">
+                <button type="submit" class="up-arrow">▲</button>
+            </form>
+            <form method="POST" action="{{ url_for('counting_wood') }}">
+                <input type="hidden" name="section" value="Body">
+                <input type="hidden" name="action" value="decrement">
+                <button type="submit" class="down-arrow">▼</button>
+            </form>
+        </div>
+
+        <!-- Pod Sides Counter -->
+        <button class="collapsible" onclick="toggleCollapsible('podSidesContent')">Pod Sides</button>
+        <div id="podSidesContent" class="collapsible-content">
+            <p class="count">Current Count: {{ pod_sides_count }}</p>
+            <form method="POST" action="{{ url_for('counting_wood') }}">
+                <input type="hidden" name="section" value="Pod Sides">
+                <input type="hidden" name="action" value="increment">
+                <button type="submit" class="up-arrow">▲</button>
+            </form>
+            <form method="POST" action="{{ url_for('counting_wood') }}">
+                <input type="hidden" name="section" value="Pod Sides">
+                <input type="hidden" name="action" value="decrement">
+                <button type="submit" class="down-arrow">▼</button>
+            </form>
+        </div>
+
+        <!-- Bases Counter -->
+        <button class="collapsible" onclick="toggleCollapsible('basesContent')">Bases</button>
+        <div id="basesContent" class="collapsible-content">
+            <p class="count">Current Count: {{ bases_count }}</p>
+            <form method="POST" action="{{ url_for('counting_wood') }}">
+                <input type="hidden" name="section" value="Bases">
+                <input type="hidden" name="action" value="increment">
+                <button type="submit" class="up-arrow">▲</button>
+            </form>
+            <form method="POST" action="{{ url_for('counting_wood') }}">
+                <input type="hidden" name="section" value="Bases">
+                <input type="hidden" name="action" value="decrement">
+                <button type="submit" class="down-arrow">▼</button>
+            </form>
+        </div>
+
+        <h2>Wood Remaining</h2>
+        <div class="inventory">
+            <p>Plain MDF: {{ inventory.plain_mdf }}</p>
+            <p>Black MDF: {{ inventory.black_mdf }}</p>
+        </div>
+
+    <!-- Back to Menu Button -->
+    <div class="back-to-menu">
+        <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+    </div>
+</body>
+</html>

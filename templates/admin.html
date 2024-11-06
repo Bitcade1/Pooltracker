@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Collapsible styles */
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        /* Centering Back to Menu button */
+        .back-to-menu {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .menu-button {
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        .menu-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Admin Area</h1>
+
+        <!-- Flash Messages Display (Success and Error) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Manage Workers Section -->
+        <button class="collapsible" onclick="toggleCollapsible('manageWorkers')">Manage Workers</button>
+        <div id="manageWorkers" class="collapsible-content">
+            <form method="POST" action="{{ url_for('admin') }}">
+                <label for="new_worker">Add New Worker:</label>
+                <input type="text" id="new_worker" name="new_worker" placeholder="Enter worker name" required>
+                <button type="submit" class="button">Add Worker</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin') }}">
+                <label for="remove_worker">Remove Worker:</label>
+                <select name="remove_worker" id="remove_worker" required>
+                    {% for worker in workers %}
+                        <option value="{{ worker.name }}">{{ worker.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="button">Remove Worker</button>
+            </form>
+        </div>
+
+        <!-- Manage Issues Section -->
+        <button class="collapsible" onclick="toggleCollapsible('manageIssues')">Manage Issues</button>
+        <div id="manageIssues" class="collapsible-content">
+            <form method="POST" action="{{ url_for('admin') }}">
+                <label for="new_issue">Add New Issue:</label>
+                <input type="text" id="new_issue" name="new_issue" placeholder="Enter issue description" required>
+                <button type="submit" class="button">Add Issue</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin') }}">
+                <label for="remove_issue">Remove Issue:</label>
+                <select name="remove_issue" id="remove_issue" required>
+                    {% for issue in issues %}
+                        <option value="{{ issue.description }}">{{ issue.description }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="button">Remove Issue</button>
+            </form>
+        </div>
+
+        <!-- Manage MDF Inventory Section -->
+        <button class="collapsible" onclick="toggleCollapsible('manageInventory')">Manage MDF Inventory</button>
+        <div id="manageInventory" class="collapsible-content">
+            <form method="POST" action="{{ url_for('manage_mdf_inventory') }}">
+                <h3>Current Inventory</h3>
+                <p>Plain MDF: {{ inventory.plain_mdf }}</p>
+                <p>Black MDF: {{ inventory.black_mdf }}</p>
+                <h3>Add to Inventory</h3>
+                <label for="additional_plain_mdf">Additional Plain MDF:</label>
+                <input type="number" id="additional_plain_mdf" name="additional_plain_mdf" placeholder="Enter amount" required>
+                <label for="additional_black_mdf">Additional Black MDF:</label>
+                <input type="number" id="additional_black_mdf" name="additional_black_mdf" placeholder="Enter amount" required>
+                <button type="submit" class="button">Update Inventory</button>
+            </form>
+        </div>
+
+        <!-- Link to Raw Data Management Page -->
+        <button class="collapsible" onclick="window.location.href='{{ url_for('manage_raw_data') }}'">Raw Data Management</button>
+
+    <!-- Back to Menu Button -->
+    <div class="back-to-menu">
+        <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+    </div>
+</body>
+</html>

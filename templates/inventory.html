@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Inventory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Collapsible styles */
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+        
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        /* Add spacing for Back to Main Menu button */
+        .menu-link {
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .menu-button {
+            display: inline-block;
+            padding: 12px 20px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        
+        .menu-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Stock Inventory</h1>
+
+        <!-- Collapsible Button and Content for 3D Printed Parts -->
+        <button class="collapsible" onclick="toggleCollapsible('collapsibleContent3D')">3D Printed Parts</button>
+        <div id="collapsibleContent3D" class="collapsible-content">
+            <h2>Current Stock</h2>
+            <div class="inventory-list">
+                {% for part, count in inventory_counts.items() %}
+                    <p><strong>{{ part }}</strong>: {{ count }}</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Collapsible Button and Content for Wooden Parts -->
+        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentWood')">Wooden Parts</button>
+        <div id="collapsibleContentWood" class="collapsible-content">
+            <h2>Total Cut</h2>
+            <div class="inventory-list">
+                <p><strong>Bases</strong>: {{ wooden_counts.bases }}</p>
+                <p><strong>Pod Sides</strong>: {{ wooden_counts.pod_sides }}</p>
+                <p><strong>Body</strong>: {{ wooden_counts.body }}</p>
+            </div>
+        </div>
+
+        <!-- Link Back to Main Menu with added spacing -->
+        <div class="menu-link">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>

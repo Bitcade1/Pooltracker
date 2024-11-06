@@ -1,0 +1,299 @@
+/* General Body Styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f4f4f9;
+    min-height: 100vh;
+}
+
+.container {
+    width: 90%;
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+/* Heading Styles */
+h1, h2 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 2em;
+}
+
+h2 {
+    font-size: 1.5em;
+    margin-top: 20px;
+}
+
+/* Form Styles */
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+label {
+    text-align: left;
+    font-weight: bold;
+    color: #333;
+}
+
+input[type="time"],
+input[type="text"],
+select {
+    width: 100%;
+    padding: 12px;
+    font-size: 1em;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-sizing: border-box;
+    text-align: center;
+    transition: border-color 0.3s ease;
+}
+
+input:focus,
+select:focus {
+    border-color: #007bff;
+}
+
+button {
+    padding: 12px;
+    font-size: 1em;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+/* Flash Messages */
+.flash-messages {
+    margin: 15px 0;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    text-align: center;
+}
+
+.flash.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.flash.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Table Styles */
+table {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+th, td {
+    padding: 12px;
+    font-size: 0.9em;
+    border-bottom: 1px solid #ddd;
+    text-align: center;
+}
+
+thead {
+    background-color: #f0f0f0;
+    font-weight: bold;
+}
+
+.issue-row {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Responsive Design for Smaller Screens */
+@media (max-width: 600px) {
+    h1 {
+        font-size: 1.8em;
+    }
+
+    h2 {
+        font-size: 1.2em;
+    }
+
+    label, input, select, button {
+        font-size: 1em;
+        width: 100%;
+    }
+
+    th, td {
+        font-size: 0.85em;
+        padding: 8px;
+    }
+
+    .container {
+        padding: 15px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+}
+
+/* Menu Button Styling */
+.menu-container {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.menu-button {
+    display: block;
+    padding: 15px 30px;
+    text-align: center;
+    width: 90%;
+    max-width: 300px;
+    background-color: #4CAF50;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 1.1em;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.menu-button:hover {
+    background-color: #45a049;
+}
+
+.menu-button:active {
+    transform: scale(0.98);
+}
+
+/* Counter Section */
+.counter-section {
+    margin: 20px 0;
+}
+
+.counter-section h2 {
+    font-size: 1.5em;
+    color: #333;
+}
+
+.count {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.up-arrow, .down-arrow {
+    font-size: 2em;
+    color: #007bff;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.up-arrow:hover, .down-arrow:hover {
+    color: #0056b3;
+}
+
+/* Dashboard Styles */
+.dashboard-section {
+    margin: 30px 0;
+    text-align: center;
+}
+
+.dashboard-section h2, .dashboard-section h3 {
+    color: #007bff;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.dashboard-metrics {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.metric-card {
+    flex: 1 1 150px;
+    background-color: #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+    text-align: center;
+}
+
+.metric-card:hover {
+    transform: translateY(-5px);
+}
+
+.metric-title {
+    font-size: 1.1em;
+    color: #555;
+    margin-bottom: 5px;
+}
+
+.metric-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: #007bff;
+}
+
+@media (max-width: 600px) {
+    .dashboard-metrics {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+/* Back to Menu Button */
+.back-to-menu {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.menu-button {
+    padding: 12px 20px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 1em;
+    transition: background-color 0.3s ease;
+}
+
+.menu-button:hover {
+    background-color: #0056b3;
+}

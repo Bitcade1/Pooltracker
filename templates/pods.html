@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pods - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Pods</h1>
+
+        <!-- Flash Messages Display (Success and Error) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Form to Add a New Completed Pod -->
+        <form method="POST" action="{{ url_for('pods') }}">
+            <!-- Worker Dropdown -->
+            <label for="worker">Builder:</label>
+            <select name="worker" id="worker" required>
+                {% for worker in workers %}
+                    <option value="{{ worker }}">{{ worker }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Start Time Input -->
+            <label for="start_time">Start Time:</label>
+            <input type="time" id="start_time" name="start_time" value="{{ current_time }}" class="centered-input" required>
+
+            <!-- Finish Time Input (auto-set to current time) -->
+            <label for="finish_time">Finish Time:</label>
+            <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" class="centered-input" required>
+
+            <!-- Serial Number Input -->
+            <label for="serial_number">Serial Number:</label>
+            <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number">
+
+            <!-- Issues Dropdown -->
+            <label for="issue">Any issues with the build?:</label>
+            <select name="issue" id="issue" required>
+                {% for issue in issues %}
+                    <option value="{{ issue }}">{{ issue }}</option>
+                {% endfor %}
+            </select>
+
+             <!-- Lunch Dropdown -->
+            <label for="lunch">Have I had lunch during this build?</label>
+            <select name="lunch" id="lunch">
+                <option value="No" selected>No</option>
+                <option value="Yes">Yes</option>
+            </select>
+
+            <button type="submit" class="button">Submit</button>
+        </form>
+
+        <!-- Pods Completed Today Section -->
+        <h2>Pods Completed Today</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Worker</th>
+                    <th>Start Time</th>
+                    <th>Finish Time</th>
+                    <th>Serial Number</th>
+                    <th>Issue</th>
+                    <th>Lunch</th> <!-- New Lunch Column -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for table in completed_tables %}
+                    <!-- Only highlight if the issue is not "No Issues" -->
+                    <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
+                        <td>{{ table.date.strftime('%d/%m/%y') }}</td>
+                        <td>{{ table.worker }}</td>
+                        <td>{{ table.start_time }}</td>
+                        <td>{{ table.finish_time }}</td>
+                        <td>{{ table.serial_number }}</td>
+                        <td>{{ table.issue }}</td>
+                        <td>{{ table.lunch }}</td> <!-- Display Lunch Information -->
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
