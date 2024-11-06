@@ -647,8 +647,6 @@ def pods():
 
     return render_template('pods.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_pods)
 
-from datetime import datetime
-
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
 def manage_raw_data():
     serial_number_query = request.args.get('serial_number')
@@ -713,6 +711,9 @@ def manage_raw_data():
         return redirect(url_for('manage_raw_data', serial_number=serial_number_query))
 
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
+
+
+
 
 
 
