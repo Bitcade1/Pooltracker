@@ -336,10 +336,6 @@ def admin():
         bodies=bodies
     )
 
-
-
-
-
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     # Fetch workers and issues from the database
@@ -360,7 +356,8 @@ def top_rails():
             finish_time=finish_time,
             serial_number=serial_number,
             lunch=lunch,
-            issue=issue
+            issue=issue,
+            date=date.today()
         )
 
         try:
@@ -374,14 +371,86 @@ def top_rails():
 
         return redirect(url_for('top_rails'))
 
-    # Fetch only today's completed bodies
+    # Fetch only today's completed top rails
     today = date.today()
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
+    # Set current_time based on last entry's finish time or default to current time
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    return render_template('top_rails.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_top_rails)
+    # Daily History Calculation
+    daily_history = (
+        db.session.query(
+            TopRail.date,
+            func.count(TopRail.id).label('count'),
+            func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
+        )
+        .group_by(TopRail.date)
+        .order_by(TopRail.date.desc())
+        .all()
+    )
+
+    daily_history_formatted = [
+        {
+            "date": row.date.strftime("%A %d/%m/%y"),
+            "count": row.count,
+            "serial_numbers": row.serial_numbers
+        }
+        for row in daily_history
+    ]
+
+    # Monthly Totals Calculation
+    monthly_totals = (
+        db.session.query(
+            extract('year', TopRail.date).label('year'),
+            extract('month', TopRail.date).label('month'),
+            func.count(TopRail.id).label('total')
+        )
+        .group_by('year', 'month')
+        .order_by('year', 'month')
+        .all()
+    )
+
+    monthly_totals_formatted = []
+    for row in monthly_totals:
+        year = int(row.year)
+        month = int(row.month)
+        total_top_rails = row.total
+
+        # Calculate workdays up to today in the current month
+        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+
+        # Calculate cumulative working hours and average hours per top rail
+        cumulative_working_hours = work_days * 7.5
+        avg_hours_per_top_rail = cumulative_working_hours / total_top_rails if total_top_rails > 0 else None
+
+        # Convert decimal hours to HH:MM:SS format
+        if avg_hours_per_top_rail is not None:
+            hours = int(avg_hours_per_top_rail)
+            minutes = int((avg_hours_per_top_rail - hours) * 60)
+            seconds = int((((avg_hours_per_top_rail - hours) * 60) - minutes) * 60)
+            avg_hours_per_top_rail_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        else:
+            avg_hours_per_top_rail_formatted = "N/A"
+
+        monthly_totals_formatted.append({
+            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "count": total_top_rails,
+            "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
+        })
+
+    return render_template(
+        'top_rails.html',
+        workers=workers,
+        issues=issues,
+        current_time=current_time,
+        completed_tables=completed_top_rails,
+        daily_history=daily_history_formatted,
+        monthly_totals=monthly_totals_formatted
+    )
+
 
 from datetime import datetime, timedelta, date
 from flask import flash, redirect, render_template, request, url_for
