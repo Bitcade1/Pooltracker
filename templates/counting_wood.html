@@ -64,86 +64,36 @@
             </select>
         </form>
 
-        <!-- Body Counter -->
-        <button class="collapsible" onclick="toggleCollapsible('bodyContent')">Body</button>
-        <div id="bodyContent" class="collapsible-content">
-            <p class="count">Current Count for {{ selected_month_label }}: {{ body_count }}</p>
+        <!-- Counters for Each Section -->
+        {% for section, count in counts.items() %}
+        <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">{{ section }}</button>
+        <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
+            <p class="count">Current Count for {{ selected_month }}: {{ count }}</p>
+            
             <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Body">
+                <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="increment">
                 <input type="hidden" name="month" value="{{ selected_month }}">
                 <button type="submit" class="up-arrow">▲</button>
             </form>
+            
             <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Body">
+                <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="decrement">
                 <input type="hidden" name="month" value="{{ selected_month }}">
                 <button type="submit" class="down-arrow">▼</button>
             </form>
-            <!-- Bulk Addition -->
+            
             <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Body">
+                <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="bulk_increment">
                 <input type="hidden" name="month" value="{{ selected_month }}">
-                <label for="body_bulk_amount">Add Bulk Amount:</label>
-                <input type="number" id="body_bulk_amount" name="bulk_amount" min="1" required>
+                <label for="{{ section | replace(' ', '_') }}_bulk_amount">Add Bulk Amount:</label>
+                <input type="number" id="{{ section | replace(' ', '_') }}_bulk_amount" name="bulk_amount" min="1" required>
                 <button type="submit" class="button">Add</button>
             </form>
         </div>
-
-        <!-- Pod Sides Counter -->
-        <button class="collapsible" onclick="toggleCollapsible('podSidesContent')">Pod Sides</button>
-        <div id="podSidesContent" class="collapsible-content">
-            <p class="count">Current Count for {{ selected_month_label }}: {{ pod_sides_count }}</p>
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Pod Sides">
-                <input type="hidden" name="action" value="increment">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <button type="submit" class="up-arrow">▲</button>
-            </form>
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Pod Sides">
-                <input type="hidden" name="action" value="decrement">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <button type="submit" class="down-arrow">▼</button>
-            </form>
-            <!-- Bulk Addition -->
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Pod Sides">
-                <input type="hidden" name="action" value="bulk_increment">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <label for="pod_sides_bulk_amount">Add Bulk Amount:</label>
-                <input type="number" id="pod_sides_bulk_amount" name="bulk_amount" min="1" required>
-                <button type="submit" class="button">Add</button>
-            </form>
-        </div>
-
-        <!-- Bases Counter -->
-        <button class="collapsible" onclick="toggleCollapsible('basesContent')">Bases</button>
-        <div id="basesContent" class="collapsible-content">
-            <p class="count">Current Count for {{ selected_month_label }}: {{ bases_count }}</p>
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Bases">
-                <input type="hidden" name="action" value="increment">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <button type="submit" class="up-arrow">▲</button>
-            </form>
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Bases">
-                <input type="hidden" name="action" value="decrement">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <button type="submit" class="down-arrow">▼</button>
-            </form>
-            <!-- Bulk Addition -->
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="Bases">
-                <input type="hidden" name="action" value="bulk_increment">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <label for="bases_bulk_amount">Add Bulk Amount:</label>
-                <input type="number" id="bases_bulk_amount" name="bulk_amount" min="1" required>
-                <button type="submit" class="button">Add</button>
-            </form>
-        </div>
+        {% endfor %}
 
         <h2>Wood Remaining</h2>
         <div class="inventory">
