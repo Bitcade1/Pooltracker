@@ -5,6 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bodies - Pool Table Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -35,7 +68,7 @@
             <label for="start_time">Start Time:</label>
             <input type="time" id="start_time" name="start_time" value="{{ current_time }}" class="centered-input" required>
 
-            <!-- Finish Time Input (auto-set to current time) -->
+            <!-- Finish Time Input -->
             <label for="finish_time">Finish Time:</label>
             <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" class="centered-input" required>
 
@@ -72,12 +105,11 @@
                     <th>Finish Time</th>
                     <th>Serial Number</th>
                     <th>Issue</th>
-                    <th>Lunch</th> <!-- New Lunch Column -->
+                    <th>Lunch</th>
                 </tr>
             </thead>
             <tbody>
                 {% for table in completed_tables %}
-                    <!-- Only highlight if the issue is not "No Issues" -->
                     <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
                         <td>{{ table.date.strftime('%d/%m/%y') }}</td>
                         <td>{{ table.worker }}</td>
@@ -85,15 +117,37 @@
                         <td>{{ table.finish_time }}</td>
                         <td>{{ table.serial_number }}</td>
                         <td>{{ table.issue }}</td>
-                        <td>{{ table.lunch }}</td> <!-- Display Lunch Information -->
+                        <td>{{ table.lunch }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
 
-    <!-- Back to Menu Button -->
-    <div class="back-to-menu">
-        <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        <!-- Collapsible Historical Data Section -->
+        <button class="collapsible" onclick="toggleCollapsible('historicalDataContent')">Monthly Totals</button>
+        <div id="historicalDataContent" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Total Tables Made</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for month, count in monthly_totals %}
+                        <tr>
+                            <td>{{ month.strftime('%B %Y') }}</td>
+                            <td>{{ count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
     </div>
 </body>
 </html>
