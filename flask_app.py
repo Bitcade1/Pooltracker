@@ -90,6 +90,8 @@ from datetime import datetime, date
 
 from sqlalchemy import extract
 
+from sqlalchemy import func
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -98,16 +100,12 @@ def bodies():
 
     if request.method == 'POST':
         worker = request.form['worker']
-
-        # Convert start_time and finish_time to "HH:MM" string format
         start_time = datetime.strptime(request.form['start_time'], "%H:%M").strftime("%H:%M")
         finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").strftime("%H:%M")
-
         serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Define the 3D printed parts and quantities to deduct for a completed body
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
@@ -119,7 +117,6 @@ def bodies():
             "Bushing": 2
         }
 
-        # Check availability and deduct each part
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
 
@@ -129,10 +126,8 @@ def bodies():
                 flash(f"Not enough inventory for {part_name} to complete the body!", "error")
                 return redirect(url_for('bodies'))
 
-        # Commit inventory changes if all parts are available
         db.session.commit()
 
-        # Create a new entry for the completed body
         new_table = CompletedTable(
             worker=worker,
             start_time=start_time,
@@ -153,6 +148,46 @@ def bodies():
             return redirect(url_for('bodies'))
 
         return redirect(url_for('bodies'))
+
+    # Fetch only today's completed bodies
+    today = date.today()
+    completed_tables = CompletedTable.query.filter_by(date=today).all()
+
+    # Last entry's finish_time as a string
+    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
+    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+
+    # Fetch daily history data with counts and serial numbers
+    daily_history = (
+        db.session.query(
+            CompletedTable.date,
+            func.count(CompletedTable.id).label('count'),
+            func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
+        )
+        .group_by(CompletedTable.date)
+        .order_by(CompletedTable.date.desc())
+        .all()
+    )
+
+    # Format the data
+    daily_history_formatted = [
+        {
+            "date": row.date.strftime("%A %d/%m/%y"),
+            "count": row.count,
+            "serial_numbers": row.serial_numbers
+        }
+        for row in daily_history
+    ]
+
+    return render_template(
+        'bodies.html',
+        workers=workers,
+        issues=issues,
+        current_time=current_time,
+        completed_tables=completed_tables,
+        daily_history=daily_history_formatted
+    )
+
 
     # Fetch only today's completed bodies
     today = date.today()
