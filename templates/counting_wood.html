@@ -54,8 +54,8 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Month Selection Form -->
-        <form method="GET" action="{{ url_for('counting_wood') }}">
+        <!-- Month Selection Form (POST method to persist selection) -->
+        <form method="POST" action="{{ url_for('counting_wood') }}">
             <label for="month">Select Month:</label>
             <select name="month" id="month" onchange="this.form.submit()">
                 {% for value, label in available_months %}
