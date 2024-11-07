@@ -59,7 +59,6 @@
 
         <!-- Form to Add a New Completed Table -->
         <form method="POST" action="{{ url_for('bodies') }}">
-            <!-- Worker Dropdown -->
             <label for="worker">Builder:</label>
             <select name="worker" id="worker" required>
                 {% for worker in workers %}
@@ -67,19 +66,15 @@
                 {% endfor %}
             </select>
 
-            <!-- Start Time Input -->
             <label for="start_time">Start Time:</label>
-            <input type="time" id="start_time" name="start_time" value="{{ current_time }}" class="centered-input" required>
+            <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
 
-            <!-- Finish Time Input -->
             <label for="finish_time">Finish Time:</label>
-            <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" class="centered-input" required>
+            <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
-            <!-- Serial Number Input -->
             <label for="serial_number">Serial Number:</label>
             <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number">
 
-            <!-- Issues Dropdown -->
             <label for="issue">Did anything slow you down this build?:</label>
             <select name="issue" id="issue" required>
                 {% for issue in issues %}
@@ -87,7 +82,6 @@
                 {% endfor %}
             </select>
 
-            <!-- Lunch Dropdown -->
             <label for="lunch">Have I had lunch during this build?</label>
             <select name="lunch" id="lunch">
                 <option value="No" selected>No</option>
@@ -116,8 +110,8 @@
                     <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
                         <td>{{ table.date.strftime('%d/%m/%y') }}</td>
                         <td>{{ table.worker }}</td>
-                        <td>{{ table.start_time }}</td>
-                        <td>{{ table.finish_time }}</td>
+                        <td>{{ table.start_time.strftime('%H:%M') }}</td>
+                        <td>{{ table.finish_time.strftime('%H:%M') }}</td>
                         <td>{{ table.serial_number }}</td>
                         <td>{{ table.issue }}</td>
                         <td>{{ table.lunch }}</td>
