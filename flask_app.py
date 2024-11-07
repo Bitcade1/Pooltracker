@@ -763,15 +763,25 @@ def pods():
         last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
 
-        # Calculate cumulative working hours up to today and average hours per pod
-        cumulative_working_hours = work_days * 7.5
-        avg_hours_per_pod = round(cumulative_working_hours / total_pods, 2) if total_pods > 0 else None
+# Calculate cumulative working hours up to today and average hours per pod
+cumulative_working_hours = work_days * 7.5
+avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
 
-        monthly_totals_formatted.append({
-            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
-            "count": total_pods,
-            "average_hours_per_pod": avg_hours_per_pod
-        })
+# Convert decimal hours to hours, minutes, and seconds
+if avg_hours_per_pod is not None:
+    hours = int(avg_hours_per_pod)
+    minutes = int((avg_hours_per_pod - hours) * 60)
+    seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
+    avg_hours_per_pod_formatted = f"{hours} hours, {minutes} minutes, {seconds} seconds"
+else:
+    avg_hours_per_pod_formatted = "N/A"
+
+monthly_totals_formatted.append({
+    "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+    "count": total_pods,
+    "average_hours_per_pod": avg_hours_per_pod_formatted
+})
+
 
     return render_template(
         'pods.html',
