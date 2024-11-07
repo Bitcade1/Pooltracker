@@ -97,8 +97,6 @@ from calendar import monthrange
 
 from calendar import monthrange
 
-from calendar import monthrange
-
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -198,13 +196,14 @@ def bodies():
         month = int(row.month)
         total_bodies = row.total
 
-        # Calculate total workdays in the month
-        _, last_day = monthrange(year, month)
-        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+        # Calculate workdays up to today in the current month
+        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
+        work_days = sum(1 for day in range(1, last_day + 1)
+                        if date(year, month, day).weekday() < 5)
 
-        # Calculate total working hours and average hours per table
-        total_working_hours = work_days * 7.5
-        avg_hours_per_table = round(total_working_hours / total_bodies, 2) if total_bodies > 0 else None
+        # Calculate cumulative working hours up to today and average hours per table
+        cumulative_working_hours = work_days * 7.5
+        avg_hours_per_table = round(cumulative_working_hours / total_bodies, 2) if total_bodies > 0 else None
 
         monthly_totals_formatted.append({
             "month": date(year=year, month=month, day=1).strftime("%B %Y"),
