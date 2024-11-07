@@ -118,7 +118,7 @@
             {% endfor %}
         </div>
 
-        <!-- Collapsible Section for Completed Bodies -->
+               <!-- Collapsible Section for Completed Bodies -->
         <button class="collapsible" onclick="toggleCollapsible('bodiesData')">Completed Bodies</button>
         <div id="bodiesData" class="collapsible-content">
             {% for body in bodies %}
@@ -126,8 +126,8 @@
                     <input type="hidden" name="table" value="bodies">
                     <input type="hidden" name="id" value="{{ body.id }}">
                     <label>Worker:</label> <input type="text" name="worker" value="{{ body.worker }}">
-                    <label>Start Time:</label> <input type="text" name="start_time" value="{{ body.start_time }}">
-                    <label>Finish Time:</label> <input type="text" name="finish_time" value="{{ body.finish_time }}">
+                    <label>Start Time:</label> <input type="time" name="start_time" value="{{ body.start_time }}">
+                    <label>Finish Time:</label> <input type="time" name="finish_time" value="{{ body.finish_time }}">
                     <label>Serial Number:</label> <input type="text" name="serial_number" value="{{ body.serial_number }}">
                     <label>Issue:</label> <input type="text" name="issue" value="{{ body.issue }}">
                     <label>Lunch:</label> <input type="text" name="lunch" value="{{ body.lunch }}">
