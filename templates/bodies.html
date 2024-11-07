@@ -151,7 +151,7 @@
             <tr>
                 <th>Month</th>
                 <th>Total Bodies Made</th>
-                <th>Average Build Time (hours)</th>
+                <th>Average Build Time (hrs/day)</th>
             </tr>
         </thead>
         <tbody>
@@ -159,15 +159,13 @@
                 <tr>
                     <td>{{ month.month }}</td>
                     <td>{{ month.count }}</td>
-                    <td>
-                        {% set avg_build_time = (month.count / (month.work_days * 7.5)) if month.work_days > 0 else 0 %}
-                        {{ "%.2f"|format(avg_build_time) }}
-                    </td>
+                    <td>{{ month.avg_build_time }}</td>
                 </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
 
 
         <!-- Back to Menu Button -->
