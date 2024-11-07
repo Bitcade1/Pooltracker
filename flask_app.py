@@ -95,6 +95,8 @@ from calendar import monthrange
 
 
 
+from calendar import monthrange
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -109,6 +111,7 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
+        # Deduct parts for inventory check
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
@@ -120,7 +123,6 @@ def bodies():
             "Bushing": 2
         }
 
-        # Check inventory for required parts
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -178,7 +180,6 @@ def bodies():
         for row in daily_history
     ]
 
-    # Fetch monthly totals for completed bodies
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -196,13 +197,12 @@ def bodies():
         month = int(row.month)
         total_bodies = row.total
 
-        # Calculate the number of working days in the month
         _, last_day = monthrange(year, month)
         work_days = sum(1 for day in range(1, last_day + 1)
                         if date(year, month, day).weekday() < 5)
 
-        # Calculate average build time per table in hours
-        avg_build_time = round((7.5 * work_days) / total_bodies, 2) if total_bodies > 0 else None
+        total_working_hours = work_days * 7.5
+        avg_build_time = round(total_working_hours / total_bodies, 2) if total_bodies else None
 
         monthly_totals_formatted.append({
             "month": date(year=year, month=month, day=1).strftime("%B %Y"),
