@@ -87,14 +87,10 @@ def home():
     return render_template('home.html')
 
 from datetime import datetime, date
-
 from sqlalchemy import extract
-
 from sqlalchemy import func
-
 from sqlalchemy import func, extract
 from datetime import datetime, date
-
 from calendar import monthrange
 
 @app.route('/bodies', methods=['GET', 'POST'])
@@ -122,6 +118,7 @@ def bodies():
             "Bushing": 2
         }
 
+        # Check inventory for required parts
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -130,12 +127,14 @@ def bodies():
                 flash(f"Not enough inventory for {part_name} to complete the body!", "error")
                 return redirect(url_for('bodies'))
 
+        # Commit inventory changes if all parts are available
         db.session.commit()
 
+        # Create a new entry for the completed body, storing times as strings
         new_table = CompletedTable(
             worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
+            start_time=start_time,  
+            finish_time=finish_time,  
             serial_number=serial_number,
             issue=issue,
             lunch=lunch,
@@ -220,6 +219,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 # Admin Area Route
 @app.route('/admin', methods=['GET', 'POST'])
