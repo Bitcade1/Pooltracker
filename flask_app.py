@@ -93,6 +93,8 @@ from sqlalchemy import func, extract
 from datetime import datetime, date
 from calendar import monthrange
 
+
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -127,14 +129,13 @@ def bodies():
                 flash(f"Not enough inventory for {part_name} to complete the body!", "error")
                 return redirect(url_for('bodies'))
 
-        # Commit inventory changes if all parts are available
         db.session.commit()
 
-        # Create a new entry for the completed body, storing times as strings
+        # Create a new entry for the completed body
         new_table = CompletedTable(
             worker=worker,
-            start_time=start_time,  
-            finish_time=finish_time,  
+            start_time=start_time,
+            finish_time=finish_time,
             serial_number=serial_number,
             issue=issue,
             lunch=lunch,
@@ -177,6 +178,7 @@ def bodies():
         for row in daily_history
     ]
 
+    # Fetch monthly totals for completed bodies
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -188,30 +190,24 @@ def bodies():
         .all()
     )
 
-monthly_totals_formatted = [
-    {
-        "month": date(year=int(row.year), month=int(row.month), day=1).strftime("%B %Y"),
-        "count": row.total,
-        # Calculate total working hours (work_days * 7.5 hours) and then find average hours per table
-        "average_hours_per_table": round((row.total * 7.5) / row.work_days, 2) if row.work_days > 0 else None
-    }
-    for row in monthly_totals
-]
+    monthly_totals_formatted = []
+    for row in monthly_totals:
+        year = int(row.year)
+        month = int(row.month)
+        total_bodies = row.total
 
-        # Calculate working days in the month (excluding weekends)
+        # Calculate the number of working days in the month
         _, last_day = monthrange(year, month)
         work_days = sum(1 for day in range(1, last_day + 1)
                         if date(year, month, day).weekday() < 5)
 
-        # Calculate the average bodies built per workday over 7.5 hours
-        avg_builds_per_day = total_bodies / work_days if work_days else 0
-        avg_build_time = avg_builds_per_day / 7.5
+        # Calculate average build time per table in hours
+        avg_build_time = round((7.5 * work_days) / total_bodies, 2) if total_bodies > 0 else None
 
-        # Format for display
         monthly_totals_formatted.append({
             "month": date(year=year, month=month, day=1).strftime("%B %Y"),
             "count": total_bodies,
-            "avg_build_time": round(avg_build_time, 2)
+            "average_hours_per_table": avg_build_time
         })
 
     return render_template(
@@ -223,6 +219,7 @@ monthly_totals_formatted = [
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 # Admin Area Route
