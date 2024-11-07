@@ -86,12 +86,6 @@ class CompletedPods(db.Model):
 def home():
     return render_template('home.html')
 
-from datetime import datetime, date
-from calendar import monthrange
-from sqlalchemy import func, extract
-from flask import flash, redirect, render_template, request, url_for
-from sqlalchemy.exc import IntegrityError
-
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -155,12 +149,16 @@ def bodies():
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # Daily History Calculation
+    # Daily History Calculation - Filtered by current month
     daily_history = (
         db.session.query(
             CompletedTable.date,
             func.count(CompletedTable.id).label('count'),
             func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(
+            extract('year', CompletedTable.date) == today.year,
+            extract('month', CompletedTable.date) == today.month
         )
         .group_by(CompletedTable.date)
         .order_by(CompletedTable.date.desc())
@@ -226,6 +224,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 # Admin Area Route
@@ -379,12 +378,16 @@ def top_rails():
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # Daily History Calculation
+    # Daily History Calculation - Filtered by current month
     daily_history = (
         db.session.query(
             TopRail.date,
             func.count(TopRail.id).label('count'),
             func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(
+            extract('year', TopRail.date) == today.year,
+            extract('month', TopRail.date) == today.month
         )
         .group_by(TopRail.date)
         .order_by(TopRail.date.desc())
@@ -798,12 +801,16 @@ def pods():
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
 
-    # Daily History Calculation
+    # Daily History Calculation - Filtered by current month
     daily_history = (
         db.session.query(
             CompletedPods.date,
             func.count(CompletedPods.id).label('count'),
             func.group_concat(CompletedPods.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(
+            extract('year', CompletedPods.date) == today.year,
+            extract('month', CompletedPods.date) == today.month
         )
         .group_by(CompletedPods.date)
         .order_by(CompletedPods.date.desc())
