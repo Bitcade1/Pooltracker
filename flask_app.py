@@ -51,11 +51,17 @@ class TopRail(db.Model):
 
 class WoodCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    section = db.Column(db.String(50), nullable=False)  # Body, Pod Sides, or Bases
+    section = db.Column(db.String(50), nullable=False)  # E.g., 'Body', 'Pod Sides', or 'Bases'
     count = db.Column(db.Integer, default=0, nullable=False)
-    date = db.Column(db.Date, default=datetime.utcnow, nullable=False)
-    time = db.Column(db.Time, default=datetime.utcnow, nullable=False)
+    date = db.Column(db.Date, default=datetime.utcnow, nullable=False)  # Tracks the day
+    time = db.Column(db.Time, default=datetime.utcnow().time, nullable=False)  # Tracks the time
 
+    def __init__(self, section, count=0, date=None, time=None):
+        self.section = section
+        self.count = count
+        self.date = date if date else datetime.utcnow().date()
+        self.time = time if time else datetime.utcnow().time()
+        
 class MDFInventory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     plain_mdf = db.Column(db.Integer, nullable=False, default=0)
@@ -381,6 +387,9 @@ def top_rails():
 from datetime import datetime, timedelta, date
 from flask import flash, redirect, render_template, request, url_for
 
+from datetime import datetime
+from flask import flash, redirect, render_template, request, url_for
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -400,7 +409,7 @@ def counting_wood():
         for i in range(12)
     ]
 
-    # Set default month to current if none selected, using POST or GET to capture month selection
+    # Set default month to current if none selected
     selected_month = request.form.get('month') or request.args.get('month', today.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
@@ -408,11 +417,13 @@ def counting_wood():
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
+        current_date = datetime.utcnow().date()
+        current_time = datetime.utcnow().time()
 
         # Retrieve or create current count entry for selected month and section
-        current_count_entry = WoodCount.query.filter_by(section=section, date=month_start_date).first()
+        current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
         if not current_count_entry:
-            current_count_entry = WoodCount(section=section, count=0, date=month_start_date)
+            current_count_entry = WoodCount(section=section, count=0, date=current_date, time=current_time)
             db.session.add(current_count_entry)
 
         # Adjust the count based on action
@@ -430,21 +441,9 @@ def counting_wood():
 
         # Adjust MDF inventory based on section
         if section == 'Body':
-            if action in ['increment', 'bulk_increment'] and inventory.black_mdf >= (bulk_amount if action == 'bulk_increment' else 1):
-                inventory.black_mdf -= bulk_amount if action == 'bulk_increment' else 1
-            elif action == 'decrement':
-                inventory.black_mdf += 1
-            else:
-                flash("Not enough Black MDF for this operation.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
+            inventory.black_mdf = max(0, inventory.black_mdf - (bulk_amount if action == 'bulk_increment' else 1))
         elif section in ['Pod Sides', 'Bases']:
-            if action in ['increment', 'bulk_increment'] and inventory.plain_mdf >= (bulk_amount if action == 'bulk_increment' else 1):
-                inventory.plain_mdf -= bulk_amount if action == 'bulk_increment' else 1
-            elif action == 'decrement':
-                inventory.plain_mdf += 1
-            else:
-                flash(f"Not enough Plain MDF for {section.lower()} operation.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
+            inventory.plain_mdf = max(0, inventory.plain_mdf - (bulk_amount if action == 'bulk_increment' else 1))
 
         # Commit changes
         db.session.commit()
@@ -463,7 +462,7 @@ def counting_wood():
         inventory=inventory,
         available_months=available_months,
         selected_month=selected_month,
-        counts=counts  # Pass all counts for sections
+        counts=counts
     )
 
 
