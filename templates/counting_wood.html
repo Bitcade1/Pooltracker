@@ -70,6 +70,7 @@
         <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
             <p class="count">Current Count for {{ selected_month }}: {{ count }}</p>
             
+            <!-- Increment Form -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="increment">
@@ -77,6 +78,7 @@
                 <button type="submit" class="up-arrow">▲</button>
             </form>
             
+            <!-- Decrement Form -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="decrement">
@@ -84,6 +86,7 @@
                 <button type="submit" class="down-arrow">▼</button>
             </form>
             
+            <!-- Bulk Increment Form -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="bulk_increment">
@@ -95,6 +98,7 @@
         </div>
         {% endfor %}
 
+        <!-- Wood Inventory Display -->
         <h2>Wood Remaining</h2>
         <div class="inventory">
             <p>Plain MDF: {{ inventory.plain_mdf }}</p>
