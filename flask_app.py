@@ -88,6 +88,8 @@ def home():
 
 from datetime import datetime, date
 
+from sqlalchemy import extract
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -133,8 +135,8 @@ def bodies():
         # Create a new entry for the completed body
         new_table = CompletedTable(
             worker=worker,
-            start_time=start_time,  # Now a string
-            finish_time=finish_time,  # Now a string
+            start_time=start_time,
+            finish_time=finish_time,
             serial_number=serial_number,
             issue=issue,
             lunch=lunch,
@@ -160,7 +162,32 @@ def bodies():
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    return render_template('bodies.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_tables)
+    # Calculate monthly totals for completed bodies
+    monthly_totals = (
+        db.session.query(
+            extract('year', CompletedTable.date).label('year'),
+            extract('month', CompletedTable.date).label('month'),
+            db.func.count(CompletedTable.id).label('total')
+        )
+        .group_by('year', 'month')
+        .order_by('year', 'month')
+        .all()
+    )
+
+    # Format data for display
+    monthly_totals_formatted = [
+        {"month": date(year=int(row.year), month=int(row.month), day=1), "count": row.total}
+        for row in monthly_totals
+    ]
+
+    return render_template(
+        'bodies.html',
+        workers=workers,
+        issues=issues,
+        current_time=current_time,
+        completed_tables=completed_tables,
+        monthly_totals=monthly_totals_formatted
+    )
 
 # Admin Area Route
 @app.route('/admin', methods=['GET', 'POST'])
