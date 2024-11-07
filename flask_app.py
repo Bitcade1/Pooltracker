@@ -81,7 +81,7 @@ class CompletedPods(db.Model):
     lunch = db.Column(db.String(3), default='No')
 
 
-# Home and Bodies Routes
+# Home
 @app.route('/')
 def home():
     return render_template('home.html')
@@ -91,142 +91,6 @@ from calendar import monthrange
 from sqlalchemy import func, extract
 from flask import flash, redirect, render_template, request, url_for
 from sqlalchemy.exc import IntegrityError
-
-@app.route('/bodies', methods=['GET', 'POST'])
-def bodies():
-    # Fetch workers and issues from the database
-    workers = [worker.name for worker in Worker.query.all()]
-    issues = [issue.description for issue in Issue.query.all()]
-
-    if request.method == 'POST':
-        worker = request.form['worker']
-        start_time = request.form['start_time']
-        finish_time = request.form['finish_time']
-        serial_number = request.form['serial_number']
-        issue = request.form['issue']
-        lunch = request.form['lunch']
-
-        # Deduct inventory for each part needed to complete the body
-        parts_to_deduct = {
-            "Large Ramp": 1,
-            "Paddle": 1,
-            "Laminate": 4,
-            "Spring Mount": 1,
-            "Spring Holder": 1,
-            "Small Ramp": 1,
-            "Cue Ball Separator": 1,
-            "Bushing": 2
-        }
-
-        for part_name, quantity_needed in parts_to_deduct.items():
-            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-            if part_entry and part_entry.count >= quantity_needed:
-                part_entry.count -= quantity_needed
-            else:
-                flash(f"Not enough inventory for {part_name} to complete the body!", "error")
-                return redirect(url_for('bodies'))
-
-        db.session.commit()
-
-        # Create a new entry for CompletedTable
-        new_table = CompletedTable(
-            worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
-            serial_number=serial_number,
-            issue=issue,
-            lunch=lunch,
-            date=date.today()
-        )
-
-        try:
-            db.session.add(new_table)
-            db.session.commit()
-            flash("Body entry added successfully and inventory updated!", "success")
-        except IntegrityError:
-            db.session.rollback()
-            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('bodies'))
-
-        return redirect(url_for('bodies'))
-
-    today = date.today()
-    completed_tables = CompletedTable.query.filter_by(date=today).all()
-    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
-    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
-
-    # Daily History Calculation
-    daily_history = (
-        db.session.query(
-            CompletedTable.date,
-            func.count(CompletedTable.id).label('count'),
-            func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
-        )
-        .group_by(CompletedTable.date)
-        .order_by(CompletedTable.date.desc())
-        .all()
-    )
-
-    daily_history_formatted = [
-        {
-            "date": row.date.strftime("%A %d/%m/%y"),
-            "count": row.count,
-            "serial_numbers": row.serial_numbers
-        }
-        for row in daily_history
-    ]
-
-    # Monthly Totals Calculation
-    monthly_totals = (
-        db.session.query(
-            extract('year', CompletedTable.date).label('year'),
-            extract('month', CompletedTable.date).label('month'),
-            func.count(CompletedTable.id).label('total')
-        )
-        .group_by('year', 'month')
-        .order_by('year', 'month')
-        .all()
-    )
-
-    monthly_totals_formatted = []
-    for row in monthly_totals:
-        year = int(row.year)
-        month = int(row.month)
-        total_bodies = row.total
-
-        # Calculate workdays up to today in the current month
-        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
-
-        # Calculate cumulative working hours and average hours per table
-        cumulative_working_hours = work_days * 7.5
-        avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
-
-        # Convert decimal hours to HH:MM:SS format
-        if avg_hours_per_table is not None:
-            hours = int(avg_hours_per_table)
-            minutes = int((avg_hours_per_table - hours) * 60)
-            seconds = int((((avg_hours_per_table - hours) * 60) - minutes) * 60)
-            avg_hours_per_table_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
-        else:
-            avg_hours_per_table_formatted = "N/A"
-
-        monthly_totals_formatted.append({
-            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
-            "count": total_bodies,
-            "average_hours_per_table": avg_hours_per_table_formatted
-        })
-
-    return render_template(
-        'bodies.html',
-        workers=workers,
-        issues=issues,
-        current_time=current_time,
-        completed_tables=completed_tables,
-        daily_history=daily_history_formatted,
-        monthly_totals=monthly_totals_formatted
-    )
-
 
 # Admin Area Route
 @app.route('/admin', methods=['GET', 'POST'])
@@ -336,126 +200,7 @@ def admin():
         bodies=bodies
     )
 
-@app.route('/top_rails', methods=['GET', 'POST'])
-def top_rails():
-    # Fetch workers and issues from the database
-    workers = [worker.name for worker in Worker.query.all()]
-    issues = [issue.description for issue in Issue.query.all()]
 
-    if request.method == 'POST':
-        worker = request.form['worker']
-        start_time = request.form['start_time']
-        finish_time = request.form['finish_time']
-        serial_number = request.form['serial_number']
-        issue = request.form['issue']
-        lunch = request.form['lunch']
-
-        new_top_rail = TopRail(
-            worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
-            serial_number=serial_number,
-            lunch=lunch,
-            issue=issue,
-            date=date.today()
-        )
-
-        try:
-            db.session.add(new_top_rail)
-            db.session.commit()
-            flash("Top rail entry added successfully!", "success")
-        except IntegrityError:
-            db.session.rollback()
-            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('top_rails'))
-
-        return redirect(url_for('top_rails'))
-
-    # Fetch only today's completed top rails
-    today = date.today()
-    completed_top_rails = TopRail.query.filter_by(date=today).all()
-
-    # Set current_time based on last entry's finish time or default to current time
-    last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
-    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
-
-    # Daily History Calculation
-    daily_history = (
-        db.session.query(
-            TopRail.date,
-            func.count(TopRail.id).label('count'),
-            func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
-        )
-        .group_by(TopRail.date)
-        .order_by(TopRail.date.desc())
-        .all()
-    )
-
-    daily_history_formatted = [
-        {
-            "date": row.date.strftime("%A %d/%m/%y"),
-            "count": row.count,
-            "serial_numbers": row.serial_numbers
-        }
-        for row in daily_history
-    ]
-
-    # Monthly Totals Calculation
-    monthly_totals = (
-        db.session.query(
-            extract('year', TopRail.date).label('year'),
-            extract('month', TopRail.date).label('month'),
-            func.count(TopRail.id).label('total')
-        )
-        .group_by('year', 'month')
-        .order_by('year', 'month')
-        .all()
-    )
-
-    monthly_totals_formatted = []
-    for row in monthly_totals:
-        year = int(row.year)
-        month = int(row.month)
-        total_top_rails = row.total
-
-        # Calculate workdays up to today in the current month
-        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
-
-        # Calculate cumulative working hours and average hours per top rail
-        cumulative_working_hours = work_days * 7.5
-        avg_hours_per_top_rail = cumulative_working_hours / total_top_rails if total_top_rails > 0 else None
-
-        # Convert decimal hours to HH:MM:SS format
-        if avg_hours_per_top_rail is not None:
-            hours = int(avg_hours_per_top_rail)
-            minutes = int((avg_hours_per_top_rail - hours) * 60)
-            seconds = int((((avg_hours_per_top_rail - hours) * 60) - minutes) * 60)
-            avg_hours_per_top_rail_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
-        else:
-            avg_hours_per_top_rail_formatted = "N/A"
-
-        monthly_totals_formatted.append({
-            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
-            "count": total_top_rails,
-            "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
-        })
-
-    return render_template(
-        'top_rails.html',
-        workers=workers,
-        issues=issues,
-        current_time=current_time,
-        completed_tables=completed_top_rails,
-        daily_history=daily_history_formatted,
-        monthly_totals=monthly_totals_formatted
-    )
-
-
-from datetime import datetime, timedelta, date
-from flask import flash, redirect, render_template, request, url_for
-
-from datetime import datetime, timedelta, date
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
@@ -739,138 +484,6 @@ def inventory():
 
     return render_template('inventory.html', inventory_counts=inventory_counts, wooden_counts=wooden_counts)
 
-from datetime import datetime, date
-from calendar import monthrange
-from sqlalchemy import func, extract
-from flask import flash, redirect, render_template, request, url_for
-from sqlalchemy.exc import IntegrityError
-
-@app.route('/pods', methods=['GET', 'POST'])
-def pods():
-    # Fetch workers and issues from the database
-    workers = [worker.name for worker in Worker.query.all()]
-    issues = [issue.description for issue in Issue.query.all()]
-
-    if request.method == 'POST':
-        worker = request.form['worker']
-        serial_number = request.form['serial_number']
-        issue = request.form['issue']
-        lunch = request.form['lunch']
-
-        # Handle start_time and finish_time parsing
-        try:
-            start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
-        except ValueError:
-            start_time = datetime.strptime(request.form['start_time'], "%H:%M:%S").time()
-
-        try:
-            finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").time()
-        except ValueError:
-            finish_time = datetime.strptime(request.form['finish_time'], "%H:%M:%S").time()
-
-        # Create a new entry for CompletedPods
-        new_pod = CompletedPods(
-            worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
-            serial_number=serial_number,
-            lunch=lunch,
-            issue=issue,
-            date=date.today()
-        )
-
-        try:
-            db.session.add(new_pod)
-            db.session.commit()
-            flash("Pods entry added successfully!", "success")
-        except IntegrityError:
-            db.session.rollback()
-            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('pods'))
-
-        return redirect(url_for('pods'))
-
-    # Fetch only today's CompletedPods entries
-    today = date.today()
-    completed_pods = CompletedPods.query.filter_by(date=today).all()
-
-    # Set current_time based on last entry's finish time or default to current time
-    last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
-    current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
-
-    # Daily History Calculation
-    daily_history = (
-        db.session.query(
-            CompletedPods.date,
-            func.count(CompletedPods.id).label('count'),
-            func.group_concat(CompletedPods.serial_number, ', ').label('serial_numbers')
-        )
-        .group_by(CompletedPods.date)
-        .order_by(CompletedPods.date.desc())
-        .all()
-    )
-
-    daily_history_formatted = [
-        {
-            "date": row.date.strftime("%A %d/%m/%y"),
-            "count": row.count,
-            "serial_numbers": row.serial_numbers
-        }
-        for row in daily_history
-    ]
-
-    # Monthly Totals Calculation
-    monthly_totals = (
-        db.session.query(
-            extract('year', CompletedPods.date).label('year'),
-            extract('month', CompletedPods.date).label('month'),
-            func.count(CompletedPods.id).label('total')
-        )
-        .group_by('year', 'month')
-        .order_by('year', 'month')
-        .all()
-    )
-
-    monthly_totals_formatted = []
-    for row in monthly_totals:
-        year = int(row.year)
-        month = int(row.month)
-        total_pods = row.total
-
-        # Calculate workdays up to today in the current month
-        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
-
-        # Calculate cumulative working hours and average hours per pod
-        cumulative_working_hours = work_days * 7.5
-        avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
-
-        # Convert decimal hours to HH:MM:SS format
-        if avg_hours_per_pod is not None:
-            hours = int(avg_hours_per_pod)
-            minutes = int((avg_hours_per_pod - hours) * 60)
-            seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
-            avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
-        else:
-            avg_hours_per_pod_formatted = "N/A"
-
-        monthly_totals_formatted.append({
-            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
-            "count": total_pods,
-            "average_hours_per_pod": avg_hours_per_pod_formatted
-        })
-
-    return render_template(
-        'pods.html',
-        workers=workers,
-        issues=issues,
-        current_time=current_time,
-        completed_tables=completed_pods,
-        daily_history=daily_history_formatted,
-        monthly_totals=monthly_totals_formatted
-    )
-
-
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
 def manage_raw_data():
     serial_number_query = request.args.get('serial_number')
@@ -936,11 +549,237 @@ def manage_raw_data():
 
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
 
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, extract
+from datetime import datetime, timedelta, date
+from calendar import monthrange
+import os
 
+app = Flask(__name__)
+app.secret_key = 'your_secret_key'
 
+basedir = os.path.abspath(os.path.dirname(__file__))
 
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'pool_table_tracker.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
+# Models
+class CompletedTable(db.Model):
+    __tablename__ = 'completed_table'
+    id = db.Column(db.Integer, primary_key=True)
+    worker = db.Column(db.String(50), nullable=False)
+    start_time = db.Column(db.String(5), nullable=False)  
+    finish_time = db.Column(db.String(5), nullable=False)
+    serial_number = db.Column(db.String(20), unique=True, nullable=False)
+    issue = db.Column(db.String(100))
+    lunch = db.Column(db.String(3), default='No')
+    date = db.Column(db.Date, default=date.today, nullable=False)
 
+class CompletedPods(db.Model):
+    __tablename__ = 'completed_pods'
+    id = db.Column(db.Integer, primary_key=True)
+    worker = db.Column(db.String(50), nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    finish_time = db.Column(db.Time, nullable=False)
+    date = db.Column(db.Date, default=datetime.utcnow().date(), nullable=False)
+    serial_number = db.Column(db.String(20), unique=True, nullable=False)
+    issue = db.Column(db.String(100))
+    lunch = db.Column(db.String(3), default='No')
+
+class TopRail(db.Model):
+    __tablename__ = 'top_rail'
+    id = db.Column(db.Integer, primary_key=True)
+    worker = db.Column(db.String(50), nullable=False)
+    start_time = db.Column(db.String(10), nullable=False)
+    finish_time = db.Column(db.String(10), nullable=False)
+    date = db.Column(db.Date, default=datetime.utcnow, nullable=False)
+    serial_number = db.Column(db.String(20), unique=True, nullable=False)
+    issue = db.Column(db.String(50), nullable=False)
+    lunch = db.Column(db.String(3), default='No')
+
+class Worker(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+class Issue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(100), unique=True, nullable=False)
+
+# Home Route
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+# Bodies Route
+@app.route('/bodies', methods=['GET', 'POST'])
+def bodies():
+    workers = [worker.name for worker in Worker.query.all()]
+    issues = [issue.description for issue in Issue.query.all()]
+
+    if request.method == 'POST':
+        worker = request.form['worker']
+        start_time = request.form['start_time']
+        finish_time = request.form['finish_time']
+        serial_number = request.form['serial_number']
+        issue = request.form['issue']
+        lunch = request.form['lunch']
+
+        new_table = CompletedTable(
+            worker=worker,
+            start_time=start_time,
+            finish_time=finish_time,
+            serial_number=serial_number,
+            issue=issue,
+            lunch=lunch,
+            date=date.today()
+        )
+
+        try:
+            db.session.add(new_table)
+            db.session.commit()
+            flash("Body entry added successfully!", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Error: Serial number already exists.", "error")
+            return redirect(url_for('bodies'))
+
+        return redirect(url_for('bodies'))
+
+    today = date.today()
+    completed_tables = CompletedTable.query.filter_by(date=today).all()
+    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
+    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+
+    daily_history = (
+        db.session.query(
+            CompletedTable.date,
+            func.count(CompletedTable.id).label('count'),
+            func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(extract('year', CompletedTable.date) == today.year, extract('month', CompletedTable.date) == today.month)
+        .group_by(CompletedTable.date)
+        .order_by(CompletedTable.date.desc())
+        .all()
+    )
+
+    daily_history_formatted = [{"date": row.date, "count": row.count, "serial_numbers": row.serial_numbers} for row in daily_history]
+
+    return render_template('bodies.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_tables, daily_history=daily_history_formatted)
+
+# Pods Route
+@app.route('/pods', methods=['GET', 'POST'])
+def pods():
+    workers = [worker.name for worker in Worker.query.all()]
+    issues = [issue.description for issue in Issue.query.all()]
+
+    if request.method == 'POST':
+        worker = request.form['worker']
+        start_time = request.form['start_time']
+        finish_time = request.form['finish_time']
+        serial_number = request.form['serial_number']
+        issue = request.form['issue']
+        lunch = request.form['lunch']
+
+        new_pod = CompletedPods(
+            worker=worker,
+            start_time=start_time,
+            finish_time=finish_time,
+            serial_number=serial_number,
+            issue=issue,
+            lunch=lunch,
+            date=date.today()
+        )
+
+        try:
+            db.session.add(new_pod)
+            db.session.commit()
+            flash("Pod entry added successfully!", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Error: Serial number already exists.", "error")
+            return redirect(url_for('pods'))
+
+        return redirect(url_for('pods'))
+
+    today = date.today()
+    completed_pods = CompletedPods.query.filter_by(date=today).all()
+    last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
+    current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
+
+    daily_history = (
+        db.session.query(
+            CompletedPods.date,
+            func.count(CompletedPods.id).label('count'),
+            func.group_concat(CompletedPods.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(extract('year', CompletedPods.date) == today.year, extract('month', CompletedPods.date) == today.month)
+        .group_by(CompletedPods.date)
+        .order_by(CompletedPods.date.desc())
+        .all()
+    )
+
+    daily_history_formatted = [{"date": row.date, "count": row.count, "serial_numbers": row.serial_numbers} for row in daily_history]
+
+    return render_template('pods.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_pods, daily_history=daily_history_formatted)
+
+# Top Rails Route
+@app.route('/top_rails', methods=['GET', 'POST'])
+def top_rails():
+    workers = [worker.name for worker in Worker.query.all()]
+    issues = [issue.description for issue in Issue.query.all()]
+
+    if request.method == 'POST':
+        worker = request.form['worker']
+        start_time = request.form['start_time']
+        finish_time = request.form['finish_time']
+        serial_number = request.form['serial_number']
+        issue = request.form['issue']
+        lunch = request.form['lunch']
+
+        new_top_rail = TopRail(
+            worker=worker,
+            start_time=start_time,
+            finish_time=finish_time,
+            serial_number=serial_number,
+            issue=issue,
+            lunch=lunch,
+            date=date.today()
+        )
+
+        try:
+            db.session.add(new_top_rail)
+            db.session.commit()
+            flash("Top rail entry added successfully!", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Error: Serial number already exists.", "error")
+            return redirect(url_for('top_rails'))
+
+        return redirect(url_for('top_rails'))
+
+    today = date.today()
+    completed_top_rails = TopRail.query.filter_by(date=today).all()
+    last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
+    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+
+    daily_history = (
+        db.session.query(
+            TopRail.date,
+            func.count(TopRail.id).label('count'),
+            func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(extract('year', TopRail.date) == today.year, extract('month', TopRail.date) == today.month)
+        .group_by(TopRail.date)
+        .order_by(TopRail.date.desc())
+        .all()
+    )
+
+    daily_history_formatted = [{"date": row.date, "count": row.count, "serial_numbers": row.serial_numbers} for row in daily_history]
+
+    return render_template('top_rails.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_top_rails, daily_history=daily_history_formatted)
 
 
 if __name__ == '__main__':
