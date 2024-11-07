@@ -103,12 +103,16 @@ def bodies():
 
     if request.method == 'POST':
         worker = request.form['worker']
-        start_time = datetime.strptime(request.form['start_time'], "%H:%M").strftime("%H:%M")
-        finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").strftime("%H:%M")
+        
+        # Convert start_time and finish_time to time objects
+        start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
+        finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").time()
+        
         serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
 
+        # Define parts to deduct for a completed body
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
@@ -120,6 +124,7 @@ def bodies():
             "Bushing": 2
         }
 
+        # Check inventory for each part
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -130,6 +135,7 @@ def bodies():
 
         db.session.commit()
 
+        # Create a new completed body entry
         new_table = CompletedTable(
             worker=worker,
             start_time=start_time,
