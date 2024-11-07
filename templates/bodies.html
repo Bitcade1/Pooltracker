@@ -108,10 +108,10 @@
             <tbody>
                 {% for table in completed_tables %}
                     <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
-                        <td>{{ table.date.strftime('%d/%m/%y') }}</td>
+                        <td>{{ table.date }}</td>
                         <td>{{ table.worker }}</td>
-                        <td>{{ table.start_time.strftime('%H:%M') }}</td>
-                        <td>{{ table.finish_time.strftime('%H:%M') }}</td>
+                        <td>{{ table.start_time }}</td>
+                        <td>{{ table.finish_time }}</td>
                         <td>{{ table.serial_number }}</td>
                         <td>{{ table.issue }}</td>
                         <td>{{ table.lunch }}</td>
