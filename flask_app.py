@@ -400,12 +400,12 @@ def counting_wood():
         for i in range(12)
     ]
 
-    # Set default month to current if none selected
-    selected_month = request.form.get('month', today.strftime("%Y-%m"))
+    # Set default month to current if none selected, using POST or GET to capture month selection
+    selected_month = request.form.get('month') or request.args.get('month', today.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
 
-    if request.method == 'POST':
+    if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
 
@@ -426,18 +426,30 @@ def counting_wood():
                 current_count_entry.count += bulk_amount
             else:
                 flash("Please enter a valid bulk amount.", "error")
-                return redirect(url_for('counting_wood'))
+                return redirect(url_for('counting_wood', month=selected_month))
 
         # Adjust MDF inventory based on section
         if section == 'Body':
-            inventory.black_mdf = max(0, inventory.black_mdf - (bulk_amount if action == 'bulk_increment' else 1))
+            if action in ['increment', 'bulk_increment'] and inventory.black_mdf >= (bulk_amount if action == 'bulk_increment' else 1):
+                inventory.black_mdf -= bulk_amount if action == 'bulk_increment' else 1
+            elif action == 'decrement':
+                inventory.black_mdf += 1
+            else:
+                flash("Not enough Black MDF for this operation.", "error")
+                return redirect(url_for('counting_wood', month=selected_month))
         elif section in ['Pod Sides', 'Bases']:
-            inventory.plain_mdf = max(0, inventory.plain_mdf - (bulk_amount if action == 'bulk_increment' else 1))
+            if action in ['increment', 'bulk_increment'] and inventory.plain_mdf >= (bulk_amount if action == 'bulk_increment' else 1):
+                inventory.plain_mdf -= bulk_amount if action == 'bulk_increment' else 1
+            elif action == 'decrement':
+                inventory.plain_mdf += 1
+            else:
+                flash(f"Not enough Plain MDF for {section.lower()} operation.", "error")
+                return redirect(url_for('counting_wood', month=selected_month))
 
         # Commit changes
         db.session.commit()
         flash(f"{section} count updated successfully!", "success")
-        return redirect(url_for('counting_wood'))
+        return redirect(url_for('counting_wood', month=selected_month))
 
     # Fetch counts for each section based on selected month
     sections = ['Body', 'Pod Sides', 'Bases']
