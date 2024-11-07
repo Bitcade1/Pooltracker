@@ -87,11 +87,10 @@ def home():
     return render_template('home.html')
 
 from datetime import datetime, date
-from sqlalchemy import extract
-from sqlalchemy import func
-from sqlalchemy import func, extract
-from datetime import datetime, date
 from calendar import monthrange
+from sqlalchemy import func, extract
+from flask import flash, redirect, render_template, request, url_for
+from sqlalchemy.exc import IntegrityError
 
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
@@ -107,6 +106,7 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
+        # Deduct inventory for each part needed to complete the body
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
@@ -128,10 +128,11 @@ def bodies():
 
         db.session.commit()
 
+        # Create a new entry for CompletedTable
         new_table = CompletedTable(
             worker=worker,
-            start_time=start_time,  
-            finish_time=finish_time,  
+            start_time=start_time,
+            finish_time=finish_time,
             serial_number=serial_number,
             issue=issue,
             lunch=lunch,
@@ -154,6 +155,7 @@ def bodies():
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
+    # Daily History Calculation
     daily_history = (
         db.session.query(
             CompletedTable.date,
@@ -194,17 +196,25 @@ def bodies():
 
         # Calculate workdays up to today in the current month
         last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
-        work_days = sum(1 for day in range(1, last_day + 1)
-                        if date(year, month, day).weekday() < 5)
+        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
 
-        # Calculate cumulative working hours up to today and average hours per table
+        # Calculate cumulative working hours and average hours per table
         cumulative_working_hours = work_days * 7.5
-        avg_hours_per_table = round(cumulative_working_hours / total_bodies, 2) if total_bodies > 0 else None
+        avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
+
+        # Convert decimal hours to HH:MM:SS format
+        if avg_hours_per_table is not None:
+            hours = int(avg_hours_per_table)
+            minutes = int((avg_hours_per_table - hours) * 60)
+            seconds = int((((avg_hours_per_table - hours) * 60) - minutes) * 60)
+            avg_hours_per_table_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        else:
+            avg_hours_per_table_formatted = "N/A"
 
         monthly_totals_formatted.append({
             "month": date(year=year, month=month, day=1).strftime("%B %Y"),
             "count": total_bodies,
-            "average_hours_per_table": avg_hours_per_table
+            "average_hours_per_table": avg_hours_per_table_formatted
         })
 
     return render_template(
@@ -216,7 +226,6 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
-
 
 
 # Admin Area Route
