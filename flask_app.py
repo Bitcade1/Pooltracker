@@ -99,10 +99,6 @@ from sqlalchemy import func, extract
 from datetime import datetime, date
 from calendar import monthrange
 
-
-
-from calendar import monthrange
-
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -387,6 +383,8 @@ def top_rails():
 from datetime import datetime, timedelta, date
 from flask import flash, redirect, render_template, request, url_for
 
+from datetime import datetime, timedelta, date
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -396,20 +394,21 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
-    # Start from October 2024
-    start_date = date(2024, 10, 1)
+    # Start from one month before the current month
+    today = datetime.utcnow().date()
+    previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    current_month = today.replace(day=1)
+    next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
 
-    # Generate a list of months starting from October 2024 to the next 12 months
+    # Generate the available months: previous month, current month, and next month
     available_months = [
-        (
-            (start_date.replace(day=1) + timedelta(days=30 * i)).strftime("%Y-%m"),
-            (start_date.replace(day=1) + timedelta(days=30 * i)).strftime("%B %Y")
-        )
-        for i in range(13)  # Includes October 2024 and the next 12 months, totaling 13 months
+        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
+        (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
+        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
     ]
 
-    # Set default to the next month if no month is selected
-    selected_month = request.form.get('month') or request.args.get('month', available_months[1][0])
+    # Set default to the current month if none selected
+    selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
 
