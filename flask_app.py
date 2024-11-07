@@ -97,6 +97,8 @@ from calendar import monthrange
 
 from calendar import monthrange
 
+from calendar import monthrange
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -111,7 +113,6 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct parts for inventory check
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
@@ -133,11 +134,10 @@ def bodies():
 
         db.session.commit()
 
-        # Create a new entry for the completed body
         new_table = CompletedTable(
             worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
+            start_time=start_time,  
+            finish_time=finish_time,  
             serial_number=serial_number,
             issue=issue,
             lunch=lunch,
@@ -180,6 +180,7 @@ def bodies():
         for row in daily_history
     ]
 
+    # Monthly Totals Calculation
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -197,17 +198,18 @@ def bodies():
         month = int(row.month)
         total_bodies = row.total
 
+        # Calculate total workdays in the month
         _, last_day = monthrange(year, month)
-        work_days = sum(1 for day in range(1, last_day + 1)
-                        if date(year, month, day).weekday() < 5)
+        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
 
+        # Calculate total working hours and average hours per table
         total_working_hours = work_days * 7.5
-        avg_build_time = round(total_working_hours / total_bodies, 2) if total_bodies else None
+        avg_hours_per_table = round(total_working_hours / total_bodies, 2) if total_bodies > 0 else None
 
         monthly_totals_formatted.append({
             "month": date(year=year, month=month, day=1).strftime("%B %Y"),
             "count": total_bodies,
-            "average_hours_per_table": avg_build_time
+            "average_hours_per_table": avg_hours_per_table
         })
 
     return render_template(
