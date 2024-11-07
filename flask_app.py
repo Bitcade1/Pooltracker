@@ -378,6 +378,9 @@ def top_rails():
 
     return render_template('top_rails.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_top_rails)
 
+from calendar import monthrange
+from datetime import datetime, date
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -387,22 +390,32 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
+    # Generate a list of available months for selection (e.g., past 12 months)
+    available_months = [
+        (datetime.utcnow().replace(month=i).strftime("%Y-%m"), datetime.utcnow().replace(month=i).strftime("%B %Y"))
+        for i in range(1, 13)
+    ]
+
     if request.method == 'POST':
         section = request.form['section']
         action = request.form.get('action', 'increment')  # Default to increment if action is not provided
+        selected_month = request.form.get('month')  # Get the selected month in "YYYY-MM" format
 
-        # Get the latest entry for the section, regardless of the date
-        current_count_entry = WoodCount.query.filter_by(section=section).order_by(WoodCount.id.desc()).first()
+        # Parse the selected month and set to the first day of the month
+        selected_year, selected_month = map(int, selected_month.split('-'))
+        month_start_date = date(selected_year, selected_month, 1)
+
+        # Get or create the latest entry for the section and selected month
+        current_count_entry = WoodCount.query.filter_by(section=section, date=month_start_date).first()
         current_count_value = current_count_entry.count if current_count_entry else 0
 
         if action == 'increment':
             # Single increment action
-            new_count = WoodCount(
-                section=section,
-                count=current_count_value + 1,
-                date=datetime.utcnow().date(),
-                time=datetime.utcnow().time()
-            )
+            if current_count_entry:
+                current_count_entry.count += 1
+            else:
+                current_count_entry = WoodCount(section=section, count=1, date=month_start_date)
+
             # Adjust MDF inventory based on the section
             if section == 'Body':
                 if inventory.black_mdf > 0:
@@ -419,12 +432,7 @@ def counting_wood():
 
         elif action == 'decrement' and current_count_value > 0:
             # Single decrement action, ensuring it doesn't go below zero
-            new_count = WoodCount(
-                section=section,
-                count=current_count_value - 1,
-                date=datetime.utcnow().date(),
-                time=datetime.utcnow().time()
-            )
+            current_count_entry.count -= 1
             # Add back to MDF inventory based on the section
             if section == 'Body':
                 inventory.black_mdf += 1
@@ -435,12 +443,11 @@ def counting_wood():
             # Handle bulk addition
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
-                new_count = WoodCount(
-                    section=section,
-                    count=current_count_value + bulk_amount,
-                    date=datetime.utcnow().date(),
-                    time=datetime.utcnow().time()
-                )
+                if current_count_entry:
+                    current_count_entry.count += bulk_amount
+                else:
+                    current_count_entry = WoodCount(section=section, count=bulk_amount, date=month_start_date)
+
                 # Adjust MDF inventory based on the section and bulk amount
                 if section == 'Body':
                     if inventory.black_mdf >= bulk_amount:
@@ -462,13 +469,13 @@ def counting_wood():
             flash(f"No {section} cuts to decrement.", "error")
             return redirect(url_for('counting_wood'))
 
-        # Save the new count and updated inventory to the database
-        db.session.add(new_count)
+        # Save the updated count and inventory to the database
+        db.session.add(current_count_entry)
         db.session.commit()
         flash(f"{section} count {'incremented' if action == 'increment' else 'bulk incremented' if action == 'bulk_increment' else 'decremented'} successfully!", "success")
         return redirect(url_for('counting_wood'))
 
-    # Fetch the latest counts for each section without resetting daily
+    # Fetch the latest counts for each section for display purposes
     body_count = WoodCount.query.filter_by(section='Body').order_by(WoodCount.id.desc()).first()
     pod_sides_count = WoodCount.query.filter_by(section='Pod Sides').order_by(WoodCount.id.desc()).first()
     bases_count = WoodCount.query.filter_by(section='Bases').order_by(WoodCount.id.desc()).first()
@@ -479,8 +486,10 @@ def counting_wood():
         inventory=inventory,
         body_count=body_count.count if body_count else 0,
         pod_sides_count=pod_sides_count.count if pod_sides_count else 0,
-        bases_count=bases_count.count if bases_count else 0
+        bases_count=bases_count.count if bases_count else 0,
+        available_months=available_months
     )
+
 
 
 @app.route('/dashboard')
