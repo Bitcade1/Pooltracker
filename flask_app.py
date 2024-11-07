@@ -389,22 +389,27 @@ from flask import flash, redirect, render_template, request, url_for
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
-    # ... other code ...
+    # Retrieve MDF inventory data
+    inventory = MDFInventory.query.first()
+    if not inventory:
+        inventory = MDFInventory(plain_mdf=0, black_mdf=0)
+        db.session.add(inventory)
+        db.session.commit()
 
     # Start from October 2024
     start_date = date(2024, 10, 1)
 
-    # Generate a list of months starting from October 2024 to the next month
+    # Generate a list of months starting from October 2024 to the next 12 months
     available_months = [
         (
             (start_date.replace(day=1) + timedelta(days=30 * i)).strftime("%Y-%m"),
             (start_date.replace(day=1) + timedelta(days=30 * i)).strftime("%B %Y")
         )
-        for i in range(13)  # Includes October 2024 and 12 more months, totaling 13
+        for i in range(13)  # Includes October 2024 and the next 12 months, totaling 13 months
     ]
-    
-    # Set default month to current if none selected
-    selected_month = request.form.get('month') or request.args.get('month', today.strftime("%Y-%m"))
+
+    # Set default to the next month if no month is selected
+    selected_month = request.form.get('month') or request.args.get('month', available_months[1][0])
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
 
