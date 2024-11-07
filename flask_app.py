@@ -188,11 +188,15 @@ def bodies():
         .all()
     )
 
-    monthly_totals_formatted = []
-    for row in monthly_totals:
-        year = int(row.year)
-        month = int(row.month)
-        total_bodies = row.total
+monthly_totals_formatted = [
+    {
+        "month": date(year=int(row.year), month=int(row.month), day=1).strftime("%B %Y"),
+        "count": row.total,
+        # Calculate total working hours (work_days * 7.5 hours) and then find average hours per table
+        "average_hours_per_table": round((row.total * 7.5) / row.work_days, 2) if row.work_days > 0 else None
+    }
+    for row in monthly_totals
+]
 
         # Calculate working days in the month (excluding weekends)
         _, last_day = monthrange(year, month)
