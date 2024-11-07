@@ -652,11 +652,12 @@ def inventory():
     # List of parts to track in 3D printed inventory
     parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing"]
 
-    # Calculate the latest stock for each 3D printed part based on the most recent entry
-    inventory_counts = {
-        part: db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()[0] or 0
-        for part in parts
-    }
+    # Calculate the latest stock for each 3D printed part
+    inventory_counts = {}
+    for part in parts:
+        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        # If latest_entry is None, set count to 0, otherwise use the count from the latest entry
+        inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
     # Retrieve the current total count for each wooden part using the correct model, WoodCount
     total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
