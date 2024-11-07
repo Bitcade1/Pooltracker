@@ -95,6 +95,8 @@ from sqlalchemy import func
 from sqlalchemy import func, extract
 from datetime import datetime, date
 
+from calendar import monthrange
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -103,11 +105,8 @@ def bodies():
 
     if request.method == 'POST':
         worker = request.form['worker']
-        
-        # Convert start_time and finish_time to "HH:MM" string format
-        start_time = request.form['start_time']  # This is already in "HH:MM" format from the form
-        finish_time = request.form['finish_time']  # Also in "HH:MM" format
-        
+        start_time = request.form['start_time']
+        finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
@@ -123,7 +122,6 @@ def bodies():
             "Bushing": 2
         }
 
-        # Check inventory for required parts
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -132,18 +130,16 @@ def bodies():
                 flash(f"Not enough inventory for {part_name} to complete the body!", "error")
                 return redirect(url_for('bodies'))
 
-        # Commit inventory changes if all parts are available
         db.session.commit()
 
-        # Create a new entry for the completed body, storing times as strings
         new_table = CompletedTable(
             worker=worker,
-            start_time=start_time,  # Stored as a string in "HH:MM" format
-            finish_time=finish_time,  # Stored as a string in "HH:MM" format
+            start_time=start_time,
+            finish_time=finish_time,
             serial_number=serial_number,
             issue=issue,
             lunch=lunch,
-            date=date.today()  # This will be stored as a date
+            date=date.today()
         )
 
         try:
@@ -157,15 +153,11 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
-    # Fetch only today's completed bodies
     today = date.today()
     completed_tables = CompletedTable.query.filter_by(date=today).all()
-
-    # Get the last entry's finish_time for setting default time
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # Fetch daily history with count and serial numbers for each date
     daily_history = (
         db.session.query(
             CompletedTable.date,
@@ -177,7 +169,6 @@ def bodies():
         .all()
     )
 
-    # Format daily history data
     daily_history_formatted = [
         {
             "date": row.date.strftime("%A %d/%m/%y"),
@@ -187,7 +178,6 @@ def bodies():
         for row in daily_history
     ]
 
-    # Fetch monthly totals for completed bodies
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -199,11 +189,27 @@ def bodies():
         .all()
     )
 
-    # Format monthly totals for display
-    monthly_totals_formatted = [
-        {"month": date(year=int(row.year), month=int(row.month), day=1).strftime("%B %Y"), "count": row.total}
-        for row in monthly_totals
-    ]
+    monthly_totals_formatted = []
+    for row in monthly_totals:
+        year = int(row.year)
+        month = int(row.month)
+        total_bodies = row.total
+
+        # Calculate working days in the month (excluding weekends)
+        _, last_day = monthrange(year, month)
+        work_days = sum(1 for day in range(1, last_day + 1)
+                        if date(year, month, day).weekday() < 5)
+
+        # Calculate the average bodies built per workday over 7.5 hours
+        avg_builds_per_day = total_bodies / work_days if work_days else 0
+        avg_build_time = avg_builds_per_day / 7.5
+
+        # Format for display
+        monthly_totals_formatted.append({
+            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "count": total_bodies,
+            "avg_build_time": round(avg_build_time, 2)
+        })
 
     return render_template(
         'bodies.html',
@@ -214,8 +220,6 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
-
-
 
 # Admin Area Route
 @app.route('/admin', methods=['GET', 'POST'])
