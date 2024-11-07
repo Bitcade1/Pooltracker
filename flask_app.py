@@ -767,12 +767,12 @@ def pods():
         cumulative_working_hours = work_days * 7.5
         avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
 
-        # Convert decimal hours to hours, minutes, and seconds
+        # Convert decimal hours to HH:MM:SS format
         if avg_hours_per_pod is not None:
             hours = int(avg_hours_per_pod)
             minutes = int((avg_hours_per_pod - hours) * 60)
             seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
-            avg_hours_per_pod_formatted = f"{hours} hours, {minutes} minutes, {seconds} seconds"
+            avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
             avg_hours_per_pod_formatted = "N/A"
 
