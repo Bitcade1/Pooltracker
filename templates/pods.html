@@ -5,6 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pods - Pool Table Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -23,7 +56,6 @@
 
         <!-- Form to Add a New Completed Pod -->
         <form method="POST" action="{{ url_for('pods') }}">
-            <!-- Worker Dropdown -->
             <label for="worker">Builder:</label>
             <select name="worker" id="worker" required>
                 {% for worker in workers %}
@@ -31,19 +63,15 @@
                 {% endfor %}
             </select>
 
-            <!-- Start Time Input -->
             <label for="start_time">Start Time:</label>
-            <input type="time" id="start_time" name="start_time" value="{{ current_time }}" class="centered-input" required>
+            <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
 
-            <!-- Finish Time Input (auto-set to current time) -->
             <label for="finish_time">Finish Time:</label>
-            <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" class="centered-input" required>
+            <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
-            <!-- Serial Number Input -->
             <label for="serial_number">Serial Number:</label>
             <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number">
 
-            <!-- Issues Dropdown -->
             <label for="issue">Any issues with the build?:</label>
             <select name="issue" id="issue" required>
                 {% for issue in issues %}
@@ -51,7 +79,6 @@
                 {% endfor %}
             </select>
 
-             <!-- Lunch Dropdown -->
             <label for="lunch">Have I had lunch during this build?</label>
             <select name="lunch" id="lunch">
                 <option value="No" selected>No</option>
@@ -72,12 +99,11 @@
                     <th>Finish Time</th>
                     <th>Serial Number</th>
                     <th>Issue</th>
-                    <th>Lunch</th> <!-- New Lunch Column -->
+                    <th>Lunch</th>
                 </tr>
             </thead>
             <tbody>
                 {% for table in completed_tables %}
-                    <!-- Only highlight if the issue is not "No Issues" -->
                     <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
                         <td>{{ table.date.strftime('%d/%m/%y') }}</td>
                         <td>{{ table.worker }}</td>
@@ -85,11 +111,68 @@
                         <td>{{ table.finish_time }}</td>
                         <td>{{ table.serial_number }}</td>
                         <td>{{ table.issue }}</td>
-                        <td>{{ table.lunch }}</td> <!-- Display Lunch Information -->
+                        <td>{{ table.lunch }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
+
+        <!-- Collapsible Section for Daily History -->
+        <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>
+        <div id="dailyHistory" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Pods Made</th>
+                        <th>Serial Numbers</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in daily_history %}
+                        <tr>
+                            <td>{{ entry.date }}</td>
+                            <td>{{ entry.count }}</td>
+                            <td>{{ entry.serial_numbers }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Collapsible Section for Monthly Totals -->
+        <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
+        <div id="monthlyTotals" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Total Pods Made</th>
+                        <th>Average Hours per Pod</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for month in monthly_totals %}
+                        <tr>
+                            <td>{{ month.month }}</td>
+                            <td>{{ month.count }}</td>
+                            <td>
+                                {% if month.average_hours_per_pod %}
+                                    {{ month.average_hours_per_pod }} hours
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
     </div>
 </body>
 </html>
