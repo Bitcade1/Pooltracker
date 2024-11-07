@@ -56,7 +56,7 @@
 
         <!-- Month Selection Form (POST method to persist selection) -->
         <form method="POST" action="{{ url_for('counting_wood') }}">
-            <label for="month">Select Month:</label>
+            <label for="month">Select Month: (This is the month you are cutting for)</label>
             <select name="month" id="month" onchange="this.form.submit()">
                 {% for value, label in available_months %}
                     <option value="{{ value }}" {% if value == selected_month %}selected{% endif %}>{{ label }}</option>
@@ -68,7 +68,7 @@
         {% for section, count in counts.items() %}
         <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">{{ section }}</button>
         <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
-            <p class="count">Current Count for {{ selected_month }}: {{ count }}</p>
+            <p class="count">Current Count: {{ count }}</p>
             
             <!-- Increment Form -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
