@@ -6,6 +6,7 @@
     <title>Bodies - Pool Table Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
+        /* Collapsible styles */
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -19,9 +20,11 @@
             margin-top: 20px;
             border-radius: 5px;
         }
+
         .collapsible:hover {
             background-color: #0056b3;
         }
+
         .collapsible-content {
             padding: 15px;
             display: none;
@@ -123,27 +126,54 @@
             </tbody>
         </table>
 
-<!-- Historical Data Section -->
-<button class="collapsible" onclick="toggleCollapsible('historicalData')">Historical Data</button>
-<div id="historicalData" class="collapsible-content">
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Bodies Made</th>
-                <th>Serial Numbers</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for day in daily_history %}
-                <tr>
-                    <td>{{ day.date }}</td>
-                    <td>{{ day.count }}</td>
-                    <td>{{ day.serial_numbers }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+        <!-- Collapsible Section for Daily History -->
+        <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>
+        <div id="dailyHistory" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Bodies Made</th>
+                        <th>Serial Numbers</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in daily_history %}
+                        <tr>
+                            <td>{{ entry.date }}</td>
+                            <td>{{ entry.count }}</td>
+                            <td>{{ entry.serial_numbers }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Collapsible Section for Monthly Totals -->
+        <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
+        <div id="monthlyTotals" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Total Bodies Made</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for month in monthly_totals %}
+                        <tr>
+                            <td>{{ month.month }}</td>
+                            <td>{{ month.count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
 </body>
 </html>
