@@ -66,7 +66,9 @@
 
         <!-- Counters for Each Section -->
         {% for section, count in counts.items() %}
-        <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">{{ section }}</button>
+        <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">
+            {{ section }} - Current count: {{ count }}
+        </button>
         <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
             <p class="count">Current Count: {{ count }}</p>
             
