@@ -378,8 +378,8 @@ def top_rails():
 
     return render_template('top_rails.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_top_rails)
 
-from calendar import monthrange
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta, date
+from flask import flash, redirect, render_template, request, url_for
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
@@ -400,7 +400,7 @@ def counting_wood():
         for i in range(12)
     ]
 
-    # Default to the current month if no month is selected
+    # Set default month to current if none selected
     selected_month = request.form.get('month', today.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
@@ -409,89 +409,50 @@ def counting_wood():
         section = request.form['section']
         action = request.form.get('action', 'increment')
 
-        # Get the current count for the selected month and section
+        # Retrieve or create current count entry for selected month and section
         current_count_entry = WoodCount.query.filter_by(section=section, date=month_start_date).first()
-        current_count_value = current_count_entry.count if current_count_entry else 0
+        if not current_count_entry:
+            current_count_entry = WoodCount(section=section, count=0, date=month_start_date)
+            db.session.add(current_count_entry)
 
+        # Adjust the count based on action
         if action == 'increment':
-            if current_count_entry:
-                current_count_entry.count += 1
-            else:
-                current_count_entry = WoodCount(section=section, count=1, date=month_start_date)
-
-            # Adjust MDF inventory based on the section
-            if section == 'Body':
-                if inventory.black_mdf > 0:
-                    inventory.black_mdf -= 1
-                else:
-                    flash("Not enough Black MDF available to cut a body!", "error")
-                    return redirect(url_for('counting_wood'))
-            elif section in ['Pod Sides', 'Bases']:
-                if inventory.plain_mdf > 0:
-                    inventory.plain_mdf -= 1
-                else:
-                    flash(f"Not enough Plain MDF available to cut {section.lower()}!", "error")
-                    return redirect(url_for('counting_wood'))
-
-        elif action == 'decrement' and current_count_value > 0:
+            current_count_entry.count += 1
+        elif action == 'decrement' and current_count_entry.count > 0:
             current_count_entry.count -= 1
-            # Add back to MDF inventory based on the section
-            if section == 'Body':
-                inventory.black_mdf += 1
-            elif section in ['Pod Sides', 'Bases']:
-                inventory.plain_mdf += 1
-
         elif action == 'bulk_increment':
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
-                if current_count_entry:
-                    current_count_entry.count += bulk_amount
-                else:
-                    current_count_entry = WoodCount(section=section, count=bulk_amount, date=month_start_date)
-
-                # Adjust MDF inventory based on the section and bulk amount
-                if section == 'Body':
-                    if inventory.black_mdf >= bulk_amount:
-                        inventory.black_mdf -= bulk_amount
-                    else:
-                        flash("Not enough Black MDF available for bulk addition!", "error")
-                        return redirect(url_for('counting_wood'))
-                elif section in ['Pod Sides', 'Bases']:
-                    if inventory.plain_mdf >= bulk_amount:
-                        inventory.plain_mdf -= bulk_amount
-                    else:
-                        flash(f"Not enough Plain MDF available for bulk addition to {section.lower()}!", "error")
-                        return redirect(url_for('counting_wood'))
+                current_count_entry.count += bulk_amount
             else:
                 flash("Please enter a valid bulk amount.", "error")
                 return redirect(url_for('counting_wood'))
 
-        else:
-            flash(f"No {section} cuts to decrement.", "error")
-            return redirect(url_for('counting_wood'))
+        # Adjust MDF inventory based on section
+        if section == 'Body':
+            inventory.black_mdf = max(0, inventory.black_mdf - (bulk_amount if action == 'bulk_increment' else 1))
+        elif section in ['Pod Sides', 'Bases']:
+            inventory.plain_mdf = max(0, inventory.plain_mdf - (bulk_amount if action == 'bulk_increment' else 1))
 
-        # Save the updated count and inventory to the database
-        db.session.add(current_count_entry)
+        # Commit changes
         db.session.commit()
-        flash(f"{section} count {'incremented' if action == 'increment' else 'bulk incremented' if action == 'bulk_increment' else 'decremented'} successfully!", "success")
+        flash(f"{section} count updated successfully!", "success")
         return redirect(url_for('counting_wood'))
 
-    # Fetch the count for each section based on the selected month
-    body_count = WoodCount.query.filter_by(section='Body', date=month_start_date).first()
-    pod_sides_count = WoodCount.query.filter_by(section='Pod Sides', date=month_start_date).first()
-    bases_count = WoodCount.query.filter_by(section='Bases', date=month_start_date).first()
+    # Fetch counts for each section based on selected month
+    sections = ['Body', 'Pod Sides', 'Bases']
+    counts = {
+        section: WoodCount.query.filter_by(section=section, date=month_start_date).first().count if WoodCount.query.filter_by(section=section, date=month_start_date).first() else 0
+        for section in sections
+    }
 
     return render_template(
         'counting_wood.html',
         inventory=inventory,
         available_months=available_months,
         selected_month=selected_month,
-        body_count=body_count.count if body_count else 0,
-        pod_sides_count=pod_sides_count.count if pod_sides_count else 0,
-        bases_count=bases_count.count if bases_count else 0
+        counts=counts  # Pass all counts for sections
     )
-
-
 
 
 @app.route('/dashboard')
