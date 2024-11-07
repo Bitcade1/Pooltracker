@@ -27,10 +27,6 @@ class CompletedTable(db.Model):
     lunch = db.Column(db.String(3), default='No')
     date = db.Column(db.Date, default=date.today, nullable=False)
 
-
-
-
-
 class Worker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -83,8 +79,6 @@ class CompletedPods(db.Model):
     serial_number = db.Column(db.String(20), unique=True, nullable=False)
     issue = db.Column(db.String(100))  # Add this line to include the 'issue' field
     lunch = db.Column(db.String(3), default='No')
-
-
 
 
 # Home and Bodies Routes
@@ -667,6 +661,12 @@ def inventory():
 
     return render_template('inventory.html', inventory_counts=inventory_counts, wooden_counts=wooden_counts)
 
+from datetime import datetime, date
+from calendar import monthrange
+from sqlalchemy import func, extract
+from flask import flash, redirect, render_template, request, url_for
+from sqlalchemy.exc import IntegrityError
+
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
     # Fetch workers and issues from the database
@@ -763,25 +763,24 @@ def pods():
         last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
 
-# Calculate cumulative working hours up to today and average hours per pod
-cumulative_working_hours = work_days * 7.5
-avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
+        # Calculate cumulative working hours and average hours per pod
+        cumulative_working_hours = work_days * 7.5
+        avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
 
-# Convert decimal hours to hours, minutes, and seconds
-if avg_hours_per_pod is not None:
-    hours = int(avg_hours_per_pod)
-    minutes = int((avg_hours_per_pod - hours) * 60)
-    seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
-    avg_hours_per_pod_formatted = f"{hours} hours, {minutes} minutes, {seconds} seconds"
-else:
-    avg_hours_per_pod_formatted = "N/A"
+        # Convert decimal hours to hours, minutes, and seconds
+        if avg_hours_per_pod is not None:
+            hours = int(avg_hours_per_pod)
+            minutes = int((avg_hours_per_pod - hours) * 60)
+            seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
+            avg_hours_per_pod_formatted = f"{hours} hours, {minutes} minutes, {seconds} seconds"
+        else:
+            avg_hours_per_pod_formatted = "N/A"
 
-monthly_totals_formatted.append({
-    "month": date(year=year, month=month, day=1).strftime("%B %Y"),
-    "count": total_pods,
-    "average_hours_per_pod": avg_hours_per_pod_formatted
-})
-
+        monthly_totals_formatted.append({
+            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "count": total_pods,
+            "average_hours_per_pod": avg_hours_per_pod_formatted
+        })
 
     return render_template(
         'pods.html',
@@ -792,7 +791,6 @@ monthly_totals_formatted.append({
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
-
 
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
