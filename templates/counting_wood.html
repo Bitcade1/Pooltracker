@@ -31,17 +31,6 @@
             border-radius: 5px;
             margin-top: 10px;
         }
-        .up-arrow, .down-arrow {
-            font-size: 1.5em;
-            cursor: pointer;
-            background: none;
-            border: none;
-            color: #007bff;
-            transition: color 0.3s ease;
-        }
-        .up-arrow:hover, .down-arrow:hover {
-            color: #0056b3;
-        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -65,8 +54,8 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Month Selection Dropdown -->
-        <form method="POST" action="{{ url_for('counting_wood') }}">
+        <!-- Month Selection Form -->
+        <form method="GET" action="{{ url_for('counting_wood') }}">
             <label for="month">Select Month:</label>
             <select name="month" id="month" onchange="this.form.submit()">
                 {% for value, label in available_months %}
@@ -78,7 +67,7 @@
         <!-- Body Counter -->
         <button class="collapsible" onclick="toggleCollapsible('bodyContent')">Body</button>
         <div id="bodyContent" class="collapsible-content">
-            <p class="count">Current Count for {{ selected_month }}: {{ body_count }}</p>
+            <p class="count">Current Count for {{ selected_month_label }}: {{ body_count }}</p>
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Body">
                 <input type="hidden" name="action" value="increment">
@@ -105,7 +94,7 @@
         <!-- Pod Sides Counter -->
         <button class="collapsible" onclick="toggleCollapsible('podSidesContent')">Pod Sides</button>
         <div id="podSidesContent" class="collapsible-content">
-            <p class="count">Current Count for {{ selected_month }}: {{ pod_sides_count }}</p>
+            <p class="count">Current Count for {{ selected_month_label }}: {{ pod_sides_count }}</p>
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Pod Sides">
                 <input type="hidden" name="action" value="increment">
@@ -132,7 +121,7 @@
         <!-- Bases Counter -->
         <button class="collapsible" onclick="toggleCollapsible('basesContent')">Bases</button>
         <div id="basesContent" class="collapsible-content">
-            <p class="count">Current Count for {{ selected_month }}: {{ bases_count }}</p>
+            <p class="count">Current Count for {{ selected_month_label }}: {{ bases_count }}</p>
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Bases">
                 <input type="hidden" name="action" value="increment">
