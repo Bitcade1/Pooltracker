@@ -54,7 +54,6 @@
     <div class="container">
         <h1>Counting Wood</h1>
 
-        <!-- Flash Messages Display (Success) -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
@@ -71,6 +70,12 @@
             <p class="count">Current Count: {{ body_count }}</p>
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Body">
+                <label for="body_month">Select Month:</label>
+                <select name="month" id="body_month">
+                    {% for month in available_months %}
+                        <option value="{{ month }}">{{ month }}</option>
+                    {% endfor %}
+                </select>
                 <input type="hidden" name="action" value="increment">
                 <button type="submit" class="up-arrow">▲</button>
             </form>
@@ -79,7 +84,6 @@
                 <input type="hidden" name="action" value="decrement">
                 <button type="submit" class="down-arrow">▼</button>
             </form>
-            <!-- Bulk Addition -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Body">
                 <input type="hidden" name="action" value="bulk_increment">
@@ -95,6 +99,12 @@
             <p class="count">Current Count: {{ pod_sides_count }}</p>
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Pod Sides">
+                <label for="pod_sides_month">Select Month:</label>
+                <select name="month" id="pod_sides_month">
+                    {% for month in available_months %}
+                        <option value="{{ month }}">{{ month }}</option>
+                    {% endfor %}
+                </select>
                 <input type="hidden" name="action" value="increment">
                 <button type="submit" class="up-arrow">▲</button>
             </form>
@@ -103,7 +113,6 @@
                 <input type="hidden" name="action" value="decrement">
                 <button type="submit" class="down-arrow">▼</button>
             </form>
-            <!-- Bulk Addition -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Pod Sides">
                 <input type="hidden" name="action" value="bulk_increment">
@@ -119,6 +128,12 @@
             <p class="count">Current Count: {{ bases_count }}</p>
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Bases">
+                <label for="bases_month">Select Month:</label>
+                <select name="month" id="bases_month">
+                    {% for month in available_months %}
+                        <option value="{{ month }}">{{ month }}</option>
+                    {% endfor %}
+                </select>
                 <input type="hidden" name="action" value="increment">
                 <button type="submit" class="up-arrow">▲</button>
             </form>
@@ -127,7 +142,6 @@
                 <input type="hidden" name="action" value="decrement">
                 <button type="submit" class="down-arrow">▼</button>
             </form>
-            <!-- Bulk Addition -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="Bases">
                 <input type="hidden" name="action" value="bulk_increment">
