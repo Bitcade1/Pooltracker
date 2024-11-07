@@ -387,9 +387,6 @@ def top_rails():
 from datetime import datetime, timedelta, date
 from flask import flash, redirect, render_template, request, url_for
 
-from datetime import datetime
-from flask import flash, redirect, render_template, request, url_for
-
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -417,7 +414,7 @@ def counting_wood():
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_date = datetime.utcnow().date()
+        current_date = month_start_date  # Use the start of the selected month
         current_time = datetime.utcnow().time()
 
         # Retrieve or create current count entry for selected month and section
@@ -448,6 +445,11 @@ def counting_wood():
         # Commit changes
         db.session.commit()
         flash(f"{section} count updated successfully!", "success")
+        
+        # Debugging statements
+        print(f"DEBUG: {section} count for {selected_month} is now {current_count_entry.count}")
+        print(f"DEBUG: Current inventory - Plain MDF: {inventory.plain_mdf}, Black MDF: {inventory.black_mdf}")
+
         return redirect(url_for('counting_wood', month=selected_month))
 
     # Fetch counts for each section based on selected month
@@ -456,6 +458,9 @@ def counting_wood():
         section: WoodCount.query.filter_by(section=section, date=month_start_date).first().count if WoodCount.query.filter_by(section=section, date=month_start_date).first() else 0
         for section in sections
     }
+
+    # Debugging statements
+    print(f"DEBUG: Counts for {selected_month} - {counts}")
 
     return render_template(
         'counting_wood.html',
