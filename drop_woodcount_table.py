@@ -2,7 +2,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import os
 
-# Initialize Flask app
+# Initialize Flask ap
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
