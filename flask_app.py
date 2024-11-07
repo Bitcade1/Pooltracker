@@ -379,7 +379,7 @@ def top_rails():
     return render_template('top_rails.html', workers=workers, issues=issues, current_time=current_time, completed_tables=completed_top_rails)
 
 from calendar import monthrange
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
@@ -390,27 +390,30 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
-    # Generate a list of available months for selection (e.g., past 12 months)
+    # Generate a list of available months for the past year
+    today = datetime.utcnow().date()
     available_months = [
-        (datetime.utcnow().replace(month=i).strftime("%Y-%m"), datetime.utcnow().replace(month=i).strftime("%B %Y"))
-        for i in range(1, 13)
+        (
+            (today.replace(day=1) - timedelta(days=30 * i)).strftime("%Y-%m"),
+            (today.replace(day=1) - timedelta(days=30 * i)).strftime("%B %Y")
+        )
+        for i in range(12)
     ]
+
+    # Default to the current month if no month is selected
+    selected_month = request.form.get('month', today.strftime("%Y-%m"))
+    selected_year, selected_month_num = map(int, selected_month.split('-'))
+    month_start_date = date(selected_year, selected_month_num, 1)
 
     if request.method == 'POST':
         section = request.form['section']
-        action = request.form.get('action', 'increment')  # Default to increment if action is not provided
-        selected_month = request.form.get('month')  # Get the selected month in "YYYY-MM" format
+        action = request.form.get('action', 'increment')
 
-        # Parse the selected month and set to the first day of the month
-        selected_year, selected_month = map(int, selected_month.split('-'))
-        month_start_date = date(selected_year, selected_month, 1)
-
-        # Get or create the latest entry for the section and selected month
+        # Get the current count for the selected month and section
         current_count_entry = WoodCount.query.filter_by(section=section, date=month_start_date).first()
         current_count_value = current_count_entry.count if current_count_entry else 0
 
         if action == 'increment':
-            # Single increment action
             if current_count_entry:
                 current_count_entry.count += 1
             else:
@@ -431,7 +434,6 @@ def counting_wood():
                     return redirect(url_for('counting_wood'))
 
         elif action == 'decrement' and current_count_value > 0:
-            # Single decrement action, ensuring it doesn't go below zero
             current_count_entry.count -= 1
             # Add back to MDF inventory based on the section
             if section == 'Body':
@@ -440,7 +442,6 @@ def counting_wood():
                 inventory.plain_mdf += 1
 
         elif action == 'bulk_increment':
-            # Handle bulk addition
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
                 if current_count_entry:
@@ -475,20 +476,21 @@ def counting_wood():
         flash(f"{section} count {'incremented' if action == 'increment' else 'bulk incremented' if action == 'bulk_increment' else 'decremented'} successfully!", "success")
         return redirect(url_for('counting_wood'))
 
-    # Fetch the latest counts for each section for display purposes
-    body_count = WoodCount.query.filter_by(section='Body').order_by(WoodCount.id.desc()).first()
-    pod_sides_count = WoodCount.query.filter_by(section='Pod Sides').order_by(WoodCount.id.desc()).first()
-    bases_count = WoodCount.query.filter_by(section='Bases').order_by(WoodCount.id.desc()).first()
+    # Fetch the count for each section based on the selected month
+    body_count = WoodCount.query.filter_by(section='Body', date=month_start_date).first()
+    pod_sides_count = WoodCount.query.filter_by(section='Pod Sides', date=month_start_date).first()
+    bases_count = WoodCount.query.filter_by(section='Bases', date=month_start_date).first()
 
-    # Render the template with inventory and continuous counts
     return render_template(
         'counting_wood.html',
         inventory=inventory,
+        available_months=available_months,
+        selected_month=selected_month,
         body_count=body_count.count if body_count else 0,
         pod_sides_count=pod_sides_count.count if pod_sides_count else 0,
-        bases_count=bases_count.count if bases_count else 0,
-        available_months=available_months
+        bases_count=bases_count.count if bases_count else 0
     )
+
 
 
 
