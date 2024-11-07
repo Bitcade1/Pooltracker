@@ -92,6 +92,9 @@ from sqlalchemy import extract
 
 from sqlalchemy import func
 
+from sqlalchemy import func, extract
+from datetime import datetime, date
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -119,7 +122,6 @@ def bodies():
 
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-
             if part_entry and part_entry.count >= quantity_needed:
                 part_entry.count -= quantity_needed
             else:
@@ -153,11 +155,11 @@ def bodies():
     today = date.today()
     completed_tables = CompletedTable.query.filter_by(date=today).all()
 
-    # Last entry's finish_time as a string
+    # Get the last entry's finish_time for setting default time
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # Fetch daily history data with counts and serial numbers
+    # Fetch daily history with count and serial numbers for each date
     daily_history = (
         db.session.query(
             CompletedTable.date,
@@ -169,7 +171,7 @@ def bodies():
         .all()
     )
 
-    # Format the data
+    # Format daily history data
     daily_history_formatted = [
         {
             "date": row.date.strftime("%A %d/%m/%y"),
@@ -179,39 +181,21 @@ def bodies():
         for row in daily_history
     ]
 
-    return render_template(
-        'bodies.html',
-        workers=workers,
-        issues=issues,
-        current_time=current_time,
-        completed_tables=completed_tables,
-        daily_history=daily_history_formatted
-    )
-
-
-    # Fetch only today's completed bodies
-    today = date.today()
-    completed_tables = CompletedTable.query.filter_by(date=today).all()
-
-    # Handle last entry's finish_time as a string
-    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
-    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
-
-    # Calculate monthly totals for completed bodies
+    # Fetch monthly totals for completed bodies
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
             extract('month', CompletedTable.date).label('month'),
-            db.func.count(CompletedTable.id).label('total')
+            func.count(CompletedTable.id).label('total')
         )
         .group_by('year', 'month')
         .order_by('year', 'month')
         .all()
     )
 
-    # Format data for display
+    # Format monthly totals for display
     monthly_totals_formatted = [
-        {"month": date(year=int(row.year), month=int(row.month), day=1), "count": row.total}
+        {"month": date(year=int(row.year), month=int(row.month), day=1).strftime("%B %Y"), "count": row.total}
         for row in monthly_totals
     ]
 
@@ -221,8 +205,10 @@ def bodies():
         issues=issues,
         current_time=current_time,
         completed_tables=completed_tables,
+        daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 # Admin Area Route
 @app.route('/admin', methods=['GET', 'POST'])
