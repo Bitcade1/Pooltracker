@@ -104,15 +104,14 @@ def bodies():
     if request.method == 'POST':
         worker = request.form['worker']
         
-        # Convert start_time and finish_time to time objects
-        start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
-        finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").time()
+        # Convert start_time and finish_time to "HH:MM" string format
+        start_time = request.form['start_time']  # This is already in "HH:MM" format from the form
+        finish_time = request.form['finish_time']  # Also in "HH:MM" format
         
         serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Define parts to deduct for a completed body
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
@@ -124,7 +123,7 @@ def bodies():
             "Bushing": 2
         }
 
-        # Check inventory for each part
+        # Check inventory for required parts
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -133,17 +132,18 @@ def bodies():
                 flash(f"Not enough inventory for {part_name} to complete the body!", "error")
                 return redirect(url_for('bodies'))
 
+        # Commit inventory changes if all parts are available
         db.session.commit()
 
-        # Create a new completed body entry
+        # Create a new entry for the completed body, storing times as strings
         new_table = CompletedTable(
             worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
+            start_time=start_time,  # Stored as a string in "HH:MM" format
+            finish_time=finish_time,  # Stored as a string in "HH:MM" format
             serial_number=serial_number,
             issue=issue,
             lunch=lunch,
-            date=date.today()
+            date=date.today()  # This will be stored as a date
         )
 
         try:
@@ -214,6 +214,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 # Admin Area Route
