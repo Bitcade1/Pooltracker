@@ -718,17 +718,17 @@ def inventory():
     inventory_counts = {}
     for part in parts:
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        inventory_counts[part] = latest_entry[0] if latest_entry else 0
+        inventory_counts[part] = int(latest_entry[0]) if latest_entry else 0
 
     # Retrieve the current total count for each wooden part using the correct model, WoodCount
     total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
-    total_body_cut = total_body_cut[0] if total_body_cut else 0
+    total_body_cut = int(total_body_cut[0]) if total_body_cut else 0
 
     total_pod_sides_cut = db.session.query(WoodCount.count).filter_by(section="Pod Sides").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
-    total_pod_sides_cut = total_pod_sides_cut[0] if total_pod_sides_cut else 0
+    total_pod_sides_cut = int(total_pod_sides_cut[0]) if total_pod_sides_cut else 0
 
     total_bases_cut = db.session.query(WoodCount.count).filter_by(section="Bases").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
-    total_bases_cut = total_bases_cut[0] if total_bases_cut else 0
+    total_bases_cut = int(total_bases_cut[0]) if total_bases_cut else 0
 
     # Dictionary for wooden parts counts
     wooden_counts = {
@@ -744,7 +744,7 @@ def inventory():
         extract('month', CompletedTable.date) == today.month
     ).scalar()
 
-    # Parts usage per body
+    # Parts usage based on each body requiring specific quantities of parts
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
@@ -756,20 +756,20 @@ def inventory():
         "Bushing": 2
     }
 
-    # Calculate parts used based on bodies built this month
+    # Calculate used quantities based on bodies built this month
     parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
 
-    # Calculate remaining parts or extras needed to meet the monthly target of 60 tables
+    # Calculate remaining parts needed to meet the monthly target of 60 tables
     target_tables_per_month = 60
-    parts_left_or_extras = {
-        part: (inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)) - (target_tables_per_month * usage)
+    parts_left_to_make = {
+        part: int((target_tables_per_month * usage) - parts_used_this_month.get(part, 0) + inventory_counts.get(part, 0))
         for part, usage in parts_usage_per_body.items()
     }
 
-    # Adjust the display logic to show extras as positive numbers in the template
+    # Convert any extras to negative integers to allow for green display in the template
     parts_left_to_make = {
-        part: f"{count} extras" if count > 0 else abs(count)
-        for part, count in parts_left_or_extras.items()
+        part: max(0, count) if count > 0 else f"Extra: {abs(count)}"
+        for part, count in parts_left_to_make.items()
     }
 
     return render_template(
@@ -777,8 +777,9 @@ def inventory():
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make=parts_left_to_make  # Corrected variable name here
+        parts_left_to_make=parts_left_to_make
     )
+
 
 
 
