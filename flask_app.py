@@ -720,6 +720,23 @@ def inventory():
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
+    # Retrieve the current total count for each wooden part using the correct model, WoodCount
+    total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
+    total_body_cut = total_body_cut[0] if total_body_cut else 0
+
+    total_pod_sides_cut = db.session.query(WoodCount.count).filter_by(section="Pod Sides").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
+    total_pod_sides_cut = total_pod_sides_cut[0] if total_pod_sides_cut else 0
+
+    total_bases_cut = db.session.query(WoodCount.count).filter_by(section="Bases").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
+    total_bases_cut = total_bases_cut[0] if total_bases_cut else 0
+
+    # Dictionary for wooden parts counts
+    wooden_counts = {
+        'body': total_body_cut,
+        'pod_sides': total_pod_sides_cut,
+        'bases': total_bases_cut
+    }
+
     # Calculate the number of bodies built this month
     today = datetime.utcnow().date()
     bodies_built_this_month = db.session.query(func.count(CompletedTable.id)).filter(
@@ -758,6 +775,7 @@ def inventory():
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
+        wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
         parts_left_to_make=parts_left_to_make,
         parts_surplus_deficit=parts_surplus_deficit
