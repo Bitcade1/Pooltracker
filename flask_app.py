@@ -731,7 +731,7 @@ def inventory():
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
-    # Retrieve the current total count for each wooden part using the correct model, WoodCount
+    # Retrieve the current total count for each wooden part
     total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
     total_body_cut = total_body_cut[0] if total_body_cut else 0
 
@@ -770,24 +770,27 @@ def inventory():
     # Calculate parts used based on bodies built this month
     parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
 
-    # Calculate remaining parts or extras based on current stock, usage, and target
+    # Define target tables per month
     target_tables_per_month = 60
-    parts_left_or_extras = {
-        part: (inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)) - (target_tables_per_month * usage)
-        for part, usage in parts_usage_per_body.items()
-    }
 
-    # Keep the values as integers and format in the template instead
-    parts_left_to_make = {
-        part: parts_left_or_extras[part] for part in parts_left_or_extras
-    }
+    # Calculate the remaining parts needed or extras
+    parts_status = {}
+    for part, usage in parts_usage_per_body.items():
+        required_total = target_tables_per_month * usage
+        available_total = inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)
+        difference = available_total - required_total
+
+        if difference >= 0:
+            parts_status[part] = f"{difference} extras"
+        else:
+            parts_status[part] = f"{abs(difference)} left to make"
 
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make=parts_left_to_make
+        parts_status=parts_status  # Pass the calculated parts status to the template
     )
 
 
