@@ -744,7 +744,7 @@ def inventory():
         extract('month', CompletedTable.date) == today.month
     ).scalar()
 
-    # Parts usage based on each body requiring specific quantities of parts
+    # Parts usage per body
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
@@ -756,13 +756,13 @@ def inventory():
         "Bushing": 2
     }
 
-    # Calculate used quantities based on bodies built this month
+    # Calculate parts used based on bodies built this month
     parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
 
-    # Calculate remaining parts needed to meet the monthly target of 60 tables
+    # Calculate parts remaining to meet target
     target_tables_per_month = 60
     parts_left_to_make = {
-        part: max(0, (target_tables_per_month * usage) - parts_used_this_month.get(part, 0) + inventory_counts.get(part, 0))
+        part: max(0, (target_tables_per_month * usage) - parts_used_this_month.get(part, 0)) + inventory_counts.get(part, 0)
         for part, usage in parts_usage_per_body.items()
     }
 
