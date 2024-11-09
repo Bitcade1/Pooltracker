@@ -755,7 +755,7 @@ def inventory():
         extract('month', CompletedTable.date) == today.month
     ).scalar()
 
-    # Parts usage based on each body requiring specific quantities of parts
+    # Parts usage per body
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
@@ -767,30 +767,33 @@ def inventory():
         "Bushing": 2
     }
 
-    # Calculate used quantities based on bodies built this month
+    # Calculate parts used based on bodies built this month
     parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
 
-    # Calculate remaining parts needed to meet the monthly target of 60 tables
+    # Calculate remaining parts or extras needed to meet the monthly target of 60 tables
     target_tables_per_month = 60
-    parts_left_to_make = {}
+    parts_left_or_extras = {}
     for part, usage in parts_usage_per_body.items():
-        # Calculate total parts needed for the month and adjust based on inventory
-        needed_for_target = target_tables_per_month * usage
-        total_needed = needed_for_target - parts_used_this_month.get(part, 0)
-        in_stock = inventory_counts.get(part, 0)
+        # Calculate total needed to meet the target
+        total_needed = target_tables_per_month * usage
+        # Calculate what remains or extra in stock
+        remaining_or_extra = (inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)) - total_needed
+        parts_left_or_extras[part] = remaining_or_extra
 
-        # Calculate remaining or extra parts
-        remaining_or_extra = in_stock - total_needed
-        parts_left_to_make[part] = remaining_or_extra if remaining_or_extra >= 0 else 0
-        parts_left_to_make[f"{part}_extras"] = abs(remaining_or_extra) if remaining_or_extra < 0 else None
+    # Adjust display logic for "extras" as positive and format for Jinja template
+    parts_left_to_make = {
+        part: f"{abs(count)} extras" if count > 0 else abs(count)
+        for part, count in parts_left_or_extras.items()
+    }
 
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make=parts_left_to_make
+        parts_left_to_make=parts_left_to_make  # Corrected variable name here
     )
+
 
 
 
