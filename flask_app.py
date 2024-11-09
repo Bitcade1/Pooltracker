@@ -777,10 +777,9 @@ def inventory():
         for part, usage in parts_usage_per_body.items()
     }
 
-    # Adjust for display, showing extras as positive if in surplus
+    # Keep the values as integers and format in the template instead
     parts_left_to_make = {
-        part: f"{abs(count)} extras" if count > 0 else abs(count)
-        for part, count in parts_left_or_extras.items()
+        part: parts_left_or_extras[part] for part in parts_left_or_extras
     }
 
     return render_template(
@@ -788,7 +787,7 @@ def inventory():
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make=parts_left_to_make  # Corrected variable name here
+        parts_left_to_make=parts_left_to_make
     )
 
 
