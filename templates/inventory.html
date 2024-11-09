@@ -6,6 +6,7 @@
     <title>Stock Inventory</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
+        /* Collapsible styles */
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -31,26 +32,24 @@
             border-radius: 5px;
             margin-top: 10px;
         }
-        .used-this-month {
-            color: #d9534f;
-            font-weight: bold;
-            margin-left: 10px;
+        /* Table styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
         }
-        .menu-link {
-            margin-top: 30px;
+        th, td {
+            padding: 10px;
             text-align: center;
+            border-bottom: 1px solid #ddd;
         }
-        .menu-button {
-            display: inline-block;
-            padding: 12px 20px;
-            background-color: #4CAF50;
+        th {
+            background-color: #007bff;
             color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 1em;
         }
-        .menu-button:hover {
-            background-color: #45a049;
+        .left-to-make {
+            color: #ff4500; /* Highlight color for 'What's Left to Make' column */
+            font-weight: bold;
         }
     </style>
     <script>
@@ -67,25 +66,53 @@
         <!-- Collapsible Button and Content for 3D Printed Parts -->
         <button class="collapsible" onclick="toggleCollapsible('collapsibleContent3D')">3D Printed Parts</button>
         <div id="collapsibleContent3D" class="collapsible-content">
-            <h2>Current Stock</h2>
-            <div class="inventory-list">
-                {% for part, count in inventory_counts.items() %}
-                    <p><strong>{{ part }}</strong>: {{ count }}
-                        <span class="used-this-month">Used This Month: {{ parts_used_this_month[part] }}</span>
-                    </p>
-                {% endfor %}
-            </div>
+            <h2>Current Stock and What's Left to Make</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part Name</th>
+                        <th>Current Stock</th>
+                        <th>What's Left to Make</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part, current_stock in inventory_counts.items() %}
+                        <tr>
+                            <td>{{ part }}</td>
+                            <td>{{ current_stock }}</td>
+                            <td class="left-to-make">{{ parts_left_to_make[part] }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
         <!-- Collapsible Button and Content for Wooden Parts -->
         <button class="collapsible" onclick="toggleCollapsible('collapsibleContentWood')">Wooden Parts</button>
         <div id="collapsibleContentWood" class="collapsible-content">
             <h2>Total Cut</h2>
-            <div class="inventory-list">
-                <p><strong>Bases</strong>: {{ wooden_counts.bases }}</p>
-                <p><strong>Pod Sides</strong>: {{ wooden_counts.pod_sides }}</p>
-                <p><strong>Body</strong>: {{ wooden_counts.body }}</p>
-            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part Name</th>
+                        <th>Current Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Bases</td>
+                        <td>{{ wooden_counts.bases }}</td>
+                    </tr>
+                    <tr>
+                        <td>Pod Sides</td>
+                        <td>{{ wooden_counts.pod_sides }}</td>
+                    </tr>
+                    <tr>
+                        <td>Body</td>
+                        <td>{{ wooden_counts.body }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <!-- Link Back to Main Menu with added spacing -->
