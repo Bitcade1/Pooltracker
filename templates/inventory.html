@@ -54,7 +54,7 @@
                         <th>Part</th>
                         <th>Current Stock</th>
                         <th>Used This Month</th>
-                        <th>Left to Make / Extras</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,12 +64,10 @@
                         <td>{{ count }}</td>
                         <td>{{ parts_used_this_month.get(part, 0) }}</td>
                         <td>
-                            {% if parts_left_to_make[part] > 0 %}
-                                {{ parts_left_to_make[part] }} left to make
-                            {% elif parts_left_to_make[part] < 0 %}
-                                <span class="extra">{{ parts_left_to_make[part] | abs }} extras</span>
+                            {% if 'extras' in parts_status[part] %}
+                                <span class="extra">{{ parts_status[part] }}</span>
                             {% else %}
-                                0 left to make
+                                {{ parts_status[part] }}
                             {% endif %}
                         </td>
                     </tr>
