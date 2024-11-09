@@ -6,7 +6,6 @@
     <title>Stock Inventory</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        /* Collapsible styles */
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -35,7 +34,6 @@
             margin-top: 10px;
         }
         
-        /* Add spacing for Back to Main Menu button */
         .menu-link {
             margin-top: 30px;
             text-align: center;
@@ -55,7 +53,6 @@
             background-color: #45a049;
         }
 
-        /* Styles for parts left to make */
         .extra {
             color: green;
             font-weight: bold;
@@ -93,9 +90,11 @@
                             <td>{{ count }}</td>
                             <td>{{ parts_used_this_month[part] }}</td>
                             <td>
-                                <span class="{% if 'extras' in parts_left_to_make[part] %}extra{% endif %}">
+                                {% if parts_left_to_make[part] < 0 %}
+                                    <span class="extra">{{ abs(parts_left_to_make[part]) }} extras</span>
+                                {% else %}
                                     {{ parts_left_to_make[part] }}
-                                </span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
