@@ -772,28 +772,25 @@ def inventory():
 
     # Calculate remaining parts or extras needed to meet the monthly target of 60 tables
     target_tables_per_month = 60
-    parts_left_or_extras = {}
+    parts_left_to_make = {}
     for part, usage in parts_usage_per_body.items():
-        # Calculate total needed to meet the target
-        total_needed = target_tables_per_month * usage
-        # Calculate what remains or extra in stock
-        remaining_or_extra = (inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)) - total_needed
-        parts_left_or_extras[part] = remaining_or_extra
+        required_for_target = target_tables_per_month * usage
+        current_stock_and_usage = inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)
+        remaining = current_stock_and_usage - required_for_target
 
-    # Adjust display logic for "extras" as positive and format for Jinja template
-    parts_left_to_make = {
-        part: f"{abs(count)} extras" if count > 0 else abs(count)
-        for part, count in parts_left_or_extras.items()
-    }
+        # If we have more than required, it shows as extras; if not, shows the amount left to make
+        if remaining >= 0:
+            parts_left_to_make[part] = f"{remaining} extras"
+        else:
+            parts_left_to_make[part] = abs(remaining)
 
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make=parts_left_to_make  # Corrected variable name here
+        parts_left_to_make=parts_left_to_make
     )
-
 
 
 
