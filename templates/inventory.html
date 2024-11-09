@@ -64,12 +64,10 @@
                         <td>{{ count }}</td>
                         <td>{{ parts_used_this_month.get(part, 0) }}</td>
                         <td>
-                            {% if parts_left_to_make[part] > 0 %}
-                                {{ parts_left_to_make[part] }} left to make
-                            {% elif parts_left_to_make[part] < 0 %}
+                            {% if parts_left_to_make[part] < 0 %}
                                 <span class="extra">{{ abs(parts_left_to_make[part]) }} extras</span>
                             {% else %}
-                                0 left to make
+                                {{ parts_left_to_make[part] }} left to make
                             {% endif %}
                         </td>
                     </tr>
