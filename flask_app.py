@@ -767,7 +767,7 @@ def inventory():
     }
 
     # Adjust the display logic to show extras as positive numbers in the template
-    parts_left_to_make_display = {
+    parts_left_to_make = {
         part: f"{count} extras" if count > 0 else abs(count)
         for part, count in parts_left_or_extras.items()
     }
@@ -777,7 +777,7 @@ def inventory():
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make_display=parts_left_to_make_display
+        parts_left_to_make=parts_left_to_make  # Corrected variable name here
     )
 
 
