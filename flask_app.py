@@ -759,17 +759,17 @@ def inventory():
     # Calculate parts used based on bodies built this month
     parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
 
-    # Calculate remaining parts needed to meet the monthly target of 60 tables
+    # Calculate remaining parts or extras needed to meet the monthly target of 60 tables
     target_tables_per_month = 60
-    parts_left_to_make = {
-        part: max(0, (target_tables_per_month * usage) - parts_used_this_month.get(part, 0) - inventory_counts.get(part, 0))
+    parts_left_or_extras = {
+        part: (inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)) - (target_tables_per_month * usage)
         for part, usage in parts_usage_per_body.items()
     }
 
-    # Adjust to show surplus or deficit based on current stock levels
-    parts_surplus_deficit = {
-        part: inventory_counts.get(part, 0) - parts_left_to_make[part]
-        for part in parts
+    # Adjust the display logic to show extras as positive numbers in the template
+    parts_left_to_make_display = {
+        part: f"{count} extras" if count > 0 else abs(count)
+        for part, count in parts_left_or_extras.items()
     }
 
     return render_template(
@@ -777,8 +777,7 @@ def inventory():
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make=parts_left_to_make,
-        parts_surplus_deficit=parts_surplus_deficit
+        parts_left_to_make_display=parts_left_to_make_display
     )
 
 
