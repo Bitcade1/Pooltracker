@@ -772,17 +772,13 @@ def inventory():
 
     # Calculate remaining parts or extras needed to meet the monthly target of 60 tables
     target_tables_per_month = 60
-    parts_left_to_make = {}
-    for part, usage in parts_usage_per_body.items():
-        required_for_target = target_tables_per_month * usage
-        current_stock_and_usage = inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)
-        remaining = current_stock_and_usage - required_for_target
+    parts_left_or_extras = {
+        part: (inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)) - (target_tables_per_month * usage)
+        for part, usage in parts_usage_per_body.items()
+    }
 
-        # If we have more than required, it shows as extras; if not, shows the amount left to make
-        if remaining >= 0:
-            parts_left_to_make[part] = f"{remaining} extras"
-        else:
-            parts_left_to_make[part] = abs(remaining)
+    # Adjust values to display as integers, handling extras and shortfalls
+    parts_left_to_make = {part: count if count < 0 else count for part, count in parts_left_or_extras.items()}
 
     return render_template(
         'inventory.html',
@@ -791,6 +787,7 @@ def inventory():
         parts_used_this_month=parts_used_this_month,
         parts_left_to_make=parts_left_to_make
     )
+
 
 
 
