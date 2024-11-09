@@ -770,22 +770,25 @@ def inventory():
     # Calculate parts used based on bodies built this month
     parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
 
-    # Calculate remaining parts or extras needed to meet the monthly target of 60 tables
+    # Calculate remaining parts or extras based on current stock, usage, and target
     target_tables_per_month = 60
     parts_left_or_extras = {
         part: (inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)) - (target_tables_per_month * usage)
         for part, usage in parts_usage_per_body.items()
     }
 
-    # Adjust values to display as integers, handling extras and shortfalls
-    parts_left_to_make = {part: count if count < 0 else count for part, count in parts_left_or_extras.items()}
+    # Adjust for display, showing extras as positive if in surplus
+    parts_left_to_make = {
+        part: f"{abs(count)} extras" if count > 0 else abs(count)
+        for part, count in parts_left_or_extras.items()
+    }
 
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
-        parts_left_to_make=parts_left_to_make
+        parts_left_to_make=parts_left_to_make  # Corrected variable name here
     )
 
 
