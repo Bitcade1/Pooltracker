@@ -22,7 +22,8 @@ def abs_filter(value):
     except (TypeError, ValueError):
         return 0
 
-
+# Register the filter explicitly
+app.jinja_env.filters['abs'] = abs_filter
 
 # Models
 class CompletedTable(db.Model):
