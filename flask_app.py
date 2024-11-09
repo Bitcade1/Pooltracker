@@ -759,11 +759,19 @@ def inventory():
     # Calculate used quantities based on bodies built this month
     parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
 
+    # Calculate remaining parts needed to meet the monthly target of 60 tables
+    target_tables_per_month = 60
+    parts_left_to_make = {
+        part: max(0, (target_tables_per_month * usage) - parts_used_this_month.get(part, 0) + inventory_counts.get(part, 0))
+        for part, usage in parts_usage_per_body.items()
+    }
+
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
-        parts_used_this_month=parts_used_this_month
+        parts_used_this_month=parts_used_this_month,
+        parts_left_to_make=parts_left_to_make
     )
 
 
