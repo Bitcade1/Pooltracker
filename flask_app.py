@@ -13,6 +13,12 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'po
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# Custom filter for absolute value
+@app.template_filter('abs')
+def abs_filter(value):
+    """Return the absolute value of a number."""
+    return abs(value)
+
 
 # Models
 class CompletedTable(db.Model):
