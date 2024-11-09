@@ -17,7 +17,11 @@ db = SQLAlchemy(app)
 @app.template_filter('abs')
 def abs_filter(value):
     """Return the absolute value of a number."""
-    return abs(value)
+    try:
+        return abs(int(value))
+    except (TypeError, ValueError):
+        return 0
+
 
 
 # Models
