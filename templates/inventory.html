@@ -6,7 +6,6 @@
     <title>Stock Inventory</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        /* Collapsible styles */
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -20,11 +19,9 @@
             margin-top: 20px;
             border-radius: 5px;
         }
-        
         .collapsible:hover {
             background-color: #0056b3;
         }
-        
         .collapsible-content {
             padding: 15px;
             display: none;
@@ -34,13 +31,15 @@
             border-radius: 5px;
             margin-top: 10px;
         }
-        
-        /* Add spacing for Back to Main Menu button */
+        .used-this-month {
+            color: #d9534f;
+            font-weight: bold;
+            margin-left: 10px;
+        }
         .menu-link {
             margin-top: 30px;
             text-align: center;
         }
-        
         .menu-button {
             display: inline-block;
             padding: 12px 20px;
@@ -50,7 +49,6 @@
             border-radius: 5px;
             font-size: 1em;
         }
-        
         .menu-button:hover {
             background-color: #45a049;
         }
@@ -72,7 +70,9 @@
             <h2>Current Stock</h2>
             <div class="inventory-list">
                 {% for part, count in inventory_counts.items() %}
-                    <p><strong>{{ part }}</strong>: {{ count }}</p>
+                    <p><strong>{{ part }}</strong>: {{ count }}
+                        <span class="used-this-month">Used This Month: {{ parts_used_this_month[part] }}</span>
+                    </p>
                 {% endfor %}
             </div>
         </div>
