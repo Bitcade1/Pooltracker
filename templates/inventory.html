@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         .extra { color: green; font-weight: bold; }  /* Style extras in green */
+        .needed { color: red; font-weight: bold; }   /* Style left-to-make items in red */
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -54,7 +55,7 @@
                         <th>Part</th>
                         <th>Current Stock</th>
                         <th>Used This Month</th>
-                        <th>Status</th>
+                        <th>Left to Make</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,10 +65,12 @@
                         <td>{{ count }}</td>
                         <td>{{ parts_used_this_month.get(part, 0) }}</td>
                         <td>
-                            {% if 'extras' in parts_status[part] %}
-                                <span class="extra">{{ parts_status[part] }}</span>
+                            {% if parts_left_to_make[part] > 0 %}
+                                <span class="needed">{{ parts_left_to_make[part] }} left to make</span>
+                            {% elif parts_left_to_make[part] < 0 %}
+                                <span class="extra">{{ abs(parts_left_to_make[part]) }} extras</span>
                             {% else %}
-                                {{ parts_status[part] }}
+                                <span>0 left to make</span>
                             {% endif %}
                         </td>
                     </tr>
