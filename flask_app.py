@@ -767,7 +767,171 @@ def inventory():
         parts_used_this_month=parts_used_this_month
     )
 
+@app.route('/inventory')
+def inventory():
+    # List of parts to track in 3D printed inventory
+    parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing"]
 
+    # Calculate the latest stock for each 3D printed part
+    inventory_counts = {}
+    for part in parts:
+        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        # If latest_entry is None, set count to 0, otherwise use the count from the latest entry
+        inventory_counts[part] = latest_entry[0] if latest_entry else 0
+
+    # Retrieve the current total count for each wooden part using the correct model, WoodCount
+    total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
+    total_body_cut = total_body_cut[0] if total_body_cut else 0
+
+    total_pod_sides_cut = db.session.query(WoodCount.count).filter_by(section="Pod Sides").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
+    total_pod_sides_cut = total_pod_sides_cut[0] if total_pod_sides_cut else 0
+
+    total_bases_cut = db.session.query(WoodCount.count).filter_by(section="Bases").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
+    total_bases_cut = total_bases_cut[0] if total_bases_cut else 0
+
+    # Dictionary for wooden parts counts
+    wooden_counts = {
+        'body': total_body_cut,
+        'pod_sides': total_pod_sides_cut,
+        'bases': total_bases_cut
+    }
+
+    return render_template('inventory.html', inventory_counts=inventory_counts, wooden_counts=wooden_counts)
+
+from datetime import datetime, date
+from calendar import monthrange
+from sqlalchemy import func, extract
+from flask import flash, redirect, render_template, request, url_for
+from sqlalchemy.exc import IntegrityError
+
+@app.route('/pods', methods=['GET', 'POST'])
+def pods():
+    # Fetch workers and issues from the database
+    workers = [worker.name for worker in Worker.query.all()]
+    issues = [issue.description for issue in Issue.query.all()]
+
+    if request.method == 'POST':
+        worker = request.form['worker']
+        serial_number = request.form['serial_number']
+        issue = request.form['issue']
+        lunch = request.form['lunch']
+
+        # Handle start_time and finish_time parsing
+        try:
+            start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
+        except ValueError:
+            start_time = datetime.strptime(request.form['start_time'], "%H:%M:%S").time()
+
+        try:
+            finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").time()
+        except ValueError:
+            finish_time = datetime.strptime(request.form['finish_time'], "%H:%M:%S").time()
+
+        # Create a new entry for CompletedPods
+        new_pod = CompletedPods(
+            worker=worker,
+            start_time=start_time,
+            finish_time=finish_time,
+            serial_number=serial_number,
+            lunch=lunch,
+            issue=issue,
+            date=date.today()
+        )
+
+        try:
+            db.session.add(new_pod)
+            db.session.commit()
+            flash("Pods entry added successfully!", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
+            return redirect(url_for('pods'))
+
+        return redirect(url_for('pods'))
+
+    # Fetch only today's CompletedPods entries
+    today = date.today()
+    completed_pods = CompletedPods.query.filter_by(date=today).all()
+
+    # Set current_time based on last entry's finish time or default to current time
+    last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
+    current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
+
+    # Daily History Calculation - Filtered by current month
+    daily_history = (
+        db.session.query(
+            CompletedPods.date,
+            func.count(CompletedPods.id).label('count'),
+            func.group_concat(CompletedPods.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(
+            extract('year', CompletedPods.date) == today.year,
+            extract('month', CompletedPods.date) == today.month
+        )
+        .group_by(CompletedPods.date)
+        .order_by(CompletedPods.date.desc())
+        .all()
+    )
+
+    daily_history_formatted = [
+        {
+            "date": row.date.strftime("%A %d/%m/%y"),
+            "count": row.count,
+            "serial_numbers": row.serial_numbers
+        }
+        for row in daily_history
+    ]
+
+    # Monthly Totals Calculation
+    monthly_totals = (
+        db.session.query(
+            extract('year', CompletedPods.date).label('year'),
+            extract('month', CompletedPods.date).label('month'),
+            func.count(CompletedPods.id).label('total')
+        )
+        .group_by('year', 'month')
+        .order_by('year', 'month')
+        .all()
+    )
+
+    monthly_totals_formatted = []
+    for row in monthly_totals:
+        year = int(row.year)
+        month = int(row.month)
+        total_pods = row.total
+
+        # Calculate workdays up to today in the current month
+        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+
+        # Calculate cumulative working hours and average hours per pod
+        cumulative_working_hours = work_days * 7.5
+        avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
+
+        # Convert decimal hours to HH:MM:SS format
+        if avg_hours_per_pod is not None:
+            hours = int(avg_hours_per_pod)
+            minutes = int((avg_hours_per_pod - hours) * 60)
+            seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
+            avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        else:
+            avg_hours_per_pod_formatted = "N/A"
+
+        monthly_totals_formatted.append({
+            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "count": total_pods,
+            "average_hours_per_pod": avg_hours_per_pod_formatted
+        })
+
+    return render_template(
+        'pods.html',
+        workers=workers,
+        issues=issues,
+        current_time=current_time,
+        completed_tables=completed_pods,
+        daily_history=daily_history_formatted,
+        monthly_totals=monthly_totals_formatted
+    )
 
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
