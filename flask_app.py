@@ -718,17 +718,17 @@ def inventory():
     inventory_counts = {}
     for part in parts:
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        inventory_counts[part] = int(latest_entry[0]) if latest_entry else 0
+        inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
     # Retrieve the current total count for each wooden part using the correct model, WoodCount
     total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
-    total_body_cut = int(total_body_cut[0]) if total_body_cut else 0
+    total_body_cut = total_body_cut[0] if total_body_cut else 0
 
     total_pod_sides_cut = db.session.query(WoodCount.count).filter_by(section="Pod Sides").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
-    total_pod_sides_cut = int(total_pod_sides_cut[0]) if total_pod_sides_cut else 0
+    total_pod_sides_cut = total_pod_sides_cut[0] if total_pod_sides_cut else 0
 
     total_bases_cut = db.session.query(WoodCount.count).filter_by(section="Bases").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
-    total_bases_cut = int(total_bases_cut[0]) if total_bases_cut else 0
+    total_bases_cut = total_bases_cut[0] if total_bases_cut else 0
 
     # Dictionary for wooden parts counts
     wooden_counts = {
@@ -761,16 +761,17 @@ def inventory():
 
     # Calculate remaining parts needed to meet the monthly target of 60 tables
     target_tables_per_month = 60
-    parts_left_to_make = {
-        part: int((target_tables_per_month * usage) - parts_used_this_month.get(part, 0) + inventory_counts.get(part, 0))
-        for part, usage in parts_usage_per_body.items()
-    }
+    parts_left_to_make = {}
+    for part, usage in parts_usage_per_body.items():
+        # Calculate total parts needed for the month and adjust based on inventory
+        needed_for_target = target_tables_per_month * usage
+        total_needed = needed_for_target - parts_used_this_month.get(part, 0)
+        in_stock = inventory_counts.get(part, 0)
 
-    # Convert any extras to negative integers to allow for green display in the template
-    parts_left_to_make = {
-        part: max(0, count) if count > 0 else f"Extra: {abs(count)}"
-        for part, count in parts_left_to_make.items()
-    }
+        # Calculate remaining or extra parts
+        remaining_or_extra = in_stock - total_needed
+        parts_left_to_make[part] = remaining_or_extra if remaining_or_extra >= 0 else 0
+        parts_left_to_make[f"{part}_extras"] = abs(remaining_or_extra) if remaining_or_extra < 0 else None
 
     return render_template(
         'inventory.html',
