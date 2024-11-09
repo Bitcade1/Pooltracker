@@ -776,7 +776,6 @@ def inventory():
     inventory_counts = {}
     for part in parts:
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        # If latest_entry is None, set count to 0, otherwise use the count from the latest entry
         inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
     # Retrieve the current total count for each wooden part using the correct model, WoodCount
@@ -789,6 +788,28 @@ def inventory():
     total_bases_cut = db.session.query(WoodCount.count).filter_by(section="Bases").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
     total_bases_cut = total_bases_cut[0] if total_bases_cut else 0
 
+    # Calculate the number of bodies built this month
+    today = datetime.utcnow().date()
+    bodies_built_this_month = db.session.query(func.count(CompletedTable.id)).filter(
+        extract('year', CompletedTable.date) == today.year,
+        extract('month', CompletedTable.date) == today.month
+    ).scalar()
+
+    # Parts usage based on each body requiring specific quantities of parts
+    parts_usage_per_body = {
+        "Large Ramp": 1,
+        "Paddle": 1,
+        "Laminate": 4,
+        "Spring Mount": 1,
+        "Spring Holder": 1,
+        "Small Ramp": 1,
+        "Cue Ball Separator": 1,
+        "Bushing": 2
+    }
+
+    # Calculate used quantities based on bodies built this month
+    parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
+
     # Dictionary for wooden parts counts
     wooden_counts = {
         'body': total_body_cut,
@@ -796,7 +817,13 @@ def inventory():
         'bases': total_bases_cut
     }
 
-    return render_template('inventory.html', inventory_counts=inventory_counts, wooden_counts=wooden_counts)
+    return render_template(
+        'inventory.html',
+        inventory_counts=inventory_counts,
+        wooden_counts=wooden_counts,
+        parts_used_this_month=parts_used_this_month
+    )
+
 
 from datetime import datetime, date
 from calendar import monthrange
