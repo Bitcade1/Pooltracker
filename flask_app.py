@@ -913,13 +913,18 @@ def manage_raw_data():
                 db.session.commit()
                 flash(f"{table.capitalize()} entry deleted successfully!", "success")
             else:
-                # Convert form input to strings for `start_time` and `finish_time`
-                start_time_str = request.form.get('start_time')
-                finish_time_str = request.form.get('finish_time')
-                
-                # Update the entry, ensuring `start_time` and `finish_time` are strings
-                entry.start_time = start_time_str  # Store as a string
-                entry.finish_time = finish_time_str  # Store as a string
+                # Convert form input to `time` objects for `start_time` and `finish_time` for pods section
+                if table == 'pods':
+                    try:
+                        entry.start_time = datetime.strptime(request.form.get('start_time'), "%H:%M").time()
+                        entry.finish_time = datetime.strptime(request.form.get('finish_time'), "%H:%M").time()
+                    except ValueError:
+                        flash("Invalid time format. Please use HH:MM.", "error")
+                        return redirect(url_for('manage_raw_data', serial_number=serial_number_query))
+                else:
+                    # Store start and finish times as strings for other sections
+                    entry.start_time = request.form.get('start_time')
+                    entry.finish_time = request.form.get('finish_time')
 
                 # Update other fields
                 entry.worker = request.form.get('worker')
@@ -940,6 +945,7 @@ def manage_raw_data():
                 flash(f"{table.capitalize()} entry updated successfully!", "success")
 
         return redirect(url_for('manage_raw_data', serial_number=serial_number_query))
+
 
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
 
