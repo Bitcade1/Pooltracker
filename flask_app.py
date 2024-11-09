@@ -775,6 +775,7 @@ def inventory():
     )
 
 
+
 from datetime import datetime, date
 from calendar import monthrange
 from sqlalchemy import func, extract
