@@ -510,14 +510,13 @@ def counting_wood():
         elif action == 'bulk_increment' and bulk_amount > 0:
             count_entry.count += bulk_amount
 
-        # Only log a daily entry if the action is "increment" or "bulk_increment"
-        if action in ['increment', 'bulk_increment']:
-            log_entry = WoodCount(
-                date=today, 
-                section=section, 
-                count=bulk_amount if action == 'bulk_increment' else 1
-            )
-            db.session.add(log_entry)
+        # Log an entry for the selected month for daily tracking purposes
+        log_entry = WoodCount(
+            date=selected_month_start_date,  # Use the first day of the selected month
+            section=section,
+            count=bulk_amount if action == 'bulk_increment' else 1
+        )
+        db.session.add(log_entry)
 
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
@@ -563,6 +562,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
+
 
 
     
