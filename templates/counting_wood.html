@@ -58,7 +58,7 @@
         {% endwith %}
 
         <!-- Month Selection Form -->
-        <form method="POST" action="{{ url_for('counting_wood') }}">
+        <form method="GET" action="{{ url_for('counting_wood') }}">
             <label for="month">Select Month: (This is the month you are cutting for)</label>
             <select name="month" id="month" onchange="this.form.submit()">
                 {% for value, label in available_months %}
@@ -127,7 +127,7 @@
                     <tr>
                         <td>{{ entry.time.strftime('%H:%M:%S') }}</td>
                         <td>{{ entry.section }}</td>
-                        <td>{{ entry.date }}</td>
+                        <td>{{ entry.date.strftime('%B %Y') }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -141,7 +141,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Day of Week</th>
                         <th>Total Sheets Cut</th>
                     </tr>
                 </thead>
