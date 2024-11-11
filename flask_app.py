@@ -59,12 +59,13 @@ class TopRail(db.Model):
     issue = db.Column(db.String(50), nullable=False)
     lunch = db.Column(db.String(3), default='No')
 
+# Model for WoodCount entries
 class WoodCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    section = db.Column(db.String(50), nullable=False)  # E.g., 'Body', 'Pod Sides', or 'Bases'
-    count = db.Column(db.Integer, default=0, nullable=False)
-    date = db.Column(db.Date, default=datetime.utcnow, nullable=False)  # Tracks the day
-    time = db.Column(db.Time, default=datetime.utcnow().time, nullable=False)  # Tracks the time
+    section = db.Column(db.String(50), nullable=False)
+    count = db.Column(db.Integer, default=0)
+    date = db.Column(db.Date, default=date.today)
+    month_year = db.Column(db.String(7), nullable=False)  # Format "YYYY-MM"
 
     def __init__(self, section, count=0, date=None, time=None):
         self.section = section
@@ -94,24 +95,6 @@ class CompletedPods(db.Model):
     issue = db.Column(db.String(100))  # Add this line to include the 'issue' field
     lunch = db.Column(db.String(3), default='No')
 
-
-# Helper function to dynamically create or retrieve monthly WoodCount tables
-def get_wood_count_table(selected_year, selected_month):
-    # Define the table name based on the year and month
-    table_name = f"wood_count_{selected_year}_{str(selected_month).zfill(2)}"
-    
-    # Check if the table exists; if not, create it dynamically
-    if not db.engine.dialect.has_table(db.engine, table_name):
-        metadata = MetaData()
-        new_table = Table(
-            table_name, metadata,
-            Column('id', Integer, primary_key=True),
-            Column('date', Date),
-            Column('section', String(50)),
-            Column('count', Integer, default=0),
-        )
-        metadata.create_all(db.engine)  # This creates the table in the database
-    return table_name
 
 # Home and Bodies Routes
 @app.route('/')
@@ -939,98 +922,75 @@ def manage_raw_data():
 
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
 
-
-
+# Route to handle wood counting
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
-    # Initialize or get inventory record
+    # Initialize inventory
     inventory = MDFInventory.query.first() or MDFInventory(plain_mdf=0, black_mdf=0)
     if not inventory.id:
         db.session.add(inventory)
         db.session.commit()
 
+    # Set up dates
     today = datetime.utcnow().date()
     week_start = today - timedelta(days=today.weekday())  # Start of the week (Monday)
-
-    # Get selected month from the request or default to the current month
     selected_month = request.form.get('month') or request.args.get('month', today.strftime('%Y-%m'))
-    selected_year, selected_month_num = map(int, selected_month.split('-'))
-    month_start_date = date(selected_year, selected_month_num, 1)
+    year, month = map(int, selected_month.split('-'))
+    month_start_date = date(year, month, 1)
 
-    # Define available months for dropdown selection
-    current_month_start = today.replace(day=1)
-    previous_month = (current_month_start - timedelta(days=1)).replace(day=1)
-    next_month = (current_month_start + timedelta(days=31)).replace(day=1)
-    available_months = [
-        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
-        (current_month_start.strftime("%Y-%m"), current_month_start.strftime("%B %Y")),
-        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
-    ]
-
-    # Get or create the WoodCount table for the selected month
-    table_name = get_wood_count_table(selected_year, selected_month_num)
-    WoodCountTable = Table(table_name, db.metadata, autoload_with=db.engine)
-
-    # Section-wise actions (increment, decrement, bulk increment)
+    # Handle actions (increment, decrement, bulk increment)
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
-        action = request.form.get('action')
+        action = request.form.get('action', 'increment')
         bulk_amount = int(request.form.get('bulk_amount', 0)) if action == 'bulk_increment' else 1
 
-        with db.engine.connect() as conn:
-            # Get or create entry for the current date and section in the selected month
-            result = conn.execute(WoodCountTable.select().where(
-                WoodCountTable.c.section == section,
-                WoodCountTable.c.date == month_start_date
-            )).fetchone()
+        # Get or create entry for the selected month and section
+        count_entry = WoodCount.query.filter_by(month_year=selected_month, section=section).first()
+        if not count_entry:
+            count_entry = WoodCount(section=section, count=0, month_year=selected_month)
+            db.session.add(count_entry)
 
-            if result:
-                # Update the existing count
-                new_count = result['count'] + (bulk_amount if action == 'bulk_increment' else 1 if action == 'increment' else -1)
-                conn.execute(WoodCountTable.update().values(count=new_count).where(
-                    WoodCountTable.c.id == result['id']
-                ))
-            else:
-                # Insert a new count entry
-                conn.execute(WoodCountTable.insert().values(
-                    date=month_start_date,
-                    section=section,
-                    count=(bulk_amount if action == 'bulk_increment' else 1)
-                ))
+        # Update the count
+        if action == 'increment':
+            count_entry.count += 1
+        elif action == 'decrement' and count_entry.count > 0:
+            count_entry.count -= 1
+        elif action == 'bulk_increment' and bulk_amount > 0:
+            count_entry.count += bulk_amount
 
-            # Log the individual entry for daily tracking
-            log_entry = {
-                'date': today,
-                'section': section,
-                'count': bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1)
-            }
-            conn.execute(WoodCountTable.insert().values(log_entry))
+        # Log individual entry for daily tracking
+        log_entry = WoodCount(date=today, section=section, count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1), month_year=selected_month)
+        db.session.add(log_entry)
 
-        flash(f"{section} count updated successfully!", "success")
+        db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Fetch current counts for each section in the selected month
-    counts = {}
-    with db.engine.connect() as conn:
-        for section in ['Body', 'Pod Sides', 'Bases']:
-            count = conn.execute(func.sum(WoodCountTable.c.count).select().where(
-                WoodCountTable.c.section == section
-            )).scalar() or 0
-            counts[section] = count
+    # Fetch current counts for each section based on selected month
+    counts = {section: WoodCount.query.with_entities(func.sum(WoodCount.count)).filter(
+        WoodCount.section == section,
+        WoodCount.month_year == selected_month
+    ).scalar() or 0 for section in ['Body', 'Pod Sides', 'Bases']}
 
-    # Fetch daily logs for the selected month, ordered newest first
-    with db.engine.connect() as conn:
-        daily_wood_data = conn.execute(WoodCountTable.select().order_by(WoodCountTable.c.date.desc())).fetchall()
+    # Daily log for selected month in descending time order
+    daily_wood_data = WoodCount.query.filter_by(month_year=selected_month).order_by(WoodCount.date.desc()).all()
 
-    # Fetch weekly summary data for the selected month
+    # Weekly summary log for selected month
     weekly_wood_data = db.session.query(
-        func.strftime('%Y-%m-%d', WoodCountTable.c.date).label('day'),
-        func.sum(WoodCountTable.c.count).label('daily_count')
+        func.strftime('%Y-%m-%d', WoodCount.date).label('day'),
+        func.sum(WoodCount.count).label('daily_count')
     ).filter(
-        WoodCountTable.c.date >= week_start,
-        WoodCountTable.c.date >= month_start_date,
-        WoodCountTable.c.date < month_start_date + timedelta(days=31)
+        WoodCount.date >= week_start,
+        WoodCount.month_year == selected_month
     ).group_by('day').order_by('day').all()
+
+    # Define available months for dropdown
+    previous_month = (month_start_date - timedelta(days=1)).replace(day=1)
+    next_month = (month_start_date + timedelta(days=31)).replace(day=1)
+    available_months = [
+        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
+        (month_start_date.strftime("%Y-%m"), month_start_date.strftime("%B %Y")),
+        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
+    ]
 
     return render_template(
         'counting_wood.html',
@@ -1041,6 +1001,8 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
