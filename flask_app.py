@@ -928,7 +928,6 @@ from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash
 from datetime import datetime, timedelta, date
 from sqlalchemy import func
-from your_project import db, WoodCount, MDFInventory
 
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
