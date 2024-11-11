@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
+from collections import defaultdict  # Ensure defaultdict is imported
 import os
 
 app = Flask(__name__)
