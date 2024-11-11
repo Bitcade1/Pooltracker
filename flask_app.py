@@ -475,19 +475,19 @@ from datetime import datetime, timedelta, date
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
-    # Retrieve MDF inventory data
+    # Initialize or retrieve MDF inventory data
     inventory = MDFInventory.query.first()
     if not inventory:
         inventory = MDFInventory(plain_mdf=0, black_mdf=0)
         db.session.add(inventory)
         db.session.commit()
 
+    # Set up months for selection
     today = datetime.utcnow().date()
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
 
-    # Generate available months for selection
     available_months = [
         (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
         (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
@@ -498,56 +498,57 @@ def counting_wood():
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
 
+    # Handle post request for increment, decrement, or bulk increment
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
+        current_date = today
         current_time = datetime.utcnow().time()
 
+        # Retrieve or create the count entry for the selected month and section
+        current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
+        if not current_count_entry:
+            current_count_entry = WoodCount(section=section, count=0, date=current_date, time=current_time)
+            db.session.add(current_count_entry)
+
+        # Adjust count and inventory based on action
         if action == 'increment':
-            new_entry = WoodCount(section=section, count=1, date=today, time=current_time)
-            db.session.add(new_entry)
-        elif action == 'decrement':
-            last_entry = WoodCount.query.filter_by(section=section, date=today).order_by(WoodCount.id.desc()).first()
-            if last_entry and last_entry.count > 0:
-                last_entry.count -= 1
-                if last_entry.count == 0:
-                    db.session.delete(last_entry)
+            current_count_entry.count += 1
+        elif action == 'decrement' and current_count_entry.count > 0:
+            current_count_entry.count -= 1
         elif action == 'bulk_increment':
             bulk_amount = int(request.form.get('bulk_amount', 0))
-            if bulk_amount > 0:
-                new_entry = WoodCount(section=section, count=bulk_amount, date=today, time=current_time)
-                db.session.add(new_entry)
-            else:
-                flash("Please enter a valid bulk amount.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
+            current_count_entry.count += max(0, bulk_amount)
+
+        # Update inventory based on section
+        if section == 'Body':
+            inventory.black_mdf = max(0, inventory.black_mdf - (bulk_amount if action == 'bulk_increment' else 1))
+        elif section in ['Pod Sides', 'Bases']:
+            inventory.plain_mdf = max(0, inventory.plain_mdf - (bulk_amount if action == 'bulk_increment' else 1))
 
         db.session.commit()
         flash(f"{section} count updated successfully!", "success")
 
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Fetch daily data only for today
-    daily_wood_data = (
-        db.session.query(WoodCount.section, WoodCount.count, WoodCount.time)
-        .filter(WoodCount.date == today)
-        .all()
-    )
-
-    # Fetch weekly data for the current week
-    start_of_week = today - timedelta(days=today.weekday())
-    weekly_wood_data = (
-        db.session.query(WoodCount.date, func.sum(WoodCount.count).label('daily_count'))
-        .filter(WoodCount.date >= start_of_week)
-        .group_by(WoodCount.date)
-        .all()
-    )
-
-    # Counts for each section based on selected month
+    # Fetch the counts for each section based on the selected month
     sections = ['Body', 'Pod Sides', 'Bases']
     counts = {
-        section: sum(entry.count for entry in WoodCount.query.filter_by(section=section).all())
+        section: WoodCount.query.filter_by(section=section, date=month_start_date).first().count if WoodCount.query.filter_by(section=section, date=month_start_date).first() else 0
         for section in sections
     }
+
+    # Query daily wood cut data
+    daily_wood_data = db.session.query(WoodCount).filter(
+        extract('year', WoodCount.date) == today.year,
+        extract('month', WoodCount.date) == today.month
+    ).order_by(WoodCount.date.desc()).all()
+
+    # Query weekly wood cut data and group by day
+    week_start = today - timedelta(days=today.weekday())
+    weekly_wood_data = db.session.query(
+        func.date_trunc('day', WoodCount.date).label('day'), func.sum(WoodCount.count).label('daily_count')
+    ).filter(WoodCount.date >= week_start).group_by('day').order_by('day').all()
 
     return render_template(
         'counting_wood.html',
