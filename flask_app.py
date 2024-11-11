@@ -931,35 +931,31 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from datetime import datetime, timedelta, date
 from sqlalchemy import func
 
-# Route to handle wood counting
+from datetime import datetime
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
-    # Initialize inventory
     inventory = MDFInventory.query.first() or MDFInventory(plain_mdf=0, black_mdf=0)
     if not inventory.id:
         db.session.add(inventory)
         db.session.commit()
 
-    # Set up dates
     today = datetime.utcnow().date()
-    current_time = datetime.utcnow().time()  # Capture the current time
+    current_time = datetime.utcnow().time()
     selected_month = request.form.get('month') or request.args.get('month', today.strftime('%Y-%m'))
     year, month = map(int, selected_month.split('-'))
     month_start_date = date(year, month, 1)
 
-    # Handle actions (increment, decrement, bulk increment)
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
         bulk_amount = int(request.form.get('bulk_amount', 0)) if action == 'bulk_increment' else 1
 
-        # Get or create entry for the selected month and section
         count_entry = WoodCount.query.filter_by(month_year=selected_month, section=section).first()
         if not count_entry:
             count_entry = WoodCount(section=section, count=0, month_year=selected_month)
             db.session.add(count_entry)
 
-        # Update the count
         if action == 'increment':
             count_entry.count += 1
         elif action == 'decrement' and count_entry.count > 0:
@@ -967,35 +963,45 @@ def counting_wood():
         elif action == 'bulk_increment' and bulk_amount > 0:
             count_entry.count += bulk_amount
 
-        # Log individual entry for daily tracking
-        log_entry = WoodCount(date=today, section=section, count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1), month_year=selected_month, time=current_time)
+        log_entry = WoodCount(
+            date=today, 
+            time=current_time,  # Ensure time is added here
+            section=section, 
+            count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1), 
+            month_year=selected_month
+        )
         db.session.add(log_entry)
 
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Fetch current counts for each section based on selected month
     counts = {section: WoodCount.query.with_entities(func.sum(WoodCount.count)).filter(
         WoodCount.section == section,
         WoodCount.month_year == selected_month
     ).scalar() or 0 for section in ['Body', 'Pod Sides', 'Bases']}
 
-    # Daily log for selected month in descending time order
     daily_wood_data = WoodCount.query.filter_by(month_year=selected_month).order_by(WoodCount.date.desc(), WoodCount.time.desc()).all()
 
-    # Weekly summary log for selected month
     weekly_wood_data = db.session.query(
         func.strftime('%Y-%m-%d', WoodCount.date).label('day'),
         func.sum(WoodCount.count).label('daily_count')
     ).filter(
-        WoodCount.date >= today - timedelta(days=today.weekday()),  # Adjust for start of week
+        WoodCount.date >= today - timedelta(days=today.weekday()),
         WoodCount.month_year == selected_month
     ).group_by('day').order_by('day').all()
+
+    previous_month = (month_start_date - timedelta(days=1)).replace(day=1)
+    next_month = (month_start_date + timedelta(days=31)).replace(day=1)
+    available_months = [
+        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
+        (month_start_date.strftime("%Y-%m"), month_start_date.strftime("%B %Y")),
+        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
+    ]
 
     return render_template(
         'counting_wood.html',
         inventory=inventory,
-        available_months=[(month_start_date.strftime("%Y-%m"), month_start_date.strftime("%B %Y"))],
+        available_months=available_months,
         selected_month=selected_month,
         counts=counts,
         daily_wood_data=daily_wood_data,
