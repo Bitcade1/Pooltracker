@@ -929,14 +929,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from datetime import datetime, timedelta, date
 from sqlalchemy import func
 
-
-from flask import Flask, render_template, request, redirect, url_for, flash
-from datetime import datetime, timedelta, date
-from sqlalchemy import func
-from your_project import db, WoodCount, MDFInventory
-
-app = Flask(__name__)
-
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Initialize inventory
