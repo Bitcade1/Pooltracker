@@ -524,11 +524,11 @@ def counting_wood():
         extract('month', WoodCount.date) == month
     ).scalar() or 0 for section in ['Body', 'Pod Sides', 'Bases']}
 
-    # Daily log for selected month
+    # Daily log for selected month, ordered by date and time descending
     daily_wood_data = WoodCount.query.filter(
         extract('year', WoodCount.date) == year,
         extract('month', WoodCount.date) == month
-    ).all()
+    ).order_by(WoodCount.date.desc(), WoodCount.time.desc()).all()
 
     # Weekly summary log for selected month
     weekly_wood_data = db.session.query(
@@ -538,7 +538,7 @@ def counting_wood():
         WoodCount.date >= week_start,
         extract('year', WoodCount.date) == year,
         extract('month', WoodCount.date) == month
-    ).group_by('day').all()
+    ).group_by('day').order_by('day').all()
 
     # Define available months for dropdown
     previous_month = (current_month_start - timedelta(days=1)).replace(day=1)
@@ -558,7 +558,6 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
-
 
     
 @app.route('/dashboard')
