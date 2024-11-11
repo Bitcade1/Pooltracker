@@ -495,16 +495,16 @@ def counting_wood():
 
     selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
-    month_start_date = date(selected_year, selected_month_num, 1)
+    selected_date = date(selected_year, selected_month_num, 1)
 
     # Handle form actions for increment, decrement, and bulk increment
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_date = today
+        current_date = selected_date  # Use the selected month instead of today
         current_time = datetime.utcnow().time()
 
-        # Retrieve or create current count entry
+        # Retrieve or create current count entry for selected month and section
         current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
         if not current_count_entry:
             current_count_entry = WoodCount(section=section, count=0, date=current_date, time=current_time)
@@ -562,7 +562,6 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
-
 
 
 @app.route('/dashboard')
