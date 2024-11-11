@@ -31,6 +31,9 @@
             border-radius: 5px;
             margin-top: 10px;
         }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
+        th { background-color: #f2f2f2; }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -43,7 +46,7 @@
     <div class="container">
         <h1>Counting Wood</h1>
 
-        <!-- Flash Messages Display (Success) -->
+        <!-- Flash Messages Display -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
@@ -54,7 +57,7 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Month Selection Form (POST method to persist selection) -->
+        <!-- Month Selection Form -->
         <form method="POST" action="{{ url_for('counting_wood') }}">
             <label for="month">Select Month: (This is the month you are cutting for)</label>
             <select name="month" id="month" onchange="this.form.submit()">
@@ -105,6 +108,31 @@
         <div class="inventory">
             <p>Plain MDF: {{ inventory.plain_mdf }}</p>
             <p>Black MDF: {{ inventory.black_mdf }}</p>
+        </div>
+
+        <!-- Daily Wood Cutting Summary (Collapsible) -->
+        <button class="collapsible" onclick="toggleCollapsible('dailyWoodDataContent')">Daily Wood Cutting Summary</button>
+        <div id="dailyWoodDataContent" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Time Logged</th>
+                        <th>Type</th>
+                        <th>Month Assigned</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in daily_wood_data %}
+                    <tr>
+                        <td>{{ entry.date }}</td>
+                        <td>{{ entry.time }}</td>
+                        <td>{{ entry.section }}</td>
+                        <td>{{ entry.month_assigned }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
         <!-- Back to Menu Button -->
