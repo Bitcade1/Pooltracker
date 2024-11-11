@@ -475,14 +475,13 @@ from datetime import datetime, timedelta, date
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
-    # Initialize or retrieve MDF inventory data
     inventory = MDFInventory.query.first()
     if not inventory:
         inventory = MDFInventory(plain_mdf=0, black_mdf=0)
         db.session.add(inventory)
         db.session.commit()
 
-    # Set up months for selection
+    # Define available months
     today = datetime.utcnow().date()
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
@@ -498,7 +497,6 @@ def counting_wood():
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
 
-    # Handle post request for increment, decrement, or bulk increment
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
@@ -544,11 +542,20 @@ def counting_wood():
         extract('month', WoodCount.date) == today.month
     ).order_by(WoodCount.date.desc()).all()
 
-    # Query weekly wood cut data and group by day
+    # Calculate start of the week (Monday)
     week_start = today - timedelta(days=today.weekday())
-    weekly_wood_data = db.session.query(
-        func.date_trunc('day', WoodCount.date).label('day'), func.sum(WoodCount.count).label('daily_count')
-    ).filter(WoodCount.date >= week_start).group_by('day').order_by('day').all()
+
+    # Weekly wood cut data with grouping by day, compatible with SQLite
+    weekly_wood_data = (
+        db.session.query(
+            func.strftime('%Y-%m-%d', WoodCount.date).label('day'),
+            func.sum(WoodCount.count).label('daily_count')
+        )
+        .filter(WoodCount.date >= week_start)
+        .group_by('day')
+        .order_by('day')
+        .all()
+    )
 
     return render_template(
         'counting_wood.html',
