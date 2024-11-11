@@ -973,10 +973,9 @@ def counting_wood():
         WoodCount.month_year == month_year
     ).scalar() or 0 for section in ['Body', 'Pod Sides', 'Bases']}
 
-    # Daily log for selected month in descending order by date
+    # Daily log for the selected month in descending order by date
     daily_wood_data = WoodCount.query.filter(
-        WoodCount.month_year == month_year,
-        WoodCount.date >= month_start_date
+        WoodCount.month_year == month_year
     ).order_by(WoodCount.date.desc()).all()
 
     # Weekly summary log for selected month
@@ -984,8 +983,8 @@ def counting_wood():
         func.strftime('%Y-%m-%d', WoodCount.date).label('day'),
         func.sum(WoodCount.count).label('daily_count')
     ).filter(
-        WoodCount.date >= week_start,
-        WoodCount.month_year == month_year
+        WoodCount.month_year == month_year,
+        WoodCount.date >= week_start
     ).group_by('day').order_by('day').all()
 
     # Define available months for dropdown
