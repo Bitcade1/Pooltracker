@@ -125,7 +125,7 @@
                 <tbody>
                     {% for entry in daily_wood_data %}
                     <tr>
-                        <td>{{ entry.time.strftime('%H:%M:%S') }}</td>
+                        <td>{{ entry.date.strftime('%H:%M:%S') }}</td>
                         <td>{{ entry.section }}</td>
                         <td>{{ entry.date.strftime('%B %Y') }}</td>
                     </tr>
