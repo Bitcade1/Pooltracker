@@ -19,9 +19,7 @@
             margin-top: 20px;
             border-radius: 5px;
         }
-        .collapsible:hover {
-            background-color: #0056b3;
-        }
+        .collapsible:hover { background-color: #0056b3; }
         .collapsible-content {
             padding: 15px;
             display: none;
@@ -46,17 +44,6 @@
     <div class="container">
         <h1>Counting Wood</h1>
 
-        <!-- Flash Messages Display -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
         <!-- Month Selection Form -->
         <form method="POST" action="{{ url_for('counting_wood') }}">
             <label for="month">Select Month: (This is the month you are cutting for)</label>
@@ -75,7 +62,7 @@
         <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
             <p class="count">Current Count: {{ count }}</p>
             
-            <!-- Increment Form -->
+            <!-- Increment and Decrement Forms -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="increment">
@@ -83,22 +70,11 @@
                 <button type="submit" class="up-arrow">▲</button>
             </form>
             
-            <!-- Decrement Form -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
                 <input type="hidden" name="section" value="{{ section }}">
                 <input type="hidden" name="action" value="decrement">
                 <input type="hidden" name="month" value="{{ selected_month }}">
                 <button type="submit" class="down-arrow">▼</button>
-            </form>
-            
-            <!-- Bulk Increment Form -->
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="{{ section }}">
-                <input type="hidden" name="action" value="bulk_increment">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <label for="{{ section | replace(' ', '_') }}_bulk_amount">Add Bulk Amount:</label>
-                <input type="number" id="{{ section | replace(' ', '_') }}_bulk_amount" name="bulk_amount" min="1" required>
-                <button type="submit" class="button">Add</button>
             </form>
         </div>
         {% endfor %}
@@ -110,7 +86,7 @@
             <p>Black MDF: {{ inventory.black_mdf }}</p>
         </div>
 
-        <!-- Daily Wood Cutting Summary (Collapsible) -->
+        <!-- Daily Wood Cutting Summary -->
         <button class="collapsible" onclick="toggleCollapsible('dailyWoodDataContent')">Daily Wood Cutting Summary</button>
         <div id="dailyWoodDataContent" class="collapsible-content">
             <table>
@@ -129,6 +105,27 @@
                         <td>{{ entry.time }}</td>
                         <td>{{ entry.section }}</td>
                         <td>{{ entry.month_assigned }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Weekly Summary Table -->
+        <button class="collapsible" onclick="toggleCollapsible('weeklySummaryContent')">Weekly Wood Cutting Summary</button>
+        <div id="weeklySummaryContent" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Day of the Week</th>
+                        <th>Total Sheets Cut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day, total in weekly_summary.items() %}
+                    <tr>
+                        <td>{{ day }}</td>
+                        <td>{{ total }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
