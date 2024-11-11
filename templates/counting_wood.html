@@ -148,7 +148,7 @@
                 <tbody>
                     {% for day in weekly_wood_data %}
                     <tr>
-                        <td>{{ day.date.strftime('%A') }}</td>
+                        <td>{{ day.day.strftime('%A') }}</td>
                         <td>{{ day.daily_count }}</td>
                     </tr>
                     {% endfor %}
