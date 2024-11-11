@@ -930,6 +930,13 @@ from datetime import datetime, timedelta, date
 from sqlalchemy import func
 
 
+from flask import Flask, render_template, request, redirect, url_for, flash
+from datetime import datetime, timedelta, date
+from sqlalchemy import func
+from your_project import db, WoodCount, MDFInventory
+
+app = Flask(__name__)
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Initialize inventory
@@ -957,17 +964,13 @@ def counting_wood():
             count_entry = WoodCount(section=section, count=0, month_year=month_year)
             db.session.add(count_entry)
 
-        # Update the count
+        # Update the count without additional logging
         if action == 'increment':
             count_entry.count += 1
         elif action == 'decrement' and count_entry.count > 0:
             count_entry.count -= 1
         elif action == 'bulk_increment' and bulk_amount > 0:
             count_entry.count += bulk_amount
-
-        # Log individual entry for daily tracking
-        log_entry = WoodCount(date=today, section=section, count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1), month_year=month_year)
-        db.session.add(log_entry)
 
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
@@ -978,8 +981,11 @@ def counting_wood():
         WoodCount.month_year == month_year
     ).scalar() or 0 for section in ['Body', 'Pod Sides', 'Bases']}
 
-    # Daily log for selected month in descending time order
-    daily_wood_data = WoodCount.query.filter_by(month_year=month_year).order_by(WoodCount.date.desc()).all()
+    # Daily log for selected month in descending order by date
+    daily_wood_data = WoodCount.query.filter(
+        WoodCount.month_year == month_year,
+        WoodCount.date >= month_start_date
+    ).order_by(WoodCount.date.desc()).all()
 
     # Weekly summary log for selected month
     weekly_wood_data = db.session.query(
@@ -1008,6 +1014,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
+
 
 
 
