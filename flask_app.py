@@ -63,9 +63,9 @@ class TopRail(db.Model):
 class WoodCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     section = db.Column(db.String(50), nullable=False)
-    count = db.Column(db.Integer, default=0)
+    count = db.Column(db.Integer, nullable=False, default=0)
     date = db.Column(db.Date, default=date.today)
-    month_year = db.Column(db.String(7), nullable=False)  # Format "YYYY-MM"
+    month_year = db.Column(db.String(7), nullable=False)  # Format: "YYYY-MM"
 
     def __init__(self, section, count=0, date=None, time=None):
         self.section = section
