@@ -488,7 +488,7 @@ def counting_wood():
     # Get selected month and counts
     selected_month = request.form.get('month') or request.args.get('month', today.strftime('%Y-%m'))
     year, month = map(int, selected_month.split('-'))
-    month_start_date = date(year, month, 1)
+    selected_month_start_date = date(year, month, 1)
 
     # Section-wise actions (increment, decrement, bulk increment)
     if request.method == 'POST' and 'section' in request.form:
@@ -497,9 +497,9 @@ def counting_wood():
         bulk_amount = int(request.form.get('bulk_amount', 0)) if action == 'bulk_increment' else 1
 
         # Get or create entry for the selected month and section
-        count_entry = WoodCount.query.filter_by(date=month_start_date, section=section).first()
+        count_entry = WoodCount.query.filter_by(date=selected_month_start_date, section=section).first()
         if not count_entry:
-            count_entry = WoodCount(date=month_start_date, section=section, count=0)
+            count_entry = WoodCount(date=selected_month_start_date, section=section, count=0)
             db.session.add(count_entry)
 
         # Adjust the count based on the action
@@ -510,8 +510,8 @@ def counting_wood():
         elif action == 'bulk_increment' and bulk_amount > 0:
             count_entry.count += bulk_amount
 
-        # Log individual entry for daily and weekly tracking
-        log_entry = WoodCount(date=today, section=section, count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1))
+        # Log individual entry for daily and weekly tracking, using the selected month date
+        log_entry = WoodCount(date=selected_month_start_date, section=section, count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1))
         db.session.add(log_entry)
 
         db.session.commit()
@@ -558,6 +558,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
+
 
     
 @app.route('/dashboard')
