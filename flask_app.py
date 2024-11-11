@@ -482,7 +482,7 @@ def counting_wood():
         db.session.commit()
 
     today = datetime.utcnow().date()
-    week_start = today - timedelta(days=today.weekday())  # Monday start
+    week_start = today - timedelta(days=today.weekday())  # Start of the week (Monday)
     current_month_start = today.replace(day=1)
 
     # Get selected month and counts
@@ -496,12 +496,24 @@ def counting_wood():
         action = request.form.get('action')
         bulk_amount = int(request.form.get('bulk_amount', 0)) if action == 'bulk_increment' else 1
 
-        # Log entry for each action
-        count_entry = WoodCount(date=today, section=section, count=bulk_amount if action == 'bulk_increment' else 1)
-        if action == 'decrement' and count_entry.count > 0:
-            count_entry.count = -1  # Log decrement action as -1
+        # Get or create entry for the selected month and section
+        count_entry = WoodCount.query.filter_by(date=month_start_date, section=section).first()
+        if not count_entry:
+            count_entry = WoodCount(date=month_start_date, section=section, count=0)
+            db.session.add(count_entry)
 
-        db.session.add(count_entry)
+        # Adjust the count based on the action
+        if action == 'increment':
+            count_entry.count += 1
+        elif action == 'decrement' and count_entry.count > 0:
+            count_entry.count -= 1
+        elif action == 'bulk_increment' and bulk_amount > 0:
+            count_entry.count += bulk_amount
+
+        # Log individual entry for daily and weekly tracking
+        log_entry = WoodCount(date=today, section=section, count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1))
+        db.session.add(log_entry)
+
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
 
@@ -528,7 +540,7 @@ def counting_wood():
         extract('month', WoodCount.date) == month
     ).group_by('day').all()
 
-    # Define available months for dropdown, including previous, current, and next month
+    # Define available months for dropdown
     previous_month = (current_month_start - timedelta(days=1)).replace(day=1)
     next_month = (current_month_start + timedelta(days=31)).replace(day=1)
     available_months = [
