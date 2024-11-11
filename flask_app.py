@@ -480,17 +480,20 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
+    # Generate dates for month selection
     today = datetime.utcnow().date()
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
 
+    # Available months for dropdown
     available_months = [
         (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
         (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
         (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
     ]
 
+    # Get selected month or default to current month
     selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
@@ -498,39 +501,41 @@ def counting_wood():
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_date = today
+        current_date = today  # Use today's date for daily records
         current_time = datetime.utcnow().time()
 
+        # Fetch or create a WoodCount entry for today and the selected section
         current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
         if not current_count_entry:
             current_count_entry = WoodCount(section=section, count=0, date=current_date, time=current_time)
             db.session.add(current_count_entry)
 
+        # Adjust the count based on action
         if action == 'increment':
             current_count_entry.count += 1
         elif action == 'decrement' and current_count_entry.count > 0:
             current_count_entry.count -= 1
             if current_count_entry.count == 0:
-                db.session.delete(current_count_entry)
+                db.session.delete(current_count_entry)  # Delete if count reaches zero
 
         db.session.commit()
 
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Fetch monthly data for each section
+    # Fetch counts for each section for the selected month
     sections = ['Body', 'Pod Sides', 'Bases']
     counts = {
         section: WoodCount.query.filter_by(section=section, date=month_start_date).first().count if WoodCount.query.filter_by(section=section, date=month_start_date).first() else 0
         for section in sections
     }
 
-    # Daily wood cutting data
+    # Fetch daily wood cutting data for the selected month
     daily_wood_data = WoodCount.query.filter(
         extract('year', WoodCount.date) == selected_year,
         extract('month', WoodCount.date) == selected_month_num
     ).all()
 
-    # Weekly summary by day of the week
+    # Calculate weekly summary by day of the week
     weekly_summary = defaultdict(int)
     for entry in daily_wood_data:
         weekday = entry.date.strftime("%A")
