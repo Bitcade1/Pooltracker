@@ -502,12 +502,10 @@ def counting_wood():
         action = request.form.get('action', 'increment')
         current_time = datetime.utcnow().time()
 
-        # Record an entry each time an increment or bulk increment occurs
         if action == 'increment':
             new_entry = WoodCount(section=section, count=1, date=today, time=current_time)
             db.session.add(new_entry)
         elif action == 'decrement':
-            # Decrement logic should handle the count and potentially delete the last entry
             last_entry = WoodCount.query.filter_by(section=section, date=today).order_by(WoodCount.id.desc()).first()
             if last_entry and last_entry.count > 0:
                 last_entry.count -= 1
@@ -522,22 +520,22 @@ def counting_wood():
                 flash("Please enter a valid bulk amount.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
 
-        # Commit database changes
         db.session.commit()
         flash(f"{section} count updated successfully!", "success")
 
         return redirect(url_for('counting_wood', month=selected_month))
 
     # Fetch daily data only for today
-    daily_wood_data = WoodCount.query.filter_by(date=today).all()
+    daily_wood_data = (
+        db.session.query(WoodCount.section, WoodCount.count, WoodCount.time)
+        .filter(WoodCount.date == today)
+        .all()
+    )
 
     # Fetch weekly data for the current week
     start_of_week = today - timedelta(days=today.weekday())
     weekly_wood_data = (
-        db.session.query(
-            func.strftime('%w', WoodCount.date).label('day_of_week'), 
-            func.sum(WoodCount.count).label('daily_count')
-        )
+        db.session.query(WoodCount.date, func.sum(WoodCount.count).label('daily_count'))
         .filter(WoodCount.date >= start_of_week)
         .group_by(WoodCount.date)
         .all()
