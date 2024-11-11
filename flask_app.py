@@ -530,15 +530,18 @@ def counting_wood():
         for section in sections
     }
 
-    # Fetch daily wood cutting data for the selected month
-    daily_wood_data = WoodCount.query.filter(
-        extract('year', WoodCount.date) == selected_year,
-        extract('month', WoodCount.date) == selected_month_num
-    ).all()
+    # Fetch only today’s wood cutting data
+    daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
 
-    # Calculate weekly summary by day of the week
+    # Calculate the start of the current week (Monday)
+    start_of_week = today - timedelta(days=today.weekday())
+    
+    # Fetch weekly data for the current week (from Monday to today)
+    weekly_wood_data = WoodCount.query.filter(WoodCount.date >= start_of_week, WoodCount.date <= today).all()
+    
+    # Summarize weekly data by day of the week
     weekly_summary = defaultdict(int)
-    for entry in daily_wood_data:
+    for entry in weekly_wood_data:
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
 
