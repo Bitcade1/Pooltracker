@@ -58,13 +58,7 @@ class TopRail(db.Model):
     serial_number = db.Column(db.String(20), unique=True, nullable=False)
     issue = db.Column(db.String(50), nullable=False)
     lunch = db.Column(db.String(3), default='No')
-
-    def __init__(self, section, count=0, date=None, time=None):
-        self.section = section
-        self.count = count
-        self.date = date if date else datetime.utcnow().date()
-        self.time = time if time else datetime.utcnow().time()
-        
+     
 class MDFInventory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     plain_mdf = db.Column(db.Integer, nullable=False, default=0)
@@ -86,6 +80,21 @@ class CompletedPods(db.Model):
     serial_number = db.Column(db.String(20), unique=True, nullable=False)
     issue = db.Column(db.String(100))  # Add this line to include the 'issue' field
     lunch = db.Column(db.String(3), default='No')
+
+class WoodCount(db.Model):
+    __tablename__ = 'wood_count'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, default=date.today, nullable=False)
+    section = db.Column(db.String(50), nullable=False)
+    count = db.Column(db.Integer, default=0, nullable=False)
+    month_year = db.Column(db.String(7), nullable=False)  # Format: 'YYYY-MM'
+
+    def __init__(self, section, count, month_year, date=None):
+        self.section = section
+        self.count = count
+        self.month_year = month_year
+        if date:
+            self.date = date
 
 
 # Home and Bodies Routes
@@ -915,30 +924,12 @@ def manage_raw_data():
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
 
 from flask_sqlalchemy import SQLAlchemy
-from datetime import date
-
-db = SQLAlchemy()
-
-class WoodCount(db.Model):
-    __tablename__ = 'wood_count'
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, default=date.today, nullable=False)
-    section = db.Column(db.String(50), nullable=False)
-    count = db.Column(db.Integer, default=0, nullable=False)
-    month_year = db.Column(db.String(7), nullable=False)  # Format: 'YYYY-MM'
-
-    def __init__(self, section, count, month_year, date=None):
-        self.section = section
-        self.count = count
-        self.month_year = month_year
-        if date:
-            self.date = date
+from datetime import date           
 from flask import Flask, render_template, request, redirect, url_for, flash
 from datetime import datetime, timedelta, date
 from sqlalchemy import func
 from your_project import db, WoodCount, MDFInventory
 
-app = Flask(__name__)
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
