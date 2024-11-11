@@ -477,7 +477,9 @@ from datetime import datetime, timedelta, date
 def counting_wood():
     # Initialize inventory and set up dates
     inventory = MDFInventory.query.first() or MDFInventory(plain_mdf=0, black_mdf=0)
-    db.session.add(inventory) if not inventory.id else None
+    if not inventory.id:
+        db.session.add(inventory)
+        db.session.commit()
 
     today = datetime.utcnow().date()
     week_start = today - timedelta(days=today.weekday())  # Monday start
@@ -494,20 +496,12 @@ def counting_wood():
         action = request.form.get('action')
         bulk_amount = int(request.form.get('bulk_amount', 0)) if action == 'bulk_increment' else 1
 
-        # Get or create entry for the selected date and section
-        count_entry = WoodCount.query.filter_by(date=month_start_date, section=section).first()
-        if not count_entry:
-            count_entry = WoodCount(date=month_start_date, section=section, count=0)
-            db.session.add(count_entry)
+        # Log entry for each action
+        count_entry = WoodCount(date=today, section=section, count=bulk_amount if action == 'bulk_increment' else 1)
+        if action == 'decrement' and count_entry.count > 0:
+            count_entry.count = -1  # Log decrement action as -1
 
-        # Adjust the count based on the action
-        if action == 'increment':
-            count_entry.count += 1
-        elif action == 'decrement' and count_entry.count > 0:
-            count_entry.count -= 1
-        elif action == 'bulk_increment' and bulk_amount > 0:
-            count_entry.count += bulk_amount
-
+        db.session.add(count_entry)
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
 
@@ -552,6 +546,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
+
 
     
 @app.route('/dashboard')
