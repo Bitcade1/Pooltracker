@@ -471,7 +471,6 @@ from flask import flash, redirect, render_template, request, url_for
 
 from datetime import datetime, timedelta, date
 
-# Counting Wood Route
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -481,7 +480,6 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
-    # Get the month and year for the selected month
     today = datetime.utcnow().date()
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
@@ -497,11 +495,10 @@ def counting_wood():
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
 
-    # Handle form submissions for wood cutting adjustments
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_date = month_start_date
+        current_date = today
         current_time = datetime.utcnow().time()
 
         current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
@@ -513,45 +510,31 @@ def counting_wood():
             current_count_entry.count += 1
         elif action == 'decrement' and current_count_entry.count > 0:
             current_count_entry.count -= 1
-        elif action == 'bulk_increment':
-            bulk_amount = int(request.form.get('bulk_amount', 0))
-            if bulk_amount > 0:
-                current_count_entry.count += bulk_amount
-            else:
-                flash("Please enter a valid bulk amount.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
-
-        if section == 'Body':
-            inventory.black_mdf = max(0, inventory.black_mdf - (bulk_amount if action == 'bulk_increment' else 1))
-        elif section in ['Pod Sides', 'Bases']:
-            inventory.plain_mdf = max(0, inventory.plain_mdf - (bulk_amount if action == 'bulk_increment' else 1))
+            if current_count_entry.count == 0:
+                db.session.delete(current_count_entry)
 
         db.session.commit()
-        flash(f"{section} count updated successfully!", "success")
+
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Fetch counts for each section based on selected month
+    # Fetch monthly data for each section
     sections = ['Body', 'Pod Sides', 'Bases']
     counts = {
         section: WoodCount.query.filter_by(section=section, date=month_start_date).first().count if WoodCount.query.filter_by(section=section, date=month_start_date).first() else 0
         for section in sections
     }
 
-    # Retrieve daily wood cutting data for the current month
-    wood_cut_data = db.session.query(WoodCount).filter(
+    # Daily wood cutting data
+    daily_wood_data = WoodCount.query.filter(
         extract('year', WoodCount.date) == selected_year,
         extract('month', WoodCount.date) == selected_month_num
-    ).order_by(WoodCount.date.asc(), WoodCount.time.asc()).all()
+    ).all()
 
-    daily_wood_data = [
-        {
-            'date': entry.date.strftime("%Y-%m-%d"),
-            'time': entry.time.strftime("%H:%M:%S"),
-            'section': entry.section,
-            'month_assigned': entry.date.strftime("%B %Y")
-        }
-        for entry in wood_cut_data
-    ]
+    # Weekly summary by day of the week
+    weekly_summary = defaultdict(int)
+    for entry in daily_wood_data:
+        weekday = entry.date.strftime("%A")
+        weekly_summary[weekday] += entry.count
 
     return render_template(
         'counting_wood.html',
@@ -559,7 +542,8 @@ def counting_wood():
         available_months=available_months,
         selected_month=selected_month,
         counts=counts,
-        daily_wood_data=daily_wood_data
+        daily_wood_data=daily_wood_data,
+        weekly_summary=weekly_summary
     )
 
 
