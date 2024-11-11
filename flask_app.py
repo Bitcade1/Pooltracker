@@ -518,6 +518,13 @@ def counting_wood():
             current_count_entry.count -= 1
             if current_count_entry.count == 0:
                 db.session.delete(current_count_entry)  # Delete if count reaches zero
+        elif action == 'bulk_increment':
+            bulk_amount = int(request.form.get('bulk_amount', 0))
+            if bulk_amount > 0:
+                current_count_entry.count += bulk_amount
+            else:
+                flash("Please enter a valid bulk amount.", "error")
+                return redirect(url_for('counting_wood', month=selected_month))
 
         db.session.commit()
 
@@ -554,6 +561,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 @app.route('/dashboard')
