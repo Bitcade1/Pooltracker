@@ -471,6 +471,7 @@ from flask import flash, redirect, render_template, request, url_for
 
 from datetime import datetime, timedelta, date
 
+# Counting Wood Route
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -480,37 +481,34 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
-    # Start from one month before the current month
+    # Get the month and year for the selected month
     today = datetime.utcnow().date()
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
 
-    # Generate the available months: previous month, current month, and next month
     available_months = [
         (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
         (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
         (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
     ]
 
-    # Set default to the current month if none selected
     selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
 
+    # Handle form submissions for wood cutting adjustments
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_date = month_start_date  # Use the start of the selected month
+        current_date = month_start_date
         current_time = datetime.utcnow().time()
 
-        # Retrieve or create current count entry for selected month and section
         current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
         if not current_count_entry:
             current_count_entry = WoodCount(section=section, count=0, date=current_date, time=current_time)
             db.session.add(current_count_entry)
 
-        # Adjust the count based on action
         if action == 'increment':
             current_count_entry.count += 1
         elif action == 'decrement' and current_count_entry.count > 0:
@@ -523,20 +521,13 @@ def counting_wood():
                 flash("Please enter a valid bulk amount.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
 
-        # Adjust MDF inventory based on section
         if section == 'Body':
             inventory.black_mdf = max(0, inventory.black_mdf - (bulk_amount if action == 'bulk_increment' else 1))
         elif section in ['Pod Sides', 'Bases']:
             inventory.plain_mdf = max(0, inventory.plain_mdf - (bulk_amount if action == 'bulk_increment' else 1))
 
-        # Commit changes
         db.session.commit()
         flash(f"{section} count updated successfully!", "success")
-        
-        # Debugging statements
-        print(f"DEBUG: {section} count for {selected_month} is now {current_count_entry.count}")
-        print(f"DEBUG: Current inventory - Plain MDF: {inventory.plain_mdf}, Black MDF: {inventory.black_mdf}")
-
         return redirect(url_for('counting_wood', month=selected_month))
 
     # Fetch counts for each section based on selected month
@@ -546,15 +537,29 @@ def counting_wood():
         for section in sections
     }
 
-    # Debugging statements
-    print(f"DEBUG: Counts for {selected_month} - {counts}")
+    # Retrieve daily wood cutting data for the current month
+    wood_cut_data = db.session.query(WoodCount).filter(
+        extract('year', WoodCount.date) == selected_year,
+        extract('month', WoodCount.date) == selected_month_num
+    ).order_by(WoodCount.date.asc(), WoodCount.time.asc()).all()
+
+    daily_wood_data = [
+        {
+            'date': entry.date.strftime("%Y-%m-%d"),
+            'time': entry.time.strftime("%H:%M:%S"),
+            'section': entry.section,
+            'month_assigned': entry.date.strftime("%B %Y")
+        }
+        for entry in wood_cut_data
+    ]
 
     return render_template(
         'counting_wood.html',
         inventory=inventory,
         available_months=available_months,
         selected_month=selected_month,
-        counts=counts
+        counts=counts,
+        daily_wood_data=daily_wood_data
     )
 
 
