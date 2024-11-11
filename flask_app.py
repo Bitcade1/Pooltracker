@@ -87,6 +87,7 @@ class WoodCount(db.Model):
     date = db.Column(db.Date, default=date.today, nullable=False)
     section = db.Column(db.String(50), nullable=False)
     count = db.Column(db.Integer, default=0, nullable=False)
+    time = Column(Time, nullable=True)  # New time column for tracking exact times
     month_year = db.Column(db.String(7), nullable=False)  # Format: 'YYYY-MM'
 
     def __init__(self, section, count, month_year, date=None):
