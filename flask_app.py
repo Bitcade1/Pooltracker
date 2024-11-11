@@ -501,24 +501,23 @@ def counting_wood():
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_date = selected_date  # Use the selected month instead of today
         current_time = datetime.utcnow().time()
 
-        # Retrieve or create current count entry for selected month and section
-        current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
-        if not current_count_entry:
-            current_count_entry = WoodCount(section=section, count=0, date=current_date, time=current_time)
-            db.session.add(current_count_entry)
+        # Always add a new log entry for each increment/decrement
+        new_entry = WoodCount(section=section, date=selected_date, time=current_time)
 
         # Modify count based on action
         if action == 'increment':
-            current_count_entry.count += 1
-        elif action == 'decrement' and current_count_entry.count > 0:
-            current_count_entry.count -= 1
+            new_entry.count = 1
+            db.session.add(new_entry)
+        elif action == 'decrement':
+            new_entry.count = -1
+            db.session.add(new_entry)
         elif action == 'bulk_increment':
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
-                current_count_entry.count += bulk_amount
+                new_entry.count = bulk_amount
+                db.session.add(new_entry)
             else:
                 flash("Please enter a valid bulk amount.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
@@ -562,7 +561,6 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
-
 
 @app.route('/dashboard')
 def dashboard():
