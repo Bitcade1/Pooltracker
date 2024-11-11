@@ -542,15 +542,18 @@ def counting_wood():
         for section in sections
     }
 
-    # Retrieve daily and weekly data for display
+    # Retrieve daily data for today
     daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
-    start_of_week = today - timedelta(days=today.weekday())
-    weekly_summary = {
-        day.strftime("%A"): db.session.query(db.func.sum(WoodCount.count))
-                                      .filter(WoodCount.date == day)
-                                      .scalar() or 0
-        for day in [start_of_week + timedelta(days=i) for i in range(7)]
-    }
+
+    # Retrieve weekly data
+    start_of_week = today - timedelta(days=today.weekday())  # Start of the current week (Monday)
+    weekly_wood_data = (
+        db.session.query(WoodCount.date, db.func.sum(WoodCount.count).label('daily_count'))
+        .filter(WoodCount.date >= start_of_week)
+        .group_by(WoodCount.date)
+        .order_by(WoodCount.date)
+        .all()
+    )
 
     return render_template(
         'counting_wood.html',
@@ -559,7 +562,7 @@ def counting_wood():
         selected_month=selected_month,
         counts=counts,
         daily_wood_data=daily_wood_data,
-        weekly_summary=weekly_summary
+        weekly_wood_data=weekly_wood_data
     )
 
 @app.route('/dashboard')
