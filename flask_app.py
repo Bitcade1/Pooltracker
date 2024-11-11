@@ -937,6 +937,7 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
+    # Set up dates
     today = datetime.utcnow().date()
     week_start = today - timedelta(days=today.weekday())  # Start of the week (Monday)
     selected_month = request.form.get('month') or request.args.get('month', today.strftime('%Y-%m'))
@@ -944,25 +945,36 @@ def counting_wood():
     month_year = f"{year}-{month:02d}"
     month_start_date = date(year, month, 1)
 
-    # Section-wise actions (increment, decrement, bulk increment)
+    # Handle actions (increment, decrement, bulk increment)
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
         bulk_amount = int(request.form.get('bulk_amount', 0)) if action == 'bulk_increment' else 1
+        current_time = datetime.utcnow().time()  # Capture the current time for logging
 
-        # Get or create entry for the selected month and section
+        # Get or create entry for the selected month and section for monthly tracking
         count_entry = WoodCount.query.filter_by(month_year=month_year, section=section).first()
         if not count_entry:
             count_entry = WoodCount(section=section, count=0, month_year=month_year)
             db.session.add(count_entry)
 
-        # Update the count without additional logging
+        # Update the count in the selected month
         if action == 'increment':
             count_entry.count += 1
         elif action == 'decrement' and count_entry.count > 0:
             count_entry.count -= 1
         elif action == 'bulk_increment' and bulk_amount > 0:
             count_entry.count += bulk_amount
+
+        # Create an individual log entry for daily tracking, with the current timestamp
+        log_entry = WoodCount(
+            date=today, 
+            time=current_time,
+            section=section,
+            count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1), 
+            month_year=month_year
+        )
+        db.session.add(log_entry)
 
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
@@ -973,10 +985,10 @@ def counting_wood():
         WoodCount.month_year == month_year
     ).scalar() or 0 for section in ['Body', 'Pod Sides', 'Bases']}
 
-    # Daily log for the selected month in descending order by date
+    # Daily log for the selected month in descending order by date and time
     daily_wood_data = WoodCount.query.filter(
         WoodCount.month_year == month_year
-    ).order_by(WoodCount.date.desc()).all()
+    ).order_by(WoodCount.date.desc(), WoodCount.time.desc()).all()
 
     # Weekly summary log for selected month
     weekly_wood_data = db.session.query(
@@ -1005,7 +1017,6 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
-
 
 
 
