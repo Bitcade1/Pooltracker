@@ -119,7 +119,7 @@
                     <tr>
                         <th>Time</th>
                         <th>Type</th>
-                        <th>Month</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -127,7 +127,7 @@
                     <tr>
                         <td>{{ entry.time.strftime('%H:%M:%S') }}</td>
                         <td>{{ entry.section }}</td>
-                        <td>{{ entry.date.strftime('%B %Y') }}</td>
+                        <td>{{ entry.date }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -141,7 +141,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Day of Week</th>
+                        <th>Date</th>
                         <th>Total Sheets Cut</th>
                     </tr>
                 </thead>
