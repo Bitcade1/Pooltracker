@@ -481,7 +481,7 @@ def counting_wood():
 
     today = datetime.utcnow().date()
     week_start = today - timedelta(days=today.weekday())  # Monday start
-    month_start = today.replace(day=1)
+    current_month_start = today.replace(day=1)
 
     # Get selected month and counts
     selected_month = request.form.get('month') or request.args.get('month', today.strftime('%Y-%m'))
@@ -494,10 +494,10 @@ def counting_wood():
         action = request.form.get('action')
         bulk_amount = int(request.form.get('bulk_amount', 0)) if action == 'bulk_increment' else 1
 
-        # Get or create entry for the current date and section
-        count_entry = WoodCount.query.filter_by(date=today, section=section).first()
+        # Get or create entry for the selected date and section
+        count_entry = WoodCount.query.filter_by(date=month_start_date, section=section).first()
         if not count_entry:
-            count_entry = WoodCount(date=today, section=section, count=0)
+            count_entry = WoodCount(date=month_start_date, section=section, count=0)
             db.session.add(count_entry)
 
         # Adjust the count based on the action
@@ -511,31 +511,48 @@ def counting_wood():
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Fetch current counts for each section (for display)
+    # Fetch current counts for each section based on selected month
     counts = {section: WoodCount.query.with_entities(func.sum(WoodCount.count)).filter(
         WoodCount.section == section,
         extract('year', WoodCount.date) == year,
         extract('month', WoodCount.date) == month
     ).scalar() or 0 for section in ['Body', 'Pod Sides', 'Bases']}
 
-    # Daily log for today
-    daily_wood_data = WoodCount.query.filter_by(date=today).all()
+    # Daily log for selected month
+    daily_wood_data = WoodCount.query.filter(
+        extract('year', WoodCount.date) == year,
+        extract('month', WoodCount.date) == month
+    ).all()
 
-    # Weekly summary log
+    # Weekly summary log for selected month
     weekly_wood_data = db.session.query(
         func.strftime('%Y-%m-%d', WoodCount.date).label('day'),
         func.sum(WoodCount.count).label('daily_count')
-    ).filter(WoodCount.date >= week_start).group_by('day').all()
+    ).filter(
+        WoodCount.date >= week_start,
+        extract('year', WoodCount.date) == year,
+        extract('month', WoodCount.date) == month
+    ).group_by('day').all()
+
+    # Define available months for dropdown, including previous, current, and next month
+    previous_month = (current_month_start - timedelta(days=1)).replace(day=1)
+    next_month = (current_month_start + timedelta(days=31)).replace(day=1)
+    available_months = [
+        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
+        (current_month_start.strftime("%Y-%m"), current_month_start.strftime("%B %Y")),
+        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
+    ]
 
     return render_template(
         'counting_wood.html',
         inventory=inventory,
-        available_months=[(today.strftime("%Y-%m"), today.strftime("%B %Y"))],
+        available_months=available_months,
         selected_month=selected_month,
         counts=counts,
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
+
     
 @app.route('/dashboard')
 def dashboard():
