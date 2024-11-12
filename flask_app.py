@@ -919,6 +919,8 @@ def manage_raw_data():
 
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
 
+from flask import current_app
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -1004,11 +1006,14 @@ def counting_wood():
         WoodCount.date <= month_end_date
     ).all()
 
-    # Accurate Weekly Summary Calculation
+    # Accurate Weekly Summary Calculation with Debugging
     weekly_summary = defaultdict(int)
     for entry in daily_wood_data:
-        weekday = entry.date.strftime("%A")  # Uses each entry's exact date for weekday accuracy
+        # Calculate the actual weekday and log the result for debugging
+        weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
+        # Debug output for each entry
+        current_app.logger.info(f"Entry date: {entry.date}, Weekday: {weekday}, Count: {entry.count}")
 
     return render_template(
         'counting_wood.html',
@@ -1019,6 +1024,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 
