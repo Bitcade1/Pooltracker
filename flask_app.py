@@ -92,6 +92,19 @@ class CompletedPods(db.Model):
     issue = db.Column(db.String(100))  # Add this line to include the 'issue' field
     lunch = db.Column(db.String(3), default='No')
 
+class CushionCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cushion_type = db.Column(db.String(10), nullable=False)  # Types: '1', '2', ..., '6'
+    count = db.Column(db.Integer, default=1, nullable=False)
+    date = db.Column(db.Date, default=datetime.utcnow, nullable=False)
+    time = db.Column(db.Time, default=datetime.utcnow().time, nullable=False)
+
+    def __init__(self, cushion_type):
+        self.cushion_type = cushion_type
+        self.count = 1
+        self.date = datetime.utcnow().date()
+        self.time = datetime.utcnow().time()
+
 
 # Home and Bodies Routes
 @app.route('/')
