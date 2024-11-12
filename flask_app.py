@@ -929,7 +929,7 @@ def counting_wood():
         db.session.commit()
 
     # Generate dates for month selection
-    today = datetime.now().date()  # Use local time instead of UTC
+    today = datetime.now().date()  # Use local time
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
@@ -950,7 +950,7 @@ def counting_wood():
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_time = datetime.now().time()  # Use local time instead of UTC
+        current_time = datetime.now().time()
 
         # Fetch or create a WoodCount entry for the selected month and section
         current_count_entry = WoodCount.query.filter(
@@ -1004,10 +1004,10 @@ def counting_wood():
         WoodCount.date <= month_end_date
     ).all()
 
-    # Fetch weekly data within the selected month
+    # Accurate Weekly Summary Calculation
     weekly_summary = defaultdict(int)
     for entry in daily_wood_data:
-        weekday = entry.date.strftime("%A")  # This should now use local date correctly
+        weekday = entry.date.strftime("%A")  # Uses each entry's exact date for weekday accuracy
         weekly_summary[weekday] += entry.count
 
     return render_template(
@@ -1019,6 +1019,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 
