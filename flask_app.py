@@ -940,6 +940,9 @@ from datetime import datetime
 
 from datetime import datetime, date, timedelta
 
+from datetime import datetime
+
+# Route to handle wood counting
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Initialize inventory
@@ -950,7 +953,8 @@ def counting_wood():
 
     # Set up dates
     today = datetime.utcnow().date()
-    current_time = datetime.utcnow().time()
+    current_time = datetime.utcnow().time()  # Get the current time
+    week_start = today - timedelta(days=today.weekday())  # Start of the week (Monday)
     selected_month = request.form.get('month') or request.args.get('month', today.strftime('%Y-%m'))
     year, month = map(int, selected_month.split('-'))
     month_start_date = date(year, month, 1)
@@ -975,7 +979,7 @@ def counting_wood():
         elif action == 'bulk_increment' and bulk_amount > 0:
             count_entry.count += bulk_amount
 
-        # Log individual entry for daily tracking
+        # Log individual entry for daily tracking with date and time
         log_entry = WoodCount(
             date=today, 
             time=current_time,  
@@ -998,7 +1002,6 @@ def counting_wood():
     daily_wood_data = WoodCount.query.filter_by(month_year=selected_month).order_by(WoodCount.date.desc(), WoodCount.time.desc()).all()
 
     # Weekly summary log for selected month
-    week_start = today - timedelta(days=today.weekday())
     weekly_wood_data = db.session.query(
         func.strftime('%Y-%m-%d', WoodCount.date).label('day'),
         func.sum(WoodCount.count).label('daily_count')
@@ -1025,6 +1028,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_wood_data=weekly_wood_data
     )
+
 
 
 
