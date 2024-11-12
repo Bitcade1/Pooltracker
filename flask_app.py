@@ -92,6 +92,20 @@ class CompletedPods(db.Model):
     issue = db.Column(db.String(100))  # Add this line to include the 'issue' field
     lunch = db.Column(db.String(3), default='No')
 
+class CushionCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cushion_type = db.Column(db.String(10), nullable=False)  # Types: '1', '2', ..., '6'
+    count = db.Column(db.Integer, default=1, nullable=False)
+    date = db.Column(db.Date, default=datetime.utcnow, nullable=False)
+    time = db.Column(db.Time, default=datetime.utcnow().time, nullable=False)
+
+    def __init__(self, cushion_type):
+        self.cushion_type = cushion_type
+        self.count = 1
+        self.date = datetime.utcnow().date()
+        self.time = datetime.utcnow().time()
+
+
 
 # Home and Bodies Routes
 @app.route('/')
@@ -1030,6 +1044,63 @@ def counting_wood():
         weekly_summary=weekly_summary
     )
 
+from .models import CushionCount
+
+@app.route('/counting_cushions', methods=['GET', 'POST'])
+def counting_cushions():
+    if request.method == 'POST':
+        cushion_type = request.form.get('cushion_type')
+
+        # Create a new cushion count entry with the current date and time
+        new_cushion_count = CushionCount(cushion_type=cushion_type)
+        db.session.add(new_cushion_count)
+        db.session.commit()
+        flash(f"Cushion {cushion_type} count incremented!", "success")
+        
+        return redirect(url_for('counting_cushions'))
+
+    # Calculate daily totals
+    today = datetime.utcnow().date()
+    daily_counts = db.session.query(
+        CushionCount.cushion_type,
+        func.count(CushionCount.id).label('total')
+    ).filter(CushionCount.date == today).group_by(CushionCount.cushion_type).all()
+
+    # Calculate weekly totals
+    start_of_week = today - timedelta(days=today.weekday())  # Monday as start of the week
+    weekly_counts = db.session.query(
+        CushionCount.cushion_type,
+        func.count(CushionCount.id).label('total')
+    ).filter(
+        CushionCount.date >= start_of_week,
+        CushionCount.date <= today
+    ).group_by(CushionCount.cushion_type).all()
+
+    # Calculate average time per cushion
+    avg_times = {}
+    for cushion_type in ['1', '2', '3', '4', '5', '6']:
+        times = db.session.query(CushionCount.time).filter(
+            CushionCount.cushion_type == cushion_type,
+            CushionCount.date == today
+        ).all()
+        
+        if times:
+            total_seconds = sum(
+                [t.time().hour * 3600 + t.time().minute * 60 + t.time().second for t in times]
+            )
+            avg_seconds = total_seconds / len(times)
+            avg_hours, remainder = divmod(int(avg_seconds), 3600)
+            avg_minutes, avg_seconds = divmod(remainder, 60)
+            avg_times[cushion_type] = f"{avg_hours:02}:{avg_minutes:02}:{avg_seconds:02}"
+        else:
+            avg_times[cushion_type] = "N/A"
+
+    return render_template(
+        'counting_cushions.html',
+        daily_counts=daily_counts,
+        weekly_counts=weekly_counts,
+        avg_times=avg_times
+    )
 
 
 
