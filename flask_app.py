@@ -1073,27 +1073,26 @@ def counting_cushions():
         CushionCount.date <= today
     ).group_by(CushionCount.cushion_type).all()
 
-# Calculate average time per cushion type for today
-avg_times = {}
-for cushion_type in ['1', '2', '3', '4', '5', '6']:
-    # Fetch all times for the given cushion type on the current date
-    times = db.session.query(CushionCount.time).filter(
-        CushionCount.cushion_type == cushion_type,
-        CushionCount.date == today
-    ).all()
-    
-    if times:
-        # Extract each time from the Row object and calculate total seconds
-        total_seconds = sum(
-            [t[0].hour * 3600 + t[0].minute * 60 + t[0].second for t in times]
-        )
-        avg_seconds = total_seconds / len(times)
-        avg_hours, remainder = divmod(int(avg_seconds), 3600)
-        avg_minutes, avg_seconds = divmod(remainder, 60)
-        avg_times[cushion_type] = f"{avg_hours:02}:{avg_minutes:02}:{avg_seconds:02}"
-    else:
-        avg_times[cushion_type] = "N/A"
-
+    # Calculate average time per cushion type for today
+    avg_times = {}
+    for cushion_type in ['1', '2', '3', '4', '5', '6']:
+        # Fetch all times for the given cushion type on the current date
+        times = db.session.query(CushionCount.time).filter(
+            CushionCount.cushion_type == cushion_type,
+            CushionCount.date == today
+        ).all()
+        
+        if times:
+            # Extract each time from the Row object and calculate total seconds
+            total_seconds = sum(
+                [t[0].hour * 3600 + t[0].minute * 60 + t[0].second for t in times]
+            )
+            avg_seconds = total_seconds / len(times)
+            avg_hours, remainder = divmod(int(avg_seconds), 3600)
+            avg_minutes, avg_seconds = divmod(remainder, 60)
+            avg_times[cushion_type] = f"{avg_hours:02}:{avg_minutes:02}:{avg_seconds:02}"
+        else:
+            avg_times[cushion_type] = "N/A"
 
     return render_template(
         'counting_cushions.html',
@@ -1101,7 +1100,6 @@ for cushion_type in ['1', '2', '3', '4', '5', '6']:
         weekly_counts=weekly_counts,
         avg_times=avg_times
     )
-
 
 
 
