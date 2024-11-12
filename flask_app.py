@@ -968,10 +968,18 @@ def counting_wood():
         # Adjust the count based on action
         if action == 'increment':
             current_count_entry.count += 1
+
+            # MDF Inventory adjustment logic
+            if section == "Body" and inventory.black_mdf > 0:
+                inventory.black_mdf -= 1
+            elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
+                inventory.plain_mdf -= 1
+
         elif action == 'decrement' and current_count_entry.count > 0:
             current_count_entry.count -= 1
             if current_count_entry.count == 0:
                 db.session.delete(current_count_entry)  # Delete if count reaches zero
+
         elif action == 'bulk_increment':
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
@@ -1006,14 +1014,11 @@ def counting_wood():
         WoodCount.date <= month_end_date
     ).all()
 
-    # Accurate Weekly Summary Calculation with Debugging
+    # Weekly Summary Calculation
     weekly_summary = defaultdict(int)
     for entry in daily_wood_data:
-        # Calculate the actual weekday and log the result for debugging
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
-        # Debug output for each entry
-        current_app.logger.info(f"Entry date: {entry.date}, Weekday: {weekday}, Count: {entry.count}")
 
     return render_template(
         'counting_wood.html',
@@ -1024,6 +1029,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 
