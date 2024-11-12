@@ -139,24 +139,26 @@
             </table>
         </div>
 
-        <!-- Average Time Per Cushion Table -->
-        <h2>Average Time Per Cushion</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Cushion Type</th>
-                    <th>Average Time</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cushion_type, avg_time in avg_times.items() %}
+        <!-- Collapsible Average Time Per Cushion Table -->
+        <button class="collapsible" onclick="toggleCollapsible('avgTimeTotals')">Average Time Per Cushion</button>
+        <div id="avgTimeTotals" class="collapsible-content">
+            <table>
+                <thead>
                     <tr>
-                        <td>{{ cushion_type }}</td>
-                        <td>{{ avg_time }}</td>
+                        <th>Cushion Type</th>
+                        <th>Average Time</th>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {% for cushion_type, avg_time in avg_times.items() %}
+                        <tr>
+                            <td>{{ cushion_type }}</td>
+                            <td>{{ avg_time }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
         <div class="back-to-menu">
             <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
