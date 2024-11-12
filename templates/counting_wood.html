@@ -58,7 +58,7 @@
         {% endwith %}
 
         <!-- Month Selection Form -->
-        <form method="GET" action="{{ url_for('counting_wood') }}">
+        <form method="POST" action="{{ url_for('counting_wood') }}">
             <label for="month">Select Month: (This is the month you are cutting for)</label>
             <select name="month" id="month" onchange="this.form.submit()">
                 {% for value, label in available_months %}
@@ -110,47 +110,46 @@
             <p>Black MDF: {{ inventory.black_mdf }}</p>
         </div>
 
-        <!-- Daily Log Display -->
-        <button class="collapsible" onclick="toggleCollapsible('dailyContent')">Daily Cut Log</button>
-        <div id="dailyContent" class="collapsible-content">
-            <h2>Daily Cuts</h2>
+        <!-- Daily Wood Data -->
+        <button class="collapsible" onclick="toggleCollapsible('dailyData')">Daily Wood Data</button>
+        <div id="dailyData" class="collapsible-content">
+            <h3>Wood Cut Today</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Time</th>
+                        <th>Time Logged</th>
                         <th>Type</th>
-                        <th>Date</th>
+                        <th>Count</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for entry in daily_wood_data %}
                     <tr>
-                        <!-- Adjusting to display both time and date correctly -->
-                        <td>{{ entry.time.strftime('%H:%M:%S') if entry.time else '00:00:00' }}</td>
+                        <td>{{ entry.time.strftime('%H:%M') }}</td>
                         <td>{{ entry.section }}</td>
-                        <td>{{ entry.date.strftime('%d %B %Y') }}</td>
+                        <td>{{ entry.count }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <!-- Weekly Log Display -->
-        <button class="collapsible" onclick="toggleCollapsible('weeklyContent')">Weekly Summary</button>
-        <div id="weeklyContent" class="collapsible-content">
-            <h2>Weekly Cuts</h2>
+        <!-- Weekly Wood Data -->
+        <button class="collapsible" onclick="toggleCollapsible('weeklyData')">Weekly Wood Data</button>
+        <div id="weeklyData" class="collapsible-content">
+            <h3>Wood Cut This Week</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Day of Week</th>
-                        <th>Total Sheets Cut</th>
+                        <th>Day</th>
+                        <th>Count</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for day in weekly_wood_data %}
+                    {% for day, count in weekly_summary.items() %}
                     <tr>
-                        <td>{{ day.day }}</td>
-                        <td>{{ day.daily_count }}</td>
+                        <td>{{ day }}</td>
+                        <td>{{ count }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
