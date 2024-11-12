@@ -90,10 +90,10 @@ class WoodCount(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     section = db.Column(db.String(50), nullable=False)
-    count = db.Column(db.Integer, nullable=False, default=0)
-    date = db.Column(Date, nullable=False)
-    time = db.Column(Time, nullable=False, default=datetime.utcnow().time)
-    month_year = db.Column(db.String(7), nullable=False)
+    count = db.Column(db.Integer, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    time = db.Column(db.Time, nullable=False, default=datetime.utcnow().time)
+    month_year = db.Column(db.String(7), nullable=False)  # Format: YYYY-MM
 
 
     def __init__(self, section, count, month_year, date=None):
@@ -935,12 +935,6 @@ from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash
 from datetime import datetime, timedelta, date
 from sqlalchemy import func
-
-from datetime import datetime
-
-from datetime import datetime, date, timedelta
-
-from datetime import datetime
 
 # Route to handle wood counting
 @app.route('/counting_wood', methods=['GET', 'POST'])
