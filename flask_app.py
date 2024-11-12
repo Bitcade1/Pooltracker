@@ -1043,11 +1043,7 @@ def counting_wood():
         weekly_summary=weekly_summary
     )
 
-from flask import render_template, request, redirect, url_for, flash
-from datetime import datetime, timedelta
-from sqlalchemy import func
-from app import app, db
-from .models import CushionCount
+
 
 @app.route('/counting_cushions', methods=['GET', 'POST'])
 def counting_cushions():
