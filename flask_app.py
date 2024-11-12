@@ -1073,24 +1073,25 @@ def counting_cushions():
         CushionCount.date <= today
     ).group_by(CushionCount.cushion_type).all()
 
-    # Calculate average time per cushion
-    avg_times = {}
-    for cushion_type in ['1', '2', '3', '4', '5', '6']:
-        times = db.session.query(CushionCount.time).filter(
-            CushionCount.cushion_type == cushion_type,
-            CushionCount.date == today
-        ).all()
-        
-        if times:
-            total_seconds = sum(
-                [t.time().hour * 3600 + t.time().minute * 60 + t.time().second for t in times]
-            )
-            avg_seconds = total_seconds / len(times)
-            avg_hours, remainder = divmod(int(avg_seconds), 3600)
-            avg_minutes, avg_seconds = divmod(remainder, 60)
-            avg_times[cushion_type] = f"{avg_hours:02}:{avg_minutes:02}:{avg_seconds:02}"
-        else:
-            avg_times[cushion_type] = "N/A"
+# Calculate average time per cushion
+avg_times = {}
+for cushion_type in ['1', '2', '3', '4', '5', '6']:
+    times = db.session.query(CushionCount.time).filter(
+        CushionCount.cushion_type == cushion_type,
+        CushionCount.date == today
+    ).all()
+    
+    if times:
+        total_seconds = sum(
+            [t.hour * 3600 + t.minute * 60 + t.second for t in times]
+        )
+        avg_seconds = total_seconds / len(times)
+        avg_hours, remainder = divmod(int(avg_seconds), 3600)
+        avg_minutes, avg_seconds = divmod(remainder, 60)
+        avg_times[cushion_type] = f"{avg_hours:02}:{avg_minutes:02}:{avg_seconds:02}"
+    else:
+        avg_times[cushion_type] = "N/A"
+
 
     return render_template(
         'counting_cushions.html',
