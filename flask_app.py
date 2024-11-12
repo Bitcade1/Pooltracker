@@ -973,18 +973,7 @@ def counting_wood():
         elif action == 'bulk_increment' and bulk_amount > 0:
             count_entry.count += bulk_amount
 
-        # Log individual entry for daily tracking with date and time
-        log_entry = WoodCount(
-            date=today, 
-            time=current_time,  
-            section=section, 
-            count=bulk_amount if action == 'bulk_increment' else (1 if action == 'increment' else -1), 
-            month_year=selected_month
-        )
-        db.session.add(log_entry)
 
-        db.session.commit()
-        return redirect(url_for('counting_wood', month=selected_month))
 
     # Fetch current counts for each section based on selected month
     counts = {section: WoodCount.query.with_entities(func.sum(WoodCount.count)).filter(
