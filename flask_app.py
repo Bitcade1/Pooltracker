@@ -1043,12 +1043,27 @@ def counting_wood():
         weekly_summary=weekly_summary
     )
 
+from flask import render_template, request, redirect, url_for, flash
+from datetime import datetime, timedelta
+from sqlalchemy import func
+from app import app, db
+from .models import CushionCount
+
 @app.route('/counting_cushions', methods=['GET', 'POST'])
 def counting_cushions():
-    if request.method == 'POST':
-        cushion_type = request.form.get('cushion_type')
+    today = datetime.utcnow().date()
 
-        # Create a new cushion count entry with the current date and time
+    if request.method == 'POST':
+        if 'reset' in request.form:
+            # Reset action: delete all entries for today
+            db.session.query(CushionCount).filter(CushionCount.date == today).delete()
+            db.session.commit()
+            flash("All counts reset successfully!", "success")
+            return redirect(url_for('counting_cushions'))
+        
+        cushion_type = request.form.get('cushion_type')
+        
+        # Increment action: add a new count entry
         new_cushion_count = CushionCount(cushion_type=cushion_type)
         db.session.add(new_cushion_count)
         db.session.commit()
@@ -1057,7 +1072,6 @@ def counting_cushions():
         return redirect(url_for('counting_cushions'))
 
     # Calculate daily totals for each cushion type
-    today = datetime.utcnow().date()
     daily_counts = db.session.query(
         CushionCount.cushion_type,
         func.count(CushionCount.id).label('total')
@@ -1100,6 +1114,7 @@ def counting_cushions():
         weekly_counts=weekly_counts,
         avg_times=avg_times
     )
+
 
 
 
