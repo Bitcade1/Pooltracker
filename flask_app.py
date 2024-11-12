@@ -1056,14 +1056,17 @@ def counting_cushions():
             db.session.commit()
             flash("All counts reset successfully!", "success")
             return redirect(url_for('counting_cushions'))
-        
+
         cushion_type = request.form.get('cushion_type')
         
-        # Increment action: add a new count entry
-        new_cushion_count = CushionCount(cushion_type=cushion_type)
-        db.session.add(new_cushion_count)
-        db.session.commit()
-        flash(f"Cushion {cushion_type} count incremented!", "success")
+        # Check if cushion_type is valid before adding a new count entry
+        if cushion_type:
+            new_cushion_count = CushionCount(cushion_type=cushion_type)
+            db.session.add(new_cushion_count)
+            db.session.commit()
+            flash(f"Cushion {cushion_type} count incremented!", "success")
+        else:
+            flash("Error: Cushion type not specified.", "error")
         
         return redirect(url_for('counting_cushions'))
 
@@ -1110,6 +1113,7 @@ def counting_cushions():
         weekly_counts=weekly_counts,
         avg_times=avg_times
     )
+
 
 
 
