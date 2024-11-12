@@ -70,10 +70,10 @@
         <!-- Counters for Each Section -->
         {% for section, count in counts.items() %}
         <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">
-            {{ section }} - Current count: {{ count }}
+            {{ section }} - Current count: {{ count if count is not none else 0 }}
         </button>
         <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
-            <p class="count">Current Count: {{ count }}</p>
+            <p class="count">Current Count: {{ count if count is not none else 0 }}</p>
             
             <!-- Increment Form -->
             <form method="POST" action="{{ url_for('counting_wood') }}">
@@ -123,13 +123,19 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for entry in daily_wood_data %}
-                    <tr>
-                        <td>{{ entry.time.strftime('%H:%M') }}</td>
-                        <td>{{ entry.section }}</td>
-                        <td>{{ entry.count }}</td>
-                    </tr>
-                    {% endfor %}
+                    {% if daily_wood_data %}
+                        {% for entry in daily_wood_data %}
+                        <tr>
+                            <td>{{ entry.time.strftime('%H:%M') }}</td>
+                            <td>{{ entry.section }}</td>
+                            <td>{{ entry.count }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3">No data available for today.</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -146,12 +152,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for day, count in weekly_summary.items() %}
-                    <tr>
-                        <td>{{ day }}</td>
-                        <td>{{ count }}</td>
-                    </tr>
-                    {% endfor %}
+                    {% if weekly_summary %}
+                        {% for day, count in weekly_summary.items() %}
+                        <tr>
+                            <td>{{ day }}</td>
+                            <td>{{ count }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="2">No data available for this week.</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
