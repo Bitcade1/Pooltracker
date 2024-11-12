@@ -101,79 +101,81 @@
                     </button>
                 {% endfor %}
             </div>
+        </form>
 
-            <!-- Collapsible Daily Totals Table -->
-            <button class="collapsible" onclick="toggleCollapsible('dailyTotals')">Daily Cushion Counts</button>
-            <div id="dailyTotals" class="collapsible-content">
-                <table>
-                    <thead>
+        <!-- Collapsible Daily Totals Table -->
+        <button class="collapsible" onclick="toggleCollapsible('dailyTotals')">Daily Cushion Counts</button>
+        <div id="dailyTotals" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cushion Type</th>
+                        <th>Total Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cushion_type, total in daily_counts %}
                         <tr>
-                            <th>Cushion Type</th>
-                            <th>Total Count</th>
+                            <td>{{ cushion_type }}</td>
+                            <td>{{ total }}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {% for cushion_type, total in daily_counts %}
-                            <tr>
-                                <td>{{ cushion_type }}</td>
-                                <td>{{ total }}</td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="2">No data available for today.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Collapsible Weekly Totals Table -->
-            <button class="collapsible" onclick="toggleCollapsible('weeklyTotals')">Weekly Cushion Counts</button>
-            <div id="weeklyTotals" class="collapsible-content">
-                <table>
-                    <thead>
+                    {% else %}
                         <tr>
-                            <th>Cushion Type</th>
-                            <th>Total Count</th>
+                            <td colspan="2">No data available for today.</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {% for cushion_type, total in weekly_counts %}
-                            <tr>
-                                <td>{{ cushion_type }}</td>
-                                <td>{{ total }}</td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="2">No data available for this week.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-            <!-- Collapsible Average Time Per Cushion Table -->
-            <button class="collapsible" onclick="toggleCollapsible('avgTimeTotals')">Average Time Per Cushion</button>
-            <div id="avgTimeTotals" class="collapsible-content">
-                <table>
-                    <thead>
+        <!-- Collapsible Weekly Totals Table -->
+        <button class="collapsible" onclick="toggleCollapsible('weeklyTotals')">Weekly Cushion Counts</button>
+        <div id="weeklyTotals" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cushion Type</th>
+                        <th>Total Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cushion_type, total in weekly_counts %}
                         <tr>
-                            <th>Cushion Type</th>
-                            <th>Average Time</th>
+                            <td>{{ cushion_type }}</td>
+                            <td>{{ total }}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {% for cushion_type, avg_time in avg_times.items() %}
-                            <tr>
-                                <td>{{ cushion_type }}</td>
-                                <td>{{ avg_time }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                    {% else %}
+                        <tr>
+                            <td colspan="2">No data available for this week.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-            <!-- Reset Button Below Tables -->
+        <!-- Collapsible Average Time Per Cushion Table -->
+        <button class="collapsible" onclick="toggleCollapsible('avgTimeTotals')">Average Time Per Cushion</button>
+        <div id="avgTimeTotals" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cushion Type</th>
+                        <th>Average Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cushion_type, avg_time in avg_times.items() %}
+                        <tr>
+                            <td>{{ cushion_type }}</td>
+                            <td>{{ avg_time }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Separate Reset Button Form -->
+        <form method="POST" action="{{ url_for('counting_cushions') }}">
             <button type="submit" name="reset" value="reset" class="reset-button">Reset Counts</button>
         </form>
 
