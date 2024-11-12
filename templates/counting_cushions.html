@@ -51,6 +51,20 @@
         .cushion-button:hover {
             background-color: #218838;
         }
+        .reset-button {
+            background-color: #dc3545;
+            color: white;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 5px;
+            width: 100%;
+            padding: 15px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .reset-button:hover {
+            background-color: #c82333;
+        }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
         th { background-color: #f2f2f2; }
@@ -87,6 +101,9 @@
                     </button>
                 {% endfor %}
             </div>
+
+            <!-- Reset Button -->
+            <button type="submit" name="reset" value="reset" class="reset-button">Reset Counts</button>
         </form>
 
         <!-- Collapsible Daily Totals Table -->
