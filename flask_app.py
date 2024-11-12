@@ -945,17 +945,22 @@ def counting_wood():
     selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
+    month_end_date = date(selected_year, selected_month_num, monthrange(selected_year, selected_month_num)[1])
 
     if request.method == 'POST' and 'section' in request.form:
         section = request.form['section']
         action = request.form.get('action', 'increment')
-        current_date = today  # Use today's date for daily records
         current_time = datetime.utcnow().time()
 
-        # Fetch or create a WoodCount entry for today and the selected section
-        current_count_entry = WoodCount.query.filter_by(section=section, date=current_date).first()
+        # Fetch or create a WoodCount entry for the selected month and section
+        current_count_entry = WoodCount.query.filter(
+            WoodCount.section == section,
+            WoodCount.date >= month_start_date,
+            WoodCount.date <= month_end_date
+        ).first()
+
         if not current_count_entry:
-            current_count_entry = WoodCount(section=section, count=0, date=current_date, time=current_time)
+            current_count_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
             db.session.add(current_count_entry)
 
         # Adjust the count based on action
@@ -978,10 +983,18 @@ def counting_wood():
         # Redirect back to the updated route with the selected month
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Re-fetch counts for each section based on today's date to reflect any updates in "Current Count"
+    # Fetch counts for each section based on the selected month
     sections = ['Body', 'Pod Sides', 'Bases']
     counts = {
-        section: WoodCount.query.filter_by(section=section, date=today).first().count if WoodCount.query.filter_by(section=section, date=today).first() else 0
+        section: WoodCount.query.filter(
+            WoodCount.section == section,
+            WoodCount.date >= month_start_date,
+            WoodCount.date <= month_end_date
+        ).first().count if WoodCount.query.filter(
+            WoodCount.section == section,
+            WoodCount.date >= month_start_date,
+            WoodCount.date <= month_end_date
+        ).first() else 0
         for section in sections
     }
 
@@ -1009,6 +1022,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 
