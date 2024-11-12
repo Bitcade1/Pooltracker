@@ -1073,22 +1073,22 @@ def counting_cushions():
         CushionCount.date <= today
     ).group_by(CushionCount.cushion_type).all()
 
-    # Calculate average time per cushion type for today
+    # Calculate average time between presses for each cushion type
     avg_times = {}
     for cushion_type in ['1', '2', '3', '4', '5', '6']:
-        # Fetch all times for the given cushion type on the current date
         times = db.session.query(CushionCount.time).filter(
             CushionCount.cushion_type == cushion_type,
             CushionCount.date == today
-        ).all()
-        
-        if times:
-            # Extract each time from the Row object and calculate total seconds
-            total_seconds = sum(
-                [t[0].hour * 3600 + t[0].minute * 60 + t[0].second for t in times]
+        ).order_by(CushionCount.time).all()
+
+        if len(times) > 1:
+            # Calculate time differences between consecutive presses
+            total_time_diff = sum(
+                (datetime.combine(today, times[i][0]) - datetime.combine(today, times[i - 1][0])).total_seconds()
+                for i in range(1, len(times))
             )
-            avg_seconds = total_seconds / len(times)
-            avg_hours, remainder = divmod(int(avg_seconds), 3600)
+            avg_time_diff_seconds = total_time_diff / (len(times) - 1)
+            avg_hours, remainder = divmod(int(avg_time_diff_seconds), 3600)
             avg_minutes, avg_seconds = divmod(remainder, 60)
             avg_times[cushion_type] = f"{avg_hours:02}:{avg_minutes:02}:{avg_seconds:02}"
         else:
