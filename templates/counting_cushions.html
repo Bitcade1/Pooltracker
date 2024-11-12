@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counting Cushions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Counting Cushions</h1>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Cushion Counters -->
+        <h2>Select a Cushion Type to Count</h2>
+        <form method="POST" action="{{ url_for('counting_cushions') }}">
+            {% for cushion_type in ['1', '2', '3', '4', '5', '6'] %}
+                <button type="submit" name="cushion_type" value="{{ cushion_type }}">
+                    Cushion {{ cushion_type }}
+                </button>
+            {% endfor %}
+        </form>
+
+        <!-- Daily Totals Table -->
+        <h2>Daily Cushion Counts</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Cushion Type</th>
+                    <th>Total Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cushion_type, total in daily_counts %}
+                    <tr>
+                        <td>{{ cushion_type }}</td>
+                        <td>{{ total }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="2">No data available for today.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Weekly Totals Table -->
+        <h2>Weekly Cushion Counts</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Cushion Type</th>
+                    <th>Total Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cushion_type, total in weekly_counts %}
+                    <tr>
+                        <td>{{ cushion_type }}</td>
+                        <td>{{ total }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="2">No data available for this week.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Average Time Per Cushion -->
+        <h2>Average Time Per Cushion</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Cushion Type</th>
+                    <th>Average Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cushion_type, avg_time in avg_times.items() %}
+                    <tr>
+                        <td>{{ cushion_type }}</td>
+                        <td>{{ avg_time }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>
