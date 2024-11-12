@@ -978,14 +978,14 @@ def counting_wood():
         # Redirect back to the updated route with the selected month
         return redirect(url_for('counting_wood', month=selected_month))
 
-    # Re-fetch counts for each section to reflect any updates
+    # Re-fetch counts for each section based on today's date to reflect any updates in "Current Count"
     sections = ['Body', 'Pod Sides', 'Bases']
     counts = {
-        section: WoodCount.query.filter_by(section=section, date=month_start_date).first().count if WoodCount.query.filter_by(section=section, date=month_start_date).first() else 0
+        section: WoodCount.query.filter_by(section=section, date=today).first().count if WoodCount.query.filter_by(section=section, date=today).first() else 0
         for section in sections
     }
 
-    # Fetch only today’s wood cutting data
+    # Fetch only today’s wood cutting data for the daily history section
     daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
 
     # Calculate the start of the current week (Monday)
