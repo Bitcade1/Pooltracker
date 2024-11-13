@@ -105,6 +105,12 @@ class CushionCount(db.Model):
         self.date = datetime.utcnow().date()
         self.time = datetime.utcnow().time()
 
+class HardwarePart(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    initial_count = db.Column(db.Integer, default=0)
+
+
 
 # Home and Bodies Routes
 @app.route('/')
