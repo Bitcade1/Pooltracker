@@ -92,14 +92,15 @@
         </div>
         {% endif %}
 
-        <!-- Display average production rates if available -->
-        {% if avg_pods is not none and avg_bodies is not none and avg_top_rails is not none %}
-        <div class="results">
-            <div><strong>Average Pods per Day:</strong> {{ avg_pods | round(2) }}</div>
-            <div><strong>Average Bodies per Day:</strong> {{ avg_bodies | round(2) }}</div>
-            <div><strong>Average Top Rails per Day:</strong> {{ avg_top_rails | round(2) }}</div>
-        </div>
-        {% endif %}
+<!-- Display average production rates if available -->
+{% if avg_pods is not none and avg_bodies is not none and avg_top_rails is not none %}
+<div class="results">
+    <div><strong>Average Pods per Day:</strong> {{ avg_pods|default(0) | round(2) }}</div>
+    <div><strong>Average Bodies per Day:</strong> {{ avg_bodies|default(0) | round(2) }}</div>
+    <div><strong>Average Top Rails per Day:</strong> {{ avg_top_rails|default(0) | round(2) }}</div>
+</div>
+{% endif %}
+
 
         <!-- Back to Main Menu button -->
         <a href="{{ url_for('home') }}" class="back-button">Back to Main Menu</a>
