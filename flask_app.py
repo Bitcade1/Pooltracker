@@ -1159,9 +1159,25 @@ def predicted_finish():
         avg_top_rails = calculate_average(TopRail)
 
         # Calculate total parts needed to complete the monthly target
-        total_pods_needed = tables_for_month  # Assuming one pod per table
+        total_pods_needed = tables_for_month
         total_bodies_needed = tables_for_month
         total_top_rails_needed = tables_for_month
+
+        # Get the count of parts already completed this month
+        def completed_this_month(model):
+            return db.session.query(func.count(model.id)).filter(
+                func.extract('year', model.date) == current_year,
+                func.extract('month', model.date) == current_month
+            ).scalar()
+
+        completed_pods = completed_this_month(CompletedPods)
+        completed_bodies = completed_this_month(CompletedTable)
+        completed_top_rails = completed_this_month(TopRail)
+
+        # Calculate the remaining parts needed to complete the target
+        remaining_pods = max(total_pods_needed - completed_pods, 0)
+        remaining_bodies = max(total_bodies_needed - completed_bodies, 0)
+        remaining_top_rails = max(total_top_rails_needed - completed_top_rails, 0)
 
         # Helper function to get a formatted date with a suffix
         def format_date_with_suffix(date_obj):
@@ -1169,11 +1185,11 @@ def predicted_finish():
             suffix = 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
             return date_obj.strftime(f'%B {day}{suffix}')
 
-        def project_finish_date(avg_per_day, total_needed):
+        def project_finish_date(avg_per_day, remaining_needed):
             if avg_per_day is None or avg_per_day == 0:
                 return "N/A"
             
-            days_needed = total_needed / avg_per_day
+            days_needed = remaining_needed / avg_per_day
             finish_date = today
             days_counted = 0
             
@@ -1185,9 +1201,9 @@ def predicted_finish():
             return format_date_with_suffix(finish_date)
 
         # Project finish dates
-        pods_finish_date = project_finish_date(avg_pods, total_pods_needed)
-        bodies_finish_date = project_finish_date(avg_bodies, total_bodies_needed)
-        top_rails_finish_date = project_finish_date(avg_top_rails, total_top_rails_needed)
+        pods_finish_date = project_finish_date(avg_pods, remaining_pods)
+        bodies_finish_date = project_finish_date(avg_bodies, remaining_bodies)
+        top_rails_finish_date = project_finish_date(avg_top_rails, remaining_top_rails)
 
         return render_template(
             'predicted_finish.html',
@@ -1197,7 +1213,10 @@ def predicted_finish():
             avg_pods=avg_pods,
             avg_bodies=avg_bodies,
             avg_top_rails=avg_top_rails,
-            tables_for_month=tables_for_month
+            tables_for_month=tables_for_month,
+            completed_pods=completed_pods,
+            completed_bodies=completed_bodies,
+            completed_top_rails=completed_top_rails
         )
 
     return render_template('predicted_finish.html')
