@@ -6,7 +6,6 @@
     <title>Admin - Pool Table Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        /* Collapsible styles */
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -35,7 +34,6 @@
             margin-top: 10px;
         }
 
-        /* Centering Back to Menu button */
         .back-to-menu {
             display: flex;
             justify-content: center;
@@ -67,7 +65,7 @@
     <div class="container">
         <h1>Admin Area</h1>
 
-        <!-- Flash Messages Display (Success and Error) -->
+        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
@@ -78,7 +76,7 @@
             {% endif %}
         {% endwith %}
 
-        <!- Manage Workers Section -->
+        <!-- Manage Workers Section -->
         <button class="collapsible" onclick="toggleCollapsible('manageWorkers')">Manage Workers</button>
         <div id="manageWorkers" class="collapsible-content">
             <form method="POST" action="{{ url_for('admin') }}">
@@ -132,12 +130,26 @@
             </form>
         </div>
 
+        <!-- Add New Hardware Parts Section -->
+        <button class="collapsible" onclick="toggleCollapsible('addHardwareParts')">Add New Hardware Parts</button>
+        <div id="addHardwareParts" class="collapsible-content">
+            <form method="POST" action="{{ url_for('admin') }}">
+                <input type="hidden" name="add_hardware_part" value="true">
+                <label for="new_hardware_part">Hardware Part Name:</label>
+                <input type="text" id="new_hardware_part" name="new_hardware_part" placeholder="Enter hardware part name" required>
+                <label for="initial_hardware_count">Initial Count:</label>
+                <input type="number" id="initial_hardware_count" name="initial_hardware_count" min="0" placeholder="Enter initial count" required>
+                <button type="submit" class="button">Add Hardware Part</button>
+            </form>
+        </div>
+
         <!-- Link to Raw Data Management Page -->
         <button class="collapsible" onclick="window.location.href='{{ url_for('manage_raw_data') }}'">Raw Data Management</button>
 
-    <!-- Back to Menu Button -->
-    <div class="back-to-menu">
-        <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
     </div>
 </body>
 </html>
