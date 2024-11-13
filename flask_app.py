@@ -788,18 +788,14 @@ def counting_chinese_parts():
 
 @app.route('/counting_hardware', methods=['GET', 'POST'])
 def counting_hardware():
-    # List of hardware items
-    hardware_parts = [
-        "M10x13mm Tee Nut", "M10 x 40 Socket Cap Screw", "4.2 x 16 No2 Self Tapping Screw",
-        "4.0 x 50mm Wood Screw", "4.0 x 25mm Wood Screw", "M5 x 18 x 1.25 Penny Mudguard Washer",
-        "M10 Washer", "M5 x 20 Socket Cap Screw", "4.8x32mm Self Tapping Screw", "4.8x16mm Self Tapping Screw"
-    ]
+    # Fetch all hardware parts from the database instead of using a static list
+    hardware_parts = HardwarePart.query.all()
 
     # Initialize or retrieve the count for each part
-    hardware_counts = {part: 0 for part in hardware_parts}
+    hardware_counts = {part.name: part.initial_count for part in hardware_parts}
     for part in hardware_parts:
-        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        hardware_counts[part] = latest_entry[0] if latest_entry else 0
+        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part.name).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        hardware_counts[part.name] = latest_entry[0] if latest_entry else part.initial_count
 
     if request.method == 'POST':
         part = request.form['hardware_part']
@@ -829,6 +825,7 @@ def counting_hardware():
             hardware_counts[part] = new_count
 
     return render_template('counting_hardware.html', hardware_parts=hardware_parts, hardware_counts=hardware_counts)
+
 
 
 
