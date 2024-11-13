@@ -1114,8 +1114,6 @@ def counting_cushions():
         avg_times=avg_times
     )
 
-
-
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if request.method == 'POST':
@@ -1138,16 +1136,26 @@ def predicted_finish():
 
         # Helper function to calculate average daily production
         def calculate_average(model):
+            # Find the earliest recorded entry date for the model in the current month
+            first_entry_date = db.session.query(func.min(model.date)).filter(
+                func.extract('year', model.date) == current_year,
+                func.extract('month', model.date) == current_month
+            ).scalar()
+            
+            if not first_entry_date:
+                return None  # No data for the month, so average is undefined
+
+            # Calculate the number of workdays from the first entry date up to today
+            days_worked = sum(1 for i in range((today - first_entry_date).days + 1)
+                              if (first_entry_date + timedelta(days=i)).weekday() in work_days)
+
+            # Count the number of records for the model in the current month
             records = db.session.query(func.count(model.id)).filter(
                 func.extract('year', model.date) == current_year,
                 func.extract('month', model.date) == current_month,
-                model.date <= today
+                model.date >= first_entry_date
             ).scalar()
-            
-            # Calculate days worked in current month up to today
-            days_worked = sum(1 for i in range(1, today.day + 1)
-                              if datetime(current_year, current_month, i).weekday() in work_days)
-            
+
             if days_worked > 0:
                 return records / days_worked
             else:
@@ -1220,6 +1228,7 @@ def predicted_finish():
         )
 
     return render_template('predicted_finish.html')
+
 
 
 
