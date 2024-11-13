@@ -1133,6 +1133,7 @@ def predicted_finish():
         today = datetime.utcnow().date()
         current_year = today.year
         current_month = today.month
+        last_full_day = today - timedelta(days=1)
 
         # Helper function to calculate average daily production
         def calculate_average(model):
@@ -1142,18 +1143,19 @@ def predicted_finish():
                 func.extract('month', model.date) == current_month
             ).scalar()
             
-            if not first_entry_date:
-                return None  # No data for the month, so average is undefined
+            if not first_entry_date or first_entry_date >= last_full_day:
+                return None  # No data or only partial data for today, so average is undefined
 
-            # Calculate the number of workdays from the first entry date up to today
-            days_worked = sum(1 for i in range((today - first_entry_date).days + 1)
+            # Calculate the number of workdays from the first entry date up to the last full day
+            days_worked = sum(1 for i in range((last_full_day - first_entry_date).days + 1)
                               if (first_entry_date + timedelta(days=i)).weekday() in work_days)
 
-            # Count the number of records for the model in the current month
+            # Count the number of records for the model from the first entry date to the last full day
             records = db.session.query(func.count(model.id)).filter(
                 func.extract('year', model.date) == current_year,
                 func.extract('month', model.date) == current_month,
-                model.date >= first_entry_date
+                model.date >= first_entry_date,
+                model.date <= last_full_day
             ).scalar()
 
             if days_worked > 0:
