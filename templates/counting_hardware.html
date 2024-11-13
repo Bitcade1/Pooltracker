@@ -16,6 +16,15 @@
         .menu-button { display: block; width: 100%; text-align: center; padding: 10px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; }
         .menu-button:hover { background-color: #5a6268; }
     </style>
+    <script>
+        // JavaScript function to update the count display based on selected part
+        function updateCountDisplay() {
+            const selectedPart = document.getElementById("hardware_part").value;
+            const counts = {{ hardware_counts|tojson }};
+            const countDisplay = document.getElementById("count-display");
+            countDisplay.innerText = counts[selectedPart] || 0;
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -36,7 +45,7 @@
         <form method="POST" action="{{ url_for('counting_hardware') }}">
             <div class="form-group">
                 <label for="hardware_part">Select Hardware Part:</label>
-                <select name="hardware_part" id="hardware_part" required>
+                <select name="hardware_part" id="hardware_part" onchange="updateCountDisplay()" required>
                     {% for part in hardware_parts %}
                         <option value="{{ part }}">{{ part }}</option>
                     {% endfor %}
@@ -44,7 +53,7 @@
             </div>
 
             <div class="count-display">
-                <strong>Current Stock:</strong> {{ hardware_counts.get(request.form.get('hardware_part', hardware_parts[0]), 0) }}
+                <strong>Current Stock:</strong> <span id="count-display">{{ hardware_counts[hardware_parts[0]] }}</span>
             </div>
 
             <!-- Increment and Decrement Buttons -->
