@@ -1256,24 +1256,33 @@ def predicted_finish():
             if avg_per_day is None or avg_per_day == 0:
                 return "N/A", "N/A"
 
-            days_needed = remaining_needed / avg_per_day
-            whole_days_needed = int(days_needed)
-            remaining_fraction = days_needed - whole_days_needed
-            hours_needed_on_last_day = remaining_fraction * work_hours_per_day
+            # Calculate the number of full days required to meet the target
+            full_days_needed = int(remaining_needed // avg_per_day)
+            partial_day_fraction = remaining_needed % avg_per_day / avg_per_day
 
             finish_date = today
-            days_counted = 0
+            workdays_counted = 0
 
-            while days_counted < whole_days_needed:
+            # Add full days to reach the projected finish
+            while workdays_counted < full_days_needed:
                 finish_date += timedelta(days=1)
                 if finish_date.weekday() in work_days:
-                    days_counted += 1
+                    workdays_counted += 1
+
+            # If there's a partial day needed, calculate the finish time
+            if partial_day_fraction > 0:
+                while finish_date.weekday() not in work_days:
+                    finish_date += timedelta(days=1)
+
+                hours_needed_on_last_day = partial_day_fraction * work_hours_per_day
+                finish_time = (datetime.combine(finish_date, datetime.min.time()) +
+                               timedelta(hours=work_start_hour + hours_needed_on_last_day))
+                finish_time_formatted = finish_time.strftime('%I:%M %p')
+            else:
+                # Finish at the end of the last full workday if no partial day is required
+                finish_time_formatted = f"{work_start_hour + work_hours_per_day}:00 PM"
 
             finish_date_formatted = format_date_with_suffix(finish_date)
-            finish_time = (datetime.combine(finish_date, datetime.min.time()) +
-                           timedelta(hours=work_start_hour + hours_needed_on_last_day))
-
-            finish_time_formatted = finish_time.strftime('%I:%M %p')
             return finish_date_formatted, finish_time_formatted
 
         pods_finish_date, pods_finish_time = project_finish_date_and_time(avg_pods, remaining_pods)
@@ -1298,6 +1307,7 @@ def predicted_finish():
         )
 
     return render_template('predicted_finish.html')
+
 
 
 
