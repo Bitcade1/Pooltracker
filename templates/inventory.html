@@ -95,44 +95,27 @@
             </table>
         </div>
 
-        <!-- New Collapsible Section for Table Parts -->
-        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts</button>
-        <div id="collapsibleContentTableParts" class="collapsible-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Part</th>
-                        <th>Current Stock</th>
-                        <th>Bulk Update</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for part, count in table_parts_counts.items() %}
-                    <tr>
-                        <td><strong>{{ part }}</strong></td>
-                        <td>{{ count }}</td>
-                        <td>
-                            <!-- Bulk Increment Form -->
-                            <form method="POST" action="{{ url_for('inventory') }}" style="display: inline;">
-                                <input type="hidden" name="table_part" value="{{ part }}">
-                                <input type="hidden" name="action" value="increment">
-                                <input type="number" name="amount" placeholder="Add" min="1" required style="width: 60px;">
-                                <button type="submit">Add</button>
-                            </form>
+<!-- Collapsible Section for Table Parts (No Bulk Update) -->
+<button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts</button>
+<div id="collapsibleContentTableParts" class="collapsible-content">
+    <table>
+        <thead>
+            <tr>
+                <th>Part</th>
+                <th>Current Stock</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for part, count in table_parts_counts.items() %}
+            <tr>
+                <td><strong>{{ part }}</strong></td>
+                <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-                            <!-- Bulk Decrement Form -->
-                            <form method="POST" action="{{ url_for('inventory') }}" style="display: inline;">
-                                <input type="hidden" name="table_part" value="{{ part }}">
-                                <input type="hidden" name="action" value="decrement">
-                                <input type="number" name="amount" placeholder="Reduce" min="1" required style="width: 60px;">
-                                <button type="submit">Reduce</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
 
         <!-- Link Back to Main Menu -->
         <div class="menu-link">
