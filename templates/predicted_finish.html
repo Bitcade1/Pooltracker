@@ -70,7 +70,7 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="title">Predicted Finish Date</h1>
+        <h1 class="title">Predicted Finish Date and Time</h1>
 
         <!-- Input form for number of tables planned for the month -->
         <form method="POST" action="{{ url_for('predicted_finish') }}">
@@ -83,12 +83,12 @@
             </div>
         </form>
 
-        <!-- Display projected finish dates if calculated -->
+        <!-- Display projected finish dates and times if calculated -->
         {% if pods_finish_date and bodies_finish_date and top_rails_finish_date %}
         <div class="results">
-            <div><strong>Projected Finish Date for Pods:</strong> {{ pods_finish_date }}</div>
-            <div><strong>Projected Finish Date for Bodies:</strong> {{ bodies_finish_date }}</div>
-            <div><strong>Projected Finish Date for Top Rails:</strong> {{ top_rails_finish_date }}</div>
+            <div><strong>Projected Finish Date for Pods:</strong> {{ pods_finish_date }} at {{ pods_finish_time }}</div>
+            <div><strong>Projected Finish Date for Bodies:</strong> {{ bodies_finish_date }} at {{ bodies_finish_time }}</div>
+            <div><strong>Projected Finish Date for Top Rails:</strong> {{ top_rails_finish_date }} at {{ top_rails_finish_time }}</div>
         </div>
         {% endif %}
 
