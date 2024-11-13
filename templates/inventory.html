@@ -45,7 +45,7 @@
     <div class="container">
         <h1>Stock Inventory</h1>
 
-        <!-- Collapsible Button and Content for 3D Printed Parts -->
+        <!-- Collapsible Section for 3D Printed Parts -->
         <button class="collapsible" onclick="toggleCollapsible('collapsibleContent3D')">3D Printed Parts</button>
         <div id="collapsibleContent3D" class="collapsible-content">
             <table>
@@ -53,8 +53,6 @@
                     <tr>
                         <th>Part</th>
                         <th>Current Stock</th>
-                        <th>Used This Month</th>
-                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -62,21 +60,13 @@
                     <tr>
                         <td><strong>{{ part }}</strong></td>
                         <td>{{ count }}</td>
-                        <td>{{ parts_used_this_month.get(part, 0) }}</td>
-                        <td>
-                            {% if 'extras' in parts_status[part] %}
-                                <span class="extra">{{ parts_status[part] }}</span>
-                            {% else %}
-                                {{ parts_status[part] }}
-                            {% endif %}
-                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <!-- Collapsible Button and Content for Wooden Parts -->
+        <!-- Collapsible Section for Wooden Parts -->
         <button class="collapsible" onclick="toggleCollapsible('collapsibleContentWood')">Wooden Parts</button>
         <div id="collapsibleContentWood" class="collapsible-content">
             <h2>Total Cut</h2>
@@ -103,7 +93,7 @@
                     <tr>
                         <th>Part</th>
                         <th>Current Stock</th>
-                        <th>Tables Possible from Stock</th>
+                        <th>Tables Possible</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -111,12 +101,33 @@
                     <tr>
                         <td><strong>{{ part }}</strong></td>
                         <td>{{ count }}</td>
-                        <td>{{ tables_possible_per_part[part] }} tables</td>
+                        <td>{{ tables_possible_per_part[part] }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            <h3>Total Tables Possible: {{ max_tables_possible }}</h3>
+            <p><strong>Maximum Tables Possible:</strong> {{ max_tables_possible }}</p>
+        </div>
+
+        <!-- Collapsible Section for Hardware Parts -->
+        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentHardware')">Hardware Parts</button>
+        <div id="collapsibleContentHardware" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part</th>
+                        <th>Current Stock</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part, count in hardware_counts.items() %}
+                    <tr>
+                        <td><strong>{{ part }}</strong></td>
+                        <td>{{ count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
         <!-- Link Back to Main Menu -->
