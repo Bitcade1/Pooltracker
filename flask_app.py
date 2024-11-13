@@ -1119,8 +1119,8 @@ def counting_cushions():
 def predicted_finish():
     if request.method == 'POST':
         try:
-            tables_today = int(request.form['tables_today'])
-            if tables_today <= 0:
+            tables_for_month = int(request.form['tables_for_month'])
+            if tables_for_month <= 0:
                 flash("Please enter a positive number of tables.", "error")
                 return redirect(url_for('predicted_finish'))
         except ValueError:
@@ -1134,7 +1134,7 @@ def predicted_finish():
         today = datetime.utcnow().date()
         current_year = today.year
         current_month = today.month
-        
+
         # Helper function to calculate average daily production
         def calculate_average(model):
             records = db.session.query(func.count(model.id)).filter(
@@ -1151,16 +1151,16 @@ def predicted_finish():
                 return records / days_worked
             else:
                 return None
-        
+
         # Average daily production for each part
         avg_pods = calculate_average(CompletedPods)
         avg_bodies = calculate_average(CompletedTable)
         avg_top_rails = calculate_average(TopRail)
-        
-        # Calculate total parts needed
-        total_pods_needed = tables_today  # Assuming one pod per table
-        total_bodies_needed = tables_today
-        total_top_rails_needed = tables_today
+
+        # Calculate total parts needed to complete the monthly target
+        total_pods_needed = tables_for_month  # Assuming one pod per table
+        total_bodies_needed = tables_for_month
+        total_top_rails_needed = tables_for_month
 
         def project_finish_date(avg_per_day, total_needed):
             if avg_per_day is None or avg_per_day == 0:
@@ -1190,7 +1190,7 @@ def predicted_finish():
             avg_pods=avg_pods,
             avg_bodies=avg_bodies,
             avg_top_rails=avg_top_rails,
-            tables_today=tables_today
+            tables_for_month=tables_for_month
         )
 
     return render_template('predicted_finish.html')
