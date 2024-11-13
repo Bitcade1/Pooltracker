@@ -713,15 +713,16 @@ def inventory():
         else:
             parts_status[part] = f"{abs(difference)} left to make"
 
-    # --- "Table Parts" Section without Bulk Update ---
-    table_parts = [
-        "Table legs", "Ball Gullies 1", "Ball Gullies 2", "Ball Gullies 3", 
-        "Ball Gullies 4", "Ball Gullies 5 (Untouched)", "Feet", "Triangle trim", 
-        "White ball return trim", "Color ball trim", "Ball window trim", 
-        "Aluminum corner", "Chrome corner", "Top rail trim short length", 
-        "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm", 
-        "Chrome handles", "Center pockets", "Corner pockets"
-    ]
+    # --- New "Table Parts" Section ---
+    # List of "Table Parts" items with requirements per table
+    table_parts = {
+        "Table legs": 4, "Ball Gullies 1": 1, "Ball Gullies 2": 1, "Ball Gullies 3": 1, 
+        "Ball Gullies 4": 1, "Ball Gullies 5 (Untouched)": 2, "Feet": 4, "Triangle trim": 1, 
+        "White ball return trim": 1, "Color ball trim": 1, "Ball window trim": 1, 
+        "Aluminum corner": 4, "Chrome corner": 4, "Top rail trim short length": 1, 
+        "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1, "Ramp 918mm": 1, 
+        "Chrome handles": 1, "Center pockets": 2, "Corner pockets": 4
+    }
 
     # Initialize or retrieve counts for each item in "Table Parts"
     table_parts_counts = {part: 0 for part in table_parts}
@@ -729,13 +730,19 @@ def inventory():
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
+    # Calculate maximum number of tables we can build based on current stock
+    tables_possible_per_part = {part: table_parts_counts[part] // req_per_table for part, req_per_table in table_parts.items()}
+    max_tables_possible = min(tables_possible_per_part.values())
+
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
         parts_status=parts_status,
-        table_parts_counts=table_parts_counts  # Pass the table parts counts to the template
+        table_parts_counts=table_parts_counts,
+        max_tables_possible=max_tables_possible,  # Pass max tables possible to template
+        tables_possible_per_part=tables_possible_per_part  # Pass each part's possible tables count
     )
 
 @app.route('/counting_chinese_parts', methods=['GET', 'POST'])
