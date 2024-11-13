@@ -792,6 +792,49 @@ def counting_chinese_parts():
 
     return render_template('counting_chinese_parts.html', table_parts=table_parts, table_parts_counts=table_parts_counts)
 
+@app.route('/counting_hardware', methods=['GET', 'POST'])
+def counting_hardware():
+    # List of hardware items
+    hardware_parts = [
+        "M10x13mm Tee Nut", "M10 x 40 Socket Cap Screw", "4.2 x 16 No2 Self Tapping Screw",
+        "4.0 x 50mm Wood Screw", "4.0 x 25mm Wood Screw", "M5 x 18 x 1.25 Penny Mudguard Washer",
+        "M10 Washer", "M5 x 20 Socket Cap Screw", "4.8x32mm Self Tapping Screw", "4.8x16mm Self Tapping Screw"
+    ]
+
+    # Initialize or retrieve the count for each part
+    hardware_counts = {part: 0 for part in hardware_parts}
+    for part in hardware_parts:
+        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        hardware_counts[part] = latest_entry[0] if latest_entry else 0
+
+    if request.method == 'POST':
+        part = request.form['hardware_part']
+        action = request.form['action']
+        amount = int(request.form['amount']) if 'amount' in request.form else 1
+
+        if part in hardware_counts:
+            current_count = hardware_counts[part]
+            if action == 'increment':
+                new_count = current_count + 1
+            elif action == 'decrement' and current_count > 0:
+                new_count = current_count - 1
+            elif action == 'bulk' and amount > 0:
+                new_count = current_count + amount
+            elif action == 'bulk' and amount < 0 and current_count >= abs(amount):
+                new_count = current_count + amount
+            else:
+                flash("Invalid operation or insufficient stock.", "error")
+                return redirect(url_for('counting_hardware'))
+
+            # Update database with the new count
+            new_entry = PrintedPartsCount(part_name=part, count=new_count, date=datetime.utcnow().date(), time=datetime.utcnow().time())
+            db.session.add(new_entry)
+            db.session.commit()
+
+            flash(f"{part} updated successfully! New count: {new_count}", "success")
+            hardware_counts[part] = new_count
+
+    return render_template('counting_hardware.html', hardware_parts=hardware_parts, hardware_counts=hardware_counts)
 
 
 
