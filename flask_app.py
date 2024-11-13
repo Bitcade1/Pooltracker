@@ -1115,6 +1115,7 @@ def counting_cushions():
     )
 
 
+
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if request.method == 'POST':
@@ -1162,6 +1163,12 @@ def predicted_finish():
         total_bodies_needed = tables_for_month
         total_top_rails_needed = tables_for_month
 
+        # Helper function to get a formatted date with a suffix
+        def format_date_with_suffix(date_obj):
+            day = date_obj.day
+            suffix = 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            return date_obj.strftime(f'%B {day}{suffix}')
+
         def project_finish_date(avg_per_day, total_needed):
             if avg_per_day is None or avg_per_day == 0:
                 return "N/A"
@@ -1175,7 +1182,7 @@ def predicted_finish():
                 if finish_date.weekday() in work_days:  # Only count workdays
                     days_counted += 1
             
-            return finish_date.strftime('%Y-%m-%d')
+            return format_date_with_suffix(finish_date)
 
         # Project finish dates
         pods_finish_date = project_finish_date(avg_pods, total_pods_needed)
@@ -1194,6 +1201,7 @@ def predicted_finish():
         )
 
     return render_template('predicted_finish.html')
+
 
 
 
