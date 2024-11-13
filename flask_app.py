@@ -659,7 +659,7 @@ def inventory():
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
-    # Retrieve the current total count for each wooden part
+    # Wooden Parts Counts
     total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
     total_body_cut = total_body_cut[0] if total_body_cut else 0
 
@@ -669,68 +669,40 @@ def inventory():
     total_bases_cut = db.session.query(WoodCount.count).filter_by(section="Bases").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
     total_bases_cut = total_bases_cut[0] if total_bases_cut else 0
 
-    # Dictionary for wooden parts counts
     wooden_counts = {
         'body': total_body_cut,
         'pod_sides': total_pod_sides_cut,
         'bases': total_bases_cut
     }
 
-    # Calculate the number of bodies built this month
-    today = datetime.utcnow().date()
-    bodies_built_this_month = db.session.query(func.count(CompletedTable.id)).filter(
-        extract('year', CompletedTable.date) == today.year,
-        extract('month', CompletedTable.date) == today.month
-    ).scalar()
-
-    # Parts usage per body
-    parts_usage_per_body = {
-        "Large Ramp": 1,
-        "Paddle": 1,
-        "Laminate": 4,
-        "Spring Mount": 1,
-        "Spring Holder": 1,
-        "Small Ramp": 1,
-        "Cue Ball Separator": 1,
-        "Bushing": 2
-    }
-
-    # Calculate parts used based on bodies built this month
-    parts_used_this_month = {part: bodies_built_this_month * usage for part, usage in parts_usage_per_body.items()}
-
-    # Define target tables per month
-    target_tables_per_month = 60
-
-    # Calculate the remaining parts needed or extras
-    parts_status = {}
-    for part, usage in parts_usage_per_body.items():
-        required_total = target_tables_per_month * usage
-        available_total = inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)
-        difference = available_total - required_total
-
-        if difference >= 0:
-            parts_status[part] = f"{difference} extras"
-        else:
-            parts_status[part] = f"{abs(difference)} left to make"
-
-    # --- New "Table Parts" Section ---
-    # List of "Table Parts" items with requirements per table
+    # Table Parts Section
     table_parts = {
-        "Table legs": 4, "Ball Gullies 1": 1, "Ball Gullies 2": 1, "Ball Gullies 3": 1, 
-        "Ball Gullies 4": 1, "Ball Gullies 5 (Untouched)": 2, "Feet": 4, "Triangle trim": 1, 
-        "White ball return trim": 1, "Color ball trim": 1, "Ball window trim": 1, 
-        "Aluminum corner": 4, "Chrome corner": 4, "Top rail trim short length": 1, 
-        "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1, "Ramp 918mm": 1, 
+        "Table legs": 4, "Ball Gullies 1": 1, "Ball Gullies 2": 1, "Ball Gullies 3": 1,
+        "Ball Gullies 4": 1, "Ball Gullies 5 (Untouched)": 2, "Feet": 4, "Triangle trim": 1,
+        "White ball return trim": 1, "Color ball trim": 1, "Ball window trim": 1,
+        "Aluminum corner": 4, "Chrome corner": 4, "Top rail trim short length": 1,
+        "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1, "Ramp 918mm": 1,
         "Chrome handles": 1, "Center pockets": 2, "Corner pockets": 4
     }
 
-    # Initialize or retrieve counts for each item in "Table Parts"
     table_parts_counts = {part: 0 for part in table_parts}
     for part in table_parts:
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
-    # Calculate maximum number of tables we can build based on current stock
+    # Hardware Parts Section
+    hardware_parts = [
+        "M10x13mm Tee Nut", "M10 x 40 Socket Cap Screw", "4.2 x 16 No2 Self Tapping Screw",
+        "4.0 x 50mm Wood Screw", "4.0 x 25mm Wood Screw", "M5 x 18 x 1.25 Penny Mudguard Washer",
+        "M10 Washer", "M5 x 20 Socket Cap Screw", "4.8x32mm Self Tapping Screw", "4.8x16mm Self Tapping Screw"
+    ]
+
+    hardware_counts = {part: 0 for part in hardware_parts}
+    for part in hardware_parts:
+        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        hardware_counts[part] = latest_entry[0] if latest_entry else 0
+
+    # Calculate maximum tables possible for table parts (as before)
     tables_possible_per_part = {part: table_parts_counts[part] // req_per_table for part, req_per_table in table_parts.items()}
     max_tables_possible = min(tables_possible_per_part.values())
 
@@ -738,11 +710,10 @@ def inventory():
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
-        parts_used_this_month=parts_used_this_month,
-        parts_status=parts_status,
         table_parts_counts=table_parts_counts,
-        max_tables_possible=max_tables_possible,  # Pass max tables possible to template
-        tables_possible_per_part=tables_possible_per_part  # Pass each part's possible tables count
+        max_tables_possible=max_tables_possible,
+        tables_possible_per_part=tables_possible_per_part,
+        hardware_counts=hardware_counts  # Pass hardware counts to template
     )
 
 @app.route('/counting_chinese_parts', methods=['GET', 'POST'])
