@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predicted Finish - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+        .title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: bold;
+        }
+        .form-group input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        .form-group button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        .form-group button:hover {
+            background-color: #0056b3;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .results div {
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .back-button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 15px;
+            background-color: #6c757d;
+            color: white;
+            text-align: center;
+            border-radius: 4px;
+            text-decoration: none;
+        }
+        .back-button:hover {
+            background-color: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Predicted Finish Date</h1>
+
+        <!-- Input form for number of tables being made today -->
+        <form method="POST" action="{{ url_for('predicted_finish') }}">
+            <div class="form-group">
+                <label for="tables_today">Enter Number of Pool Tables Being Made Today:</label>
+                <input type="number" id="tables_today" name="tables_today" required min="1" placeholder="e.g., 5">
+            </div>
+            <div class="form-group">
+                <button type="submit">Calculate Finish Dates</button>
+            </div>
+        </form>
+
+        <!-- Display projected finish dates if calculated -->
+        {% if pods_finish_date and bodies_finish_date and top_rails_finish_date %}
+        <div class="results">
+            <div><strong>Projected Finish Date for Pods:</strong> {{ pods_finish_date }}</div>
+            <div><strong>Projected Finish Date for Bodies:</strong> {{ bodies_finish_date }}</div>
+            <div><strong>Projected Finish Date for Top Rails:</strong> {{ top_rails_finish_date }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Display average production rates if available -->
+        {% if avg_pods is not none and avg_bodies is not none and avg_top_rails is not none %}
+        <div class="results">
+            <div><strong>Average Pods per Day:</strong> {{ avg_pods | round(2) }}</div>
+            <div><strong>Average Bodies per Day:</strong> {{ avg_bodies | round(2) }}</div>
+            <div><strong>Average Top Rails per Day:</strong> {{ avg_top_rails | round(2) }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Back to Main Menu button -->
+        <a href="{{ url_for('home') }}" class="back-button">Back to Main Menu</a>
+    </div>
+</body>
+</html>
