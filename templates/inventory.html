@@ -95,27 +95,29 @@
             </table>
         </div>
 
-<!-- Collapsible Section for Table Parts (No Bulk Update) -->
-<button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts</button>
-<div id="collapsibleContentTableParts" class="collapsible-content">
-    <table>
-        <thead>
-            <tr>
-                <th>Part</th>
-                <th>Current Stock</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for part, count in table_parts_counts.items() %}
-            <tr>
-                <td><strong>{{ part }}</strong></td>
-                <td>{{ count }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
+        <!-- Collapsible Section for Table Parts -->
+        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts</button>
+        <div id="collapsibleContentTableParts" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part</th>
+                        <th>Current Stock</th>
+                        <th>Tables Possible from Stock</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part, count in table_parts_counts.items() %}
+                    <tr>
+                        <td><strong>{{ part }}</strong></td>
+                        <td>{{ count }}</td>
+                        <td>{{ tables_possible_per_part[part] }} tables</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <h3>Total Tables Possible: {{ max_tables_possible }}</h3>
+        </div>
 
         <!-- Link Back to Main Menu -->
         <div class="menu-link">
