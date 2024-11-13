@@ -47,13 +47,13 @@
                 <label for="hardware_part">Select Hardware Part:</label>
                 <select name="hardware_part" id="hardware_part" onchange="updateCountDisplay()" required>
                     {% for part in hardware_parts %}
-                        <option value="{{ part }}">{{ part }}</option>
+                        <option value="{{ part.name }}">{{ part.name }}</option>
                     {% endfor %}
                 </select>
             </div>
 
             <div class="count-display">
-                <strong>Current Stock:</strong> <span id="count-display">{{ hardware_counts[hardware_parts[0]] }}</span>
+                <strong>Current Stock:</strong> <span id="count-display">{{ hardware_counts[hardware_parts[0].name] }}</span>
             </div>
 
             <!-- Increment and Decrement Buttons -->
