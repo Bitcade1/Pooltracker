@@ -251,8 +251,6 @@ def bodies():
     )
 
 
-
-# Admin Area Route
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
     # Add new worker
@@ -299,6 +297,20 @@ def admin():
         else:
             flash("Issue not found.", "error")
 
+    # Add new hardware part
+    if request.method == 'POST' and 'new_hardware_part' in request.form:
+        new_part_name = request.form['new_hardware_part'].strip()
+        initial_count = int(request.form['initial_hardware_count'])
+        
+        # Check if the part already exists
+        if HardwarePart.query.filter_by(name=new_part_name).first():
+            flash("Hardware part already exists.", "error")
+        else:
+            new_part = HardwarePart(name=new_part_name, initial_count=initial_count)
+            db.session.add(new_part)
+            db.session.commit()
+            flash(f"Hardware part '{new_part_name}' added successfully!", "success")
+
     # Retrieve or initialize MDF inventory
     inventory = MDFInventory.query.first()
     if not inventory:
@@ -309,6 +321,9 @@ def admin():
     # Fetch workers, issues, and inventory for other sections
     workers = Worker.query.all()
     issues = Issue.query.all()
+    
+    # Fetch hardware parts to pass to template
+    hardware_parts = HardwarePart.query.all()
 
     # Fetch raw data for CompletedPods, TopRail, and CompletedTable
     pods = CompletedPods.query.all()
@@ -316,7 +331,7 @@ def admin():
     bodies = CompletedTable.query.all()
 
     # Check for raw data management form submission
-    if request.method == 'POST':
+    if request.method == 'POST' and 'table' in request.form:
         table = request.form.get('table')
         entry_id = request.form.get('id')
 
@@ -357,8 +372,10 @@ def admin():
         inventory=inventory,
         pods=pods,
         top_rails=top_rails,
-        bodies=bodies
+        bodies=bodies,
+        hardware_parts=hardware_parts  # Pass hardware parts to the template
     )
+
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
