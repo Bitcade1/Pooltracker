@@ -1114,6 +1114,7 @@ def counting_cushions():
         avg_times=avg_times
     )
 
+
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if request.method == 'POST':
@@ -1126,8 +1127,10 @@ def predicted_finish():
             flash("Please enter a valid number.", "error")
             return redirect(url_for('predicted_finish'))
         
-        # Define workdays (Monday to Friday)
+        # Define workdays (Monday to Friday) and work hours per day
         work_days = [0, 1, 2, 3, 4]  # 0 = Monday, 4 = Friday
+        work_hours_per_day = 8
+        work_start_hour = 9  # Assume starting work at 9:00 AM
         
         # Fetch current month and year
         today = datetime.utcnow().date()
@@ -1137,7 +1140,6 @@ def predicted_finish():
 
         # Helper function to calculate average daily production
         def calculate_average(model):
-            # Find the earliest recorded entry date for the model in the current month
             first_entry_date = db.session.query(func.min(model.date)).filter(
                 func.extract('year', model.date) == current_year,
                 func.extract('month', model.date) == current_month
@@ -1146,11 +1148,9 @@ def predicted_finish():
             if not first_entry_date or first_entry_date >= last_full_day:
                 return None  # No data or only partial data for today, so average is undefined
 
-            # Calculate the number of workdays from the first entry date up to the last full day
             days_worked = sum(1 for i in range((last_full_day - first_entry_date).days + 1)
                               if (first_entry_date + timedelta(days=i)).weekday() in work_days)
 
-            # Count the number of records for the model from the first entry date to the last full day
             records = db.session.query(func.count(model.id)).filter(
                 func.extract('year', model.date) == current_year,
                 func.extract('month', model.date) == current_month,
@@ -1158,22 +1158,16 @@ def predicted_finish():
                 model.date <= last_full_day
             ).scalar()
 
-            if days_worked > 0:
-                return records / days_worked
-            else:
-                return None
+            return records / days_worked if days_worked > 0 else None
 
-        # Average daily production for each part
         avg_pods = calculate_average(CompletedPods)
         avg_bodies = calculate_average(CompletedTable)
         avg_top_rails = calculate_average(TopRail)
 
-        # Calculate total parts needed to complete the monthly target
         total_pods_needed = tables_for_month
         total_bodies_needed = tables_for_month
         total_top_rails_needed = tables_for_month
 
-        # Get the count of parts already completed this month
         def completed_this_month(model):
             return db.session.query(func.count(model.id)).filter(
                 func.extract('year', model.date) == current_year,
@@ -1184,42 +1178,51 @@ def predicted_finish():
         completed_bodies = completed_this_month(CompletedTable)
         completed_top_rails = completed_this_month(TopRail)
 
-        # Calculate the remaining parts needed to complete the target
         remaining_pods = max(total_pods_needed - completed_pods, 0)
         remaining_bodies = max(total_bodies_needed - completed_bodies, 0)
         remaining_top_rails = max(total_top_rails_needed - completed_top_rails, 0)
 
-        # Helper function to get a formatted date with a suffix
         def format_date_with_suffix(date_obj):
             day = date_obj.day
             suffix = 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
             return date_obj.strftime(f'%B {day}{suffix}')
 
-        def project_finish_date(avg_per_day, remaining_needed):
+        def project_finish_date_and_time(avg_per_day, remaining_needed):
             if avg_per_day is None or avg_per_day == 0:
-                return "N/A"
-            
+                return "N/A", "N/A"
+
             days_needed = remaining_needed / avg_per_day
+            whole_days_needed = int(days_needed)
+            remaining_fraction = days_needed - whole_days_needed
+            hours_needed_on_last_day = remaining_fraction * work_hours_per_day
+
             finish_date = today
             days_counted = 0
-            
-            while days_counted < days_needed:
-                finish_date += timedelta(days=1)
-                if finish_date.weekday() in work_days:  # Only count workdays
-                    days_counted += 1
-            
-            return format_date_with_suffix(finish_date)
 
-        # Project finish dates
-        pods_finish_date = project_finish_date(avg_pods, remaining_pods)
-        bodies_finish_date = project_finish_date(avg_bodies, remaining_bodies)
-        top_rails_finish_date = project_finish_date(avg_top_rails, remaining_top_rails)
+            while days_counted < whole_days_needed:
+                finish_date += timedelta(days=1)
+                if finish_date.weekday() in work_days:
+                    days_counted += 1
+
+            finish_date_formatted = format_date_with_suffix(finish_date)
+            finish_time = (datetime.combine(finish_date, datetime.min.time()) +
+                           timedelta(hours=work_start_hour + hours_needed_on_last_day))
+
+            finish_time_formatted = finish_time.strftime('%I:%M %p')
+            return finish_date_formatted, finish_time_formatted
+
+        pods_finish_date, pods_finish_time = project_finish_date_and_time(avg_pods, remaining_pods)
+        bodies_finish_date, bodies_finish_time = project_finish_date_and_time(avg_bodies, remaining_bodies)
+        top_rails_finish_date, top_rails_finish_time = project_finish_date_and_time(avg_top_rails, remaining_top_rails)
 
         return render_template(
             'predicted_finish.html',
             pods_finish_date=pods_finish_date,
+            pods_finish_time=pods_finish_time,
             bodies_finish_date=bodies_finish_date,
+            bodies_finish_time=bodies_finish_time,
             top_rails_finish_date=top_rails_finish_date,
+            top_rails_finish_time=top_rails_finish_time,
             avg_pods=avg_pods,
             avg_bodies=avg_bodies,
             avg_top_rails=avg_top_rails,
