@@ -72,11 +72,11 @@
     <div class="container">
         <h1 class="title">Predicted Finish Date</h1>
 
-        <!-- Input form for number of tables being made today -->
+        <!-- Input form for number of tables planned for the month -->
         <form method="POST" action="{{ url_for('predicted_finish') }}">
             <div class="form-group">
-                <label for="tables_today">Enter Number of Pool Tables Being Made Today:</label>
-                <input type="number" id="tables_today" name="tables_today" required min="1" placeholder="e.g., 5">
+                <label for="tables_for_month">Enter Total Number of Pool Tables Planned for This Month:</label>
+                <input type="number" id="tables_for_month" name="tables_for_month" required min="1" placeholder="e.g., 100">
             </div>
             <div class="form-group">
                 <button type="submit">Calculate Finish Dates</button>
@@ -92,15 +92,14 @@
         </div>
         {% endif %}
 
-<!-- Display average production rates if available -->
-{% if avg_pods is not none and avg_bodies is not none and avg_top_rails is not none %}
-<div class="results">
-    <div><strong>Average Pods per Day:</strong> {{ avg_pods|default(0) | round(2) }}</div>
-    <div><strong>Average Bodies per Day:</strong> {{ avg_bodies|default(0) | round(2) }}</div>
-    <div><strong>Average Top Rails per Day:</strong> {{ avg_top_rails|default(0) | round(2) }}</div>
-</div>
-{% endif %}
-
+        <!-- Display average production rates if available -->
+        {% if avg_pods is not none and avg_bodies is not none and avg_top_rails is not none %}
+        <div class="results">
+            <div><strong>Average Pods per Day:</strong> {{ avg_pods | round(2) }}</div>
+            <div><strong>Average Bodies per Day:</strong> {{ avg_bodies | round(2) }}</div>
+            <div><strong>Average Top Rails per Day:</strong> {{ avg_top_rails | round(2) }}</div>
+        </div>
+        {% endif %}
 
         <!-- Back to Main Menu button -->
         <a href="{{ url_for('home') }}" class="back-button">Back to Main Menu</a>
