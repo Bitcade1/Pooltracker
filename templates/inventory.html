@@ -6,7 +6,7 @@
     <title>Stock Inventory</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        .extra { color: green; font-weight: bold; }  /* Style extras in green */
+        .extra { color: green; font-weight: bold; }
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -91,6 +91,45 @@
                     <tr><td><strong>Bases</strong></td><td>{{ wooden_counts.bases }}</td></tr>
                     <tr><td><strong>Pod Sides</strong></td><td>{{ wooden_counts.pod_sides }}</td></tr>
                     <tr><td><strong>Body</strong></td><td>{{ wooden_counts.body }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- New Collapsible Section for Table Parts -->
+        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts</button>
+        <div id="collapsibleContentTableParts" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part</th>
+                        <th>Current Stock</th>
+                        <th>Bulk Update</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part, count in table_parts_counts.items() %}
+                    <tr>
+                        <td><strong>{{ part }}</strong></td>
+                        <td>{{ count }}</td>
+                        <td>
+                            <!-- Bulk Increment Form -->
+                            <form method="POST" action="{{ url_for('inventory') }}" style="display: inline;">
+                                <input type="hidden" name="table_part" value="{{ part }}">
+                                <input type="hidden" name="action" value="increment">
+                                <input type="number" name="amount" placeholder="Add" min="1" required style="width: 60px;">
+                                <button type="submit">Add</button>
+                            </form>
+
+                            <!-- Bulk Decrement Form -->
+                            <form method="POST" action="{{ url_for('inventory') }}" style="display: inline;">
+                                <input type="hidden" name="table_part" value="{{ part }}">
+                                <input type="hidden" name="action" value="decrement">
+                                <input type="number" name="amount" placeholder="Reduce" min="1" required style="width: 60px;">
+                                <button type="submit">Reduce</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
