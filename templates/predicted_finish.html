@@ -1,106 +1,91 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predicted Finish - Pool Table Tracker</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-        .title {
-            font-size: 1.5em;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            font-weight: bold;
-        }
-        .form-group input[type="number"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1em;
-        }
-        .form-group button {
-            width: 100%;
-            padding: 10px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 1em;
-            cursor: pointer;
-        }
-        .form-group button:hover {
-            background-color: #0056b3;
-        }
-        .results {
-            margin-top: 20px;
-        }
-        .results div {
-            margin-bottom: 10px;
-            font-size: 1.1em;
-        }
-        .back-button {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 10px 15px;
-            background-color: #6c757d;
-            color: white;
-            text-align: center;
-            border-radius: 4px;
-            text-decoration: none;
-        }
-        .back-button:hover {
-            background-color: #5a6268;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="title">Predicted Finish Date</h1>
+from flask import render_template, request, flash, redirect, url_for
+from datetime import datetime, timedelta
+from sqlalchemy import func
+from app import app, db
+from .models import CompletedPods, CompletedTable, TopRail
 
-        <!-- Input form for number of tables planned for the month -->
-        <form method="POST" action="{{ url_for('predicted_finish') }}">
-            <div class="form-group">
-                <label for="tables_for_month">Enter Total Number of Pool Tables Planned for This Month:</label>
-                <input type="number" id="tables_for_month" name="tables_for_month" required min="1" placeholder="e.g., 100">
-            </div>
-            <div class="form-group">
-                <button type="submit">Calculate Finish Dates</button>
-            </div>
-        </form>
+@app.route('/predicted_finish', methods=['GET', 'POST'])
+def predicted_finish():
+    if request.method == 'POST':
+        try:
+            tables_for_month = int(request.form['tables_for_month'])
+            if tables_for_month <= 0:
+                flash("Please enter a positive number of tables.", "error")
+                return redirect(url_for('predicted_finish'))
+        except ValueError:
+            flash("Please enter a valid number.", "error")
+            return redirect(url_for('predicted_finish'))
+        
+        # Define workdays (Monday to Friday)
+        work_days = [0, 1, 2, 3, 4]  # 0 = Monday, 4 = Friday
+        
+        # Fetch current month and year
+        today = datetime.utcnow().date()
+        current_year = today.year
+        current_month = today.month
 
-        <!-- Display projected finish dates if calculated -->
-        {% if pods_finish_date and bodies_finish_date and top_rails_finish_date %}
-        <div class="results">
-            <div><strong>Projected Finish Date for Pods:</strong> {{ pods_finish_date }}</div>
-            <div><strong>Projected Finish Date for Bodies:</strong> {{ bodies_finish_date }}</div>
-            <div><strong>Projected Finish Date for Top Rails:</strong> {{ top_rails_finish_date }}</div>
-        </div>
-        {% endif %}
+        # Helper function to calculate average daily production
+        def calculate_average(model):
+            records = db.session.query(func.count(model.id)).filter(
+                func.extract('year', model.date) == current_year,
+                func.extract('month', model.date) == current_month,
+                model.date <= today
+            ).scalar()
+            
+            # Calculate days worked in current month up to today
+            days_worked = sum(1 for i in range(1, today.day + 1)
+                              if datetime(current_year, current_month, i).weekday() in work_days)
+            
+            if days_worked > 0:
+                return records / days_worked
+            else:
+                return None
 
-        <!-- Display average production rates if available -->
-        <div class="results">
-            <div><strong>Average Pods per Day:</strong> {{ avg_pods|default(0) | round(2) if avg_pods is not none else 'N/A' }}</div>
-            <div><strong>Average Bodies per Day:</strong> {{ avg_bodies|default(0) | round(2) if avg_bodies is not none else 'N/A' }}</div>
-            <div><strong>Average Top Rails per Day:</strong> {{ avg_top_rails|default(0) | round(2) if avg_top_rails is not none else 'N/A' }}</div>
-        </div>
+        # Average daily production for each part
+        avg_pods = calculate_average(CompletedPods)
+        avg_bodies = calculate_average(CompletedTable)
+        avg_top_rails = calculate_average(TopRail)
 
-        <!-- Back to Main Menu button -->
-        <a href="{{ url_for('home') }}" class="back-button">Back to Main Menu</a>
-    </div>
-</body>
-</html>
+        # Calculate total parts needed to complete the monthly target
+        total_pods_needed = tables_for_month  # Assuming one pod per table
+        total_bodies_needed = tables_for_month
+        total_top_rails_needed = tables_for_month
+
+        # Helper function to get a formatted date with a suffix
+        def format_date_with_suffix(date_obj):
+            day = date_obj.day
+            suffix = 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            return date_obj.strftime(f'%B {day}{suffix}')
+
+        def project_finish_date(avg_per_day, total_needed):
+            if avg_per_day is None or avg_per_day == 0:
+                return "N/A"
+            
+            days_needed = total_needed / avg_per_day
+            finish_date = today
+            days_counted = 0
+            
+            while days_counted < days_needed:
+                finish_date += timedelta(days=1)
+                if finish_date.weekday() in work_days:  # Only count workdays
+                    days_counted += 1
+            
+            return format_date_with_suffix(finish_date)
+
+        # Project finish dates
+        pods_finish_date = project_finish_date(avg_pods, total_pods_needed)
+        bodies_finish_date = project_finish_date(avg_bodies, total_bodies_needed)
+        top_rails_finish_date = project_finish_date(avg_top_rails, total_top_rails_needed)
+
+        return render_template(
+            'predicted_finish.html',
+            pods_finish_date=pods_finish_date,
+            bodies_finish_date=bodies_finish_date,
+            top_rails_finish_date=top_rails_finish_date,
+            avg_pods=avg_pods,
+            avg_bodies=avg_bodies,
+            avg_top_rails=avg_top_rails,
+            tables_for_month=tables_for_month
+        )
+
+    return render_template('predicted_finish.html')
