@@ -1159,26 +1159,30 @@ def bodies():
             "Chrome handles": 1
         }
 
-        # Deduct inventory for each required part with debugging
+        # Deduct inventory for each required part
         for part_name, quantity_needed in parts_to_deduct.items():
-            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-            
-            # Check if the part exists and has enough stock
-            if part_entry:
-                current_count = part_entry.count
-                print(f"Checking {part_name}: Current stock is {current_count}, needed is {quantity_needed}")
-                
-                if current_count >= quantity_needed:
-                    part_entry.count -= quantity_needed
-                    print(f"{part_name} deducted by {quantity_needed}. New stock: {part_entry.count}")
-                else:
-                    flash(f"Not enough inventory for {part_name} to complete the body! (Current: {current_count}, Needed: {quantity_needed})", "error")
-                    return redirect(url_for('bodies'))
+            part_entry = PrintedPartsCount.query.filter(
+                PrintedPartsCount.part_name == part_name,
+                PrintedPartsCount.count > 0
+            ).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+
+            if part_entry and part_entry.count >= quantity_needed:
+                # Calculate new count after deduction
+                new_count = part_entry.count - quantity_needed
+                # Add a new row for this deduction to keep a record
+                new_part_entry = PrintedPartsCount(
+                    part_name=part_name,
+                    count=new_count,
+                    date=datetime.utcnow().date(),
+                    time=datetime.utcnow().time()
+                )
+                db.session.add(new_part_entry)
             else:
-                flash(f"{part_name} is missing in inventory!", "error")
+                # Not enough stock, show error and redirect
+                flash(f"Not enough inventory for {part_name} to complete the body! (Needed: {quantity_needed}, Available: {part_entry.count if part_entry else 0})", "error")
                 return redirect(url_for('bodies'))
 
-        # Commit inventory deduction if all parts are available
+        # Commit all inventory updates
         db.session.commit()
 
         # Create a new entry for CompletedTable
@@ -1203,7 +1207,7 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
-    # Remaining parts of the route
+    # The rest of the code is for data display on the page
     today = date.today()
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
@@ -1284,6 +1288,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 
