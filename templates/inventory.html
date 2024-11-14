@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         .extra { color: green; font-weight: bold; }
+        .shortage { color: red; font-weight: bold; }
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -53,6 +54,7 @@
                     <tr>
                         <th>Part</th>
                         <th>Current Stock</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -60,6 +62,13 @@
                     <tr>
                         <td><strong>{{ part }}</strong></td>
                         <td>{{ count }}</td>
+                        <td>
+                            {% if 'extras' in parts_status[part] %}
+                                <span class="extra">{{ parts_status[part] }}</span>
+                            {% else %}
+                                <span class="shortage">{{ parts_status[part] }}</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
