@@ -1112,7 +1112,6 @@ def predicted_finish():
 
     return render_template('predicted_finish.html')
 
-
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -1127,7 +1126,7 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Define parts required to complete the body, separating 3D printed and additional parts
+        # Deduct inventory for each part needed to complete the body
         parts_to_deduct = {
             # 3D Printed Parts
             "Large Ramp": 1,
@@ -1160,10 +1159,14 @@ def bodies():
 
         # Deduct inventory for each required part
         for part_name, quantity_needed in parts_to_deduct.items():
-            # Retrieve the most recent count for the part
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-            
-            # Check if part exists and count is sufficient
+
+            # Debug: Output current inventory state for each part
+            if part_entry:
+                print(f"Part: {part_name}, Available: {part_entry.count}, Needed: {quantity_needed}")
+            else:
+                print(f"Part: {part_name} not found in inventory.")
+
             if not part_entry:
                 flash(f"Inventory entry for '{part_name}' is missing. Please initialize this item in the inventory.", "error")
                 return redirect(url_for('bodies'))
@@ -1271,6 +1274,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 
