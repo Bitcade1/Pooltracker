@@ -1159,26 +1159,26 @@ def bodies():
             "Chrome handles": 1
         }
 
-        # Deduct inventory for each required part
+        # Deduct inventory for each required part with debugging
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-
-            # Debug: Output current inventory state for each part
+            
+            # Check if the part exists and has enough stock
             if part_entry:
-                print(f"Part: {part_name}, Available: {part_entry.count}, Needed: {quantity_needed}")
+                current_count = part_entry.count
+                print(f"Checking {part_name}: Current stock is {current_count}, needed is {quantity_needed}")
+                
+                if current_count >= quantity_needed:
+                    part_entry.count -= quantity_needed
+                    print(f"{part_name} deducted by {quantity_needed}. New stock: {part_entry.count}")
+                else:
+                    flash(f"Not enough inventory for {part_name} to complete the body! (Current: {current_count}, Needed: {quantity_needed})", "error")
+                    return redirect(url_for('bodies'))
             else:
-                print(f"Part: {part_name} not found in inventory.")
-
-            if not part_entry:
-                flash(f"Inventory entry for '{part_name}' is missing. Please initialize this item in the inventory.", "error")
+                flash(f"{part_name} is missing in inventory!", "error")
                 return redirect(url_for('bodies'))
-            elif part_entry.count < quantity_needed:
-                flash(f"Not enough inventory for {part_name}. Needed: {quantity_needed}, Available: {part_entry.count}", "error")
-                return redirect(url_for('bodies'))
-            else:
-                # Deduct the quantity needed from the current count
-                part_entry.count -= quantity_needed
 
+        # Commit inventory deduction if all parts are available
         db.session.commit()
 
         # Create a new entry for CompletedTable
@@ -1203,13 +1203,13 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
-    # Fetch today's data and prepare display information
+    # Remaining parts of the route
     today = date.today()
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # Calculate daily and monthly history
+    # Daily History Calculation - Filtered by current month
     daily_history = (
         db.session.query(
             CompletedTable.date,
@@ -1234,6 +1234,7 @@ def bodies():
         for row in daily_history
     ]
 
+    # Monthly Totals Calculation
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -1251,15 +1252,22 @@ def bodies():
         month = int(row.month)
         total_bodies = row.total
 
+        # Calculate workdays up to today in the current month
         last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+
+        # Calculate cumulative working hours and average hours per table
         cumulative_working_hours = work_days * 7.5
         avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
 
-        avg_hours_per_table_formatted = (
-            f"{int(avg_hours_per_table):02}:{int((avg_hours_per_table % 1) * 60):02}:{int((((avg_hours_per_table % 1) * 60) % 1) * 60):02}"
-            if avg_hours_per_table is not None else "N/A"
-        )
+        # Convert decimal hours to HH:MM:SS format
+        if avg_hours_per_table is not None:
+            hours = int(avg_hours_per_table)
+            minutes = int((avg_hours_per_table - hours) * 60)
+            seconds = int((((avg_hours_per_table - hours) * 60) - minutes) * 60)
+            avg_hours_per_table_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        else:
+            avg_hours_per_table_formatted = "N/A"
 
         monthly_totals_formatted.append({
             "month": date(year=year, month=month, day=1).strftime("%B %Y"),
@@ -1276,6 +1284,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 
