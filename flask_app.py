@@ -716,8 +716,8 @@ def inventory():
 
     # Table Parts Section
     table_parts = {
-        "Table legs": 4, "Ball Gullies 1": 1, "Ball Gullies 2": 1, "Ball Gullies 3": 1,
-        "Ball Gullies 4": 1, "Ball Gullies 5 (Untouched)": 2, "Feet": 4, "Triangle trim": 1,
+        "Table legs": 4, "Ball Gullies 1 (Untouched)": 1, "Ball Gullies 2": 1, "Ball Gullies 3": 1,
+        "Ball Gullies 4": 1, "Ball Gullies 5": 2, "Feet": 4, "Triangle trim": 1,
         "White ball return trim": 1, "Color ball trim": 1, "Ball window trim": 1,
         "Aluminum corner": 4, "Chrome corner": 4, "Top rail trim short length": 1,
         "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1, "Ramp 918mm": 1, "Ramp 376mm": 1,
@@ -766,8 +766,8 @@ def inventory():
 def counting_chinese_parts():
     # List of "Table Parts" items
     table_parts = [
-        "Table legs", "Ball Gullies 1", "Ball Gullies 2", "Ball Gullies 3", 
-        "Ball Gullies 4", "Ball Gullies 5 (Untouched)", "Feet", "Triangle trim", 
+        "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2", "Ball Gullies 3", 
+        "Ball Gullies 4", "Ball Gullies 5", "Feet", "Triangle trim", 
         "White ball return trim", "Color ball trim", "Ball window trim", 
         "Aluminum corner", "Chrome corner", "Top rail trim short length", 
         "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm", 
