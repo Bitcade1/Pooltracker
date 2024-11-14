@@ -370,8 +370,8 @@ def counting_3d_printing_parts():
 
         if 'reject' in request.form:  # Check if rejection request
             reject_amount = int(request.form['reject_amount'])
-            # Fetch the most recent entry for the selected part
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first()
+            # Fetch the most recent entry for the selected part by both date and time
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
 
             if current_count and current_count.count >= reject_amount:
                 current_count.count -= reject_amount
@@ -382,12 +382,13 @@ def counting_3d_printing_parts():
         else:
             # Handle normal increment
             increment_amount = int(request.form['increment_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first()
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
 
             if current_count:
-                # Update the existing count
+                # Update the existing count and set date and time to now
                 current_count.count += increment_amount
-                current_count.date = today  # Update date to today
+                current_count.date = today
+                current_count.time = datetime.utcnow().time()
                 flash(f"Incremented {part} count by {increment_amount}!", "success")
             else:
                 # Add as a new entry if no existing count found
@@ -403,6 +404,7 @@ def counting_3d_printing_parts():
             db.session.commit()
 
         return redirect(url_for('counting_3d_printing_parts'))
+
 
     # Retrieve the most recent count for each part to display
     parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing"]
