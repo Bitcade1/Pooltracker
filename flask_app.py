@@ -1127,7 +1127,7 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct inventory for each part needed to complete the body
+        # Define parts required to complete the body, separating 3D printed and additional parts
         parts_to_deduct = {
             # 3D Printed Parts
             "Large Ramp": 1,
@@ -1158,14 +1158,19 @@ def bodies():
             "Chrome handles": 1
         }
 
-        # Deduct inventory for each required part
+        # Attempt to deduct each part's inventory count
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-            if part_entry and part_entry.count >= quantity_needed:
-                part_entry.count -= quantity_needed
-            else:
-                flash(f"Not enough inventory for {part_name} to complete the body!", "error")
+            
+            # Verify inventory exists and is sufficient
+            if part_entry is None:
+                flash(f"Inventory entry for '{part_name}' is missing. Please initialize this item in the inventory.", "error")
                 return redirect(url_for('bodies'))
+            elif part_entry.count < quantity_needed:
+                flash(f"Not enough inventory for {part_name}. Needed: {quantity_needed}, Available: {part_entry.count}", "error")
+                return redirect(url_for('bodies'))
+            else:
+                part_entry.count -= quantity_needed
 
         db.session.commit()
 
@@ -1191,12 +1196,13 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
+    # Fetch today's data and prepare display information
     today = date.today()
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # Daily History Calculation - Filtered by current month
+    # Calculate daily and monthly history
     daily_history = (
         db.session.query(
             CompletedTable.date,
@@ -1221,7 +1227,6 @@ def bodies():
         for row in daily_history
     ]
 
-    # Monthly Totals Calculation
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -1239,22 +1244,15 @@ def bodies():
         month = int(row.month)
         total_bodies = row.total
 
-        # Calculate workdays up to today in the current month
         last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
-
-        # Calculate cumulative working hours and average hours per table
         cumulative_working_hours = work_days * 7.5
         avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
 
-        # Convert decimal hours to HH:MM:SS format
-        if avg_hours_per_table is not None:
-            hours = int(avg_hours_per_table)
-            minutes = int((avg_hours_per_table - hours) * 60)
-            seconds = int((((avg_hours_per_table - hours) * 60) - minutes) * 60)
-            avg_hours_per_table_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
-        else:
-            avg_hours_per_table_formatted = "N/A"
+        avg_hours_per_table_formatted = (
+            f"{int(avg_hours_per_table):02}:{int((avg_hours_per_table % 1) * 60):02}:{int((((avg_hours_per_table % 1) * 60) % 1) * 60):02}"
+            if avg_hours_per_table is not None else "N/A"
+        )
 
         monthly_totals_formatted.append({
             "month": date(year=year, month=month, day=1).strftime("%B %Y"),
@@ -1271,6 +1269,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
