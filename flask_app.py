@@ -1126,8 +1126,18 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct inventory for each part needed to complete the body
+        # Deduct inventory for 3D printed parts and other parts needed to complete the body
         parts_to_deduct = {
+            # 3D printed parts
+            "Large Ramp": 1,
+            "Paddle": 1,
+            "Laminate": 4,
+            "Spring Mount": 1,
+            "Spring Holder": 1,
+            "Small Ramp": 1,
+            "Cue Ball Separator": 1,
+            "Bushing": 2,
+            # Additional parts
             "Table legs": 4,
             "Ball Gullies 1": 2,
             "Ball Gullies 2": 1,
@@ -1144,11 +1154,10 @@ def bodies():
             "Ramp 158mm": 1,
             "Ramp 918mm": 1,
             "Ramp 376mm": 1,
-            "Chrome handles": 1,
-            "Center pockets": 2,
-            "Corner pockets": 4
+            "Chrome handles": 1
         }
 
+        # Deduct inventory for each required part
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -1192,6 +1201,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 @app.route('/top_rails', methods=['GET', 'POST'])
