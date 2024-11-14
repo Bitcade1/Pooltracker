@@ -1303,7 +1303,7 @@ def top_rails():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Define parts to deduct and required quantities
+        # Parts and quantities needed for top rail completion
         parts_to_deduct = {
             "Top rail trim long length": 2,
             "Top rail trim short length": 4,
@@ -1312,20 +1312,29 @@ def top_rails():
             "Corner pockets": 4
         }
 
-        # Deduct inventory for each part
+        # Deduct inventory for each part needed to complete the top rail
         for part_name, quantity_needed in parts_to_deduct.items():
-            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
+            # Aggregate all entries for this part_name to get the total available stock
+            part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
+            total_stock = sum(entry.count for entry in part_entries)
 
-            if part_entry:
-                # Check if we have enough stock
-                if part_entry.count >= quantity_needed:
-                    part_entry.count -= quantity_needed
-                    db.session.commit()
-                else:
-                    flash(f"Not enough inventory for {part_name} to complete the top rail!", "error")
-                    return redirect(url_for('top_rails'))
+            # Debugging output
+            print(f"Checking inventory for {part_name}: total stock = {total_stock}, required = {quantity_needed}")
+
+            if total_stock >= quantity_needed:
+                # Deduct from the first entries until the required quantity is met
+                remaining_to_deduct = quantity_needed
+                for entry in part_entries:
+                    if entry.count >= remaining_to_deduct:
+                        entry.count -= remaining_to_deduct
+                        db.session.commit()
+                        break
+                    else:
+                        remaining_to_deduct -= entry.count
+                        entry.count = 0
+                        db.session.commit()
             else:
-                flash(f"Inventory entry for {part_name} not found!", "error")
+                flash(f"Not enough inventory for {part_name} to complete the top rail! (Available: {total_stock})", "error")
                 return redirect(url_for('top_rails'))
 
         # Create a new entry for TopRail
@@ -1433,6 +1442,7 @@ def top_rails():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 
