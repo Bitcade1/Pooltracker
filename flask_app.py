@@ -1312,17 +1312,31 @@ def top_rails():
             "Corner pockets": 4
         }
 
+        # DEBUG: Log the current count for Chrome corner
+        chrome_corner_entry = PrintedPartsCount.query.filter_by(part_name="Chrome corner").order_by(PrintedPartsCount.date.desc()).first()
+        current_chrome_corner_count = chrome_corner_entry.count if chrome_corner_entry else 0
+        print(f"DEBUG: Current Chrome corner count before deduction: {current_chrome_corner_count}")
+
+        # Deduct inventory
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
                 part_entry.count -= quantity_needed
+                # Log the deduction by adding a new entry with updated count
+                new_entry = PrintedPartsCount(
+                    part_name=part_name,
+                    count=part_entry.count,
+                    date=datetime.utcnow().date(),
+                    time=datetime.utcnow().time()
+                )
+                db.session.add(new_entry)
             else:
                 flash(f"Not enough inventory for {part_name} to complete the top rail!", "error")
                 return redirect(url_for('top_rails'))
 
         db.session.commit()
 
-        # Create a new entry for TopRail
+        # Proceed with creating the top rail entry if inventory checks pass
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -1427,6 +1441,7 @@ def top_rails():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 
