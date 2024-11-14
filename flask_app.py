@@ -1126,9 +1126,8 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct inventory for 3D printed parts and other parts needed to complete the body
+        # Deduct inventory for each part needed to complete the body
         parts_to_deduct = {
-            # 3D printed parts
             "Large Ramp": 1,
             "Paddle": 1,
             "Laminate": 4,
@@ -1136,28 +1135,9 @@ def bodies():
             "Spring Holder": 1,
             "Small Ramp": 1,
             "Cue Ball Separator": 1,
-            "Bushing": 2,
-            # Additional parts
-            "Table legs": 4,
-            "Ball Gullies 1": 2,
-            "Ball Gullies 2": 1,
-            "Ball Gullies 3": 1,
-            "Ball Gullies 4": 1,
-            "Ball Gullies 5": 1,
-            "Feet": 4,
-            "Triangle trim": 1,
-            "White ball return trim": 1,
-            "Color ball trim": 1,
-            "Ball window trim": 1,
-            "Aluminum corner": 4,
-            "Ramp 170mm": 1,
-            "Ramp 158mm": 1,
-            "Ramp 918mm": 1,
-            "Ramp 376mm": 1,
-            "Chrome handles": 1
+            "Bushing": 2
         }
 
-        # Deduct inventory for each required part
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -1190,7 +1170,76 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
-    # Other calculations and data fetching...
+    today = date.today()
+    completed_tables = CompletedTable.query.filter_by(date=today).all()
+    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
+    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+
+    # Daily History Calculation - Filtered by current month
+    daily_history = (
+        db.session.query(
+            CompletedTable.date,
+            func.count(CompletedTable.id).label('count'),
+            func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(
+            extract('year', CompletedTable.date) == today.year,
+            extract('month', CompletedTable.date) == today.month
+        )
+        .group_by(CompletedTable.date)
+        .order_by(CompletedTable.date.desc())
+        .all()
+    )
+
+    daily_history_formatted = [
+        {
+            "date": row.date.strftime("%A %d/%m/%y"),
+            "count": row.count,
+            "serial_numbers": row.serial_numbers
+        }
+        for row in daily_history
+    ]
+
+    # Monthly Totals Calculation
+    monthly_totals = (
+        db.session.query(
+            extract('year', CompletedTable.date).label('year'),
+            extract('month', CompletedTable.date).label('month'),
+            func.count(CompletedTable.id).label('total')
+        )
+        .group_by('year', 'month')
+        .order_by('year', 'month')
+        .all()
+    )
+
+    monthly_totals_formatted = []
+    for row in monthly_totals:
+        year = int(row.year)
+        month = int(row.month)
+        total_bodies = row.total
+
+        # Calculate workdays up to today in the current month
+        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+
+        # Calculate cumulative working hours and average hours per table
+        cumulative_working_hours = work_days * 7.5
+        avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
+
+        # Convert decimal hours to HH:MM:SS format
+        if avg_hours_per_table is not None:
+            hours = int(avg_hours_per_table)
+            minutes = int((avg_hours_per_table - hours) * 60)
+            seconds = int((((avg_hours_per_table - hours) * 60) - minutes) * 60)
+            avg_hours_per_table_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        else:
+            avg_hours_per_table_formatted = "N/A"
+
+        monthly_totals_formatted.append({
+            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "count": total_bodies,
+            "average_hours_per_table": avg_hours_per_table_formatted
+        })
 
     return render_template(
         'bodies.html',
@@ -1201,8 +1250,6 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
-
-
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
@@ -1218,26 +1265,6 @@ def top_rails():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct inventory for each part needed to complete the top rail
-        parts_to_deduct = {
-            "Top rail trim long length": 2,
-            "Top rail trim short length": 4,
-            "Chrome corner": 4,
-            "Center pockets": 2,
-            "Corner pockets": 4
-        }
-
-        for part_name, quantity_needed in parts_to_deduct.items():
-            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-            if part_entry and part_entry.count >= quantity_needed:
-                part_entry.count -= quantity_needed
-            else:
-                flash(f"Not enough inventory for {part_name} to complete the top rail!", "error")
-                return redirect(url_for('top_rails'))
-
-        db.session.commit()
-
-        # Create a new entry for TopRail
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -1251,7 +1278,7 @@ def top_rails():
         try:
             db.session.add(new_top_rail)
             db.session.commit()
-            flash("Top rail entry added successfully and inventory updated!", "success")
+            flash("Top rail entry added successfully!", "success")
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
@@ -1259,7 +1286,79 @@ def top_rails():
 
         return redirect(url_for('top_rails'))
 
-    # Other calculations and data fetching...
+    # Fetch only today's completed top rails
+    today = date.today()
+    completed_top_rails = TopRail.query.filter_by(date=today).all()
+
+    # Set current_time based on last entry's finish time or default to current time
+    last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
+    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+
+    # Daily History Calculation - Filtered by current month
+    daily_history = (
+        db.session.query(
+            TopRail.date,
+            func.count(TopRail.id).label('count'),
+            func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
+        )
+        .filter(
+            extract('year', TopRail.date) == today.year,
+            extract('month', TopRail.date) == today.month
+        )
+        .group_by(TopRail.date)
+        .order_by(TopRail.date.desc())
+        .all()
+    )
+
+    daily_history_formatted = [
+        {
+            "date": row.date.strftime("%A %d/%m/%y"),
+            "count": row.count,
+            "serial_numbers": row.serial_numbers
+        }
+        for row in daily_history
+    ]
+
+    # Monthly Totals Calculation
+    monthly_totals = (
+        db.session.query(
+            extract('year', TopRail.date).label('year'),
+            extract('month', TopRail.date).label('month'),
+            func.count(TopRail.id).label('total')
+        )
+        .group_by('year', 'month')
+        .order_by('year', 'month')
+        .all()
+    )
+
+    monthly_totals_formatted = []
+    for row in monthly_totals:
+        year = int(row.year)
+        month = int(row.month)
+        total_top_rails = row.total
+
+        # Calculate workdays up to today in the current month
+        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+
+        # Calculate cumulative working hours and average hours per top rail
+        cumulative_working_hours = work_days * 7.5
+        avg_hours_per_top_rail = cumulative_working_hours / total_top_rails if total_top_rails > 0 else None
+
+        # Convert decimal hours to HH:MM:SS format
+        if avg_hours_per_top_rail is not None:
+            hours = int(avg_hours_per_top_rail)
+            minutes = int((avg_hours_per_top_rail - hours) * 60)
+            seconds = int((((avg_hours_per_top_rail - hours) * 60) - minutes) * 60)
+            avg_hours_per_top_rail_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        else:
+            avg_hours_per_top_rail_formatted = "N/A"
+
+        monthly_totals_formatted.append({
+            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "count": total_top_rails,
+            "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
+        })
 
     return render_template(
         'top_rails.html',
@@ -1270,6 +1369,10 @@ def top_rails():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
+
+
+
 
 
 
