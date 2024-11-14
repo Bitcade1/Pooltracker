@@ -419,7 +419,7 @@ def inventory():
     # Calculate current stock for each 3D printed part
     inventory_counts = {}
     for part in parts:
-        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        latest_entry = db.session.query(printed_parts_count.count).filter_by(part_name=part).order_by(printed_parts_count.date.desc(), printed_parts_count.time.desc()).first()
         inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
     # Retrieve total counts for each wooden part section
@@ -467,7 +467,7 @@ def inventory():
     # Retrieve or calculate counts for each item in Table Parts
     table_parts_counts = {part: 0 for part in table_parts}
     for part in table_parts:
-        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        latest_entry = db.session.query(printed_parts_count.count).filter_by(part_name=part).order_by(printed_parts_count.date.desc(), printed_parts_count.time.desc()).first()
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
     # Calculate how many tables can be built from table parts
@@ -484,7 +484,7 @@ def inventory():
     # Initialize or retrieve counts for each hardware part
     hardware_counts = {part: 0 for part in hardware_parts}
     for part in hardware_parts:
-        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        latest_entry = db.session.query(printed_parts_count.count).filter_by(part_name=part).order_by(printed_parts_count.date.desc(), printed_parts_count.time.desc()).first()
         hardware_counts[part] = latest_entry[0] if latest_entry else 0
 
     return render_template(
@@ -498,6 +498,7 @@ def inventory():
         tables_possible_per_part=tables_possible_per_part,
         hardware_counts=hardware_counts
     )
+
 
 
 
