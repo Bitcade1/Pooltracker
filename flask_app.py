@@ -670,6 +670,7 @@ def counting_3d_printing_parts():
     parts_counts = {part: count.count if count else 0 for part, count in parts_counts.items()}
 
     return render_template('counting_3d_printing_parts.html', parts_counts=parts_counts)
+    
 @app.route('/inventory', methods=['GET', 'POST'])
 def inventory():
     # List of 3D printed parts
@@ -681,7 +682,7 @@ def inventory():
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         inventory_counts[part] = latest_entry[0] if latest_entry else 0
 
-    # Calculate total counts for each wooden part section
+    # Retrieve total counts for each wooden part section
     total_body_cut = db.session.query(WoodCount.count).filter_by(section="Body").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
     total_pod_sides_cut = db.session.query(WoodCount.count).filter_by(section="Pod Sides").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
     total_bases_cut = db.session.query(WoodCount.count).filter_by(section="Bases").order_by(WoodCount.date.desc(), WoodCount.time.desc()).first()
@@ -746,28 +747,6 @@ def inventory():
         latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         hardware_counts[part] = latest_entry[0] if latest_entry else 0
 
-    # Handle table parts bulk input form
-    if request.method == 'POST' and 'table_part' in request.form:
-        part = request.form['table_part']
-        action = request.form['action']
-        amount = int(request.form['amount'])
-        if part in table_parts_counts:
-            current_count = table_parts_counts[part]
-            if action == 'increment':
-                new_count = current_count + amount
-            elif action == 'decrement' and current_count >= amount:
-                new_count = current_count - amount
-            else:
-                flash(f"Cannot decrement {part} by {amount} as it would result in a negative count.", "error")
-                return redirect(url_for('inventory'))
-
-            # Update count in the database
-            new_entry = PrintedPartsCount(part_name=part, count=new_count, date=today, time=datetime.utcnow().time())
-            db.session.add(new_entry)
-            db.session.commit()
-            table_parts_counts[part] = new_count
-            flash(f"{part} updated successfully!", "success")
-
     return render_template(
         'inventory.html',
         inventory_counts=inventory_counts,
@@ -779,6 +758,7 @@ def inventory():
         tables_possible_per_part=tables_possible_per_part,
         hardware_counts=hardware_counts
     )
+
 
 
 
