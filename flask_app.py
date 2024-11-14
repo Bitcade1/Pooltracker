@@ -478,7 +478,7 @@ def inventory():
     hardware_parts = [
         "M10x13mm Tee Nut", "M10 x 40 Socket Cap Screw", "4.2 x 16 No2 Self Tapping Screw",
         "4.0 x 50mm Wood Screw", "4.0 x 25mm Wood Screw", "M5 x 18 x 1.25 Penny Mudguard Washer",
-        "M10 Washer", "M5 x 20 Socket Cap Screw", "4.8x32mm Self Tapping Screw", "4.8x16mm Self Tapping Screw"
+        "M10 Washer", "M5 x 20 Socket Cap Screw", "4.8x32mm Self Tapping Screw", "4.8x16mm Self Tapping Screw", "3.5mm x 16mm Wood Screws", "Latches", "Latch catch", "Black staples", "Nail 10mm", "Nail 35mm"
     ]
 
     # Initialize or retrieve counts for each hardware part
