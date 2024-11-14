@@ -1112,6 +1112,7 @@ def predicted_finish():
 
     return render_template('predicted_finish.html')
 
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
@@ -1128,6 +1129,7 @@ def bodies():
 
         # Deduct inventory for each part needed to complete the body
         parts_to_deduct = {
+            # 3D Printed Parts
             "Large Ramp": 1,
             "Paddle": 1,
             "Laminate": 4,
@@ -1135,9 +1137,28 @@ def bodies():
             "Spring Holder": 1,
             "Small Ramp": 1,
             "Cue Ball Separator": 1,
-            "Bushing": 2
+            "Bushing": 2,
+            # Additional Table Parts
+            "Table legs": 4,
+            "Ball Gullies 1": 2,
+            "Ball Gullies 2": 1,
+            "Ball Gullies 3": 1,
+            "Ball Gullies 4": 1,
+            "Ball Gullies 5": 1,
+            "Feet": 4,
+            "Triangle trim": 1,
+            "White ball return trim": 1,
+            "Color ball trim": 1,
+            "Ball window trim": 1,
+            "Aluminum corner": 4,
+            "Ramp 170mm": 1,
+            "Ramp 158mm": 1,
+            "Ramp 918mm": 1,
+            "Ramp 376mm": 1,
+            "Chrome handles": 1
         }
 
+        # Deduct inventory for each required part
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
@@ -1265,6 +1286,26 @@ def top_rails():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
+        # Deduct inventory for each part needed to complete the top rail
+        parts_to_deduct = {
+            "Top rail trim long length": 2,
+            "Top rail trim short length": 4,
+            "Chrome corner": 4,
+            "Center pockets": 2,
+            "Corner pockets": 4
+        }
+
+        for part_name, quantity_needed in parts_to_deduct.items():
+            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
+            if part_entry and part_entry.count >= quantity_needed:
+                part_entry.count -= quantity_needed
+            else:
+                flash(f"Not enough inventory for {part_name} to complete the top rail!", "error")
+                return redirect(url_for('top_rails'))
+
+        db.session.commit()
+
+        # Create a new entry for TopRail
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -1278,7 +1319,7 @@ def top_rails():
         try:
             db.session.add(new_top_rail)
             db.session.commit()
-            flash("Top rail entry added successfully!", "success")
+            flash("Top rail entry added successfully and inventory updated!", "success")
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
@@ -1369,7 +1410,6 @@ def top_rails():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
-
 
 
 
