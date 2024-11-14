@@ -1289,11 +1289,6 @@ def bodies():
         monthly_totals=monthly_totals_formatted
     )
 
-
-
-
-
-
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     # Fetch workers and issues from the database
@@ -1317,10 +1312,19 @@ def top_rails():
             "Corner pockets": 4
         }
 
+        # Deduct inventory with updated retrieval method
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
                 part_entry.count -= quantity_needed
+                # Log the deduction by adding a new entry with updated count
+                new_entry = PrintedPartsCount(
+                    part_name=part_name,
+                    count=part_entry.count,
+                    date=datetime.utcnow().date(),
+                    time=datetime.utcnow().time()
+                )
+                db.session.add(new_entry)
             else:
                 flash(f"Not enough inventory for {part_name} to complete the top rail!", "error")
                 return redirect(url_for('top_rails'))
@@ -1432,6 +1436,11 @@ def top_rails():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
+
+
+
+
 
 
 
