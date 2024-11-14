@@ -1303,7 +1303,7 @@ def top_rails():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct inventory for each part needed to complete the top rail
+        # Define parts to deduct and required quantities
         parts_to_deduct = {
             "Top rail trim long length": 2,
             "Top rail trim short length": 4,
@@ -1312,15 +1312,21 @@ def top_rails():
             "Corner pockets": 4
         }
 
+        # Deduct inventory for each part
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
-            if part_entry and part_entry.count >= quantity_needed:
-                part_entry.count -= quantity_needed
-            else:
-                flash(f"Not enough inventory for {part_name} to complete the top rail!", "error")
-                return redirect(url_for('top_rails'))
 
-        db.session.commit()
+            if part_entry:
+                # Check if we have enough stock
+                if part_entry.count >= quantity_needed:
+                    part_entry.count -= quantity_needed
+                    db.session.commit()
+                else:
+                    flash(f"Not enough inventory for {part_name} to complete the top rail!", "error")
+                    return redirect(url_for('top_rails'))
+            else:
+                flash(f"Inventory entry for {part_name} not found!", "error")
+                return redirect(url_for('top_rails'))
 
         # Create a new entry for TopRail
         new_top_rail = TopRail(
@@ -1427,6 +1433,7 @@ def top_rails():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 
