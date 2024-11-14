@@ -1158,18 +1158,20 @@ def bodies():
             "Chrome handles": 1
         }
 
-        # Attempt to deduct each part's inventory count
+        # Deduct inventory for each required part
         for part_name, quantity_needed in parts_to_deduct.items():
+            # Retrieve the most recent count for the part
             part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(PrintedPartsCount.date.desc()).first()
             
-            # Verify inventory exists and is sufficient
-            if part_entry is None:
+            # Check if part exists and count is sufficient
+            if not part_entry:
                 flash(f"Inventory entry for '{part_name}' is missing. Please initialize this item in the inventory.", "error")
                 return redirect(url_for('bodies'))
             elif part_entry.count < quantity_needed:
                 flash(f"Not enough inventory for {part_name}. Needed: {quantity_needed}, Available: {part_entry.count}", "error")
                 return redirect(url_for('bodies'))
             else:
+                # Deduct the quantity needed from the current count
                 part_entry.count -= quantity_needed
 
         db.session.commit()
@@ -1269,6 +1271,7 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 @app.route('/top_rails', methods=['GET', 'POST'])
