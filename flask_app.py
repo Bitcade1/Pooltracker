@@ -1140,7 +1140,7 @@ def bodies():
             "Bushing": 2,
             # Additional Table Parts
             "Table legs": 4,
-            "Ball Gullies 1": 2,
+            "Ball Gullies 1 (Untouched)": 2,
             "Ball Gullies 2": 1,
             "Ball Gullies 3": 1,
             "Ball Gullies 4": 1,
