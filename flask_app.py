@@ -806,6 +806,7 @@ def manage_raw_data():
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
 
 from flask import current_app
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -850,46 +851,20 @@ def counting_wood():
             current_count_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
             db.session.add(current_count_entry)
 
-        # # Adjust the count based on action
-        # if action == 'increment':
-        #     current_count_entry.count += 1
-
-        #     # MDF Inventory adjustment logic
-        #     if section == "Body" and inventory.black_mdf > 0:
-        #         inventory.black_mdf -= 1
-                
-        #     elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
-        #         inventory.plain_mdf -= 1
-
-        # elif action == 'decrement' and current_count_entry.count > 0:
-        #     current_count_entry.count -= 1
-        #     if current_count_entry.count == 0:
-        #         db.session.delete(current_count_entry)  # Delete if count reaches zero
-
+        # Adjust the count based on action
         if action == 'increment':
-            # Create a new entry if section is "Body" to record each count separately
             current_count_entry.count += 1
-            if section == "Body":
-                new_entry = WoodCount(section=section, count=current_count_entry.count, date=today, time=current_time)
-                db.session.add(new_entry)
-                if inventory.black_mdf > 0:
-                    inventory.black_mdf -= 1
-            else:
-                # Fetch or create entry for other sections
-                if not current_count_entry:
-                    current_count_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
-                    db.session.add(current_count_entry)
-                current_count_entry.count += 1
-                if section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
-                    inventory.plain_mdf -= 1
+
+            # MDF Inventory adjustment logic
+            if section == "Body" and inventory.black_mdf > 0:
+                inventory.black_mdf -= 1
+            elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
+                inventory.plain_mdf -= 1
 
         elif action == 'decrement' and current_count_entry.count > 0:
             current_count_entry.count -= 1
-            new_entry = WoodCount(section=section, count=-1, date=today, time=current_time)
-            db.session.add(new_entry)
             if current_count_entry.count == 0:
                 db.session.delete(current_count_entry)  # Delete if count reaches zero
-
 
         elif action == 'bulk_increment':
             bulk_amount = int(request.form.get('bulk_amount', 0))
@@ -926,17 +901,10 @@ def counting_wood():
     ).all()
 
     # Weekly Summary Calculation
-    start_of_week = today - timedelta(days=today.weekday())
-    weekly_summary = {day: 0 for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']}
-    daily_wood_data = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today
-    ).all()
-
+    weekly_summary = defaultdict(int)
     for entry in daily_wood_data:
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
-        entry.weekly_count = weekly_summary[weekday]
 
     return render_template(
         'counting_wood.html',
@@ -947,6 +915,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 @app.route('/counting_cushions', methods=['GET', 'POST'])
