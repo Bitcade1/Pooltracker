@@ -919,11 +919,6 @@ def counting_wood():
         for section in sections
     }
 
-    # Fetch data for the selected month (Daily and Weekly Views)
-    daily_wood_data = WoodCount.query.filter(
-        WoodCount.date >= month_start_date,
-        WoodCount.date <= month_end_date
-    ).all()
 
     # Weekly Summary Calculation
     start_of_week = today - timedelta(days=today.weekday())
@@ -937,6 +932,11 @@ def counting_wood():
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
         entry.weekly_count = weekly_summary[weekday]
+
+    # Fetch data for the selected month (Daily and Weekly Views)
+    daily_wood_data = WoodCount.query.filter(
+        WoodCount.date == today
+    ).all()
 
     return render_template(
         'counting_wood.html',
