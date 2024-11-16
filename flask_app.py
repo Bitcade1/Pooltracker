@@ -867,25 +867,29 @@ def counting_wood():
         #         db.session.delete(current_count_entry)  # Delete if count reaches zero
 
         if action == 'increment':
-            # Create a new entry if section is "Body" to record each count separately
-            current_count_entry.count += 1
+            # For "Body", create a new entry with count = 1
             if section == "Body":
-                new_entry = WoodCount(section=section, count=current_count_entry.count, date=today, time=current_time)
+                new_entry = WoodCount(section=section, count=1, date=today, time=current_time)
                 db.session.add(new_entry)
+                print("new entry count", new_entry.count)
                 if inventory.black_mdf > 0:
                     inventory.black_mdf -= 1
             else:
-                # Fetch or create entry for other sections
+                # For other sections, increment the existing entry or create a new one
                 if not current_count_entry:
                     current_count_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
                     db.session.add(current_count_entry)
+                new_entry = WoodCount(section=section, count=1, date=today, time=current_time)
+                db.session.add(new_entry)
                 current_count_entry.count += 1
                 if section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
                     inventory.plain_mdf -= 1
 
+
         elif action == 'decrement' and current_count_entry.count > 0:
             current_count_entry.count -= 1
             new_entry = WoodCount(section=section, count=-1, date=today, time=current_time)
+            print("new entry count", new_entry.count)
             db.session.add(new_entry)
             if current_count_entry.count == 0:
                 db.session.delete(current_count_entry)  # Delete if count reaches zero
@@ -895,6 +899,8 @@ def counting_wood():
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
                 current_count_entry.count += bulk_amount
+                new_entry = WoodCount(section=section, count=bulk_amount, date=today, time=current_time)
+                db.session.add(new_entry)
             else:
                 flash("Please enter a valid bulk amount.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
