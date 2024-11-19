@@ -15,33 +15,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'po
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-def fetch_uk_bank_holidays():
-    """Fetch UK bank holidays from the official API."""
-    try:
-        response = requests.get("https://www.gov.uk/bank-holidays.json")
-        response.raise_for_status()
-        data = response.json()
-
-        # Extract England and Wales bank holidays
-        holidays = data["england-and-wales"]["events"]
-        bank_holidays = {}
-
-        for holiday in holidays:
-            holiday_date = date.fromisoformat(holiday["date"])
-            month = holiday_date.month
-            if month not in bank_holidays:
-                bank_holidays[month] = []
-            bank_holidays[month].append(holiday_date)
-
-        return bank_holidays
-    except requests.RequestException as e:
-        print(f"Error fetching bank holidays: {e}")
-        return {}
-
-# Example Usage: Fetch holidays and print for debugging
-bank_holidays = fetch_uk_bank_holidays()
-print(bank_holidays)
-
 # Custom filter for absolute value
 @app.template_filter('abs')
 def abs_filter(value):
@@ -1512,28 +1485,6 @@ def top_rails():
 
 
 
-@app.route('/working_days', methods=['GET'])
-def working_days():
-    from calendar import monthrange
-
-    today = date.today()
-    bank_holidays = fetch_uk_bank_holidays()
-
-    working_days_data = []
-    for month in range(1, 13):  # January to December
-        _, days_in_month = monthrange(today.year, month)
-        total_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
-        weekdays = [day for day in total_days if day.weekday() < 5]  # Monday to Friday
-        holidays = bank_holidays.get(month, [])
-        working_days = len(weekdays) - len([day for day in weekdays if day in holidays])
-
-        working_days_data.append({
-            "month": date(today.year, month, 1).strftime("%B"),
-            "total_working_days": working_days,
-            "bank_holidays": len(holidays)
-        })
-
-    return render_template("working_days.html", working_days_data=working_days_data)
 
 
 
