@@ -1489,13 +1489,13 @@ from datetime import datetime, date, timedelta
 from calendar import monthrange
 
 def fetch_uk_bank_holidays():
-    """Fetch UK bank holidays for England and Wales only."""
+    """Fetch UK bank holidays for England and Wales from the official API."""
     try:
         response = requests.get("https://www.gov.uk/bank-holidays.json")
         response.raise_for_status()
         data = response.json()
 
-        # Extract England and Wales bank holidays
+        # Extract only England and Wales bank holidays
         holidays = data["england-and-wales"]["events"]
         bank_holidays = {}
 
@@ -1513,22 +1513,17 @@ def fetch_uk_bank_holidays():
 
 @app.route('/working_days', methods=['GET'])
 def working_days():
+    from calendar import monthrange
+
     today = date.today()
-    try:
-        # Fetch UK bank holidays for England and Wales
-        bank_holidays = fetch_uk_bank_holidays()
-    except Exception as e:
-        flash(f"Error fetching UK bank holidays: {str(e)}", "error")
-        return redirect(url_for('home'))
+    bank_holidays = fetch_uk_bank_holidays()
 
     working_days_data = []
-    for month in range(1, 13):  # Loop through all months in the current year
-        _, days_in_month = monthrange(today.year, month)  # Total days in the month
-        month_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
-        weekdays = [day for day in month_days if day.weekday() < 5]  # Monday to Friday
-
-        # Get unique bank holidays for the current month (ensures no duplicates)
-        holidays = list(set(bank_holidays.get(month, [])))
+    for month in range(1, 13):  # January to December
+        _, days_in_month = monthrange(today.year, month)
+        total_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
+        weekdays = [day for day in total_days if day.weekday() < 5]  # Monday to Friday
+        holidays = bank_holidays.get(month, [])
         working_days = len(weekdays) - len([day for day in weekdays if day in holidays])
 
         working_days_data.append({
@@ -1538,6 +1533,7 @@ def working_days():
         })
 
     return render_template("working_days.html", working_days_data=working_days_data)
+
 
 
 
