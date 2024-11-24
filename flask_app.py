@@ -1483,10 +1483,10 @@ def top_rails():
     )
 
 
+import requests
 from flask import render_template, flash, redirect, url_for
 from datetime import datetime, date, timedelta
 from calendar import monthrange
-import requests
 
 def fetch_uk_bank_holidays():
     """Fetch UK bank holidays for England and Wales only."""
@@ -1527,8 +1527,8 @@ def working_days():
         month_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
         weekdays = [day for day in month_days if day.weekday() < 5]  # Monday to Friday
 
-        # Get bank holidays for the current month
-        holidays = bank_holidays.get(month, [])
+        # Get unique bank holidays for the current month (ensures no duplicates)
+        holidays = list(set(bank_holidays.get(month, [])))
         working_days = len(weekdays) - len([day for day in weekdays if day in holidays])
 
         working_days_data.append({
