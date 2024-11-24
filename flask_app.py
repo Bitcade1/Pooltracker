@@ -1361,8 +1361,8 @@ def top_rails():
 
     if request.method == 'POST':
         worker = request.form['worker']
-        start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
-        finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").time()
+        start_time = request.form['start_time']
+        finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
@@ -1378,9 +1378,7 @@ def top_rails():
 
         # Deduct inventory for each part needed to complete the top rail
         for part_name, quantity_needed in parts_to_deduct.items():
-            part_entries = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
-                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()
-            ).all()
+            part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
             total_stock = sum(entry.count for entry in part_entries)
 
             if total_stock >= quantity_needed:
@@ -1395,10 +1393,10 @@ def top_rails():
                         entry.count = 0
                         db.session.commit()
             else:
-                flash(f"Not enough inventory for {part_name}! (Required: {quantity_needed}, Available: {total_stock})", "error")
+                flash(f"Not enough inventory for {part_name} to complete the top rail! (Available: {total_stock})", "error")
                 return redirect(url_for('top_rails'))
 
-        # Add new top rail entry
+        # Create a new entry for TopRail
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -1408,6 +1406,7 @@ def top_rails():
             issue=issue,
             date=date.today()
         )
+
         try:
             db.session.add(new_top_rail)
             db.session.commit()
@@ -1419,29 +1418,25 @@ def top_rails():
 
         return redirect(url_for('top_rails'))
 
-    # Today's completed top rails
+    # Fetch only today's completed top rails
     today = date.today()
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
-    # Set current time based on the last entry or default to now
+    # Set current_time based on last entry's finish time or default to current time
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
-    current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
+    if last_entry:
+        try:
+            current_time = datetime.strptime(last_entry.finish_time, "%H:%M:%S").strftime("%H:%M")
+        except ValueError:
+            current_time = last_entry.finish_time
+    else:
+        current_time = datetime.now().strftime("%H:%M")
 
-    # Total completed this month
-    top_rails_this_month = (
-        db.session.query(func.count(TopRail.id))
-        .filter(
-            extract('year', TopRail.date) == today.year,
-            extract('month', TopRail.date) == today.month
-        )
-        .scalar()
-    )
-
-    # Daily history for the current month
+    # Daily History Calculation - Filtered by current month
     daily_history = (
         db.session.query(
             TopRail.date,
-            func.count().label('count'),
+            func.count(TopRail.id).label('count'),
             func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
         )
         .filter(
@@ -1462,7 +1457,7 @@ def top_rails():
         for row in daily_history
     ]
 
-    # Monthly totals and average time calculation
+    # Monthly Totals Calculation
     monthly_totals = (
         db.session.query(
             extract('year', TopRail.date).label('year'),
@@ -1480,23 +1475,19 @@ def top_rails():
         month = int(row.month)
         total_top_rails = row.total
 
-        # Check if all items for the month are completed
-        if year == today.year and month == today.month and top_rails_this_month >= 60:  # Assume 60 is the target
-            last_completion_time = TopRail.query.filter(
-                extract('year', TopRail.date) == year,
-                extract('month', TopRail.date) == month
-            ).order_by(TopRail.finish_time.desc()).first().finish_time
-            cumulative_working_hours = (datetime.combine(today, last_completion_time) - datetime.combine(today, datetime.min.time())).total_seconds() / 3600
-        else:
-            work_days = sum(1 for day in range(1, today.day + 1) if date(year, month, day).weekday() < 5)
-            cumulative_working_hours = work_days * 7.5
+        # Calculate workdays up to today in the current month
+        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
 
+        # Calculate cumulative working hours and average hours per top rail
+        cumulative_working_hours = work_days * 7.5
         avg_hours_per_top_rail = cumulative_working_hours / total_top_rails if total_top_rails > 0 else None
 
         if avg_hours_per_top_rail is not None:
             hours = int(avg_hours_per_top_rail)
             minutes = int((avg_hours_per_top_rail - hours) * 60)
-            avg_hours_per_top_rail_formatted = f"{hours:02}:{minutes:02}"
+            seconds = int((((avg_hours_per_top_rail - hours) * 60) - minutes) * 60)
+            avg_hours_per_top_rail_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
             avg_hours_per_top_rail_formatted = "N/A"
 
@@ -1512,10 +1503,10 @@ def top_rails():
         issues=issues,
         current_time=current_time,
         completed_tables=completed_top_rails,
-        top_rails_this_month=top_rails_this_month,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 import requests
