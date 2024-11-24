@@ -1482,10 +1482,11 @@ def top_rails():
         monthly_totals=monthly_totals_formatted
     )
 
-import requests
-
 def fetch_uk_bank_holidays():
     """Fetch UK bank holidays from the official API."""
+    import requests
+    from datetime import date
+
     try:
         response = requests.get("https://www.gov.uk/bank-holidays.json")
         response.raise_for_status()
@@ -1507,20 +1508,17 @@ def fetch_uk_bank_holidays():
         print(f"Error fetching bank holidays: {e}")
         return {}
 
-
 @app.route('/working_days', methods=['GET'])
 def working_days():
     from calendar import monthrange
-    from datetime import datetime, date
+    from datetime import date
 
     today = date.today()
+
+    # Fetch UK bank holidays and handle errors
     try:
-        # Fetch UK bank holidays
-        raw_bank_holidays = fetch_uk_bank_holidays()  # Assuming this returns integers or timestamps
-        # Convert to datetime.date objects
-        bank_holidays = [datetime.strptime(str(holiday), "%Y-%m-%d").date() if isinstance(holiday, str) else holiday for holiday in raw_bank_holidays]
+        bank_holidays = fetch_uk_bank_holidays()
     except Exception as e:
-        # Handle errors during bank holiday fetching
         flash(f"Error fetching UK bank holidays: {str(e)}", "error")
         return redirect(url_for('home'))
 
@@ -1530,11 +1528,8 @@ def working_days():
         month_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
         weekdays = [day for day in month_days if day.weekday() < 5]  # Monday to Friday
 
-        # Filter bank holidays for the current month
-        holidays = [
-            holiday for holiday in bank_holidays
-            if holiday.year == today.year and holiday.month == month
-        ]
+        # Get holidays for the current month
+        holidays = bank_holidays.get(month, [])
         working_days = len(weekdays) - len([day for day in weekdays if day in holidays])
 
         working_days_data.append({
@@ -1544,6 +1539,7 @@ def working_days():
         })
 
     return render_template("working_days.html", working_days_data=working_days_data)
+
 
 
 
