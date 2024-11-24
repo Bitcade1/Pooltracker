@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Working Days and Bank Holidays</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .menu-link {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .menu-button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        .menu-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Working Days and Bank Holidays</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Working Days (Excluding Bank Holidays)</th>
+                    <th>Bank Holiday Days</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for month, data in working_days_data.items() %}
+                <tr>
+                    <td>{{ month }}</td>
+                    <td>{{ data.working_days }}</td>
+                    <td>{{ data.bank_holidays }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="menu-link">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>
