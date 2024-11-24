@@ -657,6 +657,12 @@ def pods():
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
 
+    # Calculate total pods made in the current month
+    pods_this_month = db.session.query(func.count(CompletedPods.id)).filter(
+        extract('year', CompletedPods.date) == today.year,
+        extract('month', CompletedPods.date) == today.month
+    ).scalar()
+
     # Daily History Calculation - Filtered by current month
     daily_history = (
         db.session.query(
@@ -729,9 +735,11 @@ def pods():
         issues=issues,
         current_time=current_time,
         completed_tables=completed_pods,
+        pods_this_month=pods_this_month,  # Pass the current month's total to the template
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
