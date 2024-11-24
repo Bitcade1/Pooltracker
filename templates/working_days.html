@@ -3,53 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Working Days and Bank Holidays</title>
+    <title>Working Days - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
+        /* Collapsible styles */
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
         }
+
         th, td {
             padding: 12px;
             border: 1px solid #ddd;
             text-align: center;
         }
+
         th {
             background-color: #f2f2f2;
         }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+
+        .back-to-menu {
+            margin-top: 20px;
         }
-        h1 {
+
+        .menu-button {
+            display: block;
+            background-color: #6c757d;
+            color: white;
             text-align: center;
-            color: #333;
+            padding: 10px;
+            border-radius: 5px;
+            text-decoration: none;
+        }
+
+        .menu-button:hover {
+            background-color: #5a6268;
         }
     </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
 </head>
 <body>
     <div class="container">
-        <h1>Working Days and Bank Holidays</h1>
-        <table>
-            <thead>
-                <tr>
-                    <th>Month</th>
-                    <th>Total Working Days</th>
-                    <th>Bank Holidays</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for data in working_days_data %}
-                <tr>
-                    <td>{{ data.month }}</td>
-                    <td>{{ data.total_working_days }}</td>
-                    <td>{{ data.bank_holidays }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <h1>Working Days</h1>
+
+        <!-- Collapsible Section for Working Days -->
+        <button class="collapsible" onclick="toggleCollapsible('workingDays')">Working Days Overview</button>
+        <div id="workingDays" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Total Working Days</th>
+                        <th>Bank Holidays</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in working_days_data %}
+                        <tr>
+                            <td>{{ data.month }}</td>
+                            <td>{{ data.total_working_days }}</td>
+                            <td>{{ data.bank_holidays }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
     </div>
 </body>
 </html>
