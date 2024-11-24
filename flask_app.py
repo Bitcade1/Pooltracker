@@ -506,22 +506,32 @@ def inventory():
 
 
 
+from flask import render_template, request, redirect, url_for, flash, jsonify
+from datetime import datetime
+from your_app.models import PrintedPartsCount  # Replace with the correct import for your models
+from your_app import db  # Replace with the correct import for your database session
+
 @app.route('/counting_chinese_parts', methods=['GET', 'POST'])
 def counting_chinese_parts():
     # List of "Table Parts" items
     table_parts = [
-        "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2", "Ball Gullies 3", 
-        "Ball Gullies 4", "Ball Gullies 5", "Feet", "Triangle trim", 
-        "White ball return trim", "Color ball trim", "Ball window trim", 
-        "Aluminum corner", "Chrome corner", "Top rail trim short length", 
-        "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm", 
+        "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2", "Ball Gullies 3",
+        "Ball Gullies 4", "Ball Gullies 5", "Feet", "Triangle trim",
+        "White ball return trim", "Color ball trim", "Ball window trim",
+        "Aluminum corner", "Chrome corner", "Top rail trim short length",
+        "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm",
         "Chrome handles", "Center pockets", "Corner pockets", "Ramp 376mm"
     ]
 
-    # Retrieve or initialize the count for each part
+    # Initialize counts for all parts
     table_parts_counts = {part: 0 for part in table_parts}
     for part in table_parts:
-        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        latest_entry = (
+            db.session.query(PrintedPartsCount.count)
+            .filter_by(part_name=part)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first()
+        )
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
     if request.method == 'POST':
@@ -535,23 +545,52 @@ def counting_chinese_parts():
                 new_count = current_count + 1
             elif action == 'decrement' and current_count > 0:
                 new_count = current_count - 1
-            elif action == 'bulk' and amount > 0:
-                new_count = current_count + amount
-            elif action == 'bulk' and amount < 0 and current_count >= abs(amount):
-                new_count = current_count + amount
+            elif action == 'bulk':
+                if amount > 0:
+                    new_count = current_count + amount
+                elif amount < 0 and current_count >= abs(amount):
+                    new_count = current_count + amount
+                else:
+                    flash("Invalid operation or insufficient stock for bulk adjustment.", "error")
+                    return redirect(url_for('counting_chinese_parts'))
             else:
-                flash("Invalid operation or insufficient stock.", "error")
+                flash("Invalid operation.", "error")
                 return redirect(url_for('counting_chinese_parts'))
 
-            # Update database with the new count
-            new_entry = PrintedPartsCount(part_name=part, count=new_count, date=datetime.utcnow().date(), time=datetime.utcnow().time())
+            # Update the database with the new count
+            new_entry = PrintedPartsCount(
+                part_name=part,
+                count=new_count,
+                date=datetime.utcnow().date(),
+                time=datetime.utcnow().time()
+            )
             db.session.add(new_entry)
             db.session.commit()
 
             flash(f"{part} updated successfully! New count: {new_count}", "success")
             table_parts_counts[part] = new_count
 
-    return render_template('counting_chinese_parts.html', table_parts=table_parts, table_parts_counts=table_parts_counts)
+    return render_template(
+        'counting_chinese_parts.html',
+        table_parts=table_parts,
+        table_parts_counts=table_parts_counts
+    )
+
+@app.route('/get_current_stock', methods=['GET'])
+def get_current_stock():
+    part_name = request.args.get('part_name')
+    if not part_name:
+        return jsonify({"error": "Part name is required"}), 400
+
+    latest_entry = (
+        db.session.query(PrintedPartsCount.count)
+        .filter_by(part_name=part_name)
+        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+        .first()
+    )
+    current_stock = latest_entry[0] if latest_entry else 0
+    return jsonify({"current_stock": current_stock})
+
 
 @app.route('/counting_hardware', methods=['GET', 'POST'])
 def counting_hardware():
