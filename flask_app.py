@@ -1513,14 +1513,25 @@ def working_days():
     from calendar import monthrange
 
     today = date.today()
-    bank_holidays = fetch_uk_bank_holidays()
+    try:
+        # Fetch UK bank holidays
+        bank_holidays = fetch_uk_bank_holidays()  # Ensure this function fetches holidays dynamically
+    except Exception as e:
+        # Handle errors during bank holiday fetching
+        flash(f"Error fetching UK bank holidays: {str(e)}", "error")
+        return redirect(url_for('home'))
 
     working_days_data = []
-    for month in range(1, 13):  # January to December
-        _, days_in_month = monthrange(today.year, month)
-        total_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
-        weekdays = [day for day in total_days if day.weekday() < 5]  # Monday to Friday
-        holidays = bank_holidays.get(month, [])
+    for month in range(1, 13):  # Loop through all months in the current year
+        _, days_in_month = monthrange(today.year, month)  # Total days in the month
+        month_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
+        weekdays = [day for day in month_days if day.weekday() < 5]  # Monday to Friday
+
+        # Filter bank holidays for the current month
+        holidays = [
+            holiday for holiday in bank_holidays
+            if holiday.year == today.year and holiday.month == month
+        ]
         working_days = len(weekdays) - len([day for day in weekdays if day in holidays])
 
         working_days_data.append({
@@ -1530,6 +1541,7 @@ def working_days():
         })
 
     return render_template("working_days.html", working_days_data=working_days_data)
+
 
 
 
