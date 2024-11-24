@@ -35,9 +35,8 @@
             margin-top: 10px;
         }
 
-        .stats {
-            margin-top: 20px;
-            font-size: 1.2em;
+        .green-text {
+            color: green;
             font-weight: bold;
         }
     </style>
@@ -97,13 +96,11 @@
             <button type="submit" class="button">Submit</button>
         </form>
 
-        <!-- Display Current Month's Bodies Count -->
-        <div class="stats">
-            Bodies Made This Month: {{ current_month_bodies_count }}
-        </div>
-
         <!-- Tables Completed Today Section -->
-        <h2>Tables Completed Today</h2>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <h2>Tables Completed Today</h2>
+            <span class="green-text">Tables This Month: {{ current_month_bodies_count }}</span>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -138,7 +135,7 @@
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Bodies Made</th>
+                        <th>Tables Made</th>
                         <th>Serial Numbers</th>
                     </tr>
                 </thead>
@@ -161,7 +158,7 @@
                 <thead>
                     <tr>
                         <th>Month</th>
-                        <th>Total Bodies Made</th>
+                        <th>Total Tables Made</th>
                         <th>Average Hours per Table</th>
                     </tr>
                 </thead>
