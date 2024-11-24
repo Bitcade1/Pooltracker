@@ -1506,10 +1506,14 @@ def fetch_uk_bank_holidays():
                 bank_holidays[month] = []
             bank_holidays[month].append(holiday_date)
 
+        # Debugging: Log the bank holidays
+        print("Processed Bank Holidays:", bank_holidays)
+
         return bank_holidays
     except requests.RequestException as e:
         print(f"Error fetching bank holidays: {e}")
         return {}
+
 
 @app.route('/working_days', methods=['GET'])
 def working_days():
@@ -1524,6 +1528,10 @@ def working_days():
         total_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
         weekdays = [day for day in total_days if day.weekday() < 5]  # Monday to Friday
         holidays = bank_holidays.get(month, [])
+        
+        # Debugging: Log the month and holiday dates
+        print(f"Month: {month}, Holidays: {holidays}")
+        
         working_days = len(weekdays) - len([day for day in weekdays if day in holidays])
 
         working_days_data.append({
