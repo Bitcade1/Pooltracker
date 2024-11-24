@@ -1206,9 +1206,7 @@ def bodies():
             ).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
 
             if part_entry and part_entry.count >= quantity_needed:
-                # Calculate new count after deduction
                 new_count = part_entry.count - quantity_needed
-                # Add a new row for this deduction to keep a record
                 new_part_entry = PrintedPartsCount(
                     part_name=part_name,
                     count=new_count,
@@ -1217,11 +1215,9 @@ def bodies():
                 )
                 db.session.add(new_part_entry)
             else:
-                # Not enough stock, show error and redirect
                 flash(f"Not enough inventory for {part_name} to complete the body! (Needed: {quantity_needed}, Available: {part_entry.count if part_entry else 0})", "error")
                 return redirect(url_for('bodies'))
 
-        # Commit all inventory updates
         db.session.commit()
 
         # Create a new entry for CompletedTable
@@ -1251,6 +1247,16 @@ def bodies():
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+
+    # Count bodies made in the current month
+    current_month_bodies_count = (
+        db.session.query(func.count(CompletedTable.id))
+        .filter(
+            extract('year', CompletedTable.date) == today.year,
+            extract('month', CompletedTable.date) == today.month
+        )
+        .scalar()
+    )
 
     # Daily History Calculation - Filtered by current month
     daily_history = (
@@ -1295,15 +1301,12 @@ def bodies():
         month = int(row.month)
         total_bodies = row.total
 
-        # Calculate workdays up to today in the current month
         last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
 
-        # Calculate cumulative working hours and average hours per table
         cumulative_working_hours = work_days * 7.5
         avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
 
-        # Convert decimal hours to HH:MM:SS format
         if avg_hours_per_table is not None:
             hours = int(avg_hours_per_table)
             minutes = int((avg_hours_per_table - hours) * 60)
@@ -1324,9 +1327,11 @@ def bodies():
         issues=issues,
         current_time=current_time,
         completed_tables=completed_tables,
+        current_month_bodies_count=current_month_bodies_count,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
+
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
