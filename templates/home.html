@@ -5,25 +5,109 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Main Menu - Pool Table Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* General styling */
+        .menu-container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .menu-buttons {
+            margin-top: 20px;
+        }
+
+        .menu-button, .dropdown-button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1em;
+        }
+
+        .menu-button:hover, .dropdown-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Dropdown sections */
+        .dropdown-content {
+            display: none;
+            margin-top: 5px;
+        }
+
+        .dropdown-content a {
+            background-color: #f9f9f9;
+            color: #007bff;
+            padding: 10px;
+            text-decoration: none;
+            display: block;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .dropdown-content a:hover {
+            background-color: #e0e0e0;
+        }
+
+        .dropdown-button::after {
+            content: '▼';
+            float: right;
+        }
+
+        .dropdown-button.active::after {
+            content: '▲';
+        }
+    </style>
+    <script>
+        function toggleDropdown(id) {
+            var content = document.getElementById(id);
+            var button = document.querySelector(`[data-target="${id}"]`);
+            if (content.style.display === "block") {
+                content.style.display = "none";
+                button.classList.remove("active");
+            } else {
+                content.style.display = "block";
+                button.classList.add("active");
+            }
+        }
+    </script>
 </head>
 <body>
     <div class="menu-container">
         <h1>Pool Table Tracker</h1>
-        <div class="menu-buttons">
-            <a href="{{ url_for('bodies') }}" class="menu-button">Manage Bodies</a>
-            <a href="{{ url_for('top_rails') }}" class="menu-button">Manage Top Rails</a>
-            <a href="{{ url_for('pods') }}" class="menu-button">Manage Pods</a>
-            <a href="{{ url_for('counting_cushions') }}" class="menu-button">Counting Cushions</a>
-            <a href="{{ url_for('counting_wood') }}" class="menu-button">Counting Wood</a>
-            <a href="{{ url_for('counting_chinese_parts') }}" class="menu-button">Counting Chinese Parts</a>
-            <a href="{{ url_for('counting_3d_printing_parts') }}" class="menu-button">Counting 3D Printing Parts</a>
-            <a href="{{ url_for('counting_hardware') }}" class="menu-button">Counting Hardware</a>
-            <a href="{{ url_for('predicted_finish') }}" class="menu-button">Predicted Finish</a>
-            <a href="{{ url_for('inventory') }}" class="menu-button">Inventory</a>
-            <a href="{{ url_for('admin') }}" class="menu-button">Admin Area</a>
-            <a href="{{ url_for('predicted_finish') }}" class="menu-button">Predicted Finish</a>
-            <a href="{{ url_for('dashboard') }}" class="menu-button">Dashboard</a>
-            <a href="{{ url_for('working_days') }}" class="menu-button">Number of working days?</a>
+
+        <!-- Production Dropdown -->
+        <button class="dropdown-button" data-target="productionDropdown" onclick="toggleDropdown('productionDropdown')">Production</button>
+        <div id="productionDropdown" class="dropdown-content">
+            <a href="{{ url_for('bodies') }}">Manage Bodies</a>
+            <a href="{{ url_for('top_rails') }}">Manage Top Rails</a>
+            <a href="{{ url_for('pods') }}">Manage Pods</a>
+            <a href="{{ url_for('counting_cushions') }}">Counting Cushions</a>
+        </div>
+
+        <!-- Counting Dropdown -->
+        <button class="dropdown-button" data-target="countingDropdown" onclick="toggleDropdown('countingDropdown')">Counting</button>
+        <div id="countingDropdown" class="dropdown-content">
+            <a href="{{ url_for('counting_wood') }}">Counting Wood</a>
+            <a href="{{ url_for('counting_3d_printing_parts') }}">Counting 3D Printing Parts</a>
+            <a href="{{ url_for('counting_hardware') }}">Counting Hardware</a>
+        </div>
+
+        <!-- Admin Dropdown -->
+        <button class="dropdown-button" data-target="adminDropdown" onclick="toggleDropdown('adminDropdown')">Admin</button>
+        <div id="adminDropdown" class="dropdown-content">
+            <a href="{{ url_for('predicted_finish') }}">Predicted Finish</a>
+            <a href="{{ url_for('inventory') }}">Inventory</a>
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('working_days') }}">Number of Working Days</a>
+            <a href="{{ url_for('admin') }}">Admin Centre</a>
         </div>
     </div>
 </body>
