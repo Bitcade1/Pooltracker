@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Top Rails - Pool Table Tracker</title>
+    <title>Pods - Pool Table Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         .collapsible {
@@ -46,7 +46,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Top Rails</h1>
+        <h1>Pods</h1>
 
         <!-- Flash Messages Display (Success and Error) -->
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -59,8 +59,8 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Form to Add a New Completed Top Rail -->
-        <form method="POST" action="{{ url_for('top_rails') }}">
+        <!-- Form to Add a New Completed Pod -->
+        <form method="POST" action="{{ url_for('pods') }}">
             <label for="worker">Builder:</label>
             <select name="worker" id="worker" required>
                 {% for worker in workers %}
@@ -93,9 +93,9 @@
             <button type="submit" class="button">Submit</button>
         </form>
 
-        <!-- Top Rails Completed Today Section -->
-        <h2>Top Rails Completed Today 
-            <span class="monthly-total">Total This Month: {{ top_rails_this_month }}</span>
+        <!-- Pods Completed Today Section -->
+        <h2>Pods Completed Today 
+            <span class="monthly-total">Total This Month: {{ pods_this_month }}</span>
         </h2>
         <table>
             <thead>
@@ -131,7 +131,7 @@
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Top Rails Made</th>
+                        <th>Pods Made</th>
                         <th>Serial Numbers</th>
                     </tr>
                 </thead>
@@ -154,8 +154,8 @@
                 <thead>
                     <tr>
                         <th>Month</th>
-                        <th>Total Top Rails Made</th>
-                        <th>Average Hours per Top Rail</th>
+                        <th>Total Pods Made</th>
+                        <th>Average Hours per Pod</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -164,8 +164,8 @@
                             <td>{{ month.month }}</td>
                             <td>{{ month.count }}</td>
                             <td>
-                                {% if month.average_hours_per_top_rail %}
-                                    {{ month.average_hours_per_top_rail }} hours
+                                {% if month.average_hours_per_pod %}
+                                    {{ month.average_hours_per_pod }} hours
                                 {% else %}
                                     N/A
                                 {% endif %}
