@@ -31,6 +31,11 @@
             border-radius: 5px;
             margin-top: 10px;
         }
+        .monthly-total {
+            color: green;
+            font-weight: bold;
+            margin-left: 10px;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -89,7 +94,9 @@
         </form>
 
         <!-- Pods Completed Today Section -->
-        <h2>Pods Completed Today</h2>
+        <h2>Pods Completed Today 
+            <span class="monthly-total">Total This Month: {{ pods_this_month }}</span>
+        </h2>
         <table>
             <thead>
                 <tr>
