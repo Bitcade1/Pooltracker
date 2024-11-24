@@ -1432,6 +1432,16 @@ def top_rails():
     else:
         current_time = datetime.now().strftime("%H:%M")
 
+    # Calculate Total Top Rails This Month
+    top_rails_this_month = (
+        db.session.query(func.count(TopRail.id))
+        .filter(
+            extract('year', TopRail.date) == today.year,
+            extract('month', TopRail.date) == today.month
+        )
+        .scalar()
+    )
+
     # Daily History Calculation - Filtered by current month
     daily_history = (
         db.session.query(
@@ -1456,16 +1466,6 @@ def top_rails():
         }
         for row in daily_history
     ]
-
-    # Calculate Total Top Rails This Month
-    rails_this_month = (
-        db.session.query(func.count(TopRail.id))
-        .filter(
-            extract('year', TopRail.date) == today.year,
-            extract('month', TopRail.date) == today.month
-        )
-        .scalar()
-    )
 
     # Monthly Totals Calculation
     monthly_totals = (
@@ -1515,8 +1515,9 @@ def top_rails():
         completed_tables=completed_top_rails,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
-        rails_this_month=rails_this_month
+        top_rails_this_month=top_rails_this_month  # Pass total this month
     )
+
 
 
 
