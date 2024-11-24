@@ -1511,11 +1511,14 @@ def fetch_uk_bank_holidays():
 @app.route('/working_days', methods=['GET'])
 def working_days():
     from calendar import monthrange
+    from datetime import datetime, date
 
     today = date.today()
     try:
         # Fetch UK bank holidays
-        bank_holidays = fetch_uk_bank_holidays()  # Ensure this function fetches holidays dynamically
+        raw_bank_holidays = fetch_uk_bank_holidays()  # Assuming this returns integers or timestamps
+        # Convert to datetime.date objects
+        bank_holidays = [datetime.strptime(str(holiday), "%Y-%m-%d").date() if isinstance(holiday, str) else holiday for holiday in raw_bank_holidays]
     except Exception as e:
         # Handle errors during bank holiday fetching
         flash(f"Error fetching UK bank holidays: {str(e)}", "error")
