@@ -1483,10 +1483,7 @@ def top_rails():
     )
 
 def fetch_uk_bank_holidays():
-    """Fetch UK bank holidays from the official API."""
-    import requests
-    from datetime import date
-
+    """Fetch UK bank holidays for England and Wales only."""
     try:
         response = requests.get("https://www.gov.uk/bank-holidays.json")
         response.raise_for_status()
@@ -1507,6 +1504,7 @@ def fetch_uk_bank_holidays():
     except requests.RequestException as e:
         print(f"Error fetching bank holidays: {e}")
         return {}
+
 
 @app.route('/working_days', methods=['GET'])
 def working_days():
