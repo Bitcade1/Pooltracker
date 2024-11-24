@@ -657,11 +657,11 @@ def pods():
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
 
-    # Calculate total pods made in the current month
-    pods_this_month = db.session.query(func.count(CompletedPods.id)).filter(
+    # Calculate total pods completed this month
+    pods_this_month = CompletedPods.query.filter(
         extract('year', CompletedPods.date) == today.year,
         extract('month', CompletedPods.date) == today.month
-    ).scalar()
+    ).count()
 
     # Daily History Calculation - Filtered by current month
     daily_history = (
@@ -693,7 +693,12 @@ def pods():
         db.session.query(
             extract('year', CompletedPods.date).label('year'),
             extract('month', CompletedPods.date).label('month'),
-            func.count(CompletedPods.id).label('total')
+            func.count(CompletedPods.id).label('total'),
+            func.max(CompletedPods.finish_time).label('last_completion_time')
+        )
+        .filter(
+            extract('year', CompletedPods.date) == today.year,
+            extract('month', CompletedPods.date) == today.month
         )
         .group_by('year', 'month')
         .order_by('year', 'month')
@@ -706,8 +711,15 @@ def pods():
         month = int(row.month)
         total_pods = row.total
 
-        # Calculate workdays up to today in the current month
-        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
+        # Use the last completion time of the month as the cutoff for cumulative hours
+        last_completion_time = row.last_completion_time
+        if last_completion_time:
+            last_completion_datetime = datetime.combine(today, last_completion_time)
+        else:
+            last_completion_datetime = datetime.now()
+
+        # Calculate workdays up to the last completion date
+        last_day = last_completion_datetime.day
         work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
 
         # Calculate cumulative working hours and average hours per pod
@@ -735,7 +747,7 @@ def pods():
         issues=issues,
         current_time=current_time,
         completed_tables=completed_pods,
-        pods_this_month=pods_this_month,  # Pass the current month's total to the template
+        pods_this_month=pods_this_month,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted
     )
