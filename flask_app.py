@@ -1520,18 +1520,21 @@ def working_days():
     from calendar import monthrange
 
     today = date.today()
+
+    # Fetch UK bank holidays
     bank_holidays = fetch_uk_bank_holidays()
 
+    # Filter holidays to only include those in the current year
+    current_year_holidays = {month: [day for day in days if day.year == today.year] for month, days in bank_holidays.items()}
+
     working_days_data = []
-    for month in range(1, 13):  # January to December
-        _, days_in_month = monthrange(today.year, month)
-        total_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
-        weekdays = [day for day in total_days if day.weekday() < 5]  # Monday to Friday
-        holidays = bank_holidays.get(month, [])
-        
-        # Debugging: Log the month and holiday dates
-        print(f"Month: {month}, Holidays: {holidays}")
-        
+    for month in range(1, 13):  # Loop through all months in the current year
+        _, days_in_month = monthrange(today.year, month)  # Total days in the month
+        month_days = [date(today.year, month, day) for day in range(1, days_in_month + 1)]
+        weekdays = [day for day in month_days if day.weekday() < 5]  # Monday to Friday
+
+        # Filter holidays for the current month
+        holidays = current_year_holidays.get(month, [])
         working_days = len(weekdays) - len([day for day in weekdays if day in holidays])
 
         working_days_data.append({
@@ -1541,6 +1544,7 @@ def working_days():
         })
 
     return render_template("working_days.html", working_days_data=working_days_data)
+
 
 
 
