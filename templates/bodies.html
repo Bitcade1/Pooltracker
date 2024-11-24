@@ -34,6 +34,12 @@
             border-radius: 5px;
             margin-top: 10px;
         }
+
+        .stats {
+            margin-top: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -91,6 +97,11 @@
             <button type="submit" class="button">Submit</button>
         </form>
 
+        <!-- Display Current Month's Bodies Count -->
+        <div class="stats">
+            Bodies Made This Month: {{ current_month_bodies_count }}
+        </div>
+
         <!-- Tables Completed Today Section -->
         <h2>Tables Completed Today</h2>
         <table>
@@ -143,36 +154,34 @@
             </table>
         </div>
 
-<!-- Collapsible Section for Monthly Totals -->
-<button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
-<div id="monthlyTotals" class="collapsible-content">
-    <table>
-        <thead>
-            <tr>
-                <th>Month</th>
-                <th>Total Bodies Made</th>
-                <th>Average Hours per Table</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for month in monthly_totals %}
-                <tr>
-                    <td>{{ month.month }}</td>
-                    <td>{{ month.count }}</td>
-                    <td>
-                        {% if month.average_hours_per_table %}
-                            {{ month.average_hours_per_table }} hours
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-
+        <!-- Collapsible Section for Monthly Totals -->
+        <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
+        <div id="monthlyTotals" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Total Bodies Made</th>
+                        <th>Average Hours per Table</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for month in monthly_totals %}
+                        <tr>
+                            <td>{{ month.month }}</td>
+                            <td>{{ month.count }}</td>
+                            <td>
+                                {% if month.average_hours_per_table %}
+                                    {{ month.average_hours_per_table }} hours
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
         <!-- Back to Menu Button -->
         <div class="back-to-menu">
