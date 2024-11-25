@@ -988,7 +988,7 @@ def counting_cushions():
             return redirect(url_for('counting_cushions'))
 
         cushion_type = request.form.get('cushion_type')
-        
+
         # Check if cushion_type is valid before adding a new count entry
         if cushion_type:
             new_cushion_count = CushionCount(cushion_type=cushion_type)
@@ -997,7 +997,7 @@ def counting_cushions():
             flash(f"Cushion {cushion_type} count incremented!", "success")
         else:
             flash("Error: Cushion type not specified.", "error")
-        
+
         return redirect(url_for('counting_cushions'))
 
     # Calculate daily totals for each cushion type
@@ -1006,15 +1006,21 @@ def counting_cushions():
         func.count(CushionCount.id).label('total')
     ).filter(CushionCount.date == today).group_by(CushionCount.cushion_type).all()
 
-    # Calculate weekly totals for each cushion type
-    start_of_week = today - timedelta(days=today.weekday())  # Monday as start of the week
+    # Calculate weekly totals grouped by week number and year
     weekly_counts = db.session.query(
+        func.strftime('%Y', CushionCount.date).label('year'),
+        func.strftime('%W', CushionCount.date).label('week_number'),
         CushionCount.cushion_type,
         func.count(CushionCount.id).label('total')
-    ).filter(
-        CushionCount.date >= start_of_week,
-        CushionCount.date <= today
-    ).group_by(CushionCount.cushion_type).all()
+    ).group_by('year', 'week_number', 'cushion_type').order_by('year', 'week_number').all()
+
+    # Group weekly counts for display
+    grouped_weekly_counts = {}
+    for year, week_number, cushion_type, total in weekly_counts:
+        key = f"Week {week_number}, {year}"
+        if key not in grouped_weekly_counts:
+            grouped_weekly_counts[key] = {}
+        grouped_weekly_counts[key][cushion_type] = total
 
     # Calculate average time between presses for each cushion type
     avg_times = {}
@@ -1040,7 +1046,7 @@ def counting_cushions():
     return render_template(
         'counting_cushions.html',
         daily_counts=daily_counts,
-        weekly_counts=weekly_counts,
+        grouped_weekly_counts=grouped_weekly_counts,
         avg_times=avg_times
     )
 
