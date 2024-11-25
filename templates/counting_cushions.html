@@ -131,26 +131,25 @@
         <!-- Collapsible Weekly Totals Table -->
         <button class="collapsible" onclick="toggleCollapsible('weeklyTotals')">Weekly Cushion Counts</button>
         <div id="weeklyTotals" class="collapsible-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Cushion Type</th>
-                        <th>Total Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for cushion_type, total in weekly_counts %}
+            {% for week, counts in grouped_weekly_counts.items() %}
+                <h3>{{ week }}</h3>
+                <table>
+                    <thead>
                         <tr>
-                            <td>{{ cushion_type }}</td>
-                            <td>{{ total }}</td>
+                            <th>Cushion Type</th>
+                            <th>Total Count</th>
                         </tr>
-                    {% else %}
-                        <tr>
-                            <td colspan="2">No data available for this week.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for cushion_type, total in counts.items() %}
+                            <tr>
+                                <td>{{ cushion_type }}</td>
+                                <td>{{ total }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endfor %}
         </div>
 
         <!-- Collapsible Average Time Per Cushion Table -->
