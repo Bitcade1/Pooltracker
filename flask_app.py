@@ -826,6 +826,7 @@ def manage_raw_data():
     return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
 
 from flask import current_app
+
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
     # Retrieve MDF inventory data
@@ -836,7 +837,7 @@ def counting_wood():
         db.session.commit()
 
     # Generate dates for month selection
-    today = datetime.now().date()  # Use local time
+    today = datetime.now().date()
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
@@ -870,57 +871,36 @@ def counting_wood():
             current_count_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
             db.session.add(current_count_entry)
 
-        # # Adjust the count based on action
-        # if action == 'increment':
-        #     current_count_entry.count += 1
-
-        #     # MDF Inventory adjustment logic
-        #     if section == "Body" and inventory.black_mdf > 0:
-        #         inventory.black_mdf -= 1
-                
-        #     elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
-        #         inventory.plain_mdf -= 1
-
-        # elif action == 'decrement' and current_count_entry.count > 0:
-        #     current_count_entry.count -= 1
-        #     if current_count_entry.count == 0:
-        #         db.session.delete(current_count_entry)  # Delete if count reaches zero
-
+        # Adjust the count and inventory based on the action
         if action == 'increment':
-            # For "Body", create a new entry with count = 1
-            if section == "Body":
-                new_entry = WoodCount(section=section, count=1, date=today, time=current_time)
-                db.session.add(new_entry)
-                print("new entry count", new_entry.count)
-                if inventory.black_mdf > 0:
-                    inventory.black_mdf -= 1
-            else:
-                # For other sections, increment the existing entry or create a new one
-                if not current_count_entry:
-                    current_count_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
-                    db.session.add(current_count_entry)
-                new_entry = WoodCount(section=section, count=1, date=today, time=current_time)
-                db.session.add(new_entry)
-                current_count_entry.count += 1
-                if section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
-                    inventory.plain_mdf -= 1
+            current_count_entry.count += 1
 
+            if section == "Body" and inventory.black_mdf > 0:
+                inventory.black_mdf -= 1
+
+            elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
+                inventory.plain_mdf -= 1
 
         elif action == 'decrement' and current_count_entry.count > 0:
             current_count_entry.count -= 1
-            new_entry = WoodCount(section=section, count=-1, date=today, time=current_time)
-            print("new entry count", new_entry.count)
-            db.session.add(new_entry)
+            if section == "Body":
+                inventory.black_mdf += 1
+            elif section in ["Pod Sides", "Bases"]:
+                inventory.plain_mdf += 1
             if current_count_entry.count == 0:
-                db.session.delete(current_count_entry)  # Delete if count reaches zero
-
+                db.session.delete(current_count_entry)
 
         elif action == 'bulk_increment':
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
                 current_count_entry.count += bulk_amount
-                new_entry = WoodCount(section=section, count=bulk_amount, date=today, time=current_time)
-                db.session.add(new_entry)
+                if section == "Body" and inventory.black_mdf >= bulk_amount:
+                    inventory.black_mdf -= bulk_amount
+                elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf >= bulk_amount:
+                    inventory.plain_mdf -= bulk_amount
+                else:
+                    flash("Insufficient inventory for bulk operation.", "error")
+                    return redirect(url_for('counting_wood', month=selected_month))
             else:
                 flash("Please enter a valid bulk amount.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
@@ -945,7 +925,6 @@ def counting_wood():
         for section in sections
     }
 
-
     # Weekly Summary Calculation
     start_of_week = today - timedelta(days=today.weekday())
     weekly_summary = {day: 0 for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']}
@@ -957,7 +936,6 @@ def counting_wood():
     for entry in daily_wood_data:
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
-        entry.weekly_count = weekly_summary[weekday]
 
     # Fetch data for the selected month (Daily and Weekly Views)
     daily_wood_data = WoodCount.query.filter(
@@ -973,6 +951,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 @app.route('/counting_cushions', methods=['GET', 'POST'])
