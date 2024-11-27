@@ -861,19 +861,30 @@ def counting_wood():
         current_time = datetime.now().time()
 
         # Fetch or create a WoodCount entry for the selected month and section
-        current_count_entry = WoodCount.query.filter(
+        monthly_entry = WoodCount.query.filter(
             WoodCount.section == section,
             WoodCount.date >= month_start_date,
             WoodCount.date <= month_end_date
         ).first()
 
-        if not current_count_entry:
-            current_count_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
-            db.session.add(current_count_entry)
+        if not monthly_entry:
+            monthly_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
+            db.session.add(monthly_entry)
+
+        # Fetch or create a WoodCount entry for the current day
+        daily_entry = WoodCount.query.filter(
+            WoodCount.section == section,
+            WoodCount.date == today
+        ).first()
+
+        if not daily_entry:
+            daily_entry = WoodCount(section=section, count=0, date=today, time=current_time)
+            db.session.add(daily_entry)
 
         # Adjust the count and inventory based on the action
         if action == 'increment':
-            current_count_entry.count += 1
+            monthly_entry.count += 1
+            daily_entry.count += 1
 
             if section == "Body" and inventory.black_mdf > 0:
                 inventory.black_mdf -= 1
@@ -881,19 +892,23 @@ def counting_wood():
             elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
                 inventory.plain_mdf -= 1
 
-        elif action == 'decrement' and current_count_entry.count > 0:
-            current_count_entry.count -= 1
+        elif action == 'decrement' and monthly_entry.count > 0 and daily_entry.count > 0:
+            monthly_entry.count -= 1
+            daily_entry.count -= 1
             if section == "Body":
                 inventory.black_mdf += 1
             elif section in ["Pod Sides", "Bases"]:
                 inventory.plain_mdf += 1
-            if current_count_entry.count == 0:
-                db.session.delete(current_count_entry)
+            if monthly_entry.count == 0:
+                db.session.delete(monthly_entry)
+            if daily_entry.count == 0:
+                db.session.delete(daily_entry)
 
         elif action == 'bulk_increment':
             bulk_amount = int(request.form.get('bulk_amount', 0))
             if bulk_amount > 0:
-                current_count_entry.count += bulk_amount
+                monthly_entry.count += bulk_amount
+                daily_entry.count += bulk_amount
                 if section == "Body" and inventory.black_mdf >= bulk_amount:
                     inventory.black_mdf -= bulk_amount
                 elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf >= bulk_amount:
@@ -951,6 +966,7 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary
     )
+
 
 
 
