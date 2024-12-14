@@ -39,6 +39,11 @@
         .issue-row {
             background-color: #ffe6e6;
         }
+        .logged-in-user {
+            font-size: 0.9em;
+            color: #333;
+            margin-bottom: 20px;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -50,6 +55,11 @@
 <body>
     <div class="container">
         <h1>Pods</h1>
+        {% if logged_in_worker %}
+            <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
+        {% else %}
+            <div class="logged-in-user">Not logged in</div>
+        {% endif %}
 
         <!-- Flash Messages Display (Success and Error) -->
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -63,7 +73,6 @@
         {% endwith %}
 
         <!-- Form to Add a New Completed Pod -->
-        <!-- The worker is no longer selectable here; it's taken from session in the backend -->
         <form method="POST" action="{{ url_for('pods') }}">
             <label for="start_time">Start Time:</label>
             <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
@@ -72,7 +81,6 @@
             <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
             <label for="serial_number">Serial Number:</label>
-            <!-- Pre-populate the serial number with next_serial_number -->
             <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ next_serial_number }}">
 
             <label for="issue">Any issues with the build?:</label>
