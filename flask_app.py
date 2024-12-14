@@ -526,13 +526,12 @@ def counting_chinese_parts():
         "Chrome handles", "Center pockets", "Corner pockets", "Ramp 376mm"
     ]
 
-    # Function to get current counts from database
     def get_table_parts_counts():
-        counts = {part: 0 for part in table_parts}
+        counts = {}
         for part in table_parts:
             latest_entry = (db.session.query(PrintedPartsCount.count)
                             .filter_by(part_name=part)
-                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                            .order_by(PrintedPartsCount.id.desc())
                             .first())
             counts[part] = latest_entry[0] if latest_entry else 0
         return counts
@@ -544,39 +543,41 @@ def counting_chinese_parts():
         action = request.form['action']
         amount = int(request.form['amount']) if 'amount' in request.form else 1
 
-        if part in table_parts_counts:
-            current_count = table_parts_counts[part]
-            # Determine new count based on action
-            if action == 'increment':
-                new_count = current_count + 1
-            elif action == 'decrement' and current_count > 0:
-                new_count = current_count - 1
-            elif action == 'bulk' and amount > 0:
-                new_count = current_count + amount
-            elif action == 'bulk' and amount < 0 and current_count >= abs(amount):
-                new_count = current_count + amount
-            else:
-                flash("Invalid operation or insufficient stock.", "error")
-                return redirect(url_for('counting_chinese_parts'))
+        if part not in table_parts_counts:
+            flash("Invalid part selected.", "error")
+            return redirect(url_for('counting_chinese_parts'))
 
-            # Update database with the new count
-            new_entry = PrintedPartsCount(
-                part_name=part,
-                count=new_count,
-                date=datetime.utcnow().date(),
-                time=datetime.utcnow().time()
-            )
-            db.session.add(new_entry)
-            db.session.commit()
+        current_count = table_parts_counts[part]
 
-            flash(f"{part} updated successfully! New count: {new_count}", "success")
-
-            # Re-fetch counts from DB to ensure displayed data is accurate
-            table_parts_counts = get_table_parts_counts()
+        if action == 'increment':
+            new_count = current_count + 1
+        elif action == 'decrement' and current_count > 0:
+            new_count = current_count - 1
+        elif action == 'bulk' and amount > 0:
+            new_count = current_count + amount
+        elif action == 'bulk' and amount < 0 and current_count >= abs(amount):
+            new_count = current_count + amount
         else:
-            flash("Part not found.", "error")
+            flash("Invalid operation or insufficient stock.", "error")
+            return redirect(url_for('counting_chinese_parts'))
+
+        # Update database with the new count
+        new_entry = PrintedPartsCount(
+            part_name=part,
+            count=new_count,
+            date=datetime.utcnow().date(),
+            time=datetime.utcnow().time()
+        )
+        db.session.add(new_entry)
+        db.session.commit()
+
+        # Re-fetch to show updated counts
+        table_parts_counts = get_table_parts_counts()
+
+        flash(f"{part} updated successfully! New count: {new_count}", "success")
 
     return render_template('counting_chinese_parts.html', table_parts=table_parts, table_parts_counts=table_parts_counts)
+
 
 
 
