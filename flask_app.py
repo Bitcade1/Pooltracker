@@ -723,13 +723,12 @@ def pods():
         for row in daily_history
     ]
 
-    # Monthly totals for the entire year
+    # Query monthly totals for the entire year
     monthly_totals = (
         db.session.query(
             extract('year', CompletedPods.date).label('year'),
             extract('month', CompletedPods.date).label('month'),
-            func.count(CompletedPods.id).label('total'),
-            func.max(CompletedPods.finish_time).label('last_completion_time')
+            func.count(CompletedPods.id).label('total')
         )
         .filter(
             extract('year', CompletedPods.date) == today.year
@@ -739,30 +738,116 @@ def pods():
         .all()
     )
 
+    # Define working hours start and end for a day
+    workday_start = time(9, 0, 0)   # 9:00 AM
+    workday_end = time(16, 30, 0)   # 16:30 (4:30 PM) - total 7.5 hours
+    workday_seconds = (datetime.combine(date.today(), workday_end) - datetime.combine(date.today(), workday_start)).total_seconds()
+
     monthly_totals_formatted = []
     for row in monthly_totals:
         year = int(row.year)
         month = int(row.month)
         total_pods = row.total
-        last_completion_time = row.last_completion_time
 
-        if last_completion_time:
-            last_completion_datetime = datetime.combine(today, last_completion_time)
-        else:
-            last_completion_datetime = datetime.now()
-
-        last_day = last_completion_datetime.day
-        # Calculate workdays (Mon-Fri)
-        work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
-        cumulative_working_hours = work_days * 7.5  # 7.5 hours per workday
+        # Fetch all pods for this month
+        monthly_pods = CompletedPods.query.filter(
+            extract('year', CompletedPods.date) == year,
+            extract('month', CompletedPods.date) == month
+        ).all()
 
         if total_pods > 0:
-            avg_hours_per_pod = cumulative_working_hours / total_pods
-            # Convert decimal hours to HH:MM:SS
-            hours = int(avg_hours_per_pod)
-            minutes = int((avg_hours_per_pod - hours) * 60)
-            seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
-            avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+            # Find the last completion datetime for this month
+            last_completion_time = db.session.query(func.max(CompletedPods.finish_time)).filter(
+                extract('year', CompletedPods.date) == year,
+                extract('month', CompletedPods.date) == month
+            ).scalar()
+
+            if last_completion_time:
+                # We use the last pod's finish time to determine how far into the month we go
+                # Assume we start counting working days from the first day of the month
+                month_start = date(year, month, 1)
+                last_completion_datetime = datetime.combine(month_start, last_completion_time)
+                # Adjust last_completion_datetime if it is after month_start, but we need the actual day
+                # The last completion datetime might only have time; we need its actual day from pods
+                # Let's get the max date with pods as well:
+                max_date_entry = CompletedPods.query.filter(
+                    extract('year', CompletedPods.date) == year,
+                    extract('month', CompletedPods.date) == month
+                ).order_by(CompletedPods.date.desc()).first()
+                if max_date_entry:
+                    # Combine max_date_entry.date with last_completion_time to get a full datetime
+                    last_completion_datetime = datetime.combine(max_date_entry.date, last_completion_time)
+            else:
+                # If no finish time found (should not happen if total_pods > 0)
+                # fallback to end of the month or today
+                max_date_entry = CompletedPods.query.filter(
+                    extract('year', CompletedPods.date) == year,
+                    extract('month', CompletedPods.date) == month
+                ).order_by(CompletedPods.date.desc()).first()
+                last_completion_datetime = datetime.combine(max_date_entry.date, workday_end)
+
+            # Calculate the total working seconds up to last_completion_datetime
+            # We'll iterate through each day from the start of the month up to last_completion_date
+            # For each weekday:
+            # - If it's before last_completion day, add full workday_seconds
+            # - If it's the last_completion day, add only partial hours if needed
+
+            # Start of the month
+            month_start = date(year, month, 1)
+            last_day = last_completion_datetime.date()
+
+            total_work_seconds = 0
+            day_iter = month_start
+            while day_iter <= last_day:
+                if day_iter.weekday() < 5:  # Monday=0 ... Friday=4 are workdays
+                    if day_iter < last_day:
+                        # Full working day
+                        total_work_seconds += workday_seconds
+                    else:
+                        # On the last day, we only count up to last_completion_datetime.time()
+                        end_time = last_completion_datetime.time()
+
+                        # If end_time is before workday_start, no work seconds this day
+                        if end_time < workday_start:
+                            # No work time this day
+                            pass
+                        else:
+                            # Calculate partial day
+                            start_of_day_dt = datetime.combine(day_iter, workday_start)
+                            end_of_day_dt = datetime.combine(day_iter, end_time)
+                            # If end_of_day_dt is after the official workday_end, cap it
+                            if end_time > workday_end:
+                                end_of_day_dt = datetime.combine(day_iter, workday_end)
+                            partial_seconds = (end_of_day_dt - start_of_day_dt).total_seconds()
+                            if partial_seconds < 0:
+                                partial_seconds = 0
+                            # Add partial day's worked seconds
+                            total_work_seconds += partial_seconds
+                day_iter += timedelta(days=1)
+
+            # Now we have total_work_seconds of actual available working time until last pod completion
+            # Next, sum the actual times spent on pods
+            total_pod_seconds = 0
+            for pod in monthly_pods:
+                start_dt = datetime.combine(pod.date, pod.start_time)
+                finish_dt = datetime.combine(pod.date, pod.finish_time)
+                diff = (finish_dt - start_dt).total_seconds()
+                total_pod_seconds += diff
+
+            # Average time per pod = total_pod_seconds / total_pods
+            # But we want average hours per pod as the ratio of total_pod_seconds to total_pods,
+            # not related to the total working hours available, but the user wants actual time spent.
+            # Based on user’s last comment, it seems they want total_pod_seconds/total_pods as avg time.
+
+            if total_pods > 0:
+                avg_time_seconds = total_pod_seconds / total_pods
+                hours = int(avg_time_seconds // 3600)
+                remainder = avg_time_seconds % 3600
+                minutes = int(remainder // 60)
+                seconds = int(remainder % 60)
+                avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+            else:
+                avg_hours_per_pod_formatted = "N/A"
         else:
             avg_hours_per_pod_formatted = "N/A"
 
@@ -791,7 +876,6 @@ def pods():
         monthly_totals=monthly_totals_formatted,
         next_serial_number=next_serial_number
     )
-
 
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
