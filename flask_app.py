@@ -723,11 +723,13 @@ def pods():
         for row in daily_history
     ]
 
+    # Monthly totals for the entire year
     monthly_totals = (
         db.session.query(
             extract('year', CompletedPods.date).label('year'),
             extract('month', CompletedPods.date).label('month'),
-            func.count(CompletedPods.id).label('total')
+            func.count(CompletedPods.id).label('total'),
+            func.max(CompletedPods.finish_time).label('last_completion_time')
         )
         .filter(
             extract('year', CompletedPods.date) == today.year
@@ -742,25 +744,24 @@ def pods():
         year = int(row.year)
         month = int(row.month)
         total_pods = row.total
+        last_completion_time = row.last_completion_time
 
-        monthly_pods = CompletedPods.query.filter(
-            extract('year', CompletedPods.date) == year,
-            extract('month', CompletedPods.date) == month
-        ).all()
+        if last_completion_time:
+            last_completion_datetime = datetime.combine(today, last_completion_time)
+        else:
+            last_completion_datetime = datetime.now()
+
+        last_day = last_completion_datetime.day
+        # Calculate workdays (Mon-Fri)
+        work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
+        cumulative_working_hours = work_days * 7.5  # 7.5 hours per workday
 
         if total_pods > 0:
-            total_time_seconds = 0
-            for pod in monthly_pods:
-                start_dt = datetime.combine(date.today(), pod.start_time)
-                finish_dt = datetime.combine(date.today(), pod.finish_time)
-                diff = (finish_dt - start_dt).total_seconds()
-                total_time_seconds += diff
-
-            avg_time_seconds = total_time_seconds / total_pods
-            hours = int(avg_time_seconds // 3600)
-            remainder = avg_time_seconds % 3600
-            minutes = int(remainder // 60)
-            seconds = int(remainder % 60)
+            avg_hours_per_pod = cumulative_working_hours / total_pods
+            # Convert decimal hours to HH:MM:SS
+            hours = int(avg_hours_per_pod)
+            minutes = int((avg_hours_per_pod - hours) * 60)
+            seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
             avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
             avg_hours_per_pod_formatted = "N/A"
