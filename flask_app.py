@@ -655,7 +655,10 @@ def pods():
 
     # Set current_time based on last entry's finish time or default to current time
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
-    current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
+    if last_entry:
+        current_time = last_entry.finish_time.strftime("%H:%M")
+    else:
+        current_time = datetime.now().strftime("%H:%M")
 
     # Calculate total pods completed this month
     pods_this_month = CompletedPods.query.filter(
@@ -720,13 +723,12 @@ def pods():
 
         # Calculate workdays up to the last completion date
         last_day = last_completion_datetime.day
-        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+        work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
 
         # Calculate cumulative working hours and average hours per pod
         cumulative_working_hours = work_days * 7.5
         avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
 
-        # Convert decimal hours to HH:MM:SS format
         if avg_hours_per_pod is not None:
             hours = int(avg_hours_per_pod)
             minutes = int((avg_hours_per_pod - hours) * 60)
@@ -741,6 +743,16 @@ def pods():
             "average_hours_per_pod": avg_hours_per_pod_formatted
         })
 
+    # Determine the next serial number
+    last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
+    if last_pod:
+        try:
+            next_serial_number = str(int(last_pod.serial_number) + 1)
+        except ValueError:
+            next_serial_number = "1000"
+    else:
+        next_serial_number = "1000"
+
     return render_template(
         'pods.html',
         workers=workers,
@@ -749,8 +761,10 @@ def pods():
         completed_tables=completed_pods,
         pods_this_month=pods_this_month,
         daily_history=daily_history_formatted,
-        monthly_totals=monthly_totals_formatted
+        monthly_totals=monthly_totals_formatted,
+        next_serial_number=next_serial_number
     )
+
 
 
 
