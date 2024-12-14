@@ -36,6 +36,9 @@
             font-weight: bold;
             margin-left: 10px;
         }
+        .issue-row {
+            background-color: #ffe6e6;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -75,7 +78,8 @@
             <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
             <label for="serial_number">Serial Number:</label>
-            <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number">
+            <!-- Pre-populate the serial number with next_serial_number -->
+            <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ next_serial_number }}">
 
             <label for="issue">Any issues with the build?:</label>
             <select name="issue" id="issue" required>
