@@ -643,16 +643,22 @@ def counting_hardware():
             hardware_counts[part] = new_count
 
     return render_template('counting_hardware.html', hardware_parts=hardware_parts, hardware_counts=hardware_counts)
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from datetime import datetime, date
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import extract, func, distinct
+from your_application import app, db  # Replace with your actual import
+
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    worker = session['worker']
     issues = [issue.description for issue in Issue.query.all()]
 
     if request.method == 'POST':
-        worker = session['worker']
         serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
@@ -689,15 +695,20 @@ def pods():
         return redirect(url_for('pods'))
 
     today = date.today()
-    completed_pods = CompletedPods.query.filter_by(date=today).all()
-    last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
+    
+    # Filter CompletedPods by current worker
+    completed_pods = CompletedPods.query.filter_by(date=today, worker=worker).all()
+    last_entry = CompletedPods.query.filter_by(worker=worker).order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
 
+    # Pods completed this month by the current worker
     pods_this_month = CompletedPods.query.filter(
+        CompletedPods.worker == worker,
         extract('year', CompletedPods.date) == today.year,
         extract('month', CompletedPods.date) == today.month
     ).count()
 
+    # Daily history for the current worker
     daily_history = (
         db.session.query(
             CompletedPods.date,
@@ -705,6 +716,7 @@ def pods():
             func.group_concat(CompletedPods.serial_number, ', ').label('serial_numbers')
         )
         .filter(
+            CompletedPods.worker == worker,
             extract('year', CompletedPods.date) == today.year,
             extract('month', CompletedPods.date) == today.month
         )
@@ -722,7 +734,7 @@ def pods():
         for row in daily_history
     ]
 
-    # Monthly totals for the entire year
+    # Monthly totals for the entire year for the current worker
     monthly_totals = (
         db.session.query(
             extract('year', CompletedPods.date).label('year'),
@@ -731,6 +743,7 @@ def pods():
             func.max(CompletedPods.finish_time).label('last_completion_time')
         )
         .filter(
+            CompletedPods.worker == worker,
             extract('year', CompletedPods.date) == today.year
         )
         .group_by('year', 'month')
@@ -745,23 +758,31 @@ def pods():
         total_pods = row.total
         last_completion_time = row.last_completion_time
 
-        if last_completion_time:
-            last_completion_datetime = datetime.combine(today, last_completion_time)
+        # Determine the last day of the month
+        if month == 12:
+            last_day = 31
         else:
-            last_completion_datetime = datetime.now()
+            last_day = (date(year, month + 1, 1) - timedelta(days=1)).day
 
-        last_day = last_completion_datetime.day
-        # Calculate workdays (Mon-Fri)
-        work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
-        cumulative_working_hours = work_days * 7.5  # 7.5 hours per workday
+        # Get unique active days for the worker in the month
+        active_days = (
+            db.session.query(distinct(CompletedPods.date))
+            .filter(
+                CompletedPods.worker == worker,
+                extract('year', CompletedPods.date) == year,
+                extract('month', CompletedPods.date) == month
+            )
+            .count()
+        )
+
+        cumulative_working_hours = active_days * 8  # 8 hours per active day
 
         if total_pods > 0:
             avg_hours_per_pod = cumulative_working_hours / total_pods
-            # Convert decimal hours to HH:MM:SS
+            # Convert decimal hours to HHh MMm
             hours = int(avg_hours_per_pod)
-            minutes = int((avg_hours_per_pod - hours) * 60)
-            seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
-            avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+            minutes = int(round((avg_hours_per_pod - hours) * 60))
+            avg_hours_per_pod_formatted = f"{hours}h {minutes}m"
         else:
             avg_hours_per_pod_formatted = "N/A"
 
@@ -771,7 +792,8 @@ def pods():
             "average_hours_per_pod": avg_hours_per_pod_formatted
         })
 
-    last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
+    # Determine the next serial number
+    last_pod = CompletedPods.query.filter_by(worker=worker).order_by(CompletedPods.id.desc()).first()
     if last_pod:
         try:
             next_serial_number = str(int(last_pod.serial_number) + 1)
@@ -779,6 +801,38 @@ def pods():
             next_serial_number = "1000"
     else:
         next_serial_number = "1000"
+
+    # Additional Calculation: Average Time Based on Active Days in the Last N Days
+    N = 8  # Number of active days to consider
+    # Get the last N unique active days for the current worker
+    last_N_active_days = (
+        db.session.query(distinct(CompletedPods.date))
+        .filter(
+            CompletedPods.worker == worker,
+            CompletedPods.date <= today
+        )
+        .order_by(CompletedPods.date.desc())
+        .limit(N)
+        .all()
+    )
+    last_N_active_days = [row.date for row in last_N_active_days]
+
+    # Calculate total working hours for the last N active days
+    total_working_hours_last_N = len(last_N_active_days) * 8  # 8 hours per active day
+
+    # Calculate total pods in the last N active days
+    total_pods_last_N = CompletedPods.query.filter(
+        CompletedPods.worker == worker,
+        CompletedPods.date.in_(last_N_active_days)
+    ).count()
+
+    if total_pods_last_N > 0:
+        avg_time_per_pod_last_N = total_working_hours_last_N / total_pods_last_N
+        hours = int(avg_time_per_pod_last_N)
+        minutes = int(round((avg_time_per_pod_last_N - hours) * 60))
+        avg_time_per_pod_last_N_formatted = f"{hours}h {minutes}m"
+    else:
+        avg_time_per_pod_last_N_formatted = "N/A"
 
     return render_template(
         'pods.html',
@@ -788,8 +842,10 @@ def pods():
         pods_this_month=pods_this_month,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
-        next_serial_number=next_serial_number
+        next_serial_number=next_serial_number,
+        average_time_per_pod=avg_time_per_pod_last_N_formatted  # Pass the new calculation to the template
     )
+
 
 
 
