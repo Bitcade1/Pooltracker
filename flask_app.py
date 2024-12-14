@@ -1343,7 +1343,6 @@ def bodies():
         monthly_totals=monthly_totals_formatted
     )
 
-
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     # Fetch workers and issues from the database
@@ -1498,6 +1497,18 @@ def top_rails():
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
 
+    # Determine the next serial number
+    last_top_rail = TopRail.query.order_by(TopRail.id.desc()).first()
+    if last_top_rail:
+        try:
+            next_serial_number = str(int(last_top_rail.serial_number) + 1)
+        except ValueError:
+            # If the last serial number isn't numeric, choose a fallback
+            next_serial_number = "1000"
+    else:
+        # If no entries exist yet, start from a default number
+        next_serial_number = "1000"
+
     return render_template(
         'top_rails.html',
         workers=workers,
@@ -1506,8 +1517,11 @@ def top_rails():
         completed_tables=completed_top_rails,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
-        top_rails_this_month=top_rails_this_month  # Pass total this month
+        top_rails_this_month=top_rails_this_month,
+        next_serial_number=next_serial_number  # Pass this to the template
     )
+
+
 
 
 
