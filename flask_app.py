@@ -117,6 +117,12 @@ def logout():
     flash("Logged out successfully!", "success")
     return redirect(url_for('login'))
 
+@app.context_processor
+def inject_logged_in_worker():
+    worker = session.get('worker', None)
+    return {'logged_in_worker': worker}
+
+
 
 @app.route('/')
 def home():
