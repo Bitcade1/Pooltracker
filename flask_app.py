@@ -1177,22 +1177,29 @@ def predicted_finish():
         )
 
     return render_template('predicted_finish.html')
-
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # Fetch workers and issues from the database
     workers = [worker.name for worker in Worker.query.all()]
     issues = [issue.description for issue in Issue.query.all()]
 
+    # Query for pods that have not yet been converted into bodies
+    # This finds all pods whose serial_number is not present in any CompletedTable entry
+    unconverted_pods = CompletedPods.query.filter(
+        ~CompletedPods.serial_number.in_(
+            db.session.query(CompletedTable.serial_number)
+        )
+    ).all()
+
     if request.method == 'POST':
         worker = request.form['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
-        serial_number = request.form['serial_number']
+        serial_number = request.form['serial_number']  # This will come from the dropdown
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct inventory for each part needed to complete the body
+        # Parts and quantities needed for body completion
         parts_to_deduct = {
             # 3D Printed Parts
             "Large Ramp": 1,
@@ -1226,24 +1233,26 @@ def bodies():
         # Deduct inventory for each required part
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter(
-                PrintedPartsCount.part_name == part_name,
-                PrintedPartsCount.count > 0
+                PrintedPartsCount.part_name == part_name
             ).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
 
-            if part_entry and part_entry.count >= quantity_needed:
-                new_count = part_entry.count - quantity_needed
-                new_part_entry = PrintedPartsCount(
+            current_stock = part_entry.count if part_entry else 0
+
+            if current_stock >= quantity_needed:
+                # Update the part count
+                new_count = current_stock - quantity_needed
+                # Create a new PrintedPartsCount entry with updated count
+                updated_part_entry = PrintedPartsCount(
                     part_name=part_name,
                     count=new_count,
                     date=datetime.utcnow().date(),
                     time=datetime.utcnow().time()
                 )
-                db.session.add(new_part_entry)
+                db.session.add(updated_part_entry)
+                db.session.commit()
             else:
-                flash(f"Not enough inventory for {part_name} to complete the body! (Needed: {quantity_needed}, Available: {part_entry.count if part_entry else 0})", "error")
+                flash(f"Not enough inventory for {part_name} to complete the body! (Needed: {quantity_needed}, Available: {current_stock})", "error")
                 return redirect(url_for('bodies'))
-
-        db.session.commit()
 
         # Create a new entry for CompletedTable
         new_table = CompletedTable(
@@ -1327,7 +1336,7 @@ def bodies():
         total_bodies = row.total
 
         last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+        work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
 
         cumulative_working_hours = work_days * 7.5
         avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
@@ -1354,8 +1363,10 @@ def bodies():
         completed_tables=completed_tables,
         current_month_bodies_count=current_month_bodies_count,
         daily_history=daily_history_formatted,
-        monthly_totals=monthly_totals_formatted
+        monthly_totals=monthly_totals_formatted,
+        unconverted_pods=unconverted_pods  # Pass the unconverted pods to the template
     )
+
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
