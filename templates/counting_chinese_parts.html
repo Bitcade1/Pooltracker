@@ -16,6 +16,12 @@
         .menu-button { display: block; width: 100%; text-align: center; padding: 10px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; }
         .menu-button:hover { background-color: #5a6268; }
     </style>
+    <script>
+        function onPartChange() {
+            // Automatically submit the form to update the displayed stock
+            document.getElementById("partsForm").submit();
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -32,11 +38,11 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Dropdown and Display for Part Selection -->
-        <form method="POST" action="{{ url_for('counting_chinese_parts') }}">
+        <!-- Form to handle parts selection and updates -->
+        <form method="POST" action="{{ url_for('counting_chinese_parts') }}" id="partsForm">
             <div class="form-group">
                 <label for="table_part">Select Part:</label>
-                <select name="table_part" id="table_part" required>
+                <select name="table_part" id="table_part" required onchange="onPartChange()">
                     {% for part in table_parts %}
                         <option value="{{ part }}" {% if part == selected_part %}selected{% endif %}>{{ part }}</option>
                     {% endfor %}
@@ -48,13 +54,11 @@
                 <strong>Current Stock:</strong> <span id="current_stock">{{ current_stock }}</span>
             </div>
 
-            <!-- Increment and Decrement Buttons -->
             <div class="buttons">
                 <button type="submit" name="action" value="increment">▲ Increment</button>
                 <button type="submit" name="action" value="decrement">▼ Decrement</button>
             </div>
 
-            <!-- Bulk Input Field -->
             <div class="form-group">
                 <label for="amount">Bulk Adjustment (positive to add, negative to reduce):</label>
                 <input type="number" name="amount" id="amount" placeholder="Enter bulk amount" required>
@@ -62,7 +66,6 @@
             </div>
         </form>
 
-        <!-- Link Back to Inventory -->
         <div class="menu-link">
             <a href="{{ url_for('inventory') }}" class="menu-button">Back to Inventory</a>
         </div>
