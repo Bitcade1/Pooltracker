@@ -538,20 +538,21 @@ def counting_chinese_parts():
 
     table_parts_counts = get_table_parts_counts()
 
-    # Determine currently selected part
-    # If no POST request yet, default to the first part in the list
+    # Determine the currently selected part
+    # Default to the first part if no form data yet
     selected_part = request.form.get('table_part', table_parts[0])
 
-    if request.method == 'POST':
-        part = selected_part  # use the selected_part determined above
-        action = request.form['action']
-        amount = int(request.form['amount']) if 'amount' in request.form else 1
+    # Only proceed with increments/decrements/bulk if 'action' is provided
+    action = request.form.get('action', None)
 
-        if part not in table_parts_counts:
+    if request.method == 'POST' and action:
+        # We have an action, so we do update logic
+        if selected_part not in table_parts_counts:
             flash("Invalid part selected.", "error")
             return redirect(url_for('counting_chinese_parts'))
 
-        current_count = table_parts_counts[part]
+        current_count = table_parts_counts[selected_part]
+        amount = int(request.form['amount']) if 'amount' in request.form else 1
 
         if action == 'increment':
             new_count = current_count + 1
@@ -567,7 +568,7 @@ def counting_chinese_parts():
 
         # Update database with the new count
         new_entry = PrintedPartsCount(
-            part_name=part,
+            part_name=selected_part,
             count=new_count,
             date=datetime.utcnow().date(),
             time=datetime.utcnow().time()
@@ -575,17 +576,18 @@ def counting_chinese_parts():
         db.session.add(new_entry)
         db.session.commit()
 
-        flash(f"{part} updated successfully! New count: {new_count}", "success")
+        flash(f"{selected_part} updated successfully! New count: {new_count}", "success")
 
         # Re-fetch counts to display updated data
         table_parts_counts = get_table_parts_counts()
 
-    # Pass selected_part and updated counts to template
-    return render_template('counting_chinese_parts.html', 
-                           table_parts=table_parts,
-                           table_parts_counts=table_parts_counts,
-                           selected_part=selected_part)
-
+    # If no action, it means we just changed the dropdown, so just re-render with the updated selected_part and counts
+    return render_template(
+        'counting_chinese_parts.html',
+        table_parts=table_parts,
+        table_parts_counts=table_parts_counts,
+        selected_part=selected_part
+    )
 
 
 
