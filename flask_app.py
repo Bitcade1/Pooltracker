@@ -111,6 +111,20 @@ class HardwarePart(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     initial_count = db.Column(db.Integer, default=0)
 
+@app.route('/logout')
+def logout():
+    session.pop('worker', None)
+    flash("Logged out successfully!", "success")
+    return redirect(url_for('login'))
+
+
+@app.route('/')
+def home():
+    # Check if the user is logged in
+    if 'worker' not in session:
+        return redirect(url_for('login'))
+    # If logged in, show the home page
+    return render_template('home.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -129,17 +143,6 @@ def login():
 
     return render_template('login.html', workers=workers)
 
-
-@app.route('/logout')
-def logout():
-    session.pop('worker', None)
-    flash("Logged out successfully!", "success")
-    return redirect(url_for('login'))
-
-
-@app.route('/')
-def home():
-    return render_template('home.html')
 
 
 @app.route('/admin', methods=['GET', 'POST'])
