@@ -538,8 +538,12 @@ def counting_chinese_parts():
 
     table_parts_counts = get_table_parts_counts()
 
+    # Determine currently selected part
+    # If no POST request yet, default to the first part in the list
+    selected_part = request.form.get('table_part', table_parts[0])
+
     if request.method == 'POST':
-        part = request.form['table_part']
+        part = selected_part  # use the selected_part determined above
         action = request.form['action']
         amount = int(request.form['amount']) if 'amount' in request.form else 1
 
@@ -571,12 +575,19 @@ def counting_chinese_parts():
         db.session.add(new_entry)
         db.session.commit()
 
-        # Re-fetch to show updated counts
-        table_parts_counts = get_table_parts_counts()
-
         flash(f"{part} updated successfully! New count: {new_count}", "success")
 
-    return render_template('counting_chinese_parts.html', table_parts=table_parts, table_parts_counts=table_parts_counts)
+        # Re-fetch counts to display updated data
+        table_parts_counts = get_table_parts_counts()
+
+    # Pass selected_part and updated counts to template
+    return render_template('counting_chinese_parts.html', 
+                           table_parts=table_parts,
+                           table_parts_counts=table_parts_counts,
+                           selected_part=selected_part)
+
+
+
 
 
 
