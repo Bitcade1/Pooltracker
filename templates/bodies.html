@@ -39,6 +39,10 @@
             color: green;
             font-weight: bold;
         }
+
+        .issue-row {
+            background-color: #ffe6e6;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -77,8 +81,17 @@
             <label for="finish_time">Finish Time:</label>
             <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
-            <label for="serial_number">Serial Number:</label>
-            <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number">
+            <label for="serial_number">Pod Serial Number:</label>
+            <select id="serial_number" name="serial_number" required>
+                {% if unconverted_pods %}
+                    {% for pod in unconverted_pods %}
+                        <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
+                    {% endfor %}
+                {% else %}
+                    <!-- If no unconverted pods are available, show a placeholder -->
+                    <option value="" disabled selected>No unconverted pods available</option>
+                {% endif %}
+            </select>
 
             <label for="issue">Did anything slow you down this build?:</label>
             <select name="issue" id="issue" required>
