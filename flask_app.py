@@ -643,11 +643,12 @@ def counting_hardware():
             hardware_counts[part] = new_count
 
     return render_template('counting_hardware.html', hardware_parts=hardware_parts, hardware_counts=hardware_counts)
+    
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from datetime import datetime, date
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import extract, func, distinct
-from your_application import app, db  # Replace with your actual import
+
 
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
