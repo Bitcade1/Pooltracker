@@ -67,14 +67,8 @@
         {% endwith %}
 
         <!-- Form to Add a New Completed Table -->
+        <!-- Note: The worker is no longer selected here since it's pulled from session in the backend -->
         <form method="POST" action="{{ url_for('bodies') }}">
-            <label for="worker">Builder:</label>
-            <select name="worker" id="worker" required>
-                {% for worker in workers %}
-                    <option value="{{ worker }}">{{ worker }}</option>
-                {% endfor %}
-            </select>
-
             <label for="start_time">Start Time:</label>
             <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
 
