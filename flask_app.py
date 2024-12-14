@@ -659,6 +659,7 @@ def pods():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
+        # Handle start_time and finish_time parsing
         try:
             start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
         except ValueError:
@@ -695,11 +696,13 @@ def pods():
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
 
+    # Count pods for the current month only
     pods_this_month = CompletedPods.query.filter(
         extract('year', CompletedPods.date) == today.year,
         extract('month', CompletedPods.date) == today.month
     ).count()
 
+    # Daily history for the current month
     daily_history = (
         db.session.query(
             CompletedPods.date,
@@ -724,6 +727,7 @@ def pods():
         for row in daily_history
     ]
 
+    # Monthly totals for ALL months of the current year (not just this month)
     monthly_totals = (
         db.session.query(
             extract('year', CompletedPods.date).label('year'),
@@ -732,8 +736,7 @@ def pods():
             func.max(CompletedPods.finish_time).label('last_completion_time')
         )
         .filter(
-            extract('year', CompletedPods.date) == today.year,
-            extract('month', CompletedPods.date) == today.month
+            extract('year', CompletedPods.date) == today.year
         )
         .group_by('year', 'month')
         .order_by('year', 'month')
@@ -746,12 +749,14 @@ def pods():
         month = int(row.month)
         total_pods = row.total
         last_completion_time = row.last_completion_time
+
         if last_completion_time:
             last_completion_datetime = datetime.combine(today, last_completion_time)
         else:
             last_completion_datetime = datetime.now()
 
         last_day = last_completion_datetime.day
+        # Calculate only weekdays for workdays
         work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
         avg_hours_per_pod = cumulative_working_hours / total_pods if total_pods > 0 else None
@@ -789,6 +794,7 @@ def pods():
         monthly_totals=monthly_totals_formatted,
         next_serial_number=next_serial_number
     )
+
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
 def manage_raw_data():
