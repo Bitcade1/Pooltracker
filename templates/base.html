@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Pool Table Tracker{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="site-header">
+        <h1>Pool Table Tracker</h1>
+        {% if logged_in_worker %}
+            <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
+        {% else %}
+            <div class="logged-in-user">Not logged in</div>
+        {% endif %}
+        <nav>
+            <a href="{{ url_for('home') }}">Home</a> |
+            <a href="{{ url_for('bodies') }}">Bodies</a> |
+            <a href="{{ url_for('pods') }}">Pods</a> |
+            <a href="{{ url_for('top_rails') }}">Top Rails</a> |
+            <a href="{{ url_for('inventory') }}">Inventory</a>
+            <!-- Add more site-wide links as needed -->
+        </nav>
+        <hr>
+    </div>
+
+    <div class="container">
+        {% block content %}
+        <!-- Default content goes here if not overridden -->
+        {% endblock %}
+    </div>
+
+    <div class="site-footer">
+        <hr>
+        <p>© 2023 Pool Table Tracker</p>
+    </div>
+</body>
+</html>
