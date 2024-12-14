@@ -516,7 +516,7 @@ def counting_chinese_parts():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-   # List of "Table Parts" items
+    # List of "Table Parts" items
     table_parts = [
         "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2", "Ball Gullies 3", 
         "Ball Gullies 4", "Ball Gullies 5", "Feet", "Triangle trim", 
@@ -526,11 +526,18 @@ def counting_chinese_parts():
         "Chrome handles", "Center pockets", "Corner pockets", "Ramp 376mm"
     ]
 
-    # Retrieve or initialize the count for each part
-    table_parts_counts = {part: 0 for part in table_parts}
-    for part in table_parts:
-        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        table_parts_counts[part] = latest_entry[0] if latest_entry else 0
+    # Function to get current counts from database
+    def get_table_parts_counts():
+        counts = {part: 0 for part in table_parts}
+        for part in table_parts:
+            latest_entry = (db.session.query(PrintedPartsCount.count)
+                            .filter_by(part_name=part)
+                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                            .first())
+            counts[part] = latest_entry[0] if latest_entry else 0
+        return counts
+
+    table_parts_counts = get_table_parts_counts()
 
     if request.method == 'POST':
         part = request.form['table_part']
@@ -539,6 +546,7 @@ def counting_chinese_parts():
 
         if part in table_parts_counts:
             current_count = table_parts_counts[part]
+            # Determine new count based on action
             if action == 'increment':
                 new_count = current_count + 1
             elif action == 'decrement' and current_count > 0:
@@ -552,14 +560,24 @@ def counting_chinese_parts():
                 return redirect(url_for('counting_chinese_parts'))
 
             # Update database with the new count
-            new_entry = PrintedPartsCount(part_name=part, count=new_count, date=datetime.utcnow().date(), time=datetime.utcnow().time())
+            new_entry = PrintedPartsCount(
+                part_name=part,
+                count=new_count,
+                date=datetime.utcnow().date(),
+                time=datetime.utcnow().time()
+            )
             db.session.add(new_entry)
             db.session.commit()
 
             flash(f"{part} updated successfully! New count: {new_count}", "success")
-            table_parts_counts[part] = new_count
+
+            # Re-fetch counts from DB to ensure displayed data is accurate
+            table_parts_counts = get_table_parts_counts()
+        else:
+            flash("Part not found.", "error")
 
     return render_template('counting_chinese_parts.html', table_parts=table_parts, table_parts_counts=table_parts_counts)
+
 
 
 @app.route('/counting_hardware', methods=['GET', 'POST'])
