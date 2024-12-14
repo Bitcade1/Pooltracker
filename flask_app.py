@@ -114,7 +114,7 @@ class HardwarePart(db.Model):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Every worker uses the password "Bitcade"
+    workers = Worker.query.all()  # Fetch all workers for the dropdown
     if request.method == 'POST':
         worker_name = request.form.get('worker_name')
         password = request.form.get('password')
@@ -127,7 +127,8 @@ def login():
         else:
             flash("Invalid worker name or password.", "error")
 
-    return render_template('login.html')
+    return render_template('login.html', workers=workers)
+
 
 @app.route('/logout')
 def logout():
