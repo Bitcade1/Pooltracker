@@ -568,8 +568,44 @@ def counting_hardware():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # Original logic remains
-    return render_template('counting_hardware.html')
+# Fetch all hardware parts from the database instead of using a static list
+    hardware_parts = HardwarePart.query.all()
+
+    # Initialize or retrieve the count for each part
+    hardware_counts = {part.name: part.initial_count for part in hardware_parts}
+    for part in hardware_parts:
+        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part.name).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        hardware_counts[part.name] = latest_entry[0] if latest_entry else part.initial_count
+
+    if request.method == 'POST':
+        part = request.form['hardware_part']
+        action = request.form['action']
+        amount = int(request.form['amount']) if 'amount' in request.form else 1
+
+        if part in hardware_counts:
+            current_count = hardware_counts[part]
+            if action == 'increment':
+                new_count = current_count + 1
+            elif action == 'decrement' and current_count > 0:
+                new_count = current_count - 1
+            elif action == 'bulk' and amount > 0:
+                new_count = current_count + amount
+            elif action == 'bulk' and amount < 0 and current_count >= abs(amount):
+                new_count = current_count + amount
+            else:
+                flash("Invalid operation or insufficient stock.", "error")
+                return redirect(url_for('counting_hardware'))
+
+            # Update database with the new count
+            new_entry = PrintedPartsCount(part_name=part, count=new_count, date=datetime.utcnow().date(), time=datetime.utcnow().time())
+            db.session.add(new_entry)
+            db.session.commit()
+
+            flash(f"{part} updated successfully! New count: {new_count}", "success")
+            hardware_counts[part] = new_count
+
+    return render_template('counting_hardware.html', hardware_parts=hardware_parts, hardware_counts=hardware_counts)
+
 
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
