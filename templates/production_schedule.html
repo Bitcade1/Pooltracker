@@ -1,169 +1,185 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production Schedule - Pool Table Tracker</title>
-    <!-- Link to your shared CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-
-    <style>
-        .collapsible {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 1.2em;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
-        .collapsible:hover {
-            background-color: #0056b3;
-        }
-        .collapsible-content {
-            padding: 15px;
-            display: none;
-            overflow: hidden;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        .monthly-total {
-            color: green;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .issue-row {
-            background-color: #ffe6e6;
-        }
-        .logged-in-user {
-            font-size: 0.9em;
-            color: #333;
-            margin-bottom: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        table th, table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-        }
-        table th {
-            background-color: #f2f2f2;
-        }
-        .button {
-            margin-top: 10px;
-            background-color: #007bff;
-            color: #fff;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .button:hover {
-            background-color: #0056b3;
-        }
-        .menu-button {
-            background-color: #007bff;
-            color: #fff;
-            text-decoration: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-        }
-        .menu-button:hover {
-            background-color: #0056b3;
-        }
-    </style>
-
-    <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = (content.style.display === "block") ? "none" : "block";
-        }
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production Schedule - Pool Table Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+      .collapsible {
+          background-color: #007bff;
+          color: white;
+          cursor: pointer;
+          padding: 10px;
+          width: 100%;
+          border: none;
+          text-align: left;
+          outline: none;
+          font-size: 1.2em;
+          margin-top: 20px;
+          border-radius: 5px;
+      }
+      .collapsible:hover {
+          background-color: #0056b3;
+      }
+      .collapsible-content {
+          padding: 15px;
+          display: none;
+          overflow: hidden;
+          background-color: #f9f9f9;
+          border: 1px solid #ddd;
+          border-radius: 5px;
+          margin-top: 10px;
+      }
+      .logged-in-user {
+          font-size: 0.9em;
+          color: #333;
+          margin-bottom: 20px;
+      }
+      table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 10px;
+      }
+      table th, table td {
+          border: 1px solid #ddd;
+          padding: 8px;
+      }
+      table th {
+          background-color: #f2f2f2;
+      }
+      .button {
+          margin-top: 10px;
+          background-color: #007bff;
+          color: #fff;
+          padding: 10px 15px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+      }
+      .button:hover {
+          background-color: #0056b3;
+      }
+      .menu-button {
+          background-color: #007bff;
+          color: #fff;
+          text-decoration: none;
+          padding: 8px 12px;
+          border-radius: 4px;
+      }
+      .menu-button:hover {
+          background-color: #0056b3;
+      }
+  </style>
+  <script>
+      function toggleCollapsible(id) {
+          var content = document.getElementById(id);
+          content.style.display = (content.style.display === "block") ? "none" : "block";
+      }
+  </script>
 </head>
 <body>
-    <div class="container">
-        <h1>Production Schedule</h1>
+  <div class="container">
+    <h1>Production Schedule</h1>
 
-        {% if logged_in_worker %}
-            <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
-        {% else %}
-            <div class="logged-in-user">Not logged in</div>
-        {% endif %}
+    {% if logged_in_worker %}
+      <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
+    {% else %}
+      <div class="logged-in-user">Not logged in</div>
+    {% endif %}
 
-        <!-- Flash Messages Display (Success and Error) -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <!-- Collapsible section for the 12-month schedule form -->
-        <button class="collapsible" onclick="toggleCollapsible('scheduleForm')">
-            Manage 12-Month Schedule
-        </button>
-        <div id="scheduleForm" class="collapsible-content">
-            <form method="POST" action="{{ url_for('production_schedule') }}">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Month</th>
-                            <th>7 ft Tables</th>
-                            <th>6 ft Tables</th>
-                            <th>Color Split</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for (year, month) in next_12_months %}
-                            <!-- 
-                                Use loop.index0 for a 0-based index that matches
-                                how we read data in Python (tables_7ft_<i>).
-                             -->
-                            {% set idx = loop.index0 %}
-                            {% set sched = schedules_map.get((year, month)) %}
-                            <tr>
-                                <td>{{ month }}/{{ year }}</td>
-                                <td>
-                                    <input type="number"
-                                           name="tables_7ft_{{ idx }}"
-                                           value="{{ sched.tables_7ft if sched else 0 }}">
-                                </td>
-                                <td>
-                                    <input type="number"
-                                           name="tables_6ft_{{ idx }}"
-                                           value="{{ sched.tables_6ft if sched else 0 }}">
-                                </td>
-                                <td>
-                                    <input type="text"
-                                           name="color_split_{{ idx }}"
-                                           value="{{ sched.color_split if sched else '' }}">
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <button type="submit" class="button">Save Schedule</button>
-            </form>
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash {{ category }}">{{ message }}</p>
+          {% endfor %}
         </div>
+      {% endif %}
+    {% endwith %}
 
-        <!-- (Optionally add more collapsible sections for summaries, charts, etc.) -->
-
-        <!-- Back to Menu Button -->
-        <div class="back-to-menu" style="margin-top: 20px;">
-            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
-        </div>
+    <button class="collapsible" onclick="toggleCollapsible('scheduleForm')">
+      Manage 12-Month Schedule
+    </button>
+    <div id="scheduleForm" class="collapsible-content">
+      <form method="POST" action="{{ url_for('production_schedule') }}">
+        <table>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Black (7ft)</th>
+              <th>Black (6ft)</th>
+              <th>Grey (7ft)</th>
+              <th>Grey (6ft)</th>
+              <th>Oak (7ft)</th>
+              <th>Oak (6ft)</th>
+              <th>Grey Oak (7ft)</th>
+              <th>Grey Oak (6ft)</th>
+              <th>Concrete (7ft)</th>
+              <th>Concrete (6ft)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for (yr, mo) in next_12_months %}
+              {% set idx = loop.index0 %}
+              {% set sched = schedules_map.get((yr, mo)) %}
+              <tr>
+                <!-- Convert numeric year/month into 'December 2024' etc. -->
+                <td>
+                  {{ (date(yr, mo, 1)|strftime("%B %Y")) }}
+                </td>
+                <td>
+                  <input type="number" name="black_7ft_{{ idx }}"
+                         value="{{ sched.black_7ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="black_6ft_{{ idx }}"
+                         value="{{ sched.black_6ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="grey_7ft_{{ idx }}"
+                         value="{{ sched.grey_7ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="grey_6ft_{{ idx }}"
+                         value="{{ sched.grey_6ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="oak_7ft_{{ idx }}"
+                         value="{{ sched.oak_7ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="oak_6ft_{{ idx }}"
+                         value="{{ sched.oak_6ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="grey_oak_7ft_{{ idx }}"
+                         value="{{ sched.grey_oak_7ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="grey_oak_6ft_{{ idx }}"
+                         value="{{ sched.grey_oak_6ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="concrete_7ft_{{ idx }}"
+                         value="{{ sched.concrete_7ft if sched else 0 }}">
+                </td>
+                <td>
+                  <input type="number" name="concrete_6ft_{{ idx }}"
+                         value="{{ sched.concrete_6ft if sched else 0 }}">
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <button type="submit" class="button">Save Schedule</button>
+      </form>
     </div>
+
+    <div class="back-to-menu" style="margin-top: 20px;">
+      <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+    </div>
+  </div>
 </body>
 </html>
