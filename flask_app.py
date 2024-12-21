@@ -1310,10 +1310,12 @@ def bodies():
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
+    """View for creating or viewing top rails and deducting inventory."""
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    # Collect existing issues for the form dropdown
     issues = [issue.description for issue in Issue.query.all()]
 
     if request.method == 'POST':
@@ -1324,7 +1326,7 @@ def top_rails():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
- # Parts and quantities needed for top rail completion
+        # Parts and quantities needed for top rail completion
         parts_to_deduct = {
             "Top rail trim long length": 2,
             "Top rail trim short length": 4,
@@ -1338,22 +1340,30 @@ def top_rails():
             part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
             total_stock = sum(entry.count for entry in part_entries)
 
-            if total_stock >= quantity_needed:
-                remaining_to_deduct = quantity_needed
-                for entry in part_entries:
-                    if entry.count >= remaining_to_deduct:
-                        entry.count -= remaining_to_deduct
-                        db.session.commit()
-                        break
-                    else:
-                        remaining_to_deduct -= entry.count
-                        entry.count = 0
-                        db.session.commit()
-            else:
-                flash(f"Not enough inventory for {part_name} to complete the top rail! (Available: {total_stock})", "error")
+            # Check if we have enough total stock across all entries for this part
+            if total_stock < quantity_needed:
+                flash(
+                    f"Not enough inventory for {part_name} to complete the top rail! "
+                    f"(Available: {total_stock})", 
+                    "error"
+                )
                 return redirect(url_for('top_rails'))
 
+            # Deduct the required quantity from one or more rows
+            remaining_to_deduct = quantity_needed
+            for entry in part_entries:
+                if remaining_to_deduct <= 0:
+                    break  # We have deducted everything we need
 
+                if entry.count >= remaining_to_deduct:
+                    entry.count -= remaining_to_deduct
+                    remaining_to_deduct = 0
+                else:
+                    remaining_to_deduct -= entry.count
+                    entry.count = 0
+
+        # Only commit *after* all parts have been successfully deducted
+        # Create the new top rail entry
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -1375,6 +1385,7 @@ def top_rails():
 
         return redirect(url_for('top_rails'))
 
+    # ---- GET request logic below ----
     today = date.today()
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
@@ -1437,10 +1448,19 @@ def top_rails():
         month = int(row.month)
         total_top_rails = row.total
 
-        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(year, month, day).weekday() < 5)
+        last_day = (
+            today.day if (year == today.year and month == today.month)
+            else monthrange(year, month)[1]
+        )
+        work_days = sum(
+            1
+            for day_num in range(1, last_day + 1)
+            if date(year, month, day_num).weekday() < 5
+        )
         cumulative_working_hours = work_days * 7.5
-        avg_hours_per_top_rail = cumulative_working_hours / total_top_rails if total_top_rails > 0 else None
+        avg_hours_per_top_rail = (
+            cumulative_working_hours / total_top_rails if total_top_rails > 0 else None
+        )
 
         if avg_hours_per_top_rail is not None:
             hours = int(avg_hours_per_top_rail)
@@ -1475,7 +1495,6 @@ def top_rails():
         top_rails_this_month=top_rails_this_month,
         next_serial_number=next_serial_number
     )
-
 def fetch_uk_bank_holidays():
     try:
         response = requests.get("https://www.gov.uk/bank-holidays.json")
