@@ -524,70 +524,99 @@ def counting_chinese_parts():
 
     # List of "Table Parts" items
     table_parts = [
-        "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2", "Ball Gullies 3", 
-        "Ball Gullies 4", "Ball Gullies 5", "Feet", "Triangle trim", 
-        "White ball return trim", "Color ball trim", "Ball window trim", 
-        "Aluminum corner", "Chrome corner", "Top rail trim short length", 
-        "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm", 
+        "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2", "Ball Gullies 3",
+        "Ball Gullies 4", "Ball Gullies 5", "Feet", "Triangle trim",
+        "White ball return trim", "Color ball trim", "Ball window trim",
+        "Aluminum corner", "Chrome corner", "Top rail trim short length",
+        "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm",
         "Chrome handles", "Center pockets", "Corner pockets", "Ramp 376mm"
     ]
 
     def get_table_parts_counts():
+        """
+        Return a dictionary of { part_name: current_count } for each part.
+        We query a single row per part_name; if none exists, assume 0.
+        """
         counts = {}
         for part in table_parts:
-            latest_entry = (db.session.query(PrintedPartsCount.count)
-                            .filter_by(part_name=part)
-                            .order_by(PrintedPartsCount.id.desc())
-                            .first())
-            counts[part] = latest_entry[0] if latest_entry else 0
+            existing_entry = (db.session.query(PrintedPartsCount)
+                              .filter_by(part_name=part)
+                              .first())
+            counts[part] = existing_entry.count if existing_entry else 0
         return counts
 
+    # Fetch current counts for all parts
     table_parts_counts = get_table_parts_counts()
 
-    # Determine the currently selected part
-    # Default to the first part if no form data yet
+    # Determine the currently selected part (default to first in list if none selected)
     selected_part = request.form.get('table_part', table_parts[0])
+    action = request.form.get('action')  # e.g. 'increment', 'decrement', 'bulk'
 
-    # Only proceed with increments/decrements/bulk if 'action' is provided
-    action = request.form.get('action', None)
-
+    # Process form submission if we're in POST and have an 'action'
     if request.method == 'POST' and action:
-        # We have an action, so we do update logic
         if selected_part not in table_parts_counts:
             flash("Invalid part selected.", "error")
             return redirect(url_for('counting_chinese_parts'))
 
         current_count = table_parts_counts[selected_part]
-        amount = int(request.form['amount']) if 'amount' in request.form else 1
 
-        if action == 'increment':
-            new_count = current_count + 1
-        elif action == 'decrement' and current_count > 0:
-            new_count = current_count - 1
-        elif action == 'bulk' and amount > 0:
-            new_count = current_count + amount
-        elif action == 'bulk' and amount < 0 and current_count >= abs(amount):
-            new_count = current_count + amount
-        else:
-            flash("Invalid operation or insufficient stock.", "error")
+        # Amount is only used for 'bulk' updates; default to 1 otherwise
+        try:
+            amount = int(request.form.get('amount', 1))
+        except ValueError:
+            flash("Amount must be a number.", "error")
             return redirect(url_for('counting_chinese_parts'))
 
-        # Update database with the new count
-        new_entry = PrintedPartsCount(
-            part_name=selected_part,
-            count=new_count,
-            date=datetime.utcnow().date(),
-            time=datetime.utcnow().time()
-        )
-        db.session.add(new_entry)
+        # Retrieve or create a single row for this part
+        existing_entry = (db.session.query(PrintedPartsCount)
+                          .filter_by(part_name=selected_part)
+                          .first())
+        if not existing_entry:
+            # Create a new entry if none exists yet
+            existing_entry = PrintedPartsCount(
+                part_name=selected_part,
+                count=current_count,  # Likely 0, but we’ll match logic
+                date=datetime.utcnow().date(),
+                time=datetime.utcnow().time()
+            )
+            db.session.add(existing_entry)
+            db.session.commit()  # Commit to get an ID if needed
+
+        # Perform the requested action
+        if action == 'increment':
+            existing_entry.count += 1
+
+        elif action == 'decrement':
+            if existing_entry.count > 0:
+                existing_entry.count -= 1
+            else:
+                flash("Cannot decrement below zero.", "error")
+                return redirect(url_for('counting_chinese_parts'))
+
+        elif action == 'bulk':
+            # Positive bulk = add stock; negative bulk = remove stock if sufficient
+            if amount < 0 and existing_entry.count < abs(amount):
+                flash("Insufficient stock to perform this bulk decrement.", "error")
+                return redirect(url_for('counting_chinese_parts'))
+            existing_entry.count += amount
+
+        else:
+            flash("Invalid operation.", "error")
+            return redirect(url_for('counting_chinese_parts'))
+
+        # Update date/time so you can see the latest update
+        existing_entry.date = datetime.utcnow().date()
+        existing_entry.time = datetime.utcnow().time()
+
+        # Commit changes
         db.session.commit()
 
-        flash(f"{selected_part} updated successfully! New count: {new_count}", "success")
-
-        # Re-fetch counts to display updated data
+        flash(f"{selected_part} updated successfully! New count: {existing_entry.count}", "success")
+        
+        # Re-fetch updated counts for display
         table_parts_counts = get_table_parts_counts()
 
-    # If no action, it means we just changed the dropdown, so just re-render with the updated selected_part and counts
+    # Render the template with the current data
     return render_template(
         'counting_chinese_parts.html',
         table_parts=table_parts,
