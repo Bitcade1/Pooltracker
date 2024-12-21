@@ -1603,33 +1603,60 @@ def working_days():
 
     return render_template("working_days.html", working_days_data=working_days_data)
 
+from datetime import date
+from flask import render_template, request, redirect, url_for, flash, session
+from sqlalchemy.exc import IntegrityError
+
+# Assume you have already:
+# from .models import db, ProductionSchedule
+# app = Flask(__name__)
+
 @app.route('/production_schedule', methods=['GET', 'POST'])
 def production_schedule():
-    """Manage a 12-month schedule of tables in various colors/sizes."""
+    """Manage a 12-month schedule of tables in various colors & sizes, 
+       displaying 'December 2024' etc. without using Jinja strftime."""
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # Helper to get next 12 months as (year, month) tuples
     def get_next_12_months():
+        """
+        Return a list of dictionaries, each containing:
+          {
+            'year': 2024,
+            'month': 12,
+            'display_str': 'December 2024'
+          }
+        so we can show this in the template without calling Jinja's strftime.
+        """
         months_list = []
         today_date = date.today()
         start_year = today_date.year
         start_month = today_date.month
+
         for i in range(12):
             y = start_year + (start_month - 1 + i) // 12
             m = (start_month - 1 + i) % 12 + 1
-            months_list.append((y, m))
+            # Create a temporary date to format nicely (e.g., "December 2024")
+            tmp_date = date(y, m, 1)
+            display_str = tmp_date.strftime("%B %Y")  # e.g. "December 2024"
+
+            months_list.append({
+                'year': y,
+                'month': m,
+                'display_str': display_str
+            })
         return months_list
 
     next_12_months = get_next_12_months()
 
-    # If POST, process the form inputs
+    # Handle POST => save or update production data
     if request.method == 'POST':
         for i in range(len(next_12_months)):
-            (yr, mo) = next_12_months[i]
+            yr = next_12_months[i]['year']
+            mo = next_12_months[i]['month']
 
-            # For each color + size, we read the form key like black_7ft_i
+            # For each color + size, read the form keys: black_7ft_i, black_6ft_i, etc.
             black_7ft_str = request.form.get(f"black_7ft_{i}", "0")
             black_6ft_str = request.form.get(f"black_6ft_{i}", "0")
 
@@ -1661,10 +1688,10 @@ def production_schedule():
                 concrete_7ft = int(concrete_7ft_str)
                 concrete_6ft = int(concrete_6ft_str)
             except ValueError:
-                flash(f"Invalid number for {mo}/{yr}. Use whole numbers only.", "error")
+                flash(f"Invalid number for {mo}/{yr}. Please use whole numbers only.", "error")
                 return redirect(url_for('production_schedule'))
 
-            # Find existing record or create new
+            # Look up or create a schedule row for (yr, mo)
             schedule = ProductionSchedule.query.filter_by(year=yr, month=mo).first()
             if not schedule:
                 schedule = ProductionSchedule(year=yr, month=mo)
@@ -1682,6 +1709,7 @@ def production_schedule():
             schedule.concrete_7ft = concrete_7ft
             schedule.concrete_6ft = concrete_6ft
 
+        # Commit once after processing all months
         try:
             db.session.commit()
             flash("Production schedule updated successfully!", "success")
@@ -1691,7 +1719,7 @@ def production_schedule():
 
         return redirect(url_for('production_schedule'))
 
-    # For GET: load existing schedules
+    # Handle GET => load existing data
     schedules = ProductionSchedule.query.all()
     schedules_map = {}
     for sched in schedules:
@@ -1699,9 +1727,10 @@ def production_schedule():
 
     return render_template(
         'production_schedule.html',
-        next_12_months=next_12_months,  # list of (year, month)
-        schedules_map=schedules_map     # dictionary for pre-filling
+        next_12_months=next_12_months,  # This has year, month, and display_str
+        schedules_map=schedules_map
     )
+
 
 
 
