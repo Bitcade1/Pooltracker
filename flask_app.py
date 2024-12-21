@@ -106,6 +106,21 @@ class CushionCount(db.Model):
         self.date = datetime.utcnow().date()
         self.time = datetime.utcnow().time()
 
+class ProductionSchedule(db.Model):
+    __tablename__ = 'production_schedule'
+    id = db.Column(db.Integer, primary_key=True)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    tables_7ft = db.Column(db.Integer, default=0, nullable=False)
+    tables_6ft = db.Column(db.Integer, default=0, nullable=False)
+    color_split = db.Column(db.String(200), default='', nullable=True)
+
+    def __repr__(self):
+        return (f"<ProductionSchedule "
+                f"year={self.year}, month={self.month}, "
+                f"7ft={self.tables_7ft}, 6ft={self.tables_6ft}, split='{self.color_split}'>")
+
+
 class HardwarePart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
@@ -1567,6 +1582,96 @@ def working_days():
         })
 
     return render_template("working_days.html", working_days_data=working_days_data)
+
+@app.route('/production_schedule', methods=['GET', 'POST'])
+def production_schedule():
+    """
+    This route displays the next 12 months and allows you to set:
+      - Number of 7 ft tables
+      - Number of 6 ft tables
+      - Color split (text)
+    Then saves each month's plan into the ProductionSchedule table.
+    """
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    # Generate a list of (year, month) for the next 12 months
+    def get_next_12_months():
+        """Return a list of (year, month) tuples from current month to next 11 months."""
+        months_list = []
+        current_date = date.today()
+        current_year = current_date.year
+        current_month = current_date.month
+        for i in range(12):
+            # Calculate year & month by offset
+            y = current_year + (current_month - 1 + i) // 12
+            m = (current_month - 1 + i) % 12 + 1
+            months_list.append((y, m))
+        return months_list
+
+    next_12_months = get_next_12_months()
+
+    if request.method == 'POST':
+        # Process the form data for each of the 12 months
+        for idx, (yr, mo) in enumerate(next_12_months):
+            # Example form fields: "tables_7ft_0", "tables_6ft_0", "color_split_0", etc.
+            # where 0 increments up to 11
+            tables_7ft_str = request.form.get(f"tables_7ft_{idx}", "0")
+            tables_6ft_str = request.form.get(f"tables_6ft_{idx}", "0")
+            color_split_str = request.form.get(f"color_split_{idx}", "")
+
+            try:
+                tables_7ft = int(tables_7ft_str)
+                tables_6ft = int(tables_6ft_str)
+            except ValueError:
+                # If someone typed a non-integer
+                flash(f"Invalid number entered for month {mo}/{yr}. Please enter whole numbers.", "error")
+                return redirect(url_for('production_schedule'))
+
+            # Find existing record or create a new one
+            schedule = (ProductionSchedule.query
+                        .filter_by(year=yr, month=mo)
+                        .first())
+            if schedule:
+                # Update existing record
+                schedule.tables_7ft = tables_7ft
+                schedule.tables_6ft = tables_6ft
+                schedule.color_split = color_split_str.strip()
+            else:
+                # Create a new record
+                schedule = ProductionSchedule(
+                    year=yr,
+                    month=mo,
+                    tables_7ft=tables_7ft,
+                    tables_6ft=tables_6ft,
+                    color_split=color_split_str.strip()
+                )
+                db.session.add(schedule)
+
+        # Commit once after processing all 12 months
+        try:
+            db.session.commit()
+            flash("Production schedule updated successfully!", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Failed to update the production schedule (Integrity Error).", "error")
+
+        return redirect(url_for('production_schedule'))
+
+    # ---- GET request: Retrieve existing schedules for display ----
+    schedules = ProductionSchedule.query.all()
+    # Build a dict so we can quickly look up a schedule for each (year, month)
+    schedules_map = {}
+    for sched in schedules:
+        schedules_map[(sched.year, sched.month)] = sched
+
+    return render_template(
+        'production_schedule.html',   # You'll create this template
+        next_12_months=next_12_months,
+        schedules_map=schedules_map
+    )
+
 
 
 if __name__ == '__main__':
