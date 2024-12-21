@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Production Schedule - Pool Table Tracker</title>
+  <!-- Link to your shared CSS file -->
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <style>
       .collapsible {
@@ -36,14 +37,23 @@
           color: #333;
           margin-bottom: 20px;
       }
+      /* Scrollable container around the table */
+      .scroll-container {
+          overflow-x: auto;      /* Allows horizontal scrolling */
+          max-width: 100%;       /* Ensures container doesn't exceed page width */
+          border: 1px solid #ddd;
+          border-radius: 5px;
+          margin-top: 10px;
+      }
       table {
           width: 100%;
           border-collapse: collapse;
-          margin-top: 10px;
       }
       table th, table td {
           border: 1px solid #ddd;
-          padding: 8px;
+          padding: 6px;             /* Slightly smaller padding */
+          font-size: 0.9em;         /* Slightly smaller font */
+          white-space: nowrap;      /* Prevent line breaks within cells */
       }
       table th {
           background-color: #f2f2f2;
@@ -99,86 +109,62 @@
       {% endif %}
     {% endwith %}
 
+    <!-- Collapsible button for schedule form -->
     <button class="collapsible" onclick="toggleCollapsible('scheduleForm')">
       Manage 12-Month Schedule
     </button>
+
+    <!-- Collapsible content -->
     <div id="scheduleForm" class="collapsible-content">
       <form method="POST" action="{{ url_for('production_schedule') }}">
-        <table>
-          <thead>
-            <tr>
-              <th>Month</th>
-              <th>Black (7ft)</th>
-              <th>Black (6ft)</th>
-              <th>Grey (7ft)</th>
-              <th>Grey (6ft)</th>
-              <th>Oak (7ft)</th>
-              <th>Oak (6ft)</th>
-              <th>Grey Oak (7ft)</th>
-              <th>Grey Oak (6ft)</th>
-              <th>Concrete (7ft)</th>
-              <th>Concrete (6ft)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for i in range(next_12_months|length) %}
-              {% set item = next_12_months[i] %}
-              {% set yr = item.year %}
-              {% set mo = item.month %}
-              {% set display_str = item.display_str %}
-              {% set sched = schedules_map.get((yr, mo)) %}
-              
+        <!-- Scrollable container around the table -->
+        <div class="scroll-container">
+          <table>
+            <thead>
               <tr>
-                <!-- Use the display_str we generated in Python (e.g. "December 2024") -->
-                <td>{{ display_str }}</td>
-                <td>
-                  <input type="number" name="black_7ft_{{ i }}"
-                         value="{{ sched.black_7ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="black_6ft_{{ i }}"
-                         value="{{ sched.black_6ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="grey_7ft_{{ i }}"
-                         value="{{ sched.grey_7ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="grey_6ft_{{ i }}"
-                         value="{{ sched.grey_6ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="oak_7ft_{{ i }}"
-                         value="{{ sched.oak_7ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="oak_6ft_{{ i }}"
-                         value="{{ sched.oak_6ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="grey_oak_7ft_{{ i }}"
-                         value="{{ sched.grey_oak_7ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="grey_oak_6ft_{{ i }}"
-                         value="{{ sched.grey_oak_6ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="concrete_7ft_{{ i }}"
-                         value="{{ sched.concrete_7ft if sched else 0 }}">
-                </td>
-                <td>
-                  <input type="number" name="concrete_6ft_{{ i }}"
-                         value="{{ sched.concrete_6ft if sched else 0 }}">
-                </td>
+                <th>Month</th>
+                <th>Black (7ft)</th>
+                <th>Black (6ft)</th>
+                <th>Grey (7ft)</th>
+                <th>Grey (6ft)</th>
+                <th>Oak (7ft)</th>
+                <th>Oak (6ft)</th>
+                <th>Grey Oak (7ft)</th>
+                <th>Grey Oak (6ft)</th>
+                <th>Concrete (7ft)</th>
+                <th>Concrete (6ft)</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {% for i in range(next_12_months|length) %}
+                {% set item = next_12_months[i] %}
+                {% set yr = item.year %}
+                {% set mo = item.month %}
+                {% set display_str = item.display_str %}
+                {% set sched = schedules_map.get((yr, mo)) %}
+                <tr>
+                  <!-- Use the preformatted display_str from Python (e.g., "December 2024") -->
+                  <td>{{ display_str }}</td>
+                  <td><input type="number" name="black_7ft_{{ i }}" value="{{ sched.black_7ft if sched else 0 }}"></td>
+                  <td><input type="number" name="black_6ft_{{ i }}" value="{{ sched.black_6ft if sched else 0 }}"></td>
+                  <td><input type="number" name="grey_7ft_{{ i }}" value="{{ sched.grey_7ft if sched else 0 }}"></td>
+                  <td><input type="number" name="grey_6ft_{{ i }}" value="{{ sched.grey_6ft if sched else 0 }}"></td>
+                  <td><input type="number" name="oak_7ft_{{ i }}" value="{{ sched.oak_7ft if sched else 0 }}"></td>
+                  <td><input type="number" name="oak_6ft_{{ i }}" value="{{ sched.oak_6ft if sched else 0 }}"></td>
+                  <td><input type="number" name="grey_oak_7ft_{{ i }}" value="{{ sched.grey_oak_7ft if sched else 0 }}"></td>
+                  <td><input type="number" name="grey_oak_6ft_{{ i }}" value="{{ sched.grey_oak_6ft if sched else 0 }}"></td>
+                  <td><input type="number" name="concrete_7ft_{{ i }}" value="{{ sched.concrete_7ft if sched else 0 }}"></td>
+                  <td><input type="number" name="concrete_6ft_{{ i }}" value="{{ sched.concrete_6ft if sched else 0 }}"></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div> <!-- end scroll-container -->
         <button type="submit" class="button">Save Schedule</button>
       </form>
     </div>
 
+    <!-- Back to main menu -->
     <div class="back-to-menu" style="margin-top: 20px;">
       <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
     </div>
