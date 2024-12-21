@@ -1585,38 +1585,31 @@ def working_days():
 
 @app.route('/production_schedule', methods=['GET', 'POST'])
 def production_schedule():
-    """
-    This route displays the next 12 months and allows you to set:
-      - Number of 7 ft tables
-      - Number of 6 ft tables
-      - Color split (text)
-    Then saves each month's plan into the ProductionSchedule table.
-    """
+    """Manage a 12-month schedule of tables to build (7ft, 6ft, color split)."""
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # Generate a list of (year, month) for the next 12 months
+    # Generate the next 12 months (year, month) pairs
     def get_next_12_months():
-        """Return a list of (year, month) tuples from current month to next 11 months."""
+        """Return a list of (year, month) tuples, starting from this month for 12 months."""
         months_list = []
-        current_date = date.today()
-        current_year = current_date.year
-        current_month = current_date.month
+        today_date = date.today()
+        start_year = today_date.year
+        start_month = today_date.month
         for i in range(12):
-            # Calculate year & month by offset
-            y = current_year + (current_month - 1 + i) // 12
-            m = (current_month - 1 + i) % 12 + 1
+            # Calculate offset by i months
+            y = start_year + (start_month - 1 + i) // 12
+            m = (start_month - 1 + i) % 12 + 1
             months_list.append((y, m))
         return months_list
 
     next_12_months = get_next_12_months()
 
     if request.method == 'POST':
-        # Process the form data for each of the 12 months
+        # Process the submitted form: update or create schedules
         for idx, (yr, mo) in enumerate(next_12_months):
-            # Example form fields: "tables_7ft_0", "tables_6ft_0", "color_split_0", etc.
-            # where 0 increments up to 11
+            # Form fields: "tables_7ft_0", "tables_6ft_0", "color_split_0", etc.
             tables_7ft_str = request.form.get(f"tables_7ft_{idx}", "0")
             tables_6ft_str = request.form.get(f"tables_6ft_{idx}", "0")
             color_split_str = request.form.get(f"color_split_{idx}", "")
@@ -1625,52 +1618,49 @@ def production_schedule():
                 tables_7ft = int(tables_7ft_str)
                 tables_6ft = int(tables_6ft_str)
             except ValueError:
-                # If someone typed a non-integer
-                flash(f"Invalid number entered for month {mo}/{yr}. Please enter whole numbers.", "error")
+                flash(f"Invalid number for {mo}/{yr}. Use whole numbers only.", "error")
                 return redirect(url_for('production_schedule'))
 
             # Find existing record or create a new one
-            schedule = (ProductionSchedule.query
-                        .filter_by(year=yr, month=mo)
-                        .first())
+            schedule = ProductionSchedule.query.filter_by(year=yr, month=mo).first()
             if schedule:
-                # Update existing record
                 schedule.tables_7ft = tables_7ft
                 schedule.tables_6ft = tables_6ft
                 schedule.color_split = color_split_str.strip()
             else:
-                # Create a new record
-                schedule = ProductionSchedule(
+                new_entry = ProductionSchedule(
                     year=yr,
                     month=mo,
                     tables_7ft=tables_7ft,
                     tables_6ft=tables_6ft,
                     color_split=color_split_str.strip()
                 )
-                db.session.add(schedule)
+                db.session.add(new_entry)
 
-        # Commit once after processing all 12 months
+        # Commit once after processing all months
         try:
             db.session.commit()
             flash("Production schedule updated successfully!", "success")
         except IntegrityError:
             db.session.rollback()
-            flash("Failed to update the production schedule (Integrity Error).", "error")
+            flash("Failed to update schedule (Integrity Error).", "error")
 
         return redirect(url_for('production_schedule'))
 
-    # ---- GET request: Retrieve existing schedules for display ----
+    # ---- GET request logic: fetch existing records for display ----
     schedules = ProductionSchedule.query.all()
-    # Build a dict so we can quickly look up a schedule for each (year, month)
+    # Map (year, month) -> ProductionSchedule object
     schedules_map = {}
-    for sched in schedules:
-        schedules_map[(sched.year, sched.month)] = sched
+    for s in schedules:
+        schedules_map[(s.year, s.month)] = s
 
+    # We'll pass these to the template so it can loop & prefill
     return render_template(
-        'production_schedule.html',   # You'll create this template
+        'production_schedule.html',
         next_12_months=next_12_months,
         schedules_map=schedules_map
     )
+
 
 
 
