@@ -121,52 +121,54 @@
             </tr>
           </thead>
           <tbody>
-            {% for (yr, mo) in next_12_months %}
-              {% set idx = loop.index0 %}
+            {% for i in range(next_12_months|length) %}
+              {% set item = next_12_months[i] %}
+              {% set yr = item.year %}
+              {% set mo = item.month %}
+              {% set display_str = item.display_str %}
               {% set sched = schedules_map.get((yr, mo)) %}
+              
               <tr>
-                <!-- Convert numeric year/month into 'December 2024' etc. -->
+                <!-- Use the display_str we generated in Python (e.g. "December 2024") -->
+                <td>{{ display_str }}</td>
                 <td>
-                  {{ (date(yr, mo, 1)|strftime("%B %Y")) }}
-                </td>
-                <td>
-                  <input type="number" name="black_7ft_{{ idx }}"
+                  <input type="number" name="black_7ft_{{ i }}"
                          value="{{ sched.black_7ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="black_6ft_{{ idx }}"
+                  <input type="number" name="black_6ft_{{ i }}"
                          value="{{ sched.black_6ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="grey_7ft_{{ idx }}"
+                  <input type="number" name="grey_7ft_{{ i }}"
                          value="{{ sched.grey_7ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="grey_6ft_{{ idx }}"
+                  <input type="number" name="grey_6ft_{{ i }}"
                          value="{{ sched.grey_6ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="oak_7ft_{{ idx }}"
+                  <input type="number" name="oak_7ft_{{ i }}"
                          value="{{ sched.oak_7ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="oak_6ft_{{ idx }}"
+                  <input type="number" name="oak_6ft_{{ i }}"
                          value="{{ sched.oak_6ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="grey_oak_7ft_{{ idx }}"
+                  <input type="number" name="grey_oak_7ft_{{ i }}"
                          value="{{ sched.grey_oak_7ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="grey_oak_6ft_{{ idx }}"
+                  <input type="number" name="grey_oak_6ft_{{ i }}"
                          value="{{ sched.grey_oak_6ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="concrete_7ft_{{ idx }}"
+                  <input type="number" name="concrete_7ft_{{ i }}"
                          value="{{ sched.concrete_7ft if sched else 0 }}">
                 </td>
                 <td>
-                  <input type="number" name="concrete_6ft_{{ idx }}"
+                  <input type="number" name="concrete_6ft_{{ i }}"
                          value="{{ sched.concrete_6ft if sched else 0 }}">
                 </td>
               </tr>
