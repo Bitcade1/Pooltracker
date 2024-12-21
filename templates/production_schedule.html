@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Production Schedule - Pool Table Tracker</title>
+    <!-- Link to your shared CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+
     <style>
         .collapsible {
             background-color: #007bff;
@@ -79,10 +81,11 @@
             background-color: #0056b3;
         }
     </style>
+
     <script>
         function toggleCollapsible(id) {
             var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
+            content.style.display = (content.style.display === "block") ? "none" : "block";
         }
     </script>
 </head>
@@ -107,8 +110,10 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Collapsible Section for the 12-Month Schedule Form -->
-        <button class="collapsible" onclick="toggleCollapsible('scheduleForm')">Manage 12-Month Schedule</button>
+        <!-- Collapsible section for the 12-month schedule form -->
+        <button class="collapsible" onclick="toggleCollapsible('scheduleForm')">
+            Manage 12-Month Schedule
+        </button>
         <div id="scheduleForm" class="collapsible-content">
             <form method="POST" action="{{ url_for('production_schedule') }}">
                 <table>
@@ -121,20 +126,28 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for i, (year, month) in enumerate(next_12_months) %}
+                        {% for (year, month) in next_12_months %}
+                            <!-- 
+                                Use loop.index0 for a 0-based index that matches
+                                how we read data in Python (tables_7ft_<i>).
+                             -->
+                            {% set idx = loop.index0 %}
                             {% set sched = schedules_map.get((year, month)) %}
                             <tr>
                                 <td>{{ month }}/{{ year }}</td>
                                 <td>
-                                    <input type="number" name="tables_7ft_{{ i }}" 
+                                    <input type="number"
+                                           name="tables_7ft_{{ idx }}"
                                            value="{{ sched.tables_7ft if sched else 0 }}">
                                 </td>
                                 <td>
-                                    <input type="number" name="tables_6ft_{{ i }}"
+                                    <input type="number"
+                                           name="tables_6ft_{{ idx }}"
                                            value="{{ sched.tables_6ft if sched else 0 }}">
                                 </td>
                                 <td>
-                                    <input type="text" name="color_split_{{ i }}"
+                                    <input type="text"
+                                           name="color_split_{{ idx }}"
                                            value="{{ sched.color_split if sched else '' }}">
                                 </td>
                             </tr>
@@ -145,8 +158,7 @@
             </form>
         </div>
 
-        <!-- Future collapsible sections could go here if you want 
-             (e.g., for an at-a-glance summary, monthly totals, etc.) -->
+        <!-- (Optionally add more collapsible sections for summaries, charts, etc.) -->
 
         <!-- Back to Menu Button -->
         <div class="back-to-menu" style="margin-top: 20px;">
