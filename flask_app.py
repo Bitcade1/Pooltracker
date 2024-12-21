@@ -109,19 +109,35 @@ class CushionCount(db.Model):
 class ProductionSchedule(db.Model):
     __tablename__ = 'production_schedule'
     id = db.Column(db.Integer, primary_key=True)
+
     year = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
-    tables_7ft = db.Column(db.Integer, default=0, nullable=False)
-    tables_6ft = db.Column(db.Integer, default=0, nullable=False)
-    color_split = db.Column(db.String(200), default='', nullable=True)
+
+    black_7ft = db.Column(db.Integer, default=0, nullable=False)
+    black_6ft = db.Column(db.Integer, default=0, nullable=False)
+
+    grey_7ft = db.Column(db.Integer, default=0, nullable=False)
+    grey_6ft = db.Column(db.Integer, default=0, nullable=False)
+
+    oak_7ft = db.Column(db.Integer, default=0, nullable=False)
+    oak_6ft = db.Column(db.Integer, default=0, nullable=False)
+
+    grey_oak_7ft = db.Column(db.Integer, default=0, nullable=False)
+    grey_oak_6ft = db.Column(db.Integer, default=0, nullable=False)
+
+    concrete_7ft = db.Column(db.Integer, default=0, nullable=False)
+    concrete_6ft = db.Column(db.Integer, default=0, nullable=False)
 
     def __repr__(self):
         return (
-            f"<ProductionSchedule "
-            f"year={self.year}, month={self.month}, "
-            f"7ft={self.tables_7ft}, 6ft={self.tables_6ft}, "
-            f"split='{self.color_split}'>"
+            f"<ProductionSchedule {self.month}/{self.year} "
+            f"Black7={self.black_7ft} Black6={self.black_6ft} "
+            f"Grey7={self.grey_7ft} Grey6={self.grey_6ft} "
+            f"Oak7={self.oak_7ft} Oak6={self.oak_6ft} "
+            f"GreyOak7={self.grey_oak_7ft} GreyOak6={self.grey_oak_6ft} "
+            f"Concrete7={self.concrete_7ft} Concrete6={self.concrete_6ft}>"
         )
+
 
 
 
@@ -1586,17 +1602,16 @@ def working_days():
         })
 
     return render_template("working_days.html", working_days_data=working_days_data)
+
 @app.route('/production_schedule', methods=['GET', 'POST'])
 def production_schedule():
-    """Manage a 12-month schedule of tables to build (7ft, 6ft, color split)."""
-    # 1. Ensure user is logged in
+    """Manage a 12-month schedule of tables in various colors/sizes."""
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # 2. Generate a list of (year, month) for the next 12 months
+    # Helper to get next 12 months as (year, month) tuples
     def get_next_12_months():
-        """Return a list of (year, month) tuples, starting from this month for 12 months."""
         months_list = []
         today_date = date.today()
         start_year = today_date.year
@@ -1609,41 +1624,64 @@ def production_schedule():
 
     next_12_months = get_next_12_months()
 
-    # 3. Handle POST (Form Submission)
+    # If POST, process the form inputs
     if request.method == 'POST':
-        # We loop by index in Python to line up with loop.index0 in Jinja
         for i in range(len(next_12_months)):
             (yr, mo) = next_12_months[i]
 
-            # Form fields expected: tables_7ft_i, tables_6ft_i, color_split_i
-            tables_7ft_str = request.form.get(f"tables_7ft_{i}", "0")
-            tables_6ft_str = request.form.get(f"tables_6ft_{i}", "0")
-            color_split_str = request.form.get(f"color_split_{i}", "")
+            # For each color + size, we read the form key like black_7ft_i
+            black_7ft_str = request.form.get(f"black_7ft_{i}", "0")
+            black_6ft_str = request.form.get(f"black_6ft_{i}", "0")
+
+            grey_7ft_str = request.form.get(f"grey_7ft_{i}", "0")
+            grey_6ft_str = request.form.get(f"grey_6ft_{i}", "0")
+
+            oak_7ft_str = request.form.get(f"oak_7ft_{i}", "0")
+            oak_6ft_str = request.form.get(f"oak_6ft_{i}", "0")
+
+            grey_oak_7ft_str = request.form.get(f"grey_oak_7ft_{i}", "0")
+            grey_oak_6ft_str = request.form.get(f"grey_oak_6ft_{i}", "0")
+
+            concrete_7ft_str = request.form.get(f"concrete_7ft_{i}", "0")
+            concrete_6ft_str = request.form.get(f"concrete_6ft_{i}", "0")
 
             try:
-                tables_7ft = int(tables_7ft_str)
-                tables_6ft = int(tables_6ft_str)
+                black_7ft = int(black_7ft_str)
+                black_6ft = int(black_6ft_str)
+
+                grey_7ft = int(grey_7ft_str)
+                grey_6ft = int(grey_6ft_str)
+
+                oak_7ft = int(oak_7ft_str)
+                oak_6ft = int(oak_6ft_str)
+
+                grey_oak_7ft = int(grey_oak_7ft_str)
+                grey_oak_6ft = int(grey_oak_6ft_str)
+
+                concrete_7ft = int(concrete_7ft_str)
+                concrete_6ft = int(concrete_6ft_str)
             except ValueError:
-                flash(f"Invalid number for month {mo}/{yr}. Use whole numbers only.", "error")
+                flash(f"Invalid number for {mo}/{yr}. Use whole numbers only.", "error")
                 return redirect(url_for('production_schedule'))
 
-            # Find existing schedule or create a new one
+            # Find existing record or create new
             schedule = ProductionSchedule.query.filter_by(year=yr, month=mo).first()
-            if schedule:
-                schedule.tables_7ft = tables_7ft
-                schedule.tables_6ft = tables_6ft
-                schedule.color_split = color_split_str.strip()
-            else:
-                new_schedule = ProductionSchedule(
-                    year=yr,
-                    month=mo,
-                    tables_7ft=tables_7ft,
-                    tables_6ft=tables_6ft,
-                    color_split=color_split_str.strip()
-                )
-                db.session.add(new_schedule)
+            if not schedule:
+                schedule = ProductionSchedule(year=yr, month=mo)
+                db.session.add(schedule)
 
-        # Commit changes for all 12 months
+            # Update columns
+            schedule.black_7ft = black_7ft
+            schedule.black_6ft = black_6ft
+            schedule.grey_7ft = grey_7ft
+            schedule.grey_6ft = grey_6ft
+            schedule.oak_7ft = oak_7ft
+            schedule.oak_6ft = oak_6ft
+            schedule.grey_oak_7ft = grey_oak_7ft
+            schedule.grey_oak_6ft = grey_oak_6ft
+            schedule.concrete_7ft = concrete_7ft
+            schedule.concrete_6ft = concrete_6ft
+
         try:
             db.session.commit()
             flash("Production schedule updated successfully!", "success")
@@ -1653,19 +1691,18 @@ def production_schedule():
 
         return redirect(url_for('production_schedule'))
 
-    # 4. Handle GET
-    # Fetch existing schedules; build a map: (year, month) -> ProductionSchedule
+    # For GET: load existing schedules
     schedules = ProductionSchedule.query.all()
     schedules_map = {}
     for sched in schedules:
         schedules_map[(sched.year, sched.month)] = sched
 
-    # 5. Render the template
     return render_template(
         'production_schedule.html',
         next_12_months=next_12_months,  # list of (year, month)
-        schedules_map=schedules_map     # dict for looking up existing data
+        schedules_map=schedules_map     # dictionary for pre-filling
     )
+
 
 
 
