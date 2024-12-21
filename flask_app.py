@@ -116,9 +116,13 @@ class ProductionSchedule(db.Model):
     color_split = db.Column(db.String(200), default='', nullable=True)
 
     def __repr__(self):
-        return (f"<ProductionSchedule "
-                f"year={self.year}, month={self.month}, "
-                f"7ft={self.tables_7ft}, 6ft={self.tables_6ft}, split='{self.color_split}'>")
+        return (
+            f"<ProductionSchedule "
+            f"year={self.year}, month={self.month}, "
+            f"7ft={self.tables_7ft}, 6ft={self.tables_6ft}, "
+            f"split='{self.color_split}'>"
+        )
+
 
 
 class HardwarePart(db.Model):
