@@ -1586,15 +1586,15 @@ def working_days():
         })
 
     return render_template("working_days.html", working_days_data=working_days_data)
-
 @app.route('/production_schedule', methods=['GET', 'POST'])
 def production_schedule():
     """Manage a 12-month schedule of tables to build (7ft, 6ft, color split)."""
+    # 1. Ensure user is logged in
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # Generate the next 12 months (year, month) pairs
+    # 2. Generate a list of (year, month) for the next 12 months
     def get_next_12_months():
         """Return a list of (year, month) tuples, starting from this month for 12 months."""
         months_list = []
@@ -1602,7 +1602,6 @@ def production_schedule():
         start_year = today_date.year
         start_month = today_date.month
         for i in range(12):
-            # Calculate offset by i months
             y = start_year + (start_month - 1 + i) // 12
             m = (start_month - 1 + i) % 12 + 1
             months_list.append((y, m))
@@ -1610,38 +1609,41 @@ def production_schedule():
 
     next_12_months = get_next_12_months()
 
+    # 3. Handle POST (Form Submission)
     if request.method == 'POST':
-        # Process the submitted form: update or create schedules
-        for idx, (yr, mo) in enumerate(next_12_months):
-            # Form fields: "tables_7ft_0", "tables_6ft_0", "color_split_0", etc.
-            tables_7ft_str = request.form.get(f"tables_7ft_{idx}", "0")
-            tables_6ft_str = request.form.get(f"tables_6ft_{idx}", "0")
-            color_split_str = request.form.get(f"color_split_{idx}", "")
+        # We loop by index in Python to line up with loop.index0 in Jinja
+        for i in range(len(next_12_months)):
+            (yr, mo) = next_12_months[i]
+
+            # Form fields expected: tables_7ft_i, tables_6ft_i, color_split_i
+            tables_7ft_str = request.form.get(f"tables_7ft_{i}", "0")
+            tables_6ft_str = request.form.get(f"tables_6ft_{i}", "0")
+            color_split_str = request.form.get(f"color_split_{i}", "")
 
             try:
                 tables_7ft = int(tables_7ft_str)
                 tables_6ft = int(tables_6ft_str)
             except ValueError:
-                flash(f"Invalid number for {mo}/{yr}. Use whole numbers only.", "error")
+                flash(f"Invalid number for month {mo}/{yr}. Use whole numbers only.", "error")
                 return redirect(url_for('production_schedule'))
 
-            # Find existing record or create a new one
+            # Find existing schedule or create a new one
             schedule = ProductionSchedule.query.filter_by(year=yr, month=mo).first()
             if schedule:
                 schedule.tables_7ft = tables_7ft
                 schedule.tables_6ft = tables_6ft
                 schedule.color_split = color_split_str.strip()
             else:
-                new_entry = ProductionSchedule(
+                new_schedule = ProductionSchedule(
                     year=yr,
                     month=mo,
                     tables_7ft=tables_7ft,
                     tables_6ft=tables_6ft,
                     color_split=color_split_str.strip()
                 )
-                db.session.add(new_entry)
+                db.session.add(new_schedule)
 
-        # Commit once after processing all months
+        # Commit changes for all 12 months
         try:
             db.session.commit()
             flash("Production schedule updated successfully!", "success")
@@ -1651,19 +1653,20 @@ def production_schedule():
 
         return redirect(url_for('production_schedule'))
 
-    # ---- GET request logic: fetch existing records for display ----
+    # 4. Handle GET
+    # Fetch existing schedules; build a map: (year, month) -> ProductionSchedule
     schedules = ProductionSchedule.query.all()
-    # Map (year, month) -> ProductionSchedule object
     schedules_map = {}
-    for s in schedules:
-        schedules_map[(s.year, s.month)] = s
+    for sched in schedules:
+        schedules_map[(sched.year, sched.month)] = sched
 
-    # We'll pass these to the template so it can loop & prefill
+    # 5. Render the template
     return render_template(
         'production_schedule.html',
-        next_12_months=next_12_months,
-        schedules_map=schedules_map
+        next_12_months=next_12_months,  # list of (year, month)
+        schedules_map=schedules_map     # dict for looking up existing data
     )
+
 
 
 
