@@ -145,6 +145,7 @@ class HardwarePart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     initial_count = db.Column(db.Integer, default=0)
+    used_per_table = db.Column(db.Integer, default=0)
 
 @app.route('/logout')
 def logout():
@@ -677,22 +678,48 @@ def counting_hardware():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-# Fetch all hardware parts from the database instead of using a static list
+    # 1. Fetch all hardware parts from the database
     hardware_parts = HardwarePart.query.all()
 
-    # Initialize or retrieve the count for each part
-    hardware_counts = {part.name: part.initial_count for part in hardware_parts}
+    # 2. Build a dictionary of the latest known counts (or initial_count if none recorded)
+    hardware_counts = {}
     for part in hardware_parts:
-        latest_entry = db.session.query(PrintedPartsCount.count).filter_by(part_name=part.name).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        latest_entry = (db.session.query(PrintedPartsCount.count)
+                        .filter_by(part_name=part.name)
+                        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                        .first())
         hardware_counts[part.name] = latest_entry[0] if latest_entry else part.initial_count
 
+    # 3. Handle POST requests
     if request.method == 'POST':
+        # ------------------------------------------------------
+        # A) UPDATE "USED PER TABLE" for a hardware part
+        # ------------------------------------------------------
+        if 'update_usage_per_table' in request.form:
+            part_name = request.form['part_name']
+            new_usage = int(request.form['usage_per_table'])
+
+            # Find the HardwarePart in the database
+            hardware_part = HardwarePart.query.filter_by(name=part_name).first()
+            if hardware_part:
+                hardware_part.used_per_table = new_usage
+                db.session.commit()
+                flash(f"Updated usage for '{part_name}' to {new_usage} per table.", "success")
+            else:
+                flash(f"Hardware part '{part_name}' not found.", "error")
+
+            return redirect(url_for('counting_hardware'))
+
+        # ------------------------------------------------------
+        # B) INCREMENT / DECREMENT / BULK UPDATE the count
+        # ------------------------------------------------------
         part = request.form['hardware_part']
         action = request.form['action']
         amount = int(request.form['amount']) if 'amount' in request.form else 1
 
         if part in hardware_counts:
             current_count = hardware_counts[part]
+
             if action == 'increment':
                 new_count = current_count + 1
             elif action == 'decrement' and current_count > 0:
@@ -706,14 +733,24 @@ def counting_hardware():
                 return redirect(url_for('counting_hardware'))
 
             # Update database with the new count
-            new_entry = PrintedPartsCount(part_name=part, count=new_count, date=datetime.utcnow().date(), time=datetime.utcnow().time())
+            new_entry = PrintedPartsCount(
+                part_name=part,
+                count=new_count,
+                date=datetime.utcnow().date(),
+                time=datetime.utcnow().time()
+            )
             db.session.add(new_entry)
             db.session.commit()
 
             flash(f"{part} updated successfully! New count: {new_count}", "success")
             hardware_counts[part] = new_count
 
-    return render_template('counting_hardware.html', hardware_parts=hardware_parts, hardware_counts=hardware_counts)
+    # 4. Render the template
+    return render_template(
+        'counting_hardware.html',
+        hardware_parts=hardware_parts,
+        hardware_counts=hardware_counts
+    )
     
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from datetime import datetime, date
