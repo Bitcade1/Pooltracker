@@ -145,7 +145,7 @@ class HardwarePart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     initial_count = db.Column(db.Integer, default=0)
-    used_per_table = db.Column(db.Float, default=0.0)
+    used_per_table = db.Column(db.Float, default=0.0000)
 
 @app.route('/logout')
 def logout():
