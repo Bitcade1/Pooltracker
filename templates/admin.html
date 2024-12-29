@@ -121,11 +121,14 @@
                 <h3>Current Inventory</h3>
                 <p>Plain MDF: {{ inventory.plain_mdf }}</p>
                 <p>Black MDF: {{ inventory.black_mdf }}</p>
+
                 <h3>Add to Inventory</h3>
                 <label for="additional_plain_mdf">Additional Plain MDF:</label>
                 <input type="number" id="additional_plain_mdf" name="additional_plain_mdf" placeholder="Enter amount" required>
+
                 <label for="additional_black_mdf">Additional Black MDF:</label>
                 <input type="number" id="additional_black_mdf" name="additional_black_mdf" placeholder="Enter amount" required>
+
                 <button type="submit" class="button">Update Inventory</button>
             </form>
         </div>
@@ -133,12 +136,22 @@
         <!-- Add New Hardware Parts Section -->
         <button class="collapsible" onclick="toggleCollapsible('addHardwareParts')">Add New Hardware Parts</button>
         <div id="addHardwareParts" class="collapsible-content">
+            <!-- 
+                 The key here is that we have:
+                 1) "method=POST" 
+                 2) "action={{ url_for('admin') }}" 
+                 3) a hidden input "add_hardware_part" to indicate 
+                    that this form is for adding a new hardware part 
+            -->
             <form method="POST" action="{{ url_for('admin') }}">
                 <input type="hidden" name="add_hardware_part" value="true">
+
                 <label for="new_hardware_part">Hardware Part Name:</label>
                 <input type="text" id="new_hardware_part" name="new_hardware_part" placeholder="Enter hardware part name" required>
+
                 <label for="initial_hardware_count">Initial Count:</label>
                 <input type="number" id="initial_hardware_count" name="initial_hardware_count" min="0" placeholder="Enter initial count" required>
+
                 <button type="submit" class="button">Add Hardware Part</button>
             </form>
         </div>
