@@ -145,7 +145,7 @@ class HardwarePart(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     initial_count = db.Column(db.Integer, default=0)
-    used_per_table = db.Column(db.Integer, default=0)
+    used_per_table = db.Column(db.Float, default=0.0)
 
 @app.route('/logout')
 def logout():
@@ -668,6 +668,7 @@ def counting_chinese_parts():
         selected_part=selected_part
     )
 
+
 @app.route('/counting_hardware', methods=['GET', 'POST'])
 def counting_hardware():
     if 'worker' not in session:
@@ -691,15 +692,17 @@ def counting_hardware():
         action = request.form.get('action')
 
         # ------------------------------------------------------
-        # A) UPDATE "USED PER TABLE" for a hardware part
+        # A) UPDATE "USED PER TABLE" for a hardware part (as float)
         # ------------------------------------------------------
         if action == 'update_usage':
             part_name = request.form['hardware_part']
             new_usage_str = request.form.get('usage_per_table', '0')
+
             try:
-                new_usage = int(new_usage_str)
+                # Convert usage to float to allow decimals like 0.5
+                new_usage = float(new_usage_str)
             except ValueError:
-                flash("Please provide a valid integer for 'Used Per Table'.", "error")
+                flash("Please provide a valid number (integer or decimal) for 'Used Per Table'.", "error")
                 return redirect(url_for('counting_hardware'))
 
             # Find the HardwarePart in the database
@@ -726,6 +729,7 @@ def counting_hardware():
                 flash("Please provide a valid integer for bulk amount.", "error")
                 return redirect(url_for('counting_hardware'))
 
+            # Validate the selected part
             if part_name not in hardware_counts:
                 flash("Invalid hardware part selected.", "error")
                 return redirect(url_for('counting_hardware'))
@@ -748,7 +752,7 @@ def counting_hardware():
                     return redirect(url_for('counting_hardware'))
                 new_count = potential_new_count
 
-            # Update the database with the new count
+            # Record the new count in the PrintedPartsCount table
             new_entry = PrintedPartsCount(
                 part_name=part_name,
                 count=new_count,
@@ -760,7 +764,7 @@ def counting_hardware():
 
             flash(f"{part_name} updated successfully! New count: {new_count}", "success")
 
-            # Update local dict so it's accurate for immediate re-render
+            # Update local dict so it's accurate for this page load
             hardware_counts[part_name] = new_count
 
     # 4. Render the template
