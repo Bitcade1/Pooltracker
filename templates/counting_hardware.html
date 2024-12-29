@@ -9,24 +9,45 @@
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .form-group { margin-bottom: 20px; }
         .form-group label { font-weight: bold; }
-        .count-display { font-size: 1.5em; margin: 10px 0; }
+        .count-display { font-size: 1.2em; margin: 10px 0; }
         .buttons { display: flex; gap: 10px; margin-bottom: 20px; }
         .buttons button { padding: 10px 15px; font-size: 1em; cursor: pointer; }
         .menu-link { margin-top: 20px; }
-        .menu-button { display: block; width: 100%; text-align: center; padding: 10px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; }
+        .menu-button {
+            display: block;
+            width: 100%;
+            text-align: center;
+            padding: 10px;
+            background-color: #6c757d;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
         .menu-button:hover { background-color: #5a6268; }
     </style>
+
     <script>
-        // JavaScript function to update the count display based on selected part
+        // We have two maps: counts (current stock) and usage (used per table).
+        const counts = {{ hardware_counts|tojson }};
+        const usage = {
+            {% for part in hardware_parts %}
+                "{{ part.name }}": {{ part.used_per_table if part.used_per_table else 0 }},
+            {% endfor %}
+        };
+
+        // Update the "Current Stock" and "Used Per Table" displays when a part is selected
         function updateCountDisplay() {
             const selectedPart = document.getElementById("hardware_part").value;
-            const counts = {{ hardware_counts|tojson }};
             const countDisplay = document.getElementById("count-display");
+            const usageDisplay = document.getElementById("usage-display");
+
             countDisplay.innerText = counts[selectedPart] || 0;
+            usageDisplay.innerText = usage[selectedPart] || 0;
         }
     </script>
 </head>
-<body>
+<body onload="updateCountDisplay()">
     <div class="container">
         <h1>Counting Hardware</h1>
 
@@ -41,8 +62,9 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Dropdown and Display for Hardware Part Selection -->
+        <!-- SINGLE FORM FOR ALL ACTIONS -->
         <form method="POST" action="{{ url_for('counting_hardware') }}">
+            <!-- 1) Hardware Part Selection -->
             <div class="form-group">
                 <label for="hardware_part">Select Hardware Part:</label>
                 <select name="hardware_part" id="hardware_part" onchange="updateCountDisplay()" required>
@@ -52,21 +74,36 @@
                 </select>
             </div>
 
+            <!-- 2) Current Stock Display -->
             <div class="count-display">
-                <strong>Current Stock:</strong> <span id="count-display">{{ hardware_counts[hardware_parts[0].name] }}</span>
+                <strong>Current Stock:</strong> 
+                <span id="count-display">0</span>
             </div>
 
-            <!-- Increment and Decrement Buttons -->
+            <!-- 3) Used Per Table Display -->
+            <div class="count-display">
+                <strong>Used Per Table:</strong> 
+                <span id="usage-display">0</span>
+            </div>
+
+            <!-- 4) Increment and Decrement Buttons -->
             <div class="buttons">
                 <button type="submit" name="action" value="increment">▲ Increment</button>
                 <button type="submit" name="action" value="decrement">▼ Decrement</button>
             </div>
 
-            <!-- Bulk Input Field -->
+            <!-- 5) Bulk Adjustment Field -->
             <div class="form-group">
                 <label for="amount">Bulk Adjustment (positive to add, negative to reduce):</label>
-                <input type="number" name="amount" placeholder="Enter bulk amount" min="1" required>
+                <input type="number" name="amount" placeholder="Enter bulk amount" required>
                 <button type="submit" name="action" value="bulk">Apply Bulk Adjustment</button>
+            </div>
+
+            <!-- 6) Update "Used Per Table" Field -->
+            <div class="form-group">
+                <label for="usage_per_table">Set/Update Used Per Table:</label>
+                <input type="number" name="usage_per_table" id="usage_per_table" min="0" placeholder="e.g. 2">
+                <button type="submit" name="action" value="update_usage">Update Usage</button>
             </div>
         </form>
 
