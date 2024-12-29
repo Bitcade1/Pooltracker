@@ -558,8 +558,6 @@ for hp in hardware_parts:
 # Now 'hardware_counts' is a dict like {"M10x13mm Tee Nut": 42, "M10 x 40...": 100, ...}
 # which you can pass to your template or use in further calculations.
 
-
-
     # Initialize or retrieve counts for each hardware part
     hardware_counts = {part: 0 for part in hardware_parts}
     for part in hardware_parts:
@@ -568,7 +566,6 @@ for hp in hardware_parts:
 
     return render_template(
         'inventory.html',
-        inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
         parts_used_this_month=parts_used_this_month,
         parts_status=parts_status,
