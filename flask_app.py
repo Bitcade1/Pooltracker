@@ -537,7 +537,7 @@ def inventory():
 
  # 3) TABLE PARTS
     #    Instead of a dict, fetch them as category='table_part' in HardwarePart.
-    name = HardwarePart.query.filter_by(category='table_part').all()
+    table_part = HardwarePart.query.filter_by(category='name').all()
 
     table_parts_counts = {}
     for tp in table_parts:
