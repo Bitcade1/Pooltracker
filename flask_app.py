@@ -535,12 +535,29 @@ def inventory():
     tables_possible_per_part = {part: table_parts_counts[part] // req_per_table for part, req_per_table in table_parts.items()}
     max_tables_possible = min(tables_possible_per_part.values())
 
- # Hardware Parts Section
-    hardware_parts = [
-        "M10x13mm Tee Nut", "M10 x 40 Socket Cap Screw", "4.2 x 16 No2 Self Tapping Screw",
-        "4.0 x 50mm Wood Screw", "4.0 x 25mm Wood Screw", "M5 x 18 x 1.25 Penny Mudguard Washer",
-        "M10 Washer", "M5 x 20 Socket Cap Screw", "4.8x32mm Self Tapping Screw", "4.8x16mm Self Tapping Screw", "3.5mm x 16mm Wood Screws", "Latch", "Catch Plate", "Black staples", "Nail 10mm", "Nail 35mm"
-    ]
+# Hardware Parts Section
+
+# 1) Instead of a list, query your HardwarePart table.
+#    For example, filter by category="hardware" if you only want hardware parts:
+hardware_parts = HardwarePart.query.filter_by(category='hardware').all()
+
+# 2) Build a dictionary of counts keyed by part name
+hardware_counts = {}
+
+for hp in hardware_parts:
+    # Find the latest entry for this hardware part in PrintedPartsCount
+    latest_entry = (
+        db.session.query(PrintedPartsCount.count)
+        .filter_by(part_name=hp.name)
+        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+        .first()
+    )
+    # If there's no entry, default to hp.initial_count
+    hardware_counts[hp.name] = latest_entry[0] if latest_entry else hp.initial_count
+
+# Now 'hardware_counts' is a dict like {"M10x13mm Tee Nut": 42, "M10 x 40...": 100, ...}
+# which you can pass to your template or use in further calculations.
+
 
 
     # Initialize or retrieve counts for each hardware part
