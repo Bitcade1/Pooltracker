@@ -668,9 +668,10 @@ def counting_chinese_parts():
         selected_part=selected_part
     )
 
-
-
-
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from datetime import datetime
+from your_app import app, db
+from your_app.models import HardwarePart, PrintedPartsCount
 
 @app.route('/counting_hardware', methods=['GET', 'POST'])
 def counting_hardware():
@@ -678,7 +679,7 @@ def counting_hardware():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # 1. Fetch all hardware parts from the database
+    # 1. Fetch all hardware parts
     hardware_parts = HardwarePart.query.all()
 
     # 2. Build a dictionary of the latest known counts (or initial_count if none recorded)
@@ -690,14 +691,21 @@ def counting_hardware():
                         .first())
         hardware_counts[part.name] = latest_entry[0] if latest_entry else part.initial_count
 
-    # 3. Handle POST requests
+    # 3. Handle POST actions
     if request.method == 'POST':
+        action = request.form.get('action')
+
         # ------------------------------------------------------
         # A) UPDATE "USED PER TABLE" for a hardware part
         # ------------------------------------------------------
-        if 'update_usage_per_table' in request.form:
-            part_name = request.form['part_name']
-            new_usage = int(request.form['usage_per_table'])
+        if action == 'update_usage':
+            part_name = request.form['hardware_part']
+            new_usage_str = request.form.get('usage_per_table', '0')
+            try:
+                new_usage = int(new_usage_str)
+            except ValueError:
+                flash("Please provide a valid integer for 'Used Per Table'.", "error")
+                return redirect(url_for('counting_hardware'))
 
             # Find the HardwarePart in the database
             hardware_part = HardwarePart.query.filter_by(name=part_name).first()
@@ -713,28 +721,41 @@ def counting_hardware():
         # ------------------------------------------------------
         # B) INCREMENT / DECREMENT / BULK UPDATE the count
         # ------------------------------------------------------
-        part = request.form['hardware_part']
-        action = request.form['action']
-        amount = int(request.form['amount']) if 'amount' in request.form else 1
+        elif action in ['increment', 'decrement', 'bulk']:
+            part_name = request.form['hardware_part']
+            # For increment/decrement, default to 1; for bulk, read from 'amount'
+            amount_str = request.form.get('amount', '1')
+            try:
+                amount = int(amount_str)
+            except ValueError:
+                flash("Please provide a valid integer for bulk amount.", "error")
+                return redirect(url_for('counting_hardware'))
 
-        if part in hardware_counts:
-            current_count = hardware_counts[part]
+            if part_name not in hardware_counts:
+                flash("Invalid hardware part selected.", "error")
+                return redirect(url_for('counting_hardware'))
+
+            current_count = hardware_counts[part_name]
 
             if action == 'increment':
                 new_count = current_count + 1
-            elif action == 'decrement' and current_count > 0:
-                new_count = current_count - 1
-            elif action == 'bulk' and amount > 0:
-                new_count = current_count + amount
-            elif action == 'bulk' and amount < 0 and current_count >= abs(amount):
-                new_count = current_count + amount
-            else:
-                flash("Invalid operation or insufficient stock.", "error")
-                return redirect(url_for('counting_hardware'))
+            elif action == 'decrement':
+                if current_count > 0:
+                    new_count = current_count - 1
+                else:
+                    flash("Cannot decrement; no stock left.", "error")
+                    return redirect(url_for('counting_hardware'))
+            elif action == 'bulk':
+                # Positive for adding, negative for subtracting
+                potential_new_count = current_count + amount
+                if potential_new_count < 0:
+                    flash("Insufficient stock for that bulk reduction.", "error")
+                    return redirect(url_for('counting_hardware'))
+                new_count = potential_new_count
 
-            # Update database with the new count
+            # Update the database with the new count
             new_entry = PrintedPartsCount(
-                part_name=part,
+                part_name=part_name,
                 count=new_count,
                 date=datetime.utcnow().date(),
                 time=datetime.utcnow().time()
@@ -742,8 +763,10 @@ def counting_hardware():
             db.session.add(new_entry)
             db.session.commit()
 
-            flash(f"{part} updated successfully! New count: {new_count}", "success")
-            hardware_counts[part] = new_count
+            flash(f"{part_name} updated successfully! New count: {new_count}", "success")
+
+            # Update local dict so it's accurate for immediate re-render
+            hardware_counts[part_name] = new_count
 
     # 4. Render the template
     return render_template(
@@ -751,6 +774,11 @@ def counting_hardware():
         hardware_parts=hardware_parts,
         hardware_counts=hardware_counts
     )
+
+
+
+
+
     
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from datetime import datetime, date
