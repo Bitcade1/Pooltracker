@@ -236,18 +236,27 @@ def admin():
         else:
             flash("Issue not found.", "error")
 
-    # Add new hardware part
+ # Fetch all existing hardware parts from the database
+    hardware_parts = HardwarePart.query.all()
+
+    # Check if user wants to add a new hardware part
     if request.method == 'POST' and 'new_hardware_part' in request.form:
         new_part_name = request.form['new_hardware_part'].strip()
         initial_count = int(request.form['initial_hardware_count'])
-        
-        if HardwarePart.query.filter_by(name=new_part_name).first():
+
+        # Check if part with the same name already exists
+        existing_part = HardwarePart.query.filter_by(name=new_part_name).first()
+        if existing_part:
             flash("Hardware part already exists.", "error")
         else:
+            # Create and save the new hardware part
             new_part = HardwarePart(name=new_part_name, initial_count=initial_count)
             db.session.add(new_part)
             db.session.commit()
             flash(f"Hardware part '{new_part_name}' added successfully!", "success")
+
+        # After adding a new part (or hitting an error), redirect or re-render
+        return redirect(url_for('admin'))
 
     inventory = MDFInventory.query.first()
     if not inventory:
