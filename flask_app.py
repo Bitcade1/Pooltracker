@@ -468,17 +468,6 @@ def counting_3d_printing_parts():
 
     return render_template('counting_3d_printing_parts.html', parts_counts=parts_counts)
 
-from flask import render_template, request, redirect, url_for, session, flash
-from datetime import datetime
-from sqlalchemy import func, extract
-from your_app import app, db
-from your_app.models import (
-    PrintedPartsCount,
-    WoodCount,
-    CompletedTable,
-    HardwarePart
-)
-
 @app.route('/inventory', methods=['GET', 'POST'])
 def inventory():
     if 'worker' not in session:
