@@ -522,7 +522,7 @@ def inventory():
         "White ball return trim": 1, "Color ball trim": 1, "Ball window trim": 1,
         "Aluminum corner": 4, "Chrome corner": 4, "Top rail trim short length": 1,
         "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1, "Ramp 918mm": 1, "Ramp 376mm": 1,
-        "Chrome handles": 1, "Center pockets": 2, "Corner pockets": 4
+        "Chrome handles": 1, "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
     }
 
     # Retrieve counts for each Table Part
@@ -573,7 +573,7 @@ def counting_chinese_parts():
         "White ball return trim", "Color ball trim", "Ball window trim",
         "Aluminum corner", "Chrome corner", "Top rail trim short length",
         "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm",
-        "Chrome handles", "Center pockets", "Corner pockets", "Ramp 376mm"
+        "Chrome handles", "Center pockets", "Corner pockets", "Ramp 376mm", "Sticker Set"
     ]
 
     def get_table_parts_counts():
