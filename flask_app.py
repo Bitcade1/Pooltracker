@@ -535,12 +535,19 @@ def inventory():
     tables_possible_per_part = {part: table_parts_counts[part] // req_per_table for part, req_per_table in table_parts.items()}
     max_tables_possible = min(tables_possible_per_part.values())
 
-    # Hardware Parts Section
-    hardware_parts = [
-        "M10x13mm Tee Nut", "M10 x 40 Socket Cap Screw", "4.2 x 16 No2 Self Tapping Screw",
-        "4.0 x 50mm Wood Screw", "4.0 x 25mm Wood Screw", "M5 x 18 x 1.25 Penny Mudguard Washer",
-        "M10 Washer", "M5 x 20 Socket Cap Screw", "4.8x32mm Self Tapping Screw", "4.8x16mm Self Tapping Screw", "3.5mm x 16mm Wood Screws", "Latch", "Catch Plate", "Black staples", "Nail 10mm", "Nail 35mm"
-    ]
+ # 3) TABLE PARTS
+    #    Instead of a dict, fetch them as category='table_part' in HardwarePart.
+    table_parts = HardwarePart.query.filter_by(category='table_part').all()
+
+    table_parts_counts = {}
+    for tp in table_parts:
+        latest_entry = (
+            db.session.query(PrintedPartsCount.count)
+            .filter_by(part_name=tp.name)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first()
+        )
+        table_parts_counts[tp.name] = latest_entry[0] if latest_entry else tp.initial_count
 
     # Initialize or retrieve counts for each hardware part
     hardware_counts = {part: 0 for part in hardware_parts}
