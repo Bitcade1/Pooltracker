@@ -668,11 +668,6 @@ def counting_chinese_parts():
         selected_part=selected_part
     )
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from datetime import datetime
-from your_app import app, db
-from your_app.models import HardwarePart, PrintedPartsCount
-
 @app.route('/counting_hardware', methods=['GET', 'POST'])
 def counting_hardware():
     if 'worker' not in session:
