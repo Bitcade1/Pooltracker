@@ -1183,6 +1183,7 @@ def counting_wood():
         weekly_summary=weekly_summary
     )
 
+
 @app.route('/counting_cushions', methods=['GET', 'POST'])
 def counting_cushions():
     if 'worker' not in session:
@@ -1191,13 +1192,18 @@ def counting_cushions():
 
     today = datetime.utcnow().date()
 
+    # ---------------------------------------
+    # 1. Handle form submissions
+    # ---------------------------------------
     if request.method == 'POST':
+        # If 'reset' button is pressed, delete today's records
         if 'reset' in request.form:
             db.session.query(CushionCount).filter(CushionCount.date == today).delete()
             db.session.commit()
             flash("All counts reset successfully!", "success")
             return redirect(url_for('counting_cushions'))
 
+        # Otherwise, increment a cushion_type count
         cushion_type = request.form.get('cushion_type')
         if cushion_type:
             new_cushion_count = CushionCount(cushion_type=cushion_type)
@@ -1209,25 +1215,62 @@ def counting_cushions():
 
         return redirect(url_for('counting_cushions'))
 
+    # ---------------------------------------
+    # 2. Show daily counts (for today)
+    # ---------------------------------------
     daily_counts = db.session.query(
         CushionCount.cushion_type,
         func.count(CushionCount.id).label('total')
-    ).filter(CushionCount.date == today).group_by(CushionCount.cushion_type).all()
+    ).filter(
+        CushionCount.date == today
+    ).group_by(
+        CushionCount.cushion_type
+    ).all()
 
+    # ---------------------------------------
+    # 3. Weekly counts for the last 4 weeks
+    # ---------------------------------------
+    # Calculate the cutoff date (4 weeks ago)
+    four_weeks_ago = today - timedelta(weeks=4)
+
+    # Query weekly data from the last 4 weeks
     weekly_counts = db.session.query(
         func.strftime('%Y', CushionCount.date).label('year'),
         func.strftime('%W', CushionCount.date).label('week_number'),
         CushionCount.cushion_type,
         func.count(CushionCount.id).label('total')
-    ).group_by('year', 'week_number', 'cushion_type').order_by('year', 'week_number').all()
+    ).filter(
+        CushionCount.date >= four_weeks_ago
+    ).group_by(
+        'year', 'week_number', 'cushion_type'
+    ).order_by(
+        'year', 'week_number'
+    ).all()
 
+    # Convert query results into a dictionary like:
+    #   {
+    #       "January 6th to 10th": {
+    #           "1": total_count_for_type1,
+    #           "2": total_count_for_type2,
+    #           ...
+    #       },
+    #       ...
+    #   }
     grouped_weekly_counts = {}
-    for year, week_number, cushion_type, total in weekly_counts:
-        key = f"Week {week_number}, {year}"
-        if key not in grouped_weekly_counts:
-            grouped_weekly_counts[key] = {}
-        grouped_weekly_counts[key][cushion_type] = total
+    for year_str, week_str, cushion_type, total in weekly_counts:
+        year_int = int(year_str)
+        week_int = int(week_str)
 
+        # Create a label like "January 6th to 10th"
+        week_label = get_week_label(year_int, week_int)
+
+        if week_label not in grouped_weekly_counts:
+            grouped_weekly_counts[week_label] = {}
+        grouped_weekly_counts[week_label][cushion_type] = total
+
+    # ---------------------------------------
+    # 4. Average times for each cushion type (today)
+    # ---------------------------------------
     avg_times = {}
     for c_type in ['1', '2', '3', '4', '5', '6']:
         times = db.session.query(CushionCount.time).filter(
@@ -1253,6 +1296,50 @@ def counting_cushions():
         grouped_weekly_counts=grouped_weekly_counts,
         avg_times=avg_times
     )
+
+def get_week_label(year: int, week: int) -> str:
+    """
+    Given a year and a week number, returns a label like
+    'January 6th to 10th' (Mon-Fri).
+    """
+    # By default, '%W' uses Monday as the first day of the week.
+    # Construct the Monday date for the given year/week:
+    monday = datetime.strptime(f"{year}-W{week}-1", "%Y-W%W-%w").date()
+
+    # Friday is 4 days after Monday
+    friday = monday + timedelta(days=4)
+
+    # Format them into "Month daySuffix" style
+    monday_str = f"{monday.strftime('%B')} {day_suffix(monday.day)}"
+    friday_str = f"{friday.strftime('%B')} {day_suffix(friday.day)}"
+
+    # If both are in the same month, no need to repeat the month name
+    if monday.month == friday.month:
+        # e.g. "January 6th to 10th"
+        return f"{monday_str} to {day_suffix(friday.day)}"
+    else:
+        # Different months, show both, e.g. "January 30th to February 3rd"
+        return f"{monday_str} to {friday_str}"
+
+def day_suffix(day: int) -> str:
+    """
+    Returns the ordinal suffix for a given day of the month.
+    e.g., 1 -> '1st', 2 -> '2nd', 3 -> '3rd', 21 -> '21st', etc.
+    """
+    # Teens (11th, 12th, 13th) always end in "th"
+    if 11 <= day % 100 <= 13:
+        return f"{day}th"
+    # Otherwise, determine suffix by last digit
+    last_digit = day % 10
+    if last_digit == 1:
+        return f"{day}st"
+    elif last_digit == 2:
+        return f"{day}nd"
+    elif last_digit == 3:
+        return f"{day}rd"
+    else:
+        return f"{day}th"
+
 
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
