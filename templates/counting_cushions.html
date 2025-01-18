@@ -65,9 +65,45 @@
         .reset-button:hover {
             background-color: #c82333;
         }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
-        th { background-color: #f2f2f2; }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+        }
+        th, td { 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            text-align: center; 
+        }
+        th { 
+            background-color: #f2f2f2; 
+        }
+        .back-to-menu {
+            margin-top: 20px;
+        }
+        .menu-button {
+            background-color: #6c757d;
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+        }
+        .menu-button:hover {
+            background-color: #5a6268;
+        }
+        .flash-messages p {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -104,7 +140,9 @@
         </form>
 
         <!-- Collapsible Daily Totals Table -->
-        <button class="collapsible" onclick="toggleCollapsible('dailyTotals')">Daily Cushion Counts</button>
+        <button class="collapsible" onclick="toggleCollapsible('dailyTotals')">
+            Daily Cushion Counts
+        </button>
         <div id="dailyTotals" class="collapsible-content">
             <table>
                 <thead>
@@ -128,8 +166,10 @@
             </table>
         </div>
 
-        <!-- Collapsible Weekly Totals Table -->
-        <button class="collapsible" onclick="toggleCollapsible('weeklyTotals')">Weekly Cushion Counts</button>
+        <!-- Collapsible Weekly Totals Table (Last 4 Weeks) -->
+        <button class="collapsible" onclick="toggleCollapsible('weeklyTotals')">
+            Weekly Cushion Counts (Last 4 Weeks)
+        </button>
         <div id="weeklyTotals" class="collapsible-content">
             {% for week, counts in grouped_weekly_counts.items() %}
                 <h3>{{ week }}</h3>
@@ -153,7 +193,9 @@
         </div>
 
         <!-- Collapsible Average Time Per Cushion Table -->
-        <button class="collapsible" onclick="toggleCollapsible('avgTimeTotals')">Average Time Per Cushion</button>
+        <button class="collapsible" onclick="toggleCollapsible('avgTimeTotals')">
+            Average Time Per Cushion
+        </button>
         <div id="avgTimeTotals" class="collapsible-content">
             <table>
                 <thead>
@@ -175,7 +217,9 @@
 
         <!-- Separate Reset Button Form -->
         <form method="POST" action="{{ url_for('counting_cushions') }}">
-            <button type="submit" name="reset" value="reset" class="reset-button">Reset Counts</button>
+            <button type="submit" name="reset" value="reset" class="reset-button">
+                Reset Counts
+            </button>
         </form>
 
         <!-- Back to Menu Button -->
