@@ -1374,21 +1374,32 @@ def predicted_finish():
 
     return render_template('predicted_finish.html')
 
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from sqlalchemy import func, extract
+from sqlalchemy.exc import IntegrityError
+from calendar import monthrange
+from datetime import date, datetime
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
+    # 1. Check for logged-in user
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    # 2. Pull data needed for rendering
     issues = [issue.description for issue in Issue.query.all()]
 
+    # Query pods that are not yet converted
     unconverted_pods = CompletedPods.query.filter(
         ~CompletedPods.serial_number.in_(
             db.session.query(CompletedTable.serial_number)
         )
     ).all()
 
+    # 3. Handle form submission
     if request.method == 'POST':
+        # Get worker from session (rather than form) and other form data
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
@@ -1396,9 +1407,36 @@ def bodies():
         issue = request.form['issue']
         lunch = request.form['lunch']
 
-        # Deduct parts logic remains as in original code
-        # ...
+        # ---------------------------
+        # PARTS DEDUCTION LOGIC (restored from old code)
+        # ---------------------------
+        parts_to_deduct = {
+            "Large Ramp": 1,
+            "Paddle": 1,
+            "Laminate": 4,
+            "Spring Mount": 1,
+            "Spring Holder": 1,
+            "Small Ramp": 1,
+            "Cue Ball Separator": 1,
+            "Bushing": 2
+        }
 
+        for part_name, quantity_needed in parts_to_deduct.items():
+            part_entry = PrintedPartsCount.query.filter_by(
+                part_name=part_name
+            ).order_by(PrintedPartsCount.date.desc()).first()
+
+            if part_entry and part_entry.count >= quantity_needed:
+                part_entry.count -= quantity_needed
+            else:
+                flash(f"Not enough inventory for {part_name} to complete the body!", "error")
+                return redirect(url_for('bodies'))
+
+        # Commit inventory changes before creating the new CompletedTable entry
+        db.session.commit()
+        # ---------------------------
+
+        # 4. Create new CompletedTable record
         new_table = CompletedTable(
             worker=worker,
             start_time=start_time,
@@ -1420,6 +1458,7 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
+    # 5. Get data for today's bodies, daily history, monthly totals, etc.
     today = date.today()
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
@@ -1494,6 +1533,7 @@ def bodies():
             "average_hours_per_table": avg_hours_per_table_formatted
         })
 
+    # 6. Render the template
     return render_template(
         'bodies.html',
         issues=issues,
@@ -1504,6 +1544,7 @@ def bodies():
         monthly_totals=monthly_totals_formatted,
         unconverted_pods=unconverted_pods
     )
+
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
