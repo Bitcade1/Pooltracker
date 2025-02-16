@@ -72,7 +72,7 @@
           text-align: center;
           position: relative;
       }
-      /* Pseudo-element on the first span to add a vertical line that is centered between the two values */
+      /* Pseudo-element on the first span to add a centered vertical divider */
       .prod-values span:first-child::after {
           content: "";
           position: absolute;
@@ -92,7 +92,7 @@
 <body>
   <div class="container">
     <h1>Bodies</h1>
-    <!-- Enhanced production targets section with header on one line and values on the next -->
+    <!-- Enhanced production targets section -->
     <div class="production-targets">
       <div class="prod-title">Production Targets for This Month</div>
       <div class="prod-values">
@@ -107,7 +107,7 @@
       <div class="logged-in-user">Not logged in</div>
     {% endif %}
 
-    <!-- Flash Messages Display (Success and Error) -->
+    <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-messages">
@@ -127,7 +127,8 @@
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
       <label for="serial_number">Pod Serial Number:</label>
-      <select id="serial_number" name="serial_number" required>
+      <!-- Set the size attribute to limit the number of visible options (e.g., 10) -->
+      <select id="serial_number" name="serial_number" required size="10">
         {% if unconverted_pods %}
           {% for pod in unconverted_pods %}
             <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
