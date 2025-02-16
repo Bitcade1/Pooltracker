@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bodies - Pool Table Tracker</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <!-- Select2 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
   <style>
       /* Collapsible styles */
       .collapsible {
@@ -81,24 +84,35 @@
           height: 100%;
           border-right: 2px solid #ccc;
       }
-      /* Limit the height of the serial number dropdown */
-      select#serial_number {
-          /* Adjust the max-height as needed; here 150px approximates 10 options */
+      /* Custom styling for Select2 dropdown */
+      .select2-dropdown--custom {
           max-height: 150px;
           overflow-y: auto;
       }
   </style>
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Select2 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script>
       function toggleCollapsible(id) {
           var content = document.getElementById(id);
           content.style.display = content.style.display === "block" ? "none" : "block";
       }
+      
+      // Initialize Select2 on the serial_number dropdown when the document is ready
+      $(document).ready(function() {
+          $('#serial_number').select2({
+              dropdownCssClass: "select2-dropdown--custom",
+              width: '100%'
+          });
+      });
   </script>
 </head>
 <body>
   <div class="container">
     <h1>Bodies</h1>
-    <!-- Production Targets Section -->
+    <!-- Enhanced production targets section -->
     <div class="production-targets">
       <div class="prod-title">Production Targets for This Month</div>
       <div class="prod-values">
@@ -113,7 +127,7 @@
       <div class="logged-in-user">Not logged in</div>
     {% endif %}
 
-    <!-- Flash Messages -->
+    <!-- Flash Messages Display (Success and Error) -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-messages">
@@ -133,7 +147,8 @@
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
       <label for="serial_number">Pod Serial Number:</label>
-      <select id="serial_number" name="serial_number" required size="10">
+      <!-- Use Select2 on this select element; size attribute is optional since Select2 will override it -->
+      <select id="serial_number" name="serial_number" required>
         {% if unconverted_pods %}
           {% for pod in unconverted_pods %}
             <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
