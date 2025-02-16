@@ -1572,6 +1572,14 @@ from sqlalchemy.exc import IntegrityError
 from calendar import monthrange
 from datetime import date, datetime
 
+from flask import render_template, request, redirect, url_for, flash, session
+from sqlalchemy import func, extract
+from datetime import datetime, date, timedelta
+from calendar import monthrange
+from your_application import db  # Adjust the import as needed
+# Also import your models, e.g.:
+# from your_application.models import CompletedTable, CompletedPods, ProductionSchedule, PrintedPartsCount, Issue, WoodCount
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # 1. Check for logged-in user
@@ -1589,9 +1597,8 @@ def bodies():
         )
     ).all()
 
-    # 3. Handle form submission
+    # 3. Handle form submission for adding a new table
     if request.method == 'POST':
-        # Get worker from session (rather than form) and other form data
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
@@ -1612,7 +1619,7 @@ def bodies():
             "Cue Ball Separator": 1,
             "Bushing": 2,
 
-            # Newly added parts
+            # Additional parts for the table build
             "Table legs": 4,
             "Ball Gullies 1 (Untouched)": 2,
             "Ball Gullies 2": 1,
@@ -1652,7 +1659,6 @@ def bodies():
             part_entry = PrintedPartsCount.query.filter_by(
                 part_name=part_name
             ).order_by(PrintedPartsCount.date.desc()).first()
-
             if part_entry and part_entry.count >= quantity_needed:
                 part_entry.count -= quantity_needed
             else:
@@ -1661,7 +1667,6 @@ def bodies():
 
         # Commit inventory changes before creating the new CompletedTable entry
         db.session.commit()
-        # ---------------------------
 
         # 4. Create new CompletedTable record
         new_table = CompletedTable(
@@ -1673,21 +1678,24 @@ def bodies():
             lunch=lunch,
             date=date.today()
         )
-
         try:
             db.session.add(new_table)
             db.session.commit()
             flash("Body entry added successfully and inventory updated!", "success")
-        except IntegrityError:
+        except Exception as e:
             db.session.rollback()
-            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
+            flash("Error: Serial number already exists or another error occurred.", "error")
             return redirect(url_for('bodies'))
 
         return redirect(url_for('bodies'))
 
-    # 5. Get data for today's bodies, daily history, monthly totals, etc.
+    # 5. Retrieve data for display (GET request)
     today = date.today()
-    completed_tables = CompletedTable.query.filter_by(date=today).all()
+    # Get all completed tables for the current month
+    completed_tables = CompletedTable.query.filter(
+        extract('year', CompletedTable.date) == today.year,
+        extract('month', CompletedTable.date) == today.month
+    ).all()
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
@@ -1714,7 +1722,6 @@ def bodies():
         .order_by(CompletedTable.date.desc())
         .all()
     )
-
     daily_history_formatted = [
         {
             "date": row.date.strftime("%A %d/%m/%y"),
@@ -1734,42 +1741,49 @@ def bodies():
         .order_by('year', 'month')
         .all()
     )
-
     monthly_totals_formatted = []
     for row in monthly_totals:
-        year = int(row.year)
-        month = int(row.month)
+        yr = int(row.year)
+        mo = int(row.month)
         total_bodies = row.total
-
-        last_day = today.day if year == today.year and month == today.month else monthrange(year, month)[1]
-        work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
+        last_day = today.day if yr == today.year and mo == today.month else monthrange(yr, mo)[1]
+        work_days = sum(1 for day_i in range(1, last_day + 1) if date(yr, mo, day_i).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
-        avg_hours_per_table = cumulative_working_hours / total_bodies if total_bodies > 0 else None
-
-        if avg_hours_per_table is not None:
+        if total_bodies > 0:
+            avg_hours_per_table = cumulative_working_hours / total_bodies
             hours = int(avg_hours_per_table)
             minutes = int((avg_hours_per_table - hours) * 60)
             seconds = int((((avg_hours_per_table - hours) * 60) - minutes) * 60)
             avg_hours_per_table_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
             avg_hours_per_table_formatted = "N/A"
-
         monthly_totals_formatted.append({
-            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
             "average_hours_per_table": avg_hours_per_table_formatted
         })
 
-    # 6. Render the template
+    # NEW: Retrieve the current month's production schedule targets.
+    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        target_7ft = 60
+        target_6ft = 60
+
+    # 6. Render the template, passing along the new target variables.
     return render_template(
         'bodies.html',
         issues=issues,
         current_time=current_time,
+        unconverted_pods=unconverted_pods,
         completed_tables=completed_tables,
         current_month_bodies_count=current_month_bodies_count,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
-        unconverted_pods=unconverted_pods
+        target_7ft=target_7ft,
+        target_6ft=target_6ft
     )
 
 
