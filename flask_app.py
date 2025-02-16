@@ -1038,10 +1038,100 @@ def manage_raw_data():
 
         if entry:
             if 'delete' in request.form:
+                # Revert inventory if deleting a table or top rail entry.
+                if table == 'bodies':
+                    # Parts used for a completed table
+                    parts_used = {
+                        "Large Ramp": 1,
+                        "Paddle": 1,
+                        "Laminate": 4,
+                        "Spring Mount": 1,
+                        "Spring Holder": 1,
+                        "Small Ramp": 1,
+                        "Cue Ball Separator": 1,
+                        "Bushing": 2,
+                        "Table legs": 4,
+                        "Ball Gullies 1 (Untouched)": 2,
+                        "Ball Gullies 2": 1,
+                        "Ball Gullies 3": 1,
+                        "Ball Gullies 4": 1,
+                        "Ball Gullies 5": 1,
+                        "Feet": 4,
+                        "Triangle trim": 1,
+                        "White ball return trim": 1,
+                        "Color ball trim": 1,
+                        "Ball window trim": 1,
+                        "Aluminum corner": 4,
+                        "Chrome corner": 4,
+                        "Top rail trim short length": 1,
+                        "Top rail trim long length": 1,
+                        "Ramp 170mm": 1,
+                        "Ramp 158mm": 1,
+                        "Ramp 918mm": 1,
+                        "Ramp 376mm": 1,
+                        "Chrome handles": 1,
+                        "Center pockets": 2,
+                        "Corner pockets": 4,
+                        "Sticker Set": 1
+                    }
+                    # If the table was a 6ft table, adjust the parts used.
+                    if " - 6" in entry.serial_number:
+                        parts_used.pop("Large Ramp", None)
+                        parts_used.pop("Cue Ball Separator", None)
+                        parts_used["6ft Large Ramp"] = 1
+                        parts_used["6ft Cue Ball Separator"] = 1
+
+                    # Revert each part's inventory.
+                    for part_name, qty in parts_used.items():
+                        inventory_entry = PrintedPartsCount.query.filter_by(
+                            part_name=part_name
+                        ).order_by(PrintedPartsCount.date.desc(),
+                                   PrintedPartsCount.time.desc()).first()
+                        if inventory_entry:
+                            inventory_entry.count += qty
+                        else:
+                            new_inv = PrintedPartsCount(
+                                part_name=part_name,
+                                count=qty,
+                                date=datetime.utcnow().date(),
+                                time=datetime.utcnow().time()
+                            )
+                            db.session.add(new_inv)
+                    db.session.commit()
+
+                elif table == 'top_rails':
+                    # Parts used for a top rail
+                    parts_used = {
+                        "Top rail trim long length": 2,
+                        "Top rail trim short length": 4,
+                        "Chrome corner": 4,
+                        "Center pockets": 2,
+                        "Corner pockets": 4
+                    }
+                    # Revert each part's inventory for the top rail.
+                    for part_name, qty in parts_used.items():
+                        inventory_entry = PrintedPartsCount.query.filter_by(
+                            part_name=part_name
+                        ).order_by(PrintedPartsCount.date.desc(),
+                                   PrintedPartsCount.time.desc()).first()
+                        if inventory_entry:
+                            inventory_entry.count += qty
+                        else:
+                            new_inv = PrintedPartsCount(
+                                part_name=part_name,
+                                count=qty,
+                                date=datetime.utcnow().date(),
+                                time=datetime.utcnow().time()
+                            )
+                            db.session.add(new_inv)
+                    db.session.commit()
+
+                # Now delete the entry.
                 db.session.delete(entry)
                 db.session.commit()
                 flash(f"{table.capitalize()} entry deleted successfully!", "success")
             else:
+                # Update logic for non-deletion operations
                 if table == 'pods':
                     try:
                         entry.start_time = datetime.strptime(request.form.get('start_time'), "%H:%M").time()
