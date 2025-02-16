@@ -1693,10 +1693,14 @@ def bodies():
     
     # "Tables Completed Today": Only today's entries
     completed_tables = CompletedTable.query.filter_by(date=today).all()
-    current_day_bodies_count = db.session.query(func.count(CompletedTable.id)).filter_by(date=today).scalar()
+    
+    # Now calculate the count for the entire current month.
+    current_month_bodies_count = db.session.query(func.count(CompletedTable.id)).filter(
+         extract('year', CompletedTable.date) == today.year,
+         extract('month', CompletedTable.date) == today.month
+    ).scalar()
 
     # Daily History: Show summary for the last 5 working days in the current month.
-    # Define a helper to get the last n working days (Monday-Friday)
     def get_last_n_working_days(n, reference_date):
         working_days = []
         d = reference_date
@@ -1780,7 +1784,7 @@ def bodies():
         current_time=current_time,
         unconverted_pods=unconverted_pods,
         completed_tables=completed_tables,
-        current_month_bodies_count=current_day_bodies_count,
+        current_month_bodies_count=current_month_bodies_count,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
         target_7ft=target_7ft,
