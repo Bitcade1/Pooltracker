@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <!-- Select2 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
   <style>
       /* Collapsible styles */
       .collapsible {
@@ -84,8 +83,8 @@
           height: 100%;
           border-right: 2px solid #ccc;
       }
-      /* Custom styling for Select2 dropdown */
-      .select2-dropdown--custom {
+      /* Custom styling for Select2 dropdown results */
+      .select2-container--default .select2-results__options {
           max-height: 150px;
           overflow-y: auto;
       }
@@ -100,8 +99,8 @@
           content.style.display = content.style.display === "block" ? "none" : "block";
       }
       
-      // Initialize Select2 on the serial_number dropdown when the document is ready
       $(document).ready(function() {
+          // Initialize Select2 on the serial_number dropdown
           $('#serial_number').select2({
               dropdownCssClass: "select2-dropdown--custom",
               width: '100%'
@@ -127,7 +126,7 @@
       <div class="logged-in-user">Not logged in</div>
     {% endif %}
 
-    <!-- Flash Messages Display (Success and Error) -->
+    <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-messages">
@@ -147,7 +146,7 @@
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
       <label for="serial_number">Pod Serial Number:</label>
-      <!-- Use Select2 on this select element; size attribute is optional since Select2 will override it -->
+      <!-- Removed size attribute so Select2 manages the dropdown -->
       <select id="serial_number" name="serial_number" required>
         {% if unconverted_pods %}
           {% for pod in unconverted_pods %}
