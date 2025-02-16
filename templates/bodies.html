@@ -20,11 +20,9 @@
             margin-top: 20px;
             border-radius: 5px;
         }
-
         .collapsible:hover {
             background-color: #0056b3;
         }
-
         .collapsible-content {
             padding: 15px;
             display: none;
@@ -34,31 +32,35 @@
             border-radius: 5px;
             margin-top: 10px;
         }
-
         .green-text {
             color: green;
             font-weight: bold;
         }
-
         .issue-row {
             background-color: #ffe6e6;
         }
-
-        /* Optional styling for logged-in worker display */
+        /* Styling for logged-in user display */
         .logged-in-user {
             font-size: 0.9em;
             color: #333;
             margin-bottom: 20px;
         }
-        
-        /* Styling for production targets */
+        /* Enhanced styling for production targets */
         .production-targets {
             margin-bottom: 20px;
-            font-size: 1.1em;
+            font-size: 1.5em;
             font-weight: bold;
-            background-color: #eef;
-            padding: 10px;
-            border-radius: 5px;
+            background-color: #e0f7fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            color: #007bff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        /* Optionally, style the numbers within the targets */
+        .production-targets span {
+            padding: 0 10px;
+            color: #d32f2f;
         }
     </style>
     <script>
@@ -71,9 +73,9 @@
 <body>
     <div class="container">
         <h1>Bodies</h1>
-        <!-- New production targets section -->
+        <!-- Enhanced production targets section -->
         <div class="production-targets">
-            Production Targets for This Month: 
+            Production Targets for This Month:
             <span>7ft Tables: {{ target_7ft }}</span> | 
             <span>6ft Tables: {{ target_6ft }}</span>
         </div>
@@ -96,7 +98,6 @@
         {% endwith %}
 
         <!-- Form to Add a New Completed Table -->
-        <!-- Note: The worker is determined by session on the backend -->
         <form method="POST" action="{{ url_for('bodies') }}">
             <label for="start_time">Start Time:</label>
             <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
