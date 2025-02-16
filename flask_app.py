@@ -1584,6 +1584,14 @@ from sqlalchemy import func, extract
 from datetime import datetime, date, timedelta
 from calendar import monthrange
 
+from flask import render_template, request, redirect, url_for, flash, session
+from sqlalchemy import func, extract, desc
+from datetime import datetime, date, timedelta
+from calendar import monthrange
+from your_application import db  # Adjust the import as needed
+# Import your models (adjust names as needed)
+# from your_application.models import CompletedTable, CompletedPods, ProductionSchedule, PrintedPartsCount, Issue, WoodCount
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # 1. Check for logged-in user
@@ -1695,21 +1703,29 @@ def bodies():
     # 4. Retrieve data for display (GET request)
     today = date.today()
     
-    # "Tables Completed Today" area: Only today's entries
+    # "Tables Completed Today": Only today's entries
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     current_day_bodies_count = db.session.query(func.count(CompletedTable.id)).filter_by(date=today).scalar()
-    
-    # "Daily History": Show summary for the entire current month
+
+    # Daily History: Show summary for the last 5 working days in the current month.
+    # Define a helper to get the last n working days (Monday-Friday)
+    def get_last_n_working_days(n, reference_date):
+        working_days = []
+        d = reference_date
+        while len(working_days) < n:
+            if d.weekday() < 5:
+                working_days.append(d)
+            d -= timedelta(days=1)
+        return working_days
+
+    last_working_days = get_last_n_working_days(5, today)
     daily_history = (
         db.session.query(
             CompletedTable.date,
             func.count(CompletedTable.id).label('count'),
             func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
         )
-        .filter(
-            extract('year', CompletedTable.date) == today.year,
-            extract('month', CompletedTable.date) == today.month
-        )
+        .filter(CompletedTable.date.in_(last_working_days))
         .group_by(CompletedTable.date)
         .order_by(CompletedTable.date.desc())
         .all()
@@ -1723,7 +1739,7 @@ def bodies():
         for row in daily_history
     ]
 
-    # Monthly totals for current month and other months
+    # Monthly Totals: Order by year and month descending (current month first)
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -1731,7 +1747,7 @@ def bodies():
             func.count(CompletedTable.id).label('total')
         )
         .group_by('year', 'month')
-        .order_by('year', 'month')
+        .order_by(desc(extract('year', CompletedTable.date)), desc(extract('month', CompletedTable.date)))
         .all()
     )
     monthly_totals_formatted = []
@@ -1739,8 +1755,8 @@ def bodies():
         yr = int(row.year)
         mo = int(row.month)
         total_bodies = row.total
-        last_day = today.day if yr == today.year and mo == today.month else monthrange(yr, mo)[1]
-        work_days = sum(1 for day_i in range(1, last_day + 1) if date(yr, mo, day_i).weekday() < 5)
+        last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
         if total_bodies > 0:
             avg_hours_per_table = cumulative_working_hours / total_bodies
@@ -1765,15 +1781,19 @@ def bodies():
         target_7ft = 60
         target_6ft = 60
 
-    # 6. Render the template, passing along all variables.
+    # 6. Get the current finish_time to pre-populate the form
+    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
+    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+
+    # 7. Render the template, passing along all variables.
     return render_template(
         'bodies.html',
         issues=issues,
-        current_time=(CompletedTable.query.order_by(CompletedTable.id.desc()).first().finish_time if CompletedTable.query.first() else datetime.now().strftime("%H:%M")),
+        current_time=current_time,
         unconverted_pods=unconverted_pods,
         completed_tables=completed_tables,
-        current_month_bodies_count=current_day_bodies_count,  # For "Tables Completed Today"
-        daily_history=daily_history_formatted,                # Daily history for current month
+        current_month_bodies_count=current_day_bodies_count,
+        daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
         target_7ft=target_7ft,
         target_6ft=target_6ft
