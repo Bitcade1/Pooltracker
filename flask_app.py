@@ -1579,6 +1579,14 @@ from datetime import datetime, date, timedelta
 from calendar import monthrange
 
 
+from flask import render_template, request, redirect, url_for, flash, session
+from sqlalchemy import func, extract
+from datetime import datetime, date, timedelta
+from calendar import monthrange
+from your_application import db  # Adjust the import as needed
+# Import your models (adjust names as needed)
+# from your_application.models import CompletedTable, CompletedPods, ProductionSchedule, PrintedPartsCount, Issue, WoodCount
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # 1. Check for logged-in user
@@ -1666,7 +1674,7 @@ def bodies():
         # Commit inventory changes before creating the new CompletedTable entry
         db.session.commit()
 
-        # 4. Create new CompletedTable record
+        # Create new CompletedTable record
         new_table = CompletedTable(
             worker=worker,
             start_time=start_time,
@@ -1687,28 +1695,24 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
-    # 5. Retrieve data for display (GET request)
+    # 4. Retrieve data for display (GET request)
     today = date.today()
-    # *** Update: Get only today's completed tables ***
+    
+    # "Tables Completed Today" area: Only today's entries
     completed_tables = CompletedTable.query.filter_by(date=today).all()
-
-    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
-    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
-
-    # Use today's count for the "Tables Completed Today" area
-    current_day_bodies_count = (
-        db.session.query(func.count(CompletedTable.id))
-        .filter_by(date=today)
-        .scalar()
-    )
-
+    current_day_bodies_count = db.session.query(func.count(CompletedTable.id)).filter_by(date=today).scalar()
+    
+    # "Daily History": Show summary for the entire current month
     daily_history = (
         db.session.query(
             CompletedTable.date,
             func.count(CompletedTable.id).label('count'),
             func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
         )
-        .filter_by(date=today)
+        .filter(
+            extract('year', CompletedTable.date) == today.year,
+            extract('month', CompletedTable.date) == today.month
+        )
         .group_by(CompletedTable.date)
         .order_by(CompletedTable.date.desc())
         .all()
@@ -1722,6 +1726,7 @@ def bodies():
         for row in daily_history
     ]
 
+    # Monthly totals for current month and other months
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -1754,7 +1759,7 @@ def bodies():
             "average_hours_per_table": avg_hours_per_table_formatted
         })
 
-    # 6. Retrieve the current month's production schedule targets.
+    # 5. Retrieve the current month's production schedule targets.
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
         target_7ft = schedule.target_7ft
@@ -1763,20 +1768,19 @@ def bodies():
         target_7ft = 60
         target_6ft = 60
 
-    # 7. Render the template, passing along all variables.
+    # 6. Render the template, passing along all variables.
     return render_template(
         'bodies.html',
         issues=issues,
-        current_time=current_time,
+        current_time=(CompletedTable.query.order_by(CompletedTable.id.desc()).first().finish_time if CompletedTable.query.first() else datetime.now().strftime("%H:%M")),
         unconverted_pods=unconverted_pods,
         completed_tables=completed_tables,
-        current_month_bodies_count=current_day_bodies_count,  # Now showing today's count
-        daily_history=daily_history_formatted,
+        current_month_bodies_count=current_day_bodies_count,  # For "Tables Completed Today"
+        daily_history=daily_history_formatted,                # Daily history for current month
         monthly_totals=monthly_totals_formatted,
         target_7ft=target_7ft,
         target_6ft=target_6ft
     )
-
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
