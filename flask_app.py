@@ -448,6 +448,8 @@ def counting_3d_printing_parts():
 
     return render_template('counting_3d_printing_parts.html', parts_counts=parts_counts)
 
+from sqlalchemy import extract
+
 @app.route('/inventory', methods=['GET', 'POST'])
 def inventory():
     if 'worker' not in session:
@@ -516,8 +518,13 @@ def inventory():
         target_7ft = 60
         target_6ft = 60
 
+    # Get all completed tables for the current month
+    completed_tables = CompletedTable.query.filter(
+        extract('year', CompletedTable.date) == today.year,
+        extract('month', CompletedTable.date) == today.month
+    ).all()
+
     # Separate completed tables by size based on serial number.
-    completed_tables = CompletedTable.query.filter_by(date=today).all()
     bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
     bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
 
