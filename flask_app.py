@@ -1544,6 +1544,16 @@ def bodies():
             "Sticker Set": 1
         }
 
+        # If the serial number indicates a 6ft table (contains " - 6"),
+        # remove the standard "Large Ramp" and "Cue Ball Separator" parts and
+        # replace them with the 6ft versions.
+        if " - 6" in serial_number:
+            parts_to_deduct.pop("Large Ramp", None)
+            parts_to_deduct.pop("Cue Ball Separator", None)
+            parts_to_deduct["6ft Large Ramp"] = 1
+            parts_to_deduct["6ft Cue Ball Separator"] = 1
+
+        # Deduct parts from inventory
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = PrintedPartsCount.query.filter_by(
                 part_name=part_name
