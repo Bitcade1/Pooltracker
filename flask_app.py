@@ -1578,20 +1578,6 @@ from sqlalchemy import func, extract
 from datetime import datetime, date, timedelta
 from calendar import monthrange
 
-
-from flask import render_template, request, redirect, url_for, flash, session
-from sqlalchemy import func, extract
-from datetime import datetime, date, timedelta
-from calendar import monthrange
-
-from flask import render_template, request, redirect, url_for, flash, session
-from sqlalchemy import func, extract, desc
-from datetime import datetime, date, timedelta
-from calendar import monthrange
-from your_application import db  # Adjust the import as needed
-# Import your models (adjust names as needed)
-# from your_application.models import CompletedTable, CompletedPods, ProductionSchedule, PrintedPartsCount, Issue, WoodCount
-
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     # 1. Check for logged-in user
