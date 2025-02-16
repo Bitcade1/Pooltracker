@@ -48,19 +48,24 @@
         /* Enhanced styling for production targets */
         .production-targets {
             margin-bottom: 20px;
-            font-size: 1.5em;
-            font-weight: bold;
-            background-color: #e0f7fa;
             padding: 15px;
             border-radius: 8px;
+            background-color: #e0f7fa;
             text-align: center;
-            color: #007bff;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        /* Optionally, style the numbers within the targets */
-        .production-targets span {
-            padding: 0 10px;
+        .prod-title {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        .prod-values {
+            font-size: 1.5em;
             color: #d32f2f;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
         }
     </style>
     <script>
@@ -75,9 +80,11 @@
         <h1>Bodies</h1>
         <!-- Enhanced production targets section -->
         <div class="production-targets">
-            Production Targets for This Month:
-            <span>7ft Tables: {{ target_7ft }}</span> | 
-            <span>6ft Tables: {{ target_6ft }}</span>
+            <div class="prod-title">Production Targets for This Month</div>
+            <div class="prod-values">
+                <span>7ft Tables: {{ target_7ft }}</span>
+                <span>6ft Tables: {{ target_6ft }}</span>
+            </div>
         </div>
 
         {% if logged_in_worker %}
