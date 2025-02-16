@@ -475,10 +475,14 @@ def inventory():
         return redirect(url_for('login'))
 
     # ---------------------------------------------------------------------
-    # 1) 3D PRINTED PARTS (still using your existing hard-coded list)
+    # 1) 3D PRINTED PARTS
     # ---------------------------------------------------------------------
-    parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount",
-             "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing"]
+    # Updated parts list now includes the new "6ft" parts
+    parts = [
+        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+        "Small Ramp", "Cue Ball Separator", "Bushing",
+        "6ft Cue Ball Separator", "6ft Large Ramp"
+    ]
 
     # Calculate current stock for each 3D printed part
     inventory_counts = {}
@@ -540,7 +544,9 @@ def inventory():
         "Spring Holder": 1,
         "Small Ramp": 1,
         "Cue Ball Separator": 1,
-        "Bushing": 2
+        "Bushing": 2,
+        "6ft Cue Ball Separator": 1,
+        "6ft Large Ramp": 1
     }
     parts_used_this_month = {
         part: bodies_built_this_month * usage
@@ -559,7 +565,7 @@ def inventory():
             parts_status[part] = f"{abs(difference)} left to make"
 
     # ---------------------------------------------------------------------
-    # 4) TABLE PARTS (still using your original dict)
+    # 4) TABLE PARTS
     # ---------------------------------------------------------------------
     table_parts = {
         "Table legs": 4, "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1,
@@ -590,11 +596,9 @@ def inventory():
     max_tables_possible = min(tables_possible_per_part.values())
 
     # ---------------------------------------------------------------------
-    # 5) HARDWARE PARTS (NOW FROM DB INSTEAD OF LIST)
+    # 5) HARDWARE PARTS (FROM DB)
     # ---------------------------------------------------------------------
-    # Retrieve all hardware parts from your HardwarePart table:
-    hardware_parts_query = HardwarePart.query.all()  # or filter(...) if needed
-
+    hardware_parts_query = HardwarePart.query.all()
     hardware_counts = {}
     for hp in hardware_parts_query:
         latest_entry = (
@@ -603,7 +607,6 @@ def inventory():
             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
             .first()
         )
-        # If no PrintedPartsCount record, default to hp.initial_count
         hardware_counts[hp.name] = latest_entry[0] if latest_entry else hp.initial_count
 
     # ---------------------------------------------------------------------
