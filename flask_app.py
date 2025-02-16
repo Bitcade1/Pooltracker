@@ -854,7 +854,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import extract, func, distinct
 
 
-
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
     if 'worker' not in session:
@@ -868,12 +867,10 @@ def pods():
         serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
-
         try:
             start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
         except ValueError:
             start_time = datetime.strptime(request.form['start_time'], "%H:%M:%S").time()
-
         try:
             finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").time()
         except ValueError:
@@ -901,30 +898,37 @@ def pods():
         return redirect(url_for('pods'))
 
     today = date.today()
+    # Pods Completed Today (only today's entries)
     completed_pods = CompletedPods.query.filter_by(date=today).all()
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
-
     pods_this_month = CompletedPods.query.filter(
         extract('year', CompletedPods.date) == today.year,
         extract('month', CompletedPods.date) == today.month
     ).count()
 
+    # Helper: last 5 working days (Monday-Friday)
+    def get_last_n_working_days(n, reference_date):
+        working_days = []
+        d = reference_date
+        while len(working_days) < n:
+            if d.weekday() < 5:
+                working_days.append(d)
+            d -= timedelta(days=1)
+        return working_days
+
+    last_working_days = get_last_n_working_days(5, today)
     daily_history = (
         db.session.query(
             CompletedPods.date,
             func.count(CompletedPods.id).label('count'),
             func.group_concat(CompletedPods.serial_number, ', ').label('serial_numbers')
         )
-        .filter(
-            extract('year', CompletedPods.date) == today.year,
-            extract('month', CompletedPods.date) == today.month
-        )
+        .filter(CompletedPods.date.in_(last_working_days))
         .group_by(CompletedPods.date)
         .order_by(CompletedPods.date.desc())
         .all()
     )
-
     daily_history_formatted = [
         {
             "date": row.date.strftime("%A %d/%m/%y"),
@@ -934,56 +938,48 @@ def pods():
         for row in daily_history
     ]
 
-    # Monthly totals for the entire year
     monthly_totals = (
         db.session.query(
             extract('year', CompletedPods.date).label('year'),
             extract('month', CompletedPods.date).label('month'),
-            func.count(CompletedPods.id).label('total'),
-            func.max(CompletedPods.finish_time).label('last_completion_time')
-        )
-        .filter(
-            extract('year', CompletedPods.date) == today.year
+            func.count(CompletedPods.id).label('total')
         )
         .group_by('year', 'month')
-        .order_by('year', 'month')
+        .order_by(desc(extract('year', CompletedPods.date)), desc(extract('month', CompletedPods.date)))
         .all()
     )
-
     monthly_totals_formatted = []
     for row in monthly_totals:
-        year = int(row.year)
-        month = int(row.month)
+        yr = int(row.year)
+        mo = int(row.month)
         total_pods = row.total
-        last_completion_time = row.last_completion_time
-
-        if last_completion_time:
-            last_completion_datetime = datetime.combine(today, last_completion_time)
-        else:
-            last_completion_datetime = datetime.now()
-
-        last_day = last_completion_datetime.day
-        # Calculate workdays (Mon-Fri)
-        work_days = sum(1 for day_i in range(1, last_day + 1) if date(year, month, day_i).weekday() < 5)
-        cumulative_working_hours = work_days * 7.5  # 7.5 hours per workday
-
+        last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
+        cumulative_working_hours = work_days * 7.5
         if total_pods > 0:
             avg_hours_per_pod = cumulative_working_hours / total_pods
-            # Convert decimal hours to HH:MM:SS
             hours = int(avg_hours_per_pod)
             minutes = int((avg_hours_per_pod - hours) * 60)
             seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
             avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
             avg_hours_per_pod_formatted = "N/A"
-
         monthly_totals_formatted.append({
-            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_pods,
             "average_hours_per_pod": avg_hours_per_pod_formatted
         })
 
-    # Updated logic for generating the next serial number with spaces on both sides of the hyphen:
+    # Retrieve production schedule targets for current month
+    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        target_7ft = 60
+        target_6ft = 60
+
+    # Next serial number generation logic
     last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     if last_pod:
         if '-' in last_pod.serial_number:
@@ -1008,9 +1004,10 @@ def pods():
         pods_this_month=pods_this_month,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
-        next_serial_number=next_serial_number
+        next_serial_number=next_serial_number,
+        target_7ft=target_7ft,
+        target_6ft=target_6ft
     )
-
 
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
@@ -1792,12 +1789,10 @@ def bodies():
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
-    """View for creating or viewing top rails and deducting inventory."""
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # Collect existing issues for the form dropdown
     issues = [issue.description for issue in Issue.query.all()]
 
     if request.method == 'POST':
@@ -1821,22 +1816,13 @@ def top_rails():
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
             total_stock = sum(entry.count for entry in part_entries)
-
-            # Check if we have enough total stock across all entries for this part
             if total_stock < quantity_needed:
-                flash(
-                    f"Not enough inventory for {part_name} to complete the top rail! "
-                    f"(Available: {total_stock})", 
-                    "error"
-                )
+                flash(f"Not enough inventory for {part_name} to complete the top rail! (Available: {total_stock})", "error")
                 return redirect(url_for('top_rails'))
-
-            # Deduct the required quantity from one or more rows
             remaining_to_deduct = quantity_needed
             for entry in part_entries:
                 if remaining_to_deduct <= 0:
-                    break  # We have deducted everything we need
-
+                    break
                 if entry.count >= remaining_to_deduct:
                     entry.count -= remaining_to_deduct
                     remaining_to_deduct = 0
@@ -1844,8 +1830,6 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Only commit *after* all parts have been successfully deducted
-        # Create the new top rail entry
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -1855,7 +1839,6 @@ def top_rails():
             issue=issue,
             date=date.today()
         )
-
         try:
             db.session.add(new_top_rail)
             db.session.commit()
@@ -1864,11 +1847,10 @@ def top_rails():
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('top_rails'))
-
         return redirect(url_for('top_rails'))
 
-    # ---- GET request logic below ----
     today = date.today()
+    # Top Rails Completed Today: only today's entries
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
@@ -1889,21 +1871,28 @@ def top_rails():
         .scalar()
     )
 
+    # Helper: get last 5 working days for top rails
+    def get_last_n_working_days(n, reference_date):
+        working_days = []
+        d = reference_date
+        while len(working_days) < n:
+            if d.weekday() < 5:
+                working_days.append(d)
+            d -= timedelta(days=1)
+        return working_days
+
+    last_working_days = get_last_n_working_days(5, today)
     daily_history = (
         db.session.query(
             TopRail.date,
             func.count(TopRail.id).label('count'),
             func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
         )
-        .filter(
-            extract('year', TopRail.date) == today.year,
-            extract('month', TopRail.date) == today.month
-        )
+        .filter(TopRail.date.in_(last_working_days))
         .group_by(TopRail.date)
         .order_by(TopRail.date.desc())
         .all()
     )
-
     daily_history_formatted = [
         {
             "date": row.date.strftime("%A %d/%m/%y"),
@@ -1920,30 +1909,18 @@ def top_rails():
             func.count(TopRail.id).label('total')
         )
         .group_by('year', 'month')
-        .order_by('year', 'month')
+        .order_by(desc(extract('year', TopRail.date)), desc(extract('month', TopRail.date)))
         .all()
     )
-
     monthly_totals_formatted = []
     for row in monthly_totals:
-        year = int(row.year)
-        month = int(row.month)
+        yr = int(row.year)
+        mo = int(row.month)
         total_top_rails = row.total
-
-        last_day = (
-            today.day if (year == today.year and month == today.month)
-            else monthrange(year, month)[1]
-        )
-        work_days = sum(
-            1
-            for day_num in range(1, last_day + 1)
-            if date(year, month, day_num).weekday() < 5
-        )
+        last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
-        avg_hours_per_top_rail = (
-            cumulative_working_hours / total_top_rails if total_top_rails > 0 else None
-        )
-
+        avg_hours_per_top_rail = (cumulative_working_hours / total_top_rails if total_top_rails > 0 else None)
         if avg_hours_per_top_rail is not None:
             hours = int(avg_hours_per_top_rail)
             minutes = int((avg_hours_per_top_rail - hours) * 60)
@@ -1951,12 +1928,20 @@ def top_rails():
             avg_hours_per_top_rail_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
             avg_hours_per_top_rail_formatted = "N/A"
-
         monthly_totals_formatted.append({
-            "month": date(year=year, month=month, day=1).strftime("%B %Y"),
+            "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_top_rails,
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
+
+    # Retrieve production schedule targets for current month
+    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        target_7ft = 60
+        target_6ft = 60
 
     last_top_rail = TopRail.query.order_by(TopRail.id.desc()).first()
     if last_top_rail:
@@ -1975,8 +1960,11 @@ def top_rails():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
         top_rails_this_month=top_rails_this_month,
-        next_serial_number=next_serial_number
+        next_serial_number=next_serial_number,
+        target_7ft=target_7ft,
+        target_6ft=target_6ft
     )
+
 def fetch_uk_bank_holidays():
     try:
         response = requests.get("https://www.gov.uk/bank-holidays.json")
