@@ -72,7 +72,7 @@
           text-align: center;
           position: relative;
       }
-      /* Pseudo-element on the first span to add a centered vertical divider */
+      /* Pseudo-element for vertical divider */
       .prod-values span:first-child::after {
           content: "";
           position: absolute;
@@ -80,6 +80,12 @@
           top: 0;
           height: 100%;
           border-right: 2px solid #ccc;
+      }
+      /* Limit the height of the serial number dropdown */
+      select#serial_number {
+          /* Adjust the max-height as needed; here 150px approximates 10 options */
+          max-height: 150px;
+          overflow-y: auto;
       }
   </style>
   <script>
@@ -92,7 +98,7 @@
 <body>
   <div class="container">
     <h1>Bodies</h1>
-    <!-- Enhanced production targets section -->
+    <!-- Production Targets Section -->
     <div class="production-targets">
       <div class="prod-title">Production Targets for This Month</div>
       <div class="prod-values">
@@ -127,7 +133,6 @@
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
       <label for="serial_number">Pod Serial Number:</label>
-      <!-- Set the size attribute to limit the number of visible options (e.g., 10) -->
       <select id="serial_number" name="serial_number" required size="10">
         {% if unconverted_pods %}
           {% for pod in unconverted_pods %}
