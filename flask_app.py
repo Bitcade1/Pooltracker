@@ -847,6 +847,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import extract, func, distinct
 
 
+
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
     if 'worker' not in session:
@@ -975,12 +976,20 @@ def pods():
             "average_hours_per_pod": avg_hours_per_pod_formatted
         })
 
+    # Updated logic for generating the next serial number:
     last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     if last_pod:
-        try:
-            next_serial_number = str(int(last_pod.serial_number) + 1)
-        except ValueError:
-            next_serial_number = "1000"
+        if '-' in last_pod.serial_number:
+            parts = last_pod.serial_number.split('-', 1)
+            try:
+                next_serial_number = f"{int(parts[0]) + 1}-{parts[1]}"
+            except ValueError:
+                next_serial_number = "1000"
+        else:
+            try:
+                next_serial_number = str(int(last_pod.serial_number) + 1)
+            except ValueError:
+                next_serial_number = "1000"
     else:
         next_serial_number = "1000"
 
