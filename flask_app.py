@@ -976,13 +976,13 @@ def pods():
             "average_hours_per_pod": avg_hours_per_pod_formatted
         })
 
-    # Updated logic for generating the next serial number:
+    # Updated logic for generating the next serial number with spaces on both sides of the hyphen:
     last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     if last_pod:
         if '-' in last_pod.serial_number:
             parts = last_pod.serial_number.split('-', 1)
             try:
-                next_serial_number = f"{int(parts[0]) + 1}-{parts[1]}"
+                next_serial_number = f"{int(parts[0]) + 1} - {parts[1]}"
             except ValueError:
                 next_serial_number = "1000"
         else:
@@ -1003,7 +1003,6 @@ def pods():
         monthly_totals=monthly_totals_formatted,
         next_serial_number=next_serial_number
     )
-
 
 
 
