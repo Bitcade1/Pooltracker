@@ -462,7 +462,7 @@ def counting_3d_printing_parts():
 
         return redirect(url_for('counting_3d_printing_parts'))
 
-    parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing"]
+    parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing", "6ft Cue Ball Separator", "6ft Large Ramp"]
     parts_counts = {part: PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first() for part in parts}
     parts_counts = {part: count.count if count else 0 for part, count in parts_counts.items()}
 
