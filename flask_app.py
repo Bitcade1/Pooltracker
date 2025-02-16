@@ -109,34 +109,14 @@ class CushionCount(db.Model):
 class ProductionSchedule(db.Model):
     __tablename__ = 'production_schedule'
     id = db.Column(db.Integer, primary_key=True)
-
     year = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
-
-    black_7ft = db.Column(db.Integer, default=0, nullable=False)
-    black_6ft = db.Column(db.Integer, default=0, nullable=False)
-
-    grey_7ft = db.Column(db.Integer, default=0, nullable=False)
-    grey_6ft = db.Column(db.Integer, default=0, nullable=False)
-
-    oak_7ft = db.Column(db.Integer, default=0, nullable=False)
-    oak_6ft = db.Column(db.Integer, default=0, nullable=False)
-
-    grey_oak_7ft = db.Column(db.Integer, default=0, nullable=False)
-    grey_oak_6ft = db.Column(db.Integer, default=0, nullable=False)
-
-    concrete_7ft = db.Column(db.Integer, default=0, nullable=False)
-    concrete_6ft = db.Column(db.Integer, default=0, nullable=False)
+    target_7ft = db.Column(db.Integer, default=0, nullable=False)
+    target_6ft = db.Column(db.Integer, default=0, nullable=False)
 
     def __repr__(self):
-        return (
-            f"<ProductionSchedule {self.month}/{self.year} "
-            f"Black7={self.black_7ft} Black6={self.black_6ft} "
-            f"Grey7={self.grey_7ft} Grey6={self.grey_6ft} "
-            f"Oak7={self.oak_7ft} Oak6={self.oak_6ft} "
-            f"GreyOak7={self.grey_oak_7ft} GreyOak6={self.grey_oak_6ft} "
-            f"Concrete7={self.concrete_7ft} Concrete6={self.concrete_6ft}>"
-        )
+        return f"<ProductionSchedule {self.month}/{self.year} 7ft={self.target_7ft} 6ft={self.target_6ft}>"
+
 
 
 
@@ -526,32 +506,20 @@ def inventory():
     # ---------------------------------------------------------------------
     today = datetime.utcnow().date()
 
-    # Separate completed tables by size:
+    # Retrieve the production schedule for the current month using the new fields.
+    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        # Fallback defaults if no schedule is set.
+        target_7ft = 60
+        target_6ft = 60
+
+    # Separate completed tables by size based on serial number.
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
     bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
-
-    # Retrieve the production schedule for the current month.
-    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
-    if schedule:
-        target_7ft = (
-            schedule.black_7ft +
-            schedule.grey_7ft +
-            schedule.oak_7ft +
-            schedule.grey_oak_7ft +
-            schedule.concrete_7ft
-        )
-        target_6ft = (
-            schedule.black_6ft +
-            schedule.grey_6ft +
-            schedule.oak_6ft +
-            schedule.grey_oak_6ft +
-            schedule.concrete_6ft
-        )
-    else:
-        # Fallback defaults if no schedule is set
-        target_7ft = 60
-        target_6ft = 60
 
     # Define usage per table for each part.
     parts_usage_per_body = {
@@ -567,7 +535,7 @@ def inventory():
         "6ft Large Ramp": 1
     }
 
-    # Calculate how many of each part have already been used this month.
+    # Calculate how many of each part have been used this month.
     parts_used_this_month = {}
     for part, usage in parts_usage_per_body.items():
         if part in ["Large Ramp", "Cue Ball Separator"]:
@@ -599,12 +567,12 @@ def inventory():
     # ---------------------------------------------------------------------
     table_parts = {
         "Table legs": 4, "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1,
-        "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1, 
-        "Feet": 4, "Triangle trim": 1, "White ball return trim": 1, 
-        "Color ball trim": 1, "Ball window trim": 1, "Aluminum corner": 4, 
-        "Chrome corner": 4, "Top rail trim short length": 1, 
-        "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1, 
-        "Ramp 918mm": 1, "Ramp 376mm": 1, "Chrome handles": 1, 
+        "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1,
+        "Feet": 4, "Triangle trim": 1, "White ball return trim": 1,
+        "Color ball trim": 1, "Ball window trim": 1, "Aluminum corner": 4,
+        "Chrome corner": 4, "Top rail trim short length": 1,
+        "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1,
+        "Ramp 918mm": 1, "Ramp 376mm": 1, "Chrome handles": 1,
         "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
     }
 
@@ -2040,21 +2008,13 @@ from sqlalchemy.exc import IntegrityError
 
 @app.route('/production_schedule', methods=['GET', 'POST'])
 def production_schedule():
-    """Manage a 12-month schedule of tables in various colors & sizes, 
-       displaying 'December 2024' etc. without using Jinja strftime."""
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
     def get_next_12_months():
         """
-        Return a list of dictionaries, each containing:
-          {
-            'year': 2024,
-            'month': 12,
-            'display_str': 'December 2024'
-          }
-        so we can show this in the template without calling Jinja's strftime.
+        Returns a list of dictionaries with the year, month, and display string for the next 12 months.
         """
         months_list = []
         today_date = date.today()
@@ -2064,89 +2024,42 @@ def production_schedule():
         for i in range(12):
             y = start_year + (start_month - 1 + i) // 12
             m = (start_month - 1 + i) % 12 + 1
-            # Create a temporary date to format nicely (e.g., "December 2024")
             tmp_date = date(y, m, 1)
-            display_str = tmp_date.strftime("%B %Y")  # e.g. "December 2024"
-
-            months_list.append({
-                'year': y,
-                'month': m,
-                'display_str': display_str
-            })
+            display_str = tmp_date.strftime("%B %Y")
+            months_list.append({'year': y, 'month': m, 'display_str': display_str})
         return months_list
 
     next_12_months = get_next_12_months()
 
-    # Handle POST => save or update production data
     if request.method == 'POST':
-        for i in range(len(next_12_months)):
-            yr = next_12_months[i]['year']
-            mo = next_12_months[i]['month']
-
-            # For each color + size, read the form keys: black_7ft_i, black_6ft_i, etc.
-            black_7ft_str = request.form.get(f"black_7ft_{i}", "0")
-            black_6ft_str = request.form.get(f"black_6ft_{i}", "0")
-
-            grey_7ft_str = request.form.get(f"grey_7ft_{i}", "0")
-            grey_6ft_str = request.form.get(f"grey_6ft_{i}", "0")
-
-            oak_7ft_str = request.form.get(f"oak_7ft_{i}", "0")
-            oak_6ft_str = request.form.get(f"oak_6ft_{i}", "0")
-
-            grey_oak_7ft_str = request.form.get(f"grey_oak_7ft_{i}", "0")
-            grey_oak_6ft_str = request.form.get(f"grey_oak_6ft_{i}", "0")
-
-            concrete_7ft_str = request.form.get(f"concrete_7ft_{i}", "0")
-            concrete_6ft_str = request.form.get(f"concrete_6ft_{i}", "0")
-
+        for i, month_data in enumerate(next_12_months):
+            yr = month_data['year']
+            mo = month_data['month']
+            target_7ft_str = request.form.get(f"target_7ft_{i}", "0")
+            target_6ft_str = request.form.get(f"target_6ft_{i}", "0")
             try:
-                black_7ft = int(black_7ft_str)
-                black_6ft = int(black_6ft_str)
-
-                grey_7ft = int(grey_7ft_str)
-                grey_6ft = int(grey_6ft_str)
-
-                oak_7ft = int(oak_7ft_str)
-                oak_6ft = int(oak_6ft_str)
-
-                grey_oak_7ft = int(grey_oak_7ft_str)
-                grey_oak_6ft = int(grey_oak_6ft_str)
-
-                concrete_7ft = int(concrete_7ft_str)
-                concrete_6ft = int(concrete_6ft_str)
+                target_7ft = int(target_7ft_str)
+                target_6ft = int(target_6ft_str)
             except ValueError:
-                flash(f"Invalid number for {mo}/{yr}. Please use whole numbers only.", "error")
+                flash(f"Invalid number for {month_data['display_str']}. Please use whole numbers only.", "error")
                 return redirect(url_for('production_schedule'))
 
-            # Look up or create a schedule row for (yr, mo)
             schedule = ProductionSchedule.query.filter_by(year=yr, month=mo).first()
             if not schedule:
-                schedule = ProductionSchedule(year=yr, month=mo)
+                schedule = ProductionSchedule(year=yr, month=mo, target_7ft=target_7ft, target_6ft=target_6ft)
                 db.session.add(schedule)
+            else:
+                schedule.target_7ft = target_7ft
+                schedule.target_6ft = target_6ft
 
-            # Update columns
-            schedule.black_7ft = black_7ft
-            schedule.black_6ft = black_6ft
-            schedule.grey_7ft = grey_7ft
-            schedule.grey_6ft = grey_6ft
-            schedule.oak_7ft = oak_7ft
-            schedule.oak_6ft = oak_6ft
-            schedule.grey_oak_7ft = grey_oak_7ft
-            schedule.grey_oak_6ft = grey_oak_6ft
-            schedule.concrete_7ft = concrete_7ft
-            schedule.concrete_6ft = concrete_6ft
-
-        # Commit once after processing all months
         try:
             db.session.commit()
             flash("Production schedule updated successfully!", "success")
         except IntegrityError:
             db.session.rollback()
             flash("Failed to update schedule (Integrity Error).", "error")
-
         return redirect(url_for('production_schedule'))
 
-    # Handle GET => load existing data
     schedules = ProductionSchedule.query.all()
     schedules_map = {}
     for sched in schedules:
@@ -2154,10 +2067,9 @@ def production_schedule():
 
     return render_template(
         'production_schedule.html',
-        next_12_months=next_12_months,  # This has year, month, and display_str
+        next_12_months=next_12_months,  # Each item has 'year', 'month', and 'display_str'
         schedules_map=schedules_map
     )
-
 
 
 
