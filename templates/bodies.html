@@ -100,10 +100,11 @@
       }
       
       $(document).ready(function() {
-          // Initialize Select2 on the serial_number dropdown
+          // Initialize Select2 on the serial_number dropdown with search disabled
           $('#serial_number').select2({
               dropdownCssClass: "select2-dropdown--custom",
-              width: '100%'
+              width: '100%',
+              minimumResultsForSearch: Infinity
           });
       });
   </script>
@@ -146,7 +147,7 @@
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
       <label for="serial_number">Pod Serial Number:</label>
-      <!-- Removed size attribute so Select2 manages the dropdown -->
+      <!-- The select element will be enhanced by Select2 -->
       <select id="serial_number" name="serial_number" required>
         {% if unconverted_pods %}
           {% for pod in unconverted_pods %}
