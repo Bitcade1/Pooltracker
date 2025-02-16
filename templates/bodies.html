@@ -1,239 +1,246 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bodies - Pool Table Tracker</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        /* Collapsible styles */
-        .collapsible {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 1.2em;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
-        .collapsible:hover {
-            background-color: #0056b3;
-        }
-        .collapsible-content {
-            padding: 15px;
-            display: none;
-            overflow: hidden;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        .green-text {
-            color: green;
-            font-weight: bold;
-        }
-        .issue-row {
-            background-color: #ffe6e6;
-        }
-        /* Styling for logged-in user display */
-        .logged-in-user {
-            font-size: 0.9em;
-            color: #333;
-            margin-bottom: 20px;
-        }
-        /* Enhanced styling for production targets */
-        .production-targets {
-            margin-bottom: 20px;
-            padding: 15px;
-            border-radius: 8px;
-            background-color: #e0f7fa;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .prod-title {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 10px;
-        }
-        .prod-values {
-            font-size: 1.5em;
-            color: #d32f2f;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 30px;
-        }
-        /* Add a vertical line separator to the first span */
-        .prod-values span:first-child {
-            border-right: 2px solid #ccc;
-            padding-right: 15px;
-            margin-right: 15px;
-        }
-    </style>
-    <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
-        }
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bodies - Pool Table Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+      /* Collapsible styles */
+      .collapsible {
+          background-color: #007bff;
+          color: white;
+          cursor: pointer;
+          padding: 10px;
+          width: 100%;
+          border: none;
+          text-align: left;
+          outline: none;
+          font-size: 1.2em;
+          margin-top: 20px;
+          border-radius: 5px;
+      }
+      .collapsible:hover {
+          background-color: #0056b3;
+      }
+      .collapsible-content {
+          padding: 15px;
+          display: none;
+          overflow: hidden;
+          background-color: #f9f9f9;
+          border: 1px solid #ddd;
+          border-radius: 5px;
+          margin-top: 10px;
+      }
+      .green-text {
+          color: green;
+          font-weight: bold;
+      }
+      .issue-row {
+          background-color: #ffe6e6;
+      }
+      /* Styling for logged-in user display */
+      .logged-in-user {
+          font-size: 0.9em;
+          color: #333;
+          margin-bottom: 20px;
+      }
+      /* Enhanced styling for production targets */
+      .production-targets {
+          margin-bottom: 20px;
+          padding: 15px;
+          border-radius: 8px;
+          background-color: #e0f7fa;
+          text-align: center;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      }
+      .prod-title {
+          font-size: 1.8em;
+          font-weight: bold;
+          color: #007bff;
+          margin-bottom: 10px;
+      }
+      .prod-values {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.5em;
+          color: #d32f2f;
+      }
+      .prod-values span {
+          flex: 1;
+          text-align: center;
+          position: relative;
+      }
+      /* Pseudo-element on the first span to add a vertical line that is centered between the two values */
+      .prod-values span:first-child::after {
+          content: "";
+          position: absolute;
+          right: 0;
+          top: 0;
+          height: 100%;
+          border-right: 2px solid #ccc;
+      }
+  </style>
+  <script>
+      function toggleCollapsible(id) {
+          var content = document.getElementById(id);
+          content.style.display = content.style.display === "block" ? "none" : "block";
+      }
+  </script>
 </head>
 <body>
-    <div class="container">
-        <h1>Bodies</h1>
-        <!-- Enhanced production targets section with a vertical line separator -->
-        <div class="production-targets">
-            <div class="prod-title">Production Targets for This Month</div>
-            <div class="prod-values">
-                <span>7ft Tables: {{ target_7ft }}</span>
-                <span>6ft Tables: {{ target_6ft }}</span>
-            </div>
-        </div>
-
-        {% if logged_in_worker %}
-            <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
-        {% else %}
-            <div class="logged-in-user">Not logged in</div>
-        {% endif %}
-
-        <!-- Flash Messages Display (Success and Error) -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <!-- Form to Add a New Completed Table -->
-        <form method="POST" action="{{ url_for('bodies') }}">
-            <label for="start_time">Start Time:</label>
-            <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
-
-            <label for="finish_time">Finish Time:</label>
-            <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
-
-            <label for="serial_number">Pod Serial Number:</label>
-            <select id="serial_number" name="serial_number" required>
-                {% if unconverted_pods %}
-                    {% for pod in unconverted_pods %}
-                        <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
-                    {% endfor %}
-                {% else %}
-                    <option value="" disabled selected>No unconverted pods available</option>
-                {% endif %}
-            </select>
-
-            <label for="issue">Did anything slow you down this build?:</label>
-            <select name="issue" id="issue" required>
-                {% for issue in issues %}
-                    <option value="{{ issue }}">{{ issue }}</option>
-                {% endfor %}
-            </select>
-
-            <label for="lunch">Have I had lunch during this build?</label>
-            <select name="lunch" id="lunch">
-                <option value="No" selected>No</option>
-                <option value="Yes">Yes</option>
-            </select>
-
-            <button type="submit" class="button">Submit</button>
-        </form>
-
-        <!-- Tables Completed Today Section -->
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <h2>Tables Completed Today</h2>
-            <span class="green-text">Tables This Month: {{ current_month_bodies_count }}</span>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Worker</th>
-                    <th>Start Time</th>
-                    <th>Finish Time</th>
-                    <th>Serial Number</th>
-                    <th>Issue</th>
-                    <th>Lunch</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for table in completed_tables %}
-                    <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
-                        <td>{{ table.date }}</td>
-                        <td>{{ table.worker }}</td>
-                        <td>{{ table.start_time }}</td>
-                        <td>{{ table.finish_time }}</td>
-                        <td>{{ table.serial_number }}</td>
-                        <td>{{ table.issue }}</td>
-                        <td>{{ table.lunch }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <!-- Collapsible Section for Daily History -->
-        <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>
-        <div id="dailyHistory" class="collapsible-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Tables Made</th>
-                        <th>Serial Numbers</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for entry in daily_history %}
-                        <tr>
-                            <td>{{ entry.date }}</td>
-                            <td>{{ entry.count }}</td>
-                            <td>{{ entry.serial_numbers }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Collapsible Section for Monthly Totals -->
-        <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
-        <div id="monthlyTotals" class="collapsible-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Month</th>
-                        <th>Total Tables Made</th>
-                        <th>Average Hours per Table</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for month in monthly_totals %}
-                        <tr>
-                            <td>{{ month.month }}</td>
-                            <td>{{ month.count }}</td>
-                            <td>
-                                {% if month.average_hours_per_table %}
-                                    {{ month.average_hours_per_table }} hours
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Back to Menu Button -->
-        <div class="back-to-menu">
-            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
-        </div>
+  <div class="container">
+    <h1>Bodies</h1>
+    <!-- Enhanced production targets section with header on one line and values on the next -->
+    <div class="production-targets">
+      <div class="prod-title">Production Targets for This Month</div>
+      <div class="prod-values">
+        <span>7ft Tables: {{ target_7ft }}</span>
+        <span>6ft Tables: {{ target_6ft }}</span>
+      </div>
     </div>
+
+    {% if logged_in_worker %}
+      <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
+    {% else %}
+      <div class="logged-in-user">Not logged in</div>
+    {% endif %}
+
+    <!-- Flash Messages Display (Success and Error) -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash {{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Form to Add a New Completed Table -->
+    <form method="POST" action="{{ url_for('bodies') }}">
+      <label for="start_time">Start Time:</label>
+      <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
+
+      <label for="finish_time">Finish Time:</label>
+      <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
+
+      <label for="serial_number">Pod Serial Number:</label>
+      <select id="serial_number" name="serial_number" required>
+        {% if unconverted_pods %}
+          {% for pod in unconverted_pods %}
+            <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="" disabled selected>No unconverted pods available</option>
+        {% endif %}
+      </select>
+
+      <label for="issue">Did anything slow you down this build?:</label>
+      <select name="issue" id="issue" required>
+        {% for issue in issues %}
+          <option value="{{ issue }}">{{ issue }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="lunch">Have I had lunch during this build?</label>
+      <select name="lunch" id="lunch">
+        <option value="No" selected>No</option>
+        <option value="Yes">Yes</option>
+      </select>
+
+      <button type="submit" class="button">Submit</button>
+    </form>
+
+    <!-- Tables Completed Today Section -->
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <h2>Tables Completed Today</h2>
+      <span class="green-text">Tables This Month: {{ current_month_bodies_count }}</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Worker</th>
+          <th>Start Time</th>
+          <th>Finish Time</th>
+          <th>Serial Number</th>
+          <th>Issue</th>
+          <th>Lunch</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for table in completed_tables %}
+          <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
+            <td>{{ table.date }}</td>
+            <td>{{ table.worker }}</td>
+            <td>{{ table.start_time }}</td>
+            <td>{{ table.finish_time }}</td>
+            <td>{{ table.serial_number }}</td>
+            <td>{{ table.issue }}</td>
+            <td>{{ table.lunch }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Collapsible Section for Daily History -->
+    <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>
+    <div id="dailyHistory" class="collapsible-content">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Tables Made</th>
+            <th>Serial Numbers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in daily_history %}
+            <tr>
+              <td>{{ entry.date }}</td>
+              <td>{{ entry.count }}</td>
+              <td>{{ entry.serial_numbers }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Collapsible Section for Monthly Totals -->
+    <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
+    <div id="monthlyTotals" class="collapsible-content">
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Total Tables Made</th>
+            <th>Average Hours per Table</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for month in monthly_totals %}
+            <tr>
+              <td>{{ month.month }}</td>
+              <td>{{ month.count }}</td>
+              <td>
+                {% if month.average_hours_per_table %}
+                  {{ month.average_hours_per_table }} hours
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Back to Menu Button -->
+    <div class="back-to-menu">
+      <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+    </div>
+  </div>
 </body>
 </html>
