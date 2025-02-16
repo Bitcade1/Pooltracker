@@ -1572,13 +1572,6 @@ from sqlalchemy.exc import IntegrityError
 from calendar import monthrange
 from datetime import date, datetime
 
-from flask import render_template, request, redirect, url_for, flash, session
-from sqlalchemy import func, extract
-from datetime import datetime, date, timedelta
-from calendar import monthrange
-from your_application import db  # Adjust the import as needed
-# Also import your models, e.g.:
-# from your_application.models import CompletedTable, CompletedPods, ProductionSchedule, PrintedPartsCount, Issue, WoodCount
 
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
