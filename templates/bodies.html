@@ -50,6 +50,16 @@
             color: #333;
             margin-bottom: 20px;
         }
+        
+        /* Styling for production targets */
+        .production-targets {
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            font-weight: bold;
+            background-color: #eef;
+            padding: 10px;
+            border-radius: 5px;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -61,6 +71,13 @@
 <body>
     <div class="container">
         <h1>Bodies</h1>
+        <!-- New production targets section -->
+        <div class="production-targets">
+            Production Targets for This Month: 
+            <span>7ft Tables: {{ target_7ft }}</span> | 
+            <span>6ft Tables: {{ target_6ft }}</span>
+        </div>
+
         {% if logged_in_worker %}
             <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
         {% else %}
