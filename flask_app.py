@@ -477,14 +477,12 @@ def inventory():
     # ---------------------------------------------------------------------
     # 1) 3D PRINTED PARTS
     # ---------------------------------------------------------------------
-    # Updated parts list now includes the new "6ft" parts
     parts = [
         "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp"
     ]
 
-    # Calculate current stock for each 3D printed part
     inventory_counts = {}
     for part in parts:
         latest_entry = (
@@ -527,15 +525,35 @@ def inventory():
     # 3) MONTHLY PRODUCTION REQUIREMENTS (3D PRINTED)
     # ---------------------------------------------------------------------
     today = datetime.utcnow().date()
-    bodies_built_this_month = (
-        db.session.query(func.count(CompletedTable.id))
-        .filter(
-            extract('year', CompletedTable.date) == today.year,
-            extract('month', CompletedTable.date) == today.month
-        )
-        .scalar()
-    )
 
+    # Separate completed tables by size:
+    completed_tables = CompletedTable.query.filter_by(date=today).all()
+    bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
+    bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
+
+    # Retrieve the production schedule for the current month.
+    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
+    if schedule:
+        target_7ft = (
+            schedule.black_7ft +
+            schedule.grey_7ft +
+            schedule.oak_7ft +
+            schedule.grey_oak_7ft +
+            schedule.concrete_7ft
+        )
+        target_6ft = (
+            schedule.black_6ft +
+            schedule.grey_6ft +
+            schedule.oak_6ft +
+            schedule.grey_oak_6ft +
+            schedule.concrete_6ft
+        )
+    else:
+        # Fallback defaults if no schedule is set
+        target_7ft = 60
+        target_6ft = 60
+
+    # Define usage per table for each part.
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
@@ -548,15 +566,27 @@ def inventory():
         "6ft Cue Ball Separator": 1,
         "6ft Large Ramp": 1
     }
-    parts_used_this_month = {
-        part: bodies_built_this_month * usage
-        for part, usage in parts_usage_per_body.items()
-    }
-    target_tables_per_month = 60
-    parts_status = {}
 
+    # Calculate how many of each part have already been used this month.
+    parts_used_this_month = {}
     for part, usage in parts_usage_per_body.items():
-        required_total = target_tables_per_month * usage
+        if part in ["Large Ramp", "Cue Ball Separator"]:
+            parts_used_this_month[part] = bodies_built_7ft * usage
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+            parts_used_this_month[part] = bodies_built_6ft * usage
+        else:
+            parts_used_this_month[part] = (bodies_built_7ft + bodies_built_6ft) * usage
+
+    # Determine the required total for each part based on production targets.
+    parts_status = {}
+    for part, usage in parts_usage_per_body.items():
+        if part in ["Large Ramp", "Cue Ball Separator"]:
+            required_total = target_7ft * usage
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+            required_total = target_6ft * usage
+        else:
+            required_total = (target_7ft + target_6ft) * usage
+
         available_total = inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)
         difference = available_total - required_total
         if difference >= 0:
@@ -588,7 +618,6 @@ def inventory():
         )
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
-    # Calculate how many tables can be built from table parts
     tables_possible_per_part = {
         part: table_parts_counts[part] // req_per_table
         for part, req_per_table in table_parts.items()
