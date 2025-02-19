@@ -1826,7 +1826,7 @@ def top_rails():
             remaining_to_deduct = quantity_needed
             for entry in part_entries:
                 if remaining_to_deduct <= 0:
-                    break
+                    break  # We have deducted everything we need
                 if entry.count >= remaining_to_deduct:
                     entry.count -= remaining_to_deduct
                     remaining_to_deduct = 0
@@ -1834,6 +1834,7 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
+        # Create the new top rail entry
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -1859,12 +1860,25 @@ def top_rails():
 
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
     if last_entry:
-        try:
-            current_time = datetime.strptime(last_entry.finish_time, "%H:%M:%S").strftime("%H:%M")
-        except ValueError:
-            current_time = last_entry.finish_time
+        # Updated next serial number logic:
+        if '-' in last_entry.serial_number:
+            parts = last_entry.serial_number.split('-', 1)
+            try:
+                next_serial_number = f"{int(parts[0]) + 1} - {parts[1]}"
+            except ValueError:
+                next_serial_number = "1000"
+        else:
+            try:
+                next_serial_number = str(int(last_entry.serial_number) + 1)
+            except ValueError:
+                next_serial_number = "1000"
     else:
-        current_time = datetime.now().strftime("%H:%M")
+        next_serial_number = "1000"
+
+    try:
+        current_time = datetime.strptime(last_entry.finish_time, "%H:%M:%S").strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
+    except (ValueError, TypeError):
+        current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
     top_rails_this_month = (
         db.session.query(func.count(TopRail.id))
@@ -1946,15 +1960,6 @@ def top_rails():
     else:
         target_7ft = 60
         target_6ft = 60
-
-    last_top_rail = TopRail.query.order_by(TopRail.id.desc()).first()
-    if last_top_rail:
-        try:
-            next_serial_number = str(int(last_top_rail.serial_number) + 1)
-        except ValueError:
-            next_serial_number = "1000"
-    else:
-        next_serial_number = "1000"
 
     return render_template(
         'top_rails.html',
