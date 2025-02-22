@@ -1810,7 +1810,6 @@ if not stock_entry:
 stock_entry.count += 1
 db.session.commit()
 
-
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     if 'worker' not in session:
@@ -1874,7 +1873,7 @@ def top_rails():
             return redirect(url_for('top_rails'))
         
         # --- Update Table Stock for Top Rails ---
-        # Determine if this top rail is 6ft or 7ft based on its serial number.
+        # This block is safely inside the POST branch so serial_number is defined.
         if " - 6" in serial_number:
             stock_type = 'top_rail_6ft'
         else:
@@ -1891,7 +1890,6 @@ def top_rails():
 
     # GET request handling
     today = date.today()
-    # Retrieve top rails completed today
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
     # Determine the next serial number
@@ -1988,7 +1986,6 @@ def top_rails():
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
 
-    # Retrieve production schedule targets for current month
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
         target_7ft = schedule.target_7ft
@@ -2009,6 +2006,8 @@ def top_rails():
         target_7ft=target_7ft,
         target_6ft=target_6ft
     )
+
+
 
 
 def fetch_uk_bank_holidays():
