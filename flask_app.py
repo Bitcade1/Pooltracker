@@ -2026,8 +2026,10 @@ def top_rails():
             return redirect(url_for('top_rails'))
         
         # --- Update Table Stock for Top Rails ---
-        # This block is safely inside the POST branch so serial_number is defined.
-        if " - 6" in serial_number:
+        # Use a robust check for 6ft by removing spaces.
+        def is_6ft(serial):
+            return serial.replace(" ", "").endswith("-6")
+        if is_6ft(serial_number):
             stock_type = 'top_rail_6ft'
         else:
             stock_type = 'top_rail_7ft'
@@ -2038,7 +2040,6 @@ def top_rails():
         stock_entry.count += 1
         db.session.commit()
         # -----------------------------------------
-
         return redirect(url_for('top_rails'))
 
     # GET request handling
@@ -2139,6 +2140,21 @@ def top_rails():
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
 
+    # --- New: Compute Current Production for Top Rails ---
+    # Retrieve all top rail entries for the current month.
+    all_top_rails_this_month = TopRail.query.filter(
+        extract('year', TopRail.date) == today.year,
+        extract('month', TopRail.date) == today.month
+    ).all()
+
+    # Helper function for classification:
+    def is_6ft(serial):
+        return serial.replace(" ", "").endswith("-6")
+    
+    current_top_rails_6ft = sum(1 for rail in all_top_rails_this_month if is_6ft(rail.serial_number))
+    current_top_rails_7ft = sum(1 for rail in all_top_rails_this_month if not is_6ft(rail.serial_number))
+    # ---------------------------------------------------
+
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
         target_7ft = schedule.target_7ft
@@ -2157,7 +2173,9 @@ def top_rails():
         top_rails_this_month=top_rails_this_month,
         next_serial_number=next_serial_number,
         target_7ft=target_7ft,
-        target_6ft=target_6ft
+        target_6ft=target_6ft,
+        current_top_rails_7ft=current_top_rails_7ft,
+        current_top_rails_6ft=current_top_rails_6ft
     )
 
 
