@@ -1835,7 +1835,6 @@ def bodies():
             return redirect(url_for('bodies'))
 
         # 4. Update Stock Automatically After a Body is Added
-        # Now that serial_number is defined, update the stock.
         if " - 6" in serial_number:
             stock_type = 'body_6ft'
         else:
@@ -1856,11 +1855,16 @@ def bodies():
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     
     # Calculate the count for the entire current month.
-    current_month_bodies_count = db.session.query(func.count(CompletedTable.id)).filter(
+    all_bodies_this_month = CompletedTable.query.filter(
          extract('year', CompletedTable.date) == today.year,
          extract('month', CompletedTable.date) == today.month
-    ).scalar()
-
+    ).all()
+    current_month_bodies_count = len(all_bodies_this_month)
+    
+    # Calculate current production (separated by 7ft and 6ft)
+    current_production_7ft = sum(1 for table in all_bodies_this_month if " - 6" not in table.serial_number)
+    current_production_6ft = sum(1 for table in all_bodies_this_month if " - 6" in table.serial_number)
+    
     # Daily History: Show summary for the last 5 working days in the current month.
     def get_last_n_working_days(n, reference_date):
         working_days = []
@@ -1948,7 +1952,9 @@ def bodies():
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
         target_7ft=target_7ft,
-        target_6ft=target_6ft
+        target_6ft=target_6ft,
+        current_production_7ft=current_production_7ft,
+        current_production_6ft=current_production_6ft
     )
 
 
