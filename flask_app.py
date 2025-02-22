@@ -913,6 +913,8 @@ def pods():
     completed_pods = CompletedPods.query.filter_by(date=today).all()
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
+    
+    # Calculate current production for pods this month
     pods_this_month = CompletedPods.query.filter(
         extract('year', CompletedPods.date) == today.year,
         extract('month', CompletedPods.date) == today.month
@@ -1011,7 +1013,7 @@ def pods():
         'pods.html',
         issues=issues,
         current_time=current_time,
-        completed_tables=completed_pods,
+        completed_pods=completed_pods,
         pods_this_month=pods_this_month,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
@@ -1019,6 +1021,7 @@ def pods():
         target_7ft=target_7ft,
         target_6ft=target_6ft
     )
+
 
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
