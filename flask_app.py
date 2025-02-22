@@ -82,6 +82,7 @@ class MDFInventory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     plain_mdf = db.Column(db.Integer, nullable=False, default=0)
     black_mdf = db.Column(db.Integer, nullable=False, default=0)
+    plain_mdf_36 = db.Column(db.Integer, nullable=False, default=0)
 
 class PrintedPartsCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
