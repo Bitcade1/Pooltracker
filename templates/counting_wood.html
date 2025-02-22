@@ -1,177 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Counting Wood - Pool Table Tracker</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        .collapsible {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 1.2em;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
-        .collapsible:hover {
-            background-color: #0056b3;
-        }
-        .collapsible-content {
-            padding: 15px;
-            display: none;
-            overflow: hidden;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
-        th { background-color: #f2f2f2; }
-    </style>
-    <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
-        }
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Counting Wood - Pool Table Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    .collapsible {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      text-align: left;
+      outline: none;
+      font-size: 1.2em;
+      margin-top: 20px;
+      border-radius: 5px;
+    }
+    .collapsible:hover {
+      background-color: #0056b3;
+    }
+    .collapsible-content {
+      padding: 15px;
+      display: none;
+      overflow: hidden;
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: 20px; 
+    }
+    th, td { 
+      padding: 12px; 
+      border: 1px solid #ddd; 
+      text-align: center; 
+    }
+    th { 
+      background-color: #f2f2f2; 
+    }
+    .group-heading {
+      font-size: 1.5em;
+      margin-top: 30px;
+      color: #007bff;
+    }
+    .button, button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .button:hover, button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+  <script>
+    function toggleCollapsible(id) {
+      var content = document.getElementById(id);
+      content.style.display = content.style.display === "block" ? "none" : "block";
+    }
+  </script>
 </head>
 <body>
-    <div class="container">
-        <h1>Counting Wood</h1>
+  <div class="container">
+    <h1>Counting Wood</h1>
 
-        <!-- Flash Messages Display -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <!-- Month Selection Form -->
-        <form method="POST" action="{{ url_for('counting_wood') }}">
-            <label for="month">Select Month: (This is the month you are cutting for)</label>
-            <select name="month" id="month" onchange="this.form.submit()">
-                {% for value, label in available_months %}
-                    <option value="{{ value }}" {% if value == selected_month %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </form>
-
-        <!-- Counters for Each Section -->
-        {% for section, count in counts.items() %}
-        <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">
-            {{ section }} - Current count: {{ count if count is not none else 0 }}
-        </button>
-        <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
-            <p class="count">Current Count: {{ count if count is not none else 0 }}</p>
-            
-            <!-- Increment Form -->
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="{{ section }}">
-                <input type="hidden" name="action" value="increment">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <button type="submit" class="up-arrow">▲</button>
-            </form>
-            
-            <!-- Decrement Form -->
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="{{ section }}">
-                <input type="hidden" name="action" value="decrement">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <button type="submit" class="down-arrow">▼</button>
-            </form>
-            
-            <!-- Bulk Increment Form -->
-            <form method="POST" action="{{ url_for('counting_wood') }}">
-                <input type="hidden" name="section" value="{{ section }}">
-                <input type="hidden" name="action" value="bulk_increment">
-                <input type="hidden" name="month" value="{{ selected_month }}">
-                <label for="{{ section | replace(' ', '_') }}_bulk_amount">Add Bulk Amount:</label>
-                <input type="number" id="{{ section | replace(' ', '_') }}_bulk_amount" name="bulk_amount" min="1" required>
-                <button type="submit" class="button">Add</button>
-            </form>
+    <!-- Flash Messages Display -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash {{ category }}">{{ message }}</p>
+          {% endfor %}
         </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Month Selection Form -->
+    <form method="POST" action="{{ url_for('counting_wood') }}">
+      <label for="month">Select Month: (This is the month you are cutting for)</label>
+      <select name="month" id="month" onchange="this.form.submit()">
+        {% for value, label in available_months %}
+          <option value="{{ value }}" {% if value == selected_month %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
+      </select>
+    </form>
 
-        <!-- Wood Inventory Display -->
-        <h2>Wood Remaining</h2>
-        <div class="inventory">
-            <p>Plain MDF: {{ inventory.plain_mdf }}</p>
-            <p>Black MDF: {{ inventory.black_mdf }}</p>
-        </div>
+    <!-- Grouped Counters for Each Section -->
+    {% set sorted_counts = counts|dictsort %}
+    {% set current_group = None %}
+    {% for section, count in sorted_counts %}
+      {% set parts = section.split(' - ') %}
+      {% set group = parts[0] %}
+      {% if current_group != group %}
+        {% if current_group is not none %}
+          </div> <!-- close previous group container -->
+        {% endif %}
+        <h2 class="group-heading">{{ group }} Wood Counts</h2>
+        <div class="group-container">
+        {% set current_group = group %}
+      {% endif %}
+      <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">
+        {{ section }} - Current count: {{ count if count is not none else 0 }}
+      </button>
+      <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
+        <p class="count">Current Count: {{ count if count is not none else 0 }}</p>
+        
+        <!-- Increment Form -->
+        <form method="POST" action="{{ url_for('counting_wood') }}">
+          <input type="hidden" name="section" value="{{ section }}">
+          <input type="hidden" name="action" value="increment">
+          <input type="hidden" name="month" value="{{ selected_month }}">
+          <button type="submit" class="button">▲</button>
+        </form>
+        
+        <!-- Decrement Form -->
+        <form method="POST" action="{{ url_for('counting_wood') }}">
+          <input type="hidden" name="section" value="{{ section }}">
+          <input type="hidden" name="action" value="decrement">
+          <input type="hidden" name="month" value="{{ selected_month }}">
+          <button type="submit" class="button">▼</button>
+        </form>
+        
+        <!-- Bulk Increment Form -->
+        <form method="POST" action="{{ url_for('counting_wood') }}">
+          <input type="hidden" name="section" value="{{ section }}">
+          <input type="hidden" name="action" value="bulk_increment">
+          <input type="hidden" name="month" value="{{ selected_month }}">
+          <label for="{{ section | replace(' ', '_') }}_bulk_amount">Add Bulk Amount:</label>
+          <input type="number" id="{{ section | replace(' ', '_') }}_bulk_amount" name="bulk_amount" min="1" required>
+          <button type="submit" class="button">Add</button>
+        </form>
+      </div>
+    {% endfor %}
+    {% if current_group is not none %}
+      </div> <!-- close last group container -->
+    {% endif %}
 
-        <!-- Daily Wood Data -->
-        <button class="collapsible" onclick="toggleCollapsible('dailyData')">Daily Wood Data</button>
-        <div id="dailyData" class="collapsible-content">
-            <h3>Wood Cut Today</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Time Logged</th>
-                        <th>Type</th>
-                        <th>Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if daily_wood_data %}
-                        {% for entry in daily_wood_data %}
-                        <tr>
-                            <td>{{ entry.time.strftime('%H:%M') }}</td>
-                            <td>{{ entry.section }}</td>
-                            <td>{{ entry.count }}</td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="3">No data available for today.</td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Weekly Wood Data -->
-        <button class="collapsible" onclick="toggleCollapsible('weeklyData')">Weekly Wood Data</button>
-        <div id="weeklyData" class="collapsible-content">
-            <h3>Wood Cut This Week</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Day</th>
-                        <th>Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if weekly_summary %}
-                        {% for day, count in weekly_summary.items() %}
-                        <tr>
-                            <td>{{ day }}</td>
-                            <td>{{ count }}</td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="2">No data available for this week.</td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Back to Menu Button -->
-        <div class="back-to-menu">
-            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
-        </div>
+    <!-- Wood Inventory Display -->
+    <h2>Wood Remaining</h2>
+    <div class="inventory">
+      <p>Plain MDF: {{ inventory.plain_mdf }}</p>
+      <p>Black MDF: {{ inventory.black_mdf }}</p>
     </div>
+
+    <!-- Daily Wood Data -->
+    <button class="collapsible" onclick="toggleCollapsible('dailyData')">Daily Wood Data</button>
+    <div id="dailyData" class="collapsible-content">
+      <h3>Wood Cut Today</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Time Logged</th>
+            <th>Type</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if daily_wood_data %}
+            {% for entry in daily_wood_data %}
+            <tr>
+              <td>{{ entry.time.strftime('%H:%M') }}</td>
+              <td>{{ entry.section }}</td>
+              <td>{{ entry.count }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="3">No data available for today.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Weekly Wood Data -->
+    <button class="collapsible" onclick="toggleCollapsible('weeklyData')">Weekly Wood Data</button>
+    <div id="weeklyData" class="collapsible-content">
+      <h3>Wood Cut This Week</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if weekly_summary %}
+            {% for day, count in weekly_summary.items() %}
+            <tr>
+              <td>{{ day }}</td>
+              <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="2">No data available for this week.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Back to Menu Button -->
+    <div class="back-to-menu">
+      <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+    </div>
+  </div>
 </body>
 </html>
