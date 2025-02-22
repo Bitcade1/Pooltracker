@@ -914,19 +914,19 @@ def pods():
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
     
-    # Calculate all pods for the current month.
+    # Retrieve all pods for the current month
     all_pods_this_month = CompletedPods.query.filter(
         extract('year', CompletedPods.date) == today.year,
         extract('month', CompletedPods.date) == today.month
     ).all()
     pods_this_month = len(all_pods_this_month)
     
-    # Helper function to classify pods as 6ft if, after removing spaces, the serial number ends with "-6".
+    # Helper function to classify pod size:
     def is_6ft(serial):
         return serial.replace(" ", "").endswith("-6")
     
-    current_production_6ft = sum(1 for pod in all_pods_this_month if is_6ft(pod.serial_number))
-    current_production_7ft = pods_this_month - current_production_6ft
+    current_production_pods_6ft = sum(1 for pod in all_pods_this_month if is_6ft(pod.serial_number))
+    current_production_pods_7ft = pods_this_month - current_production_pods_6ft
 
     # Helper: last 5 working days (Monday-Friday)
     def get_last_n_working_days(n, reference_date):
@@ -1023,14 +1023,15 @@ def pods():
         current_time=current_time,
         completed_pods=completed_pods,
         pods_this_month=pods_this_month,
-        current_production_7ft=current_production_7ft,
-        current_production_6ft=current_production_6ft,
+        current_production_pods_7ft=current_production_pods_7ft,
+        current_production_pods_6ft=current_production_pods_6ft,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,
         next_serial_number=next_serial_number,
         target_7ft=target_7ft,
         target_6ft=target_6ft
     )
+
 
 
 
