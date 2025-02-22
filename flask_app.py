@@ -1662,9 +1662,8 @@ def bodies():
 
         # Deduct parts from inventory
         for part_name, quantity_needed in parts_to_deduct.items():
-            part_entry = PrintedPartsCount.query.filter_by(
-                part_name=part_name
-            ).order_by(PrintedPartsCount.date.desc()).first()
+            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name)\
+                                                 .order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
                 part_entry.count -= quantity_needed
             else:
@@ -1693,15 +1692,28 @@ def bodies():
             flash("Error: Serial number already exists or another error occurred.", "error")
             return redirect(url_for('bodies'))
 
+        # 4. Update Stock Automatically After a Body is Added
+        # Now that serial_number is defined, update the stock.
+        if " - 6" in serial_number:
+            stock_type = 'body_6ft'
+        else:
+            stock_type = 'body_7ft'
+        stock_entry = TableStock.query.filter_by(type=stock_type).first()
+        if not stock_entry:
+            stock_entry = TableStock(type=stock_type, count=0)
+            db.session.add(stock_entry)
+        stock_entry.count += 1
+        db.session.commit()
+
         return redirect(url_for('bodies'))
 
-    # 4. Retrieve data for display (GET request)
+    # 5. Retrieve data for display (GET request)
     today = date.today()
     
     # "Tables Completed Today": Only today's entries
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     
-    # Now calculate the count for the entire current month.
+    # Calculate the count for the entire current month.
     current_month_bodies_count = db.session.query(func.count(CompletedTable.id)).filter(
          extract('year', CompletedTable.date) == today.year,
          extract('month', CompletedTable.date) == today.month
@@ -1771,7 +1783,7 @@ def bodies():
             "average_hours_per_table": avg_hours_per_table_formatted
         })
 
-    # 5. Retrieve the current month's production schedule targets.
+    # 6. Retrieve the current month's production schedule targets.
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
         target_7ft = schedule.target_7ft
@@ -1780,11 +1792,10 @@ def bodies():
         target_7ft = 60
         target_6ft = 60
 
-    # 6. Get the current finish_time to pre-populate the form
+    # 7. Get the current finish_time to pre-populate the form
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # 7. Render the template, passing along all variables.
     return render_template(
         'bodies.html',
         issues=issues,
@@ -1798,17 +1809,6 @@ def bodies():
         target_6ft=target_6ft
     )
 
-# Update stock automatically after a body is added.
-if " - 6" in serial_number:
-    stock_type = 'body_6ft'
-else:
-    stock_type = 'body_7ft'
-stock_entry = TableStock.query.filter_by(type=stock_type).first()
-if not stock_entry:
-    stock_entry = TableStock(type=stock_type, count=0)
-    db.session.add(stock_entry)
-stock_entry.count += 1
-db.session.commit()
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
