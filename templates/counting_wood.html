@@ -94,56 +94,83 @@
       </select>
     </form>
 
-    <!-- Grouped Counters for Each Section -->
-    {% set sorted_counts = counts|dictsort %}
-    {% set current_group = None %}
-    {% for section, count in sorted_counts %}
-      {% set parts = section.split(' - ') %}
-      {% set group = parts[0] %}
-      {% if current_group != group %}
-        {% if current_group is not none %}
-          </div> <!-- close previous group container -->
-        {% endif %}
-        <h2 class="group-heading">{{ group }} Wood Counts</h2>
-        <div class="group-container">
-        {% set current_group = group %}
-      {% endif %}
-      <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">
-        {{ section }} - Current count: {{ count if count is not none else 0 }}
-      </button>
-      <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
-        <p class="count">Current Count: {{ count if count is not none else 0 }}</p>
-        
-        <!-- Increment Form -->
-        <form method="POST" action="{{ url_for('counting_wood') }}">
-          <input type="hidden" name="section" value="{{ section }}">
-          <input type="hidden" name="action" value="increment">
-          <input type="hidden" name="month" value="{{ selected_month }}">
-          <button type="submit" class="button">▲</button>
-        </form>
-        
-        <!-- Decrement Form -->
-        <form method="POST" action="{{ url_for('counting_wood') }}">
-          <input type="hidden" name="section" value="{{ section }}">
-          <input type="hidden" name="action" value="decrement">
-          <input type="hidden" name="month" value="{{ selected_month }}">
-          <button type="submit" class="button">▼</button>
-        </form>
-        
-        <!-- Bulk Increment Form -->
-        <form method="POST" action="{{ url_for('counting_wood') }}">
-          <input type="hidden" name="section" value="{{ section }}">
-          <input type="hidden" name="action" value="bulk_increment">
-          <input type="hidden" name="month" value="{{ selected_month }}">
-          <label for="{{ section | replace(' ', '_') }}_bulk_amount">Add Bulk Amount:</label>
-          <input type="number" id="{{ section | replace(' ', '_') }}_bulk_amount" name="bulk_amount" min="1" required>
-          <button type="submit" class="button">Add</button>
-        </form>
-      </div>
-    {% endfor %}
-    {% if current_group is not none %}
-      </div> <!-- close last group container -->
-    {% endif %}
+    <!-- 7ft Wood Counts Section -->
+    <h2 class="group-heading">7ft Wood Counts</h2>
+    <div class="group-container">
+      {% for section, count in counts.items() if section.startswith("7ft") %}
+        <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">
+          {{ section }} - Current count: {{ count if count is not none else 0 }}
+        </button>
+        <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
+          <p class="count">Current Count: {{ count if count is not none else 0 }}</p>
+          
+          <!-- Increment Form -->
+          <form method="POST" action="{{ url_for('counting_wood') }}">
+            <input type="hidden" name="section" value="{{ section }}">
+            <input type="hidden" name="action" value="increment">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <button type="submit" class="button">▲</button>
+          </form>
+          
+          <!-- Decrement Form -->
+          <form method="POST" action="{{ url_for('counting_wood') }}">
+            <input type="hidden" name="section" value="{{ section }}">
+            <input type="hidden" name="action" value="decrement">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <button type="submit" class="button">▼</button>
+          </form>
+          
+          <!-- Bulk Increment Form -->
+          <form method="POST" action="{{ url_for('counting_wood') }}">
+            <input type="hidden" name="section" value="{{ section }}">
+            <input type="hidden" name="action" value="bulk_increment">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <label for="{{ section | replace(' ', '_') }}_bulk_amount">Add Bulk Amount:</label>
+            <input type="number" id="{{ section | replace(' ', '_') }}_bulk_amount" name="bulk_amount" min="1" required>
+            <button type="submit" class="button">Add</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- 6ft Wood Counts Section -->
+    <h2 class="group-heading">6ft Wood Counts</h2>
+    <div class="group-container">
+      {% for section, count in counts.items() if section.startswith("6ft") %}
+        <button class="collapsible" onclick="toggleCollapsible('{{ section | replace(' ', '_') }}Content')">
+          {{ section }} - Current count: {{ count if count is not none else 0 }}
+        </button>
+        <div id="{{ section | replace(' ', '_') }}Content" class="collapsible-content">
+          <p class="count">Current Count: {{ count if count is not none else 0 }}</p>
+          
+          <!-- Increment Form -->
+          <form method="POST" action="{{ url_for('counting_wood') }}">
+            <input type="hidden" name="section" value="{{ section }}">
+            <input type="hidden" name="action" value="increment">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <button type="submit" class="button">▲</button>
+          </form>
+          
+          <!-- Decrement Form -->
+          <form method="POST" action="{{ url_for('counting_wood') }}">
+            <input type="hidden" name="section" value="{{ section }}">
+            <input type="hidden" name="action" value="decrement">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <button type="submit" class="button">▼</button>
+          </form>
+          
+          <!-- Bulk Increment Form -->
+          <form method="POST" action="{{ url_for('counting_wood') }}">
+            <input type="hidden" name="section" value="{{ section }}">
+            <input type="hidden" name="action" value="bulk_increment">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <label for="{{ section | replace(' ', '_') }}_bulk_amount">Add Bulk Amount:</label>
+            <input type="number" id="{{ section | replace(' ', '_') }}_bulk_amount" name="bulk_amount" min="1" required>
+            <button type="submit" class="button">Add</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
 
     <!-- Wood Inventory Display -->
     <h2>Wood Remaining</h2>
@@ -167,11 +194,11 @@
         <tbody>
           {% if daily_wood_data %}
             {% for entry in daily_wood_data %}
-            <tr>
-              <td>{{ entry.time.strftime('%H:%M') }}</td>
-              <td>{{ entry.section }}</td>
-              <td>{{ entry.count }}</td>
-            </tr>
+              <tr>
+                <td>{{ entry.time.strftime('%H:%M') }}</td>
+                <td>{{ entry.section }}</td>
+                <td>{{ entry.count }}</td>
+              </tr>
             {% endfor %}
           {% else %}
             <tr>
@@ -196,10 +223,10 @@
         <tbody>
           {% if weekly_summary %}
             {% for day, count in weekly_summary.items() %}
-            <tr>
-              <td>{{ day }}</td>
-              <td>{{ count }}</td>
-            </tr>
+              <tr>
+                <td>{{ day }}</td>
+                <td>{{ count }}</td>
+              </tr>
             {% endfor %}
           {% else %}
             <tr>
