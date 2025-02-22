@@ -1177,6 +1177,7 @@ def counting_wood():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    # Ensure MDF inventory record exists.
     inventory = MDFInventory.query.first()
     if not inventory:
         inventory = MDFInventory(plain_mdf=0, black_mdf=0)
@@ -1187,100 +1188,123 @@ def counting_wood():
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
-
     available_months = [
         (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
         (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
         (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
     ]
-
+    # Selected month is taken from form or query string.
     selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
     month_start_date = date(selected_year, selected_month_num, 1)
     month_end_date = date(selected_year, selected_month_num, monthrange(selected_year, selected_month_num)[1])
 
+    # Define wood counting sections.
+    # Each key ("7ft" or "6ft") will have 5 items.
+    sections = {
+        "7ft": ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"],
+        "6ft": ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"]
+    }
+
     if request.method == 'POST' and 'section' in request.form:
+        # Expecting a section value like "7ft - Body" or "6ft - Top Rail Pieces Short".
         section = request.form['section']
         action = request.form.get('action', 'increment')
         current_time = datetime.now().time()
 
+        # Retrieve (or create) the monthly wood count record for this section.
         monthly_entry = WoodCount.query.filter(
             WoodCount.section == section,
             WoodCount.date >= month_start_date,
             WoodCount.date <= month_end_date
         ).first()
-
         if not monthly_entry:
             monthly_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
             db.session.add(monthly_entry)
 
+        # Create a new wood count log entry for today.
         new_entry = WoodCount(section=section, count=0, date=today, time=current_time)
 
         if action == 'increment':
             monthly_entry.count += 1
             new_entry.count = 1
-            if section == "Body" and inventory.black_mdf > 0:
+            # Adjust MDF inventory for sections that require it.
+            if section.endswith("Body") and inventory.black_mdf > 0:
                 inventory.black_mdf -= 1
-            elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf > 0:
+            elif (section.endswith("Pod Sides") or section.endswith("Bases")) and inventory.plain_mdf > 0:
                 inventory.plain_mdf -= 1
-
+            # No inventory change for Top Rail Pieces.
         elif action == 'decrement':
             if monthly_entry.count > 0:
                 monthly_entry.count -= 1
                 new_entry.count = -1
-                if section == "Body":
+                if section.endswith("Body"):
                     inventory.black_mdf += 1
-                elif section in ["Pod Sides", "Bases"]:
+                elif (section.endswith("Pod Sides") or section.endswith("Bases")):
                     inventory.plain_mdf += 1
-
+            else:
+                flash("Cannot decrement below zero.", "error")
+                return redirect(url_for('counting_wood', month=selected_month))
         elif action == 'bulk_increment':
-            bulk_amount = int(request.form.get('bulk_amount', 0))
+            try:
+                bulk_amount = int(request.form.get('bulk_amount', 0))
+            except ValueError:
+                flash("Please enter a valid bulk amount.", "error")
+                return redirect(url_for('counting_wood', month=selected_month))
             if bulk_amount > 0:
+                # For sections affecting inventory, check and update.
+                if section.endswith("Body"):
+                    if inventory.black_mdf >= bulk_amount:
+                        inventory.black_mdf -= bulk_amount
+                    else:
+                        flash("Insufficient inventory for bulk operation.", "error")
+                        return redirect(url_for('counting_wood', month=selected_month))
+                elif section.endswith("Pod Sides") or section.endswith("Bases"):
+                    if inventory.plain_mdf >= bulk_amount:
+                        inventory.plain_mdf -= bulk_amount
+                    else:
+                        flash("Insufficient inventory for bulk operation.", "error")
+                        return redirect(url_for('counting_wood', month=selected_month))
+                # No inventory check for Top Rail Pieces.
                 monthly_entry.count += bulk_amount
                 new_entry.count = bulk_amount
-                if section == "Body" and inventory.black_mdf >= bulk_amount:
-                    inventory.black_mdf -= bulk_amount
-                elif section in ["Pod Sides", "Bases"] and inventory.plain_mdf >= bulk_amount:
-                    inventory.plain_mdf -= bulk_amount
-                else:
-                    flash("Insufficient inventory for bulk operation.", "error")
-                    return redirect(url_for('counting_wood', month=selected_month))
             else:
                 flash("Please enter a valid bulk amount.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
+        else:
+            flash("Invalid action.", "error")
+            return redirect(url_for('counting_wood', month=selected_month))
 
         db.session.add(new_entry)
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
 
-    sections = ['Body', 'Pod Sides', 'Bases']
-    counts = {
-        section: WoodCount.query.filter(
-            WoodCount.section == section,
-            WoodCount.date >= month_start_date,
-            WoodCount.date <= month_end_date
-        ).first().count if WoodCount.query.filter(
-            WoodCount.section == section,
-            WoodCount.date >= month_start_date,
-            WoodCount.date <= month_end_date
-        ).first() else 0
-        for section in sections
-    }
+    # Build a counts dictionary for display.
+    # For each group (7ft and 6ft) and for each item, query the monthly total.
+    counts = {}
+    for group, items in sections.items():
+        for item in items:
+            sec = f"{group} - {item}"
+            entry = WoodCount.query.filter(
+                WoodCount.section == sec,
+                WoodCount.date >= month_start_date,
+                WoodCount.date <= month_end_date
+            ).first()
+            counts[sec] = entry.count if entry else 0
 
+    # Weekly summary: Sum the counts for each weekday over the current week.
     start_of_week = today - timedelta(days=today.weekday())
     weekly_summary = {day: 0 for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']}
-    daily_wood_data = WoodCount.query.filter(
+    daily_entries = WoodCount.query.filter(
         WoodCount.date >= start_of_week,
         WoodCount.date <= today
     ).all()
-
-    for entry in daily_wood_data:
+    for entry in daily_entries:
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
 
-    daily_wood_data = WoodCount.query.filter(
-        WoodCount.date == today
-    ).all()
+    # Retrieve wood entries for today.
+    daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
 
     return render_template(
         'counting_wood.html',
