@@ -132,6 +132,15 @@
       </div>
     </div>
     
+    <!-- Current Production Section -->
+    <div class="production-targets">
+      <div class="prod-title">Current Production This Month</div>
+      <div class="prod-values">
+        <span>7ft Top Rails: {{ current_top_rails_7ft }}</span>
+        <span>6ft Top Rails: {{ current_top_rails_6ft }}</span>
+      </div>
+    </div>
+    
     {% if logged_in_worker %}
       <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
     {% else %}
