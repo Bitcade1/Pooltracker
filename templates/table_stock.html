@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Table Stock - Pool Table Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <!-- Select2 CSS (if needed elsewhere) -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <style>
+      .container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+      }
+      h1 {
+          text-align: center;
+          margin-bottom: 20px;
+      }
+      table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+      }
+      table, th, td {
+          border: 1px solid #ddd;
+      }
+      th, td {
+          padding: 10px;
+          text-align: center;
+      }
+      th {
+          background-color: #007bff;
+          color: white;
+      }
+      .button, button {
+          background-color: #007bff;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          margin: 5px;
+          border-radius: 5px;
+          cursor: pointer;
+      }
+      .button:hover, button:hover {
+          background-color: #0056b3;
+      }
+      .logged-in-user {
+          font-size: 0.9em;
+          color: #333;
+          margin-bottom: 20px;
+      }
+      .flash-messages p {
+          padding: 10px;
+          border-radius: 5px;
+      }
+      .flash.success {
+          background-color: #d4edda;
+          color: #155724;
+      }
+      .flash.error {
+          background-color: #f8d7da;
+          color: #721c24;
+      }
+  </style>
+  <!-- jQuery (if needed for Select2) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Select2 JS (if needed for additional form enhancements) -->
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Table Stock</h1>
+    
+    {% if logged_in_worker %}
+      <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
+    {% else %}
+      <div class="logged-in-user">Not logged in</div>
+    {% endif %}
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash {{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Current Stock</th>
+          <th>Adjust Stock</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for type, count in stock_data.items() %}
+          <tr>
+            <td>{{ type.replace('_', ' ').title() }}</td>
+            <td>{{ count }}</td>
+            <td>
+              <form method="post" style="display:inline;">
+                <input type="hidden" name="stock_type" value="{{ type }}">
+                <input type="number" name="amount" placeholder="Amount" min="1" required>
+                <button type="submit" name="action" value="add" class="button">Add</button>
+                <button type="submit" name="action" value="remove" class="button">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+    <div style="text-align: center;">
+      <a href="{{ url_for('admin') }}" class="button">Back to Admin</a>
+    </div>
+  </div>
+</body>
+</html>
