@@ -40,6 +40,13 @@ class CompletedTable(db.Model):
     lunch = db.Column(db.String(3), default='No')
     date = db.Column(db.Date, default=date.today, nullable=False)
 
+class TableStock(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    # Use a string like 'body_7ft', 'body_6ft', 'top_rail', or 'cushion_set'
+    type = db.Column(db.String(50), unique=True, nullable=False)
+    count = db.Column(db.Integer, default=0, nullable=False)
+
+
 class Worker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -1791,6 +1798,19 @@ def bodies():
         target_6ft=target_6ft
     )
 
+# Update stock automatically after a body is added.
+if " - 6" in serial_number:
+    stock_type = 'body_6ft'
+else:
+    stock_type = 'body_7ft'
+stock_entry = TableStock.query.filter_by(type=stock_type).first()
+if not stock_entry:
+    stock_entry = TableStock(type=stock_type, count=0)
+    db.session.add(stock_entry)
+stock_entry.count += 1
+db.session.commit()
+
+
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     if 'worker' not in session:
@@ -1804,7 +1824,7 @@ def top_rails():
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
-        issue = request.form['issue']
+        issue_text = request.form['issue']
         lunch = request.form['lunch']
 
         # Parts and quantities needed for top rail completion
@@ -1826,7 +1846,7 @@ def top_rails():
             remaining_to_deduct = quantity_needed
             for entry in part_entries:
                 if remaining_to_deduct <= 0:
-                    break  # We have deducted everything we need
+                    break
                 if entry.count >= remaining_to_deduct:
                     entry.count -= remaining_to_deduct
                     remaining_to_deduct = 0
@@ -1834,14 +1854,14 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Create the new top rail entry
+        # Create the new TopRail record
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
             finish_time=finish_time,
             serial_number=serial_number,
             lunch=lunch,
-            issue=issue,
+            issue=issue_text,
             date=date.today()
         )
         try:
@@ -1852,15 +1872,31 @@ def top_rails():
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('top_rails'))
+        
+        # --- Update Table Stock for Top Rails ---
+        # Determine if this top rail is 6ft or 7ft based on its serial number.
+        if " - 6" in serial_number:
+            stock_type = 'top_rail_6ft'
+        else:
+            stock_type = 'top_rail_7ft'
+        stock_entry = TableStock.query.filter_by(type=stock_type).first()
+        if not stock_entry:
+            stock_entry = TableStock(type=stock_type, count=0)
+            db.session.add(stock_entry)
+        stock_entry.count += 1
+        db.session.commit()
+        # -----------------------------------------
+
         return redirect(url_for('top_rails'))
 
+    # GET request handling
     today = date.today()
-    # Top Rails Completed Today: only today's entries
+    # Retrieve top rails completed today
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
+    # Determine the next serial number
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
     if last_entry:
-        # Updated next serial number logic:
         if '-' in last_entry.serial_number:
             parts = last_entry.serial_number.split('-', 1)
             try:
@@ -1889,7 +1925,7 @@ def top_rails():
         .scalar()
     )
 
-    # Helper: get last 5 working days for top rails
+    # Helper: Get last 5 working days (Monday-Friday)
     def get_last_n_working_days(n, reference_date):
         working_days = []
         d = reference_date
@@ -1973,6 +2009,7 @@ def top_rails():
         target_7ft=target_7ft,
         target_6ft=target_6ft
     )
+
 
 def fetch_uk_bank_holidays():
     try:
@@ -2090,6 +2127,50 @@ def production_schedule():
         next_12_months=next_12_months,  # Each item has 'year', 'month', and 'display_str'
         schedules_map=schedules_map
     )
+
+@app.route('/admin/table_stock', methods=['GET', 'POST'])
+def table_stock():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        stock_type = request.form.get('stock_type')
+        action = request.form.get('action')
+        try:
+            amount = int(request.form.get('amount', 0))
+        except ValueError:
+            flash("Invalid amount entered.", "error")
+            return redirect(url_for('table_stock'))
+        if amount <= 0:
+            flash("Amount must be a positive number.", "error")
+            return redirect(url_for('table_stock'))
+        
+        stock_entry = TableStock.query.filter_by(type=stock_type).first()
+        if not stock_entry:
+            stock_entry = TableStock(type=stock_type, count=0)
+            db.session.add(stock_entry)
+        
+        if action == 'add':
+            stock_entry.count += amount
+            flash(f"Added {amount} to {stock_type} stock.", "success")
+        elif action == 'remove':
+            if stock_entry.count < amount:
+                flash("Not enough stock to remove.", "error")
+            else:
+                stock_entry.count -= amount
+                flash(f"Removed {amount} from {stock_type} stock.", "success")
+        db.session.commit()
+        return redirect(url_for('table_stock'))
+
+    # List stock types with separate entries for top rails
+    stock_types = ['body_7ft', 'body_6ft', 'top_rail_7ft', 'top_rail_6ft', 'cushion_set']
+    stock_data = {}
+    for st in stock_types:
+        entry = TableStock.query.filter_by(type=st).first()
+        stock_data[st] = entry.count if entry else 0
+
+    return render_template('table_stock.html', stock_data=stock_data)
 
 
 
