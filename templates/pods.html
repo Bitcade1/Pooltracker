@@ -130,6 +130,14 @@
       </div>
     </div>
     
+    <!-- Current Production Section -->
+    <div class="production-targets">
+      <div class="prod-title">Current Production This Month</div>
+      <div class="prod-values">
+        <span>Pods: {{ pods_this_month }}</span>
+      </div>
+    </div>
+    
     {% if logged_in_worker %}
       <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
     {% else %}
@@ -191,7 +199,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for table in completed_tables %}
+        {% for table in completed_pods %}
           <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
             <td>{{ table.date.strftime('%d/%m/%y') }}</td>
             <td>{{ table.worker }}</td>
