@@ -864,6 +864,8 @@ from datetime import datetime, date
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import extract, func, distinct
 
+import re
+
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
     if 'worker' not in session:
