@@ -1183,7 +1183,7 @@ def counting_wood():
     # Ensure MDF inventory record exists.
     inventory = MDFInventory.query.first()
     if not inventory:
-        inventory = MDFInventory(plain_mdf=0, black_mdf=0)
+        inventory = MDFInventory(plain_mdf=0, black_mdf=0, plain_mdf_36=0)
         db.session.add(inventory)
         db.session.commit()
 
@@ -1203,14 +1203,14 @@ def counting_wood():
     month_end_date = date(selected_year, selected_month_num, monthrange(selected_year, selected_month_num)[1])
 
     # Define wood counting sections.
-    # Each key ("7ft" or "6ft") will have 5 items.
+    # For each group ("7ft" and "6ft"), we have these five items.
     sections = {
         "7ft": ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"],
         "6ft": ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"]
     }
 
     if request.method == 'POST' and 'section' in request.form:
-        # Expecting a section value like "7ft - Body" or "6ft - Top Rail Pieces Short".
+        # Expect a section value like "7ft - Body" or "6ft - Top Rail Pieces Long"
         section = request.form['section']
         action = request.form.get('action', 'increment')
         current_time = datetime.now().time()
@@ -1228,62 +1228,176 @@ def counting_wood():
         # Create a new wood count log entry for today.
         new_entry = WoodCount(section=section, count=0, date=today, time=current_time)
 
-        if action == 'increment':
-            monthly_entry.count += 1
-            new_entry.count = 1
-            # Adjust MDF inventory for sections that require it.
-            if section.endswith("Body") and inventory.black_mdf > 0:
-                inventory.black_mdf -= 1
-            elif (section.endswith("Pod Sides") or section.endswith("Bases")) and inventory.plain_mdf > 0:
-                inventory.plain_mdf -= 1
-            # No inventory change for Top Rail Pieces.
-        elif action == 'decrement':
-            if monthly_entry.count > 0:
-                monthly_entry.count -= 1
-                new_entry.count = -1
-                if section.endswith("Body"):
-                    inventory.black_mdf += 1
-                elif (section.endswith("Pod Sides") or section.endswith("Bases")):
-                    inventory.plain_mdf += 1
-            else:
-                flash("Cannot decrement below zero.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
-        elif action == 'bulk_increment':
-            try:
-                bulk_amount = int(request.form.get('bulk_amount', 0))
-            except ValueError:
-                flash("Please enter a valid bulk amount.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
-            if bulk_amount > 0:
-                # For sections affecting inventory, check and update.
-                if section.endswith("Body"):
-                    if inventory.black_mdf >= bulk_amount:
-                        inventory.black_mdf -= bulk_amount
-                    else:
-                        flash("Insufficient inventory for bulk operation.", "error")
+        # --- Special logic for Top Rail Pieces ---
+        if "Top Rail Pieces" in section:
+            # For any top rail piece cut, deduct 1 sheet of 36mm Plain MDF per cut (or per unit in bulk)
+            if action in ['increment', 'bulk_increment']:
+                # Determine the number of cuts (1 for increment; bulk_amount for bulk)
+                multiplier = 1
+                if action == 'bulk_increment':
+                    try:
+                        multiplier = int(request.form.get('bulk_amount', 0))
+                    except ValueError:
+                        flash("Please enter a valid bulk amount.", "error")
                         return redirect(url_for('counting_wood', month=selected_month))
-                elif section.endswith("Pod Sides") or section.endswith("Bases"):
-                    if inventory.plain_mdf >= bulk_amount:
-                        inventory.plain_mdf -= bulk_amount
-                    else:
-                        flash("Insufficient inventory for bulk operation.", "error")
+                    if multiplier <= 0:
+                        flash("Please enter a valid bulk amount.", "error")
                         return redirect(url_for('counting_wood', month=selected_month))
-                # No inventory check for Top Rail Pieces.
-                monthly_entry.count += bulk_amount
-                new_entry.count = bulk_amount
+                if inventory.plain_mdf_36 < multiplier:
+                    flash("Not enough 36mm Plain MDF to perform this cut.", "error")
+                    return redirect(url_for('counting_wood', month=selected_month))
+                inventory.plain_mdf_36 -= multiplier
+            elif action == 'decrement':
+                # When decrementing, we add back one sheet per cut reversed.
+                inventory.plain_mdf_36 += 1
+
+            # Yield logic for Top Rail Pieces:
+            if action == 'increment':
+                if "Long" in section:
+                    # A long cut yields: +8 to Long and +2 to the corresponding Short.
+                    monthly_entry.count += 8
+                    new_entry.count = 8
+                    # Update the corresponding Short section.
+                    corresponding_section = section.replace("Long", "Short")
+                    short_entry = WoodCount.query.filter(
+                        WoodCount.section == corresponding_section,
+                        WoodCount.date >= month_start_date,
+                        WoodCount.date <= month_end_date
+                    ).first()
+                    if not short_entry:
+                        short_entry = WoodCount(section=corresponding_section, count=0, date=month_start_date, time=current_time)
+                        db.session.add(short_entry)
+                    short_entry.count += 2
+                    # Also log a separate entry for the short yield.
+                    new_short = WoodCount(section=corresponding_section, count=2, date=today, time=current_time)
+                    db.session.add(new_short)
+                elif "Short" in section:
+                    # A short cut yields: +16 to Short.
+                    monthly_entry.count += 16
+                    new_entry.count = 16
+
+            elif action == 'decrement':
+                if "Long" in section:
+                    if monthly_entry.count >= 8:
+                        monthly_entry.count -= 8
+                        new_entry.count = -8
+                        # Also update the corresponding Short section.
+                        corresponding_section = section.replace("Long", "Short")
+                        short_entry = WoodCount.query.filter(
+                            WoodCount.section == corresponding_section,
+                            WoodCount.date >= month_start_date,
+                            WoodCount.date <= month_end_date
+                        ).first()
+                        if short_entry and short_entry.count >= 2:
+                            short_entry.count -= 2
+                            new_short = WoodCount(section=corresponding_section, count=-2, date=today, time=current_time)
+                            db.session.add(new_short)
+                        else:
+                            flash("Not enough count in the corresponding Short section to decrement.", "error")
+                            return redirect(url_for('counting_wood', month=selected_month))
+                    else:
+                        flash("Cannot decrement below zero for Long top rail pieces.", "error")
+                        return redirect(url_for('counting_wood', month=selected_month))
+                elif "Short" in section:
+                    if monthly_entry.count >= 16:
+                        monthly_entry.count -= 16
+                        new_entry.count = -16
+                    else:
+                        flash("Cannot decrement below zero for Short top rail pieces.", "error")
+                        return redirect(url_for('counting_wood', month=selected_month))
+            elif action == 'bulk_increment':
+                try:
+                    bulk_amount = int(request.form.get('bulk_amount', 0))
+                except ValueError:
+                    flash("Please enter a valid bulk amount.", "error")
+                    return redirect(url_for('counting_wood', month=selected_month))
+                if bulk_amount > 0:
+                    if "Long" in section:
+                        monthly_entry.count += bulk_amount * 8
+                        new_entry.count = bulk_amount * 8
+                        # Update corresponding Short section.
+                        corresponding_section = section.replace("Long", "Short")
+                        short_entry = WoodCount.query.filter(
+                            WoodCount.section == corresponding_section,
+                            WoodCount.date >= month_start_date,
+                            WoodCount.date <= month_end_date
+                        ).first()
+                        if not short_entry:
+                            short_entry = WoodCount(section=corresponding_section, count=0, date=month_start_date, time=current_time)
+                            db.session.add(short_entry)
+                        short_entry.count += bulk_amount * 2
+                        new_short = WoodCount(section=corresponding_section, count=bulk_amount * 2, date=today, time=current_time)
+                        db.session.add(new_short)
+                    elif "Short" in section:
+                        monthly_entry.count += bulk_amount * 16
+                        new_entry.count = bulk_amount * 16
+                    # Deduct one sheet per cut in bulk.
+                    if inventory.plain_mdf_36 < bulk_amount:
+                        flash("Insufficient 36mm Plain MDF for bulk operation.", "error")
+                        return redirect(url_for('counting_wood', month=selected_month))
+                    inventory.plain_mdf_36 -= bulk_amount
+                else:
+                    flash("Please enter a valid bulk amount.", "error")
+                    return redirect(url_for('counting_wood', month=selected_month))
             else:
-                flash("Please enter a valid bulk amount.", "error")
+                flash("Invalid action.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
+
         else:
-            flash("Invalid action.", "error")
-            return redirect(url_for('counting_wood', month=selected_month))
+            # --- Original logic for sections other than Top Rail Pieces ---
+            if action == 'increment':
+                monthly_entry.count += 1
+                new_entry.count = 1
+                if section.endswith("Body") and inventory.black_mdf > 0:
+                    inventory.black_mdf -= 1
+                elif (section.endswith("Pod Sides") or section.endswith("Bases")) and inventory.plain_mdf > 0:
+                    inventory.plain_mdf -= 1
+                # No additional inventory change for other sections.
+            elif action == 'decrement':
+                if monthly_entry.count > 0:
+                    monthly_entry.count -= 1
+                    new_entry.count = -1
+                    if section.endswith("Body"):
+                        inventory.black_mdf += 1
+                    elif (section.endswith("Pod Sides") or section.endswith("Bases")):
+                        inventory.plain_mdf += 1
+                else:
+                    flash("Cannot decrement below zero.", "error")
+                    return redirect(url_for('counting_wood', month=selected_month))
+            elif action == 'bulk_increment':
+                try:
+                    bulk_amount = int(request.form.get('bulk_amount', 0))
+                except ValueError:
+                    flash("Please enter a valid bulk amount.", "error")
+                    return redirect(url_for('counting_wood', month=selected_month))
+                if bulk_amount > 0:
+                    if section.endswith("Body"):
+                        if inventory.black_mdf >= bulk_amount:
+                            inventory.black_mdf -= bulk_amount
+                        else:
+                            flash("Insufficient inventory for bulk operation.", "error")
+                            return redirect(url_for('counting_wood', month=selected_month))
+                    elif section.endswith("Pod Sides") or section.endswith("Bases"):
+                        if inventory.plain_mdf >= bulk_amount:
+                            inventory.plain_mdf -= bulk_amount
+                        else:
+                            flash("Insufficient inventory for bulk operation.", "error")
+                            return redirect(url_for('counting_wood', month=selected_month))
+                    monthly_entry.count += bulk_amount
+                    new_entry.count = bulk_amount
+                else:
+                    flash("Please enter a valid bulk amount.", "error")
+                    return redirect(url_for('counting_wood', month=selected_month))
+            else:
+                flash("Invalid action.", "error")
+                return redirect(url_for('counting_wood', month=selected_month))
 
         db.session.add(new_entry)
         db.session.commit()
         return redirect(url_for('counting_wood', month=selected_month))
 
+    # --- GET request handling ---
     # Build a counts dictionary for display.
-    # For each group (7ft and 6ft) and for each item, query the monthly total.
     counts = {}
     for group, items in sections.items():
         for item in items:
