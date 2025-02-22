@@ -2162,8 +2162,8 @@ def table_stock():
         db.session.commit()
         return redirect(url_for('table_stock'))
 
-    # List stock types with separate entries for top rails
-    stock_types = ['body_7ft', 'body_6ft', 'top_rail_7ft', 'top_rail_6ft', 'cushion_set']
+    # Define separate stock types for bodies, top rails, and cushion sets:
+    stock_types = ['body_7ft', 'body_6ft', 'top_rail_7ft', 'top_rail_6ft', 'cushion_set_7ft', 'cushion_set_6ft']
     stock_data = {}
     for st in stock_types:
         entry = TableStock.query.filter_by(type=st).first()
