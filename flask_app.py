@@ -864,16 +864,14 @@ from datetime import datetime, date
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import extract, func, distinct
 
-import re
-
 @app.route('/pods', methods=['GET', 'POST'])
 def pods():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
-
+    
     issues = [issue.description for issue in Issue.query.all()]
-
+    
     if request.method == 'POST':
         worker = session['worker']
         serial_number = request.form['serial_number']
@@ -887,7 +885,7 @@ def pods():
             finish_time = datetime.strptime(request.form['finish_time'], "%H:%M").time()
         except ValueError:
             finish_time = datetime.strptime(request.form['finish_time'], "%H:%M:%S").time()
-
+        
         new_pod = CompletedPods(
             worker=worker,
             start_time=start_time,
@@ -897,7 +895,7 @@ def pods():
             issue=issue_text,
             date=date.today()
         )
-
+        
         try:
             db.session.add(new_pod)
             db.session.commit()
@@ -906,11 +904,11 @@ def pods():
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('pods'))
-
+        
         return redirect(url_for('pods'))
-
+    
     today = date.today()
-    # Pods Completed Today (only today's entries)
+    # Retrieve today's pods.
     completed_pods = CompletedPods.query.filter_by(date=today).all()
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
@@ -922,15 +920,14 @@ def pods():
     ).all()
     pods_this_month = len(all_pods_this_month)
     
-    # Helper function: classify a pod as 6ft if its serial number (after stripping) ends with a dash followed by "6"
+    # Helper function: classify a pod as 6ft if its serial number (with spaces removed) ends with "-6"
     def is_6ft(serial):
-        # This regex matches a hyphen, en dash, or em dash, then optional whitespace, then a "6" at the end.
-        return re.search(r'[-–—]\s*6$', serial.strip()) is not None
-
+        return serial.replace(" ", "").endswith("-6")
+    
     current_production_pods_6ft = sum(1 for pod in all_pods_this_month if is_6ft(pod.serial_number))
     current_production_pods_7ft = pods_this_month - current_production_pods_6ft
-
-    # Helper: Get last 5 working days (Monday-Friday)
+    
+    # Helper: last 5 working days (Monday-Friday)
     def get_last_n_working_days(n, reference_date):
         working_days = []
         d = reference_date
@@ -939,7 +936,7 @@ def pods():
                 working_days.append(d)
             d -= timedelta(days=1)
         return working_days
-
+    
     last_working_days = get_last_n_working_days(5, today)
     daily_history = (
         db.session.query(
@@ -992,7 +989,7 @@ def pods():
             "count": total_pods,
             "average_hours_per_pod": avg_hours_per_pod_formatted
         })
-
+    
     # Retrieve production schedule targets for current month
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
@@ -1001,7 +998,7 @@ def pods():
     else:
         target_7ft = 60
         target_6ft = 60
-
+    
     # Next serial number generation logic
     last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     if last_pod:
@@ -1018,7 +1015,7 @@ def pods():
                 next_serial_number = "1000"
     else:
         next_serial_number = "1000"
-
+    
     return render_template(
         'pods.html',
         issues=issues,
@@ -1033,12 +1030,6 @@ def pods():
         target_7ft=target_7ft,
         target_6ft=target_6ft
     )
-
-
-
-
-
-
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
 def manage_raw_data():
