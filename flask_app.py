@@ -391,9 +391,10 @@ def manage_mdf_inventory():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    # Retrieve the inventory record or create one if it doesn't exist.
     inventory = MDFInventory.query.first()
     if not inventory:
-        inventory = MDFInventory(plain_mdf=0, black_mdf=0)
+        inventory = MDFInventory(plain_mdf=0, black_mdf=0, plain_mdf_36=0)
         db.session.add(inventory)
         db.session.commit()
 
@@ -401,8 +402,10 @@ def manage_mdf_inventory():
         try:
             additional_plain_mdf = int(request.form['additional_plain_mdf'])
             additional_black_mdf = int(request.form['additional_black_mdf'])
+            additional_plain_mdf_36 = int(request.form['additional_plain_mdf_36'])
             inventory.plain_mdf += additional_plain_mdf
             inventory.black_mdf += additional_black_mdf
+            inventory.plain_mdf_36 += additional_plain_mdf_36
             db.session.commit()
             flash("MDF inventory updated successfully!", "success")
         except ValueError:
