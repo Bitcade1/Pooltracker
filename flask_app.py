@@ -1854,16 +1854,22 @@ def bodies():
     # "Tables Completed Today": Only today's entries
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     
-    # Calculate the count for the entire current month.
+    # Retrieve all bodies for the current month
     all_bodies_this_month = CompletedTable.query.filter(
          extract('year', CompletedTable.date) == today.year,
          extract('month', CompletedTable.date) == today.month
     ).all()
     current_month_bodies_count = len(all_bodies_this_month)
     
-    # Calculate current production (separated by 7ft and 6ft)
-    current_production_7ft = sum(1 for table in all_bodies_this_month if " - 6" not in table.serial_number)
-    current_production_6ft = sum(1 for table in all_bodies_this_month if " - 6" in table.serial_number)
+    # Define a helper function for classification:
+    def is_6ft(serial_number):
+        # Remove spaces and check if it ends with '-6'
+        normalized = serial_number.replace(" ", "")
+        return normalized.endswith("-6")
+    
+    # Calculate current production separated by size
+    current_production_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
+    current_production_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
     
     # Daily History: Show summary for the last 5 working days in the current month.
     def get_last_n_working_days(n, reference_date):
@@ -1956,7 +1962,6 @@ def bodies():
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft
     )
-
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
