@@ -699,7 +699,7 @@ def counting_chinese_parts():
             # Create a new entry if none exists yet
             existing_entry = PrintedPartsCount(
                 part_name=selected_part,
-                count=current_count,  # Likely 0, but we’ll match logic
+                count=current_count,  # Likely 0, but we'll match logic
                 date=datetime.utcnow().date(),
                 time=datetime.utcnow().time()
             )
@@ -1845,7 +1845,8 @@ def bodies():
             return redirect(url_for('bodies'))
 
         # 4. Update Stock Automatically After a Body is Added
-        if " - 6" in serial_number:
+        # Normalize the serial number by removing spaces and check if it ends with "-6"
+        if serial_number.replace(" ", "").endswith("-6"):
             stock_type = 'body_6ft'
         else:
             stock_type = 'body_7ft'
