@@ -470,27 +470,32 @@ def counting_3d_printing_parts():
         target_7ft = schedule.target_7ft
         target_6ft = schedule.target_6ft
     else:
-        target_7ft = target_6ft = 0
+        # Fallback defaults if no schedule is set
+        target_7ft = 60
+        target_6ft = 60
 
-    # Count bodies built this month
-    bodies_built_7ft = db.session.query(func.count(CompletedTable.id)).filter(
+    # Get all completed tables for the current month
+    completed_tables = CompletedTable.query.filter(
         extract('year', CompletedTable.date) == current_year,
-        extract('month', CompletedTable.date) == current_month,
-        ~CompletedTable.serial_number.like('%-6')
-    ).scalar() or 0
+        extract('month', CompletedTable.date) == current_month
+    ).all()
 
-    bodies_built_6ft = db.session.query(func.count(CompletedTable.id)).filter(
-        extract('year', CompletedTable.date) == current_year,
-        extract('month', CompletedTable.date) == current_month,
-        CompletedTable.serial_number.like('%-6')
-    ).scalar() or 0
+    # Separate completed tables by size based on serial number
+    bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
+    bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
 
-    # Define parts usage per body
+    # Define usage per table for each part - UPDATED to match inventory route
     parts_usage_per_body = {
-        "Large Ramp": 1, "Paddle": 1, "Laminate": 3, 
-        "Spring Mount": 2, "Spring Holder": 2, "Small Ramp": 2, 
-        "Cue Ball Separator": 1, "Bushing": 3,
-        "6ft Cue Ball Separator": 1, "6ft Large Ramp": 1
+        "Large Ramp": 1,
+        "Paddle": 1,
+        "Laminate": 4,
+        "Spring Mount": 1,
+        "Spring Holder": 1,
+        "Small Ramp": 1,
+        "Cue Ball Separator": 1,
+        "Bushing": 2,
+        "6ft Cue Ball Separator": 1,
+        "6ft Large Ramp": 1
     }
 
     # Calculate parts used this month
