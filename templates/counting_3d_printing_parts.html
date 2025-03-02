@@ -62,11 +62,21 @@
             color: red; 
             font-weight: bold; 
         }
+        
+        /* Special style for inventory section that should be open by default */
+        #inventory3D.collapsible-content {
+            display: block;
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
             var content = document.getElementById(id);
             content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+        
+        // Ensure inventory section is open when page loads
+        window.onload = function() {
+            document.getElementById('inventory3D').style.display = "block";
         }
     </script>
 </head>
