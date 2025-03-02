@@ -456,10 +456,71 @@ def counting_3d_printing_parts():
     parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing", "6ft Cue Ball Separator", "6ft Large Ramp"]
     parts_counts = {part: PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first() for part in parts}
     parts_counts = {part: count.count if count else 0 for part, count in parts_counts.items()}
+    
+    # Get the current month and year
+    current_month = datetime.utcnow().month
+    current_year = datetime.utcnow().year
 
-    return render_template('counting_3d_printing_parts.html', parts_counts=parts_counts)
+    # Get the production targets for this month
+    schedule = ProductionSchedule.query.filter_by(
+        year=current_year, month=current_month
+    ).first()
 
-from sqlalchemy import extract
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        target_7ft = target_6ft = 0
+
+    # Count bodies built this month
+    bodies_built_7ft = db.session.query(func.count(CompletedTable.id)).filter(
+        extract('year', CompletedTable.date) == current_year,
+        extract('month', CompletedTable.date) == current_month,
+        ~CompletedTable.serial_number.like('%-6')
+    ).scalar() or 0
+
+    bodies_built_6ft = db.session.query(func.count(CompletedTable.id)).filter(
+        extract('year', CompletedTable.date) == current_year,
+        extract('month', CompletedTable.date) == current_month,
+        CompletedTable.serial_number.like('%-6')
+    ).scalar() or 0
+
+    # Define parts usage per body
+    parts_usage_per_body = {
+        "Large Ramp": 1, "Paddle": 1, "Laminate": 3, 
+        "Spring Mount": 2, "Spring Holder": 2, "Small Ramp": 2, 
+        "Cue Ball Separator": 1, "Bushing": 3,
+        "6ft Cue Ball Separator": 1, "6ft Large Ramp": 1
+    }
+
+    # Calculate parts used this month
+    parts_used_this_month = {}
+    for part, usage in parts_usage_per_body.items():
+        if part in ["Large Ramp", "Cue Ball Separator"]:
+            parts_used_this_month[part] = bodies_built_7ft * usage
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+            parts_used_this_month[part] = bodies_built_6ft * usage
+        else:
+            parts_used_this_month[part] = (bodies_built_7ft + bodies_built_6ft) * usage
+
+    # Determine the required total for each part
+    parts_status = {}
+    for part, usage in parts_usage_per_body.items():
+        if part in ["Large Ramp", "Cue Ball Separator"]:
+            required_total = target_7ft * usage
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+            required_total = target_6ft * usage
+        else:
+            required_total = (target_7ft + target_6ft) * usage
+
+        available_total = parts_counts.get(part, 0) + parts_used_this_month.get(part, 0)
+        difference = available_total - required_total
+        if difference >= 0:
+            parts_status[part] = f"{difference} extras"
+        else:
+            parts_status[part] = f"{abs(difference)} left to make"
+
+    return render_template('counting_3d_printing_parts.html', parts_counts=parts_counts, parts_status=parts_status)
 
 @app.route('/inventory', methods=['GET', 'POST'])
 def inventory():
