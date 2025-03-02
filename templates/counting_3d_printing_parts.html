@@ -138,10 +138,12 @@
                         <td><strong>{{ part }}</strong></td>
                         <td>{{ count }}</td>
                         <td>
-                            {% if 'extras' in parts_status[part] %}
-                                <span class="extra">{{ parts_status[part] }}</span>
+                            {% if count >= 10 %}
+                                <span class="extra">Extra Stock</span>
+                            {% elif count <= 3 %}
+                                <span class="shortage">Low Stock</span>
                             {% else %}
-                                <span class="shortage">{{ parts_status[part] }}</span>
+                                <span>Adequate Stock</span>
                             {% endif %}
                         </td>
                     </tr>
