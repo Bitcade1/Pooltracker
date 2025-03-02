@@ -34,6 +34,34 @@
             border-radius: 5px;
             margin-top: 10px;
         }
+        
+        /* Table styles */
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+        }
+        
+        th, td { 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            text-align: center; 
+        }
+        
+        th { 
+            background-color: #f2f2f2; 
+        }
+        
+        /* Status indicators */
+        .extra { 
+            color: green; 
+            font-weight: bold; 
+        }
+        
+        .shortage { 
+            color: red; 
+            font-weight: bold; 
+        }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -91,6 +119,35 @@
 
                 <button type="submit" name="reject" class="button">Reject Part</button>
             </form>
+        </div>
+
+        <!-- 3D Printed Inventory Section -->
+        <button class="collapsible" onclick="toggleCollapsible('inventory3D')">3D Printed Parts Inventory</button>
+        <div id="inventory3D" class="collapsible-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part</th>
+                        <th>Current Stock</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part, count in inventory_counts.items() %}
+                    <tr>
+                        <td><strong>{{ part }}</strong></td>
+                        <td>{{ count }}</td>
+                        <td>
+                            {% if 'extras' in parts_status[part] %}
+                                <span class="extra">{{ parts_status[part] }}</span>
+                            {% else %}
+                                <span class="shortage">{{ parts_status[part] }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
         <!-- Link Back to Main Menu -->
