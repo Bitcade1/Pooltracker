@@ -1039,9 +1039,24 @@ def manage_raw_data():
 
     serial_number_query = request.args.get('serial_number')
     if serial_number_query:
-        pods = CompletedPods.query.filter_by(serial_number=serial_number_query).all()
-        top_rails = TopRail.query.filter_by(serial_number=serial_number_query).all()
-        bodies = CompletedTable.query.filter_by(serial_number=serial_number_query).all()
+        # Normalize the search query by removing spaces
+        normalized_query = serial_number_query.replace(" ", "")
+        
+        # Use LIKE for partial matching with wildcards
+        pods = CompletedPods.query.filter(CompletedPods.serial_number.like(f'%{serial_number_query}%')).all()
+        top_rails = TopRail.query.filter(TopRail.serial_number.like(f'%{serial_number_query}%')).all()
+        bodies = CompletedTable.query.filter(CompletedTable.serial_number.like(f'%{serial_number_query}%')).all()
+        
+        # If no results found with spaces, try without spaces (normalized search)
+        if not (pods or top_rails or bodies):
+            pods = CompletedPods.query.all()
+            top_rails = TopRail.query.all()
+            bodies = CompletedTable.query.all()
+            
+            # Filter in Python to handle normalized comparison
+            pods = [pod for pod in pods if normalized_query in pod.serial_number.replace(" ", "")]
+            top_rails = [rail for rail in top_rails if normalized_query in rail.serial_number.replace(" ", "")]
+            bodies = [body for body in bodies if normalized_query in body.serial_number.replace(" ", "")]
     else:
         pods = CompletedPods.query.all()
         top_rails = TopRail.query.all()
@@ -1149,6 +1164,20 @@ def manage_raw_data():
                     db.session.commit()
 
                 # Now delete the entry.
+                # If deleting a body, also update the table stock
+                if table == 'bodies':
+                    # Determine if it's a 6ft or 7ft body using the normalized approach
+                    if entry.serial_number.replace(" ", "").endswith("-6"):
+                        stock_type = 'body_6ft'
+                    else:
+                        stock_type = 'body_7ft'
+                    
+                    # Update the stock count
+                    stock_entry = TableStock.query.filter_by(type=stock_type).first()
+                    if stock_entry and stock_entry.count > 0:
+                        stock_entry.count -= 1
+                        db.session.commit()
+                
                 db.session.delete(entry)
                 db.session.commit()
                 flash(f"{table.capitalize()} entry deleted successfully!", "success")
