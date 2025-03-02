@@ -1177,6 +1177,19 @@ def manage_raw_data():
                     if stock_entry and stock_entry.count > 0:
                         stock_entry.count -= 1
                         db.session.commit()
+                # If deleting a top rail, also update the table stock
+                elif table == 'top_rails':
+                    # Determine if it's a 6ft or 7ft top rail using the normalized approach
+                    if entry.serial_number.replace(" ", "").endswith("-6"):
+                        stock_type = 'top_rail_6ft'
+                    else:
+                        stock_type = 'top_rail_7ft'
+                    
+                    # Update the stock count
+                    stock_entry = TableStock.query.filter_by(type=stock_type).first()
+                    if stock_entry and stock_entry.count > 0:
+                        stock_entry.count -= 1
+                        db.session.commit()
                 
                 db.session.delete(entry)
                 db.session.commit()
