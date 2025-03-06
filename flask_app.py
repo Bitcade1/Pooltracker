@@ -2470,7 +2470,8 @@ def material_calculator():
         {"name": "H1330 ST10 SANTA FE", "field": "num_tables_H1330"},
         {"name": "H1313 ST10 GREY BROWN WHITE RIVER OAK", "field": "num_tables_H1313"},
         {"name": "F637 ST10 WHITE CHROMIX", "field": "num_tables_F637"},
-        {"name": "F767 ST9 CUBANIT GREY and Black", "field": "num_tables_F767"}
+        {"name": "F767 ST9 CUBANIT GREY", "field": "num_tables_F767_GREY"},
+        {"name": "F767 ST9 BLACK", "field": "num_tables_F767_BLACK"}
     ]
     
     # Prepare a dictionary to hold the laminate results per colour.
@@ -2517,13 +2518,13 @@ def material_calculator():
         short_from_jobA = 2 * boards_jobA
         total_short_needed = short_needed
 
-        # Additional short pieces needed from Job B.
+        # Determine if additional short pieces are needed from Job B.
         additional_short_needed = max(0, total_short_needed - short_from_jobA)
         boards_jobB = ceil(additional_short_needed / 16) if additional_short_needed > 0 else 0
 
         board_total = boards_jobA + boards_jobB
 
-        # Leftovers:
+        # Calculate leftovers:
         produced_long = 8 * boards_jobA
         produced_short = (2 * boards_jobA) + (16 * boards_jobB)
         leftover_long = produced_long - long_needed

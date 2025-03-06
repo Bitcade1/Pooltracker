@@ -113,6 +113,7 @@
     <form method="POST" action="{{ url_for('material_calculator') }}">
       <h2>Laminate Calculator</h2>
       <p>Enter the number of tables for each laminate colour:</p>
+      
       <label for="num_tables_H1330">H1330 ST10 SANTA FE:</label>
       <input type="number" id="num_tables_H1330" name="num_tables_H1330" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_H1330', '') }}">
       
@@ -122,8 +123,11 @@
       <label for="num_tables_F637">F637 ST10 WHITE CHROMIX:</label>
       <input type="number" id="num_tables_F637" name="num_tables_F637" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_F637', '') }}">
       
-      <label for="num_tables_F767">F767 ST9 CUBANIT GREY and Black:</label>
-      <input type="number" id="num_tables_F767" name="num_tables_F767" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_F767', '') }}">
+      <label for="num_tables_F767_GREY">F767 ST9 CUBANIT GREY:</label>
+      <input type="number" id="num_tables_F767_GREY" name="num_tables_F767_GREY" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_F767_GREY', '') }}">
+      
+      <label for="num_tables_F767_BLACK">F767 ST9 BLACK:</label>
+      <input type="number" id="num_tables_F767_BLACK" name="num_tables_F767_BLACK" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_F767_BLACK', '') }}">
       
       <h2>36mm Board Calculator</h2>
       <label for="num_top_rails">Number of Top Rails:</label>
