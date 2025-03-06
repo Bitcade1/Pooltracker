@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Material Calculator - Pool Table Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <!-- Select2 CSS (if needed later) -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <style>
+      /* Basic container and header styling */
+      .container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+      }
+      h1, h2 {
+          text-align: center;
+      }
+      form {
+          margin: 20px auto;
+          max-width: 500px;
+          padding: 20px;
+          background-color: #f9f9f9;
+          border: 1px solid #ddd;
+          border-radius: 5px;
+      }
+      label {
+          display: block;
+          margin-top: 10px;
+      }
+      input[type="number"],
+      button {
+          width: 100%;
+          padding: 10px;
+          margin-top: 5px;
+          border-radius: 5px;
+          border: 1px solid #ccc;
+      }
+      button {
+          background-color: #007bff;
+          color: white;
+          border: none;
+          cursor: pointer;
+          margin-top: 20px;
+      }
+      button:hover {
+          background-color: #0056b3;
+      }
+      .result-section {
+          margin-top: 30px;
+          padding: 15px;
+          border: 1px solid #ccc;
+          border-radius: 5px;
+          background-color: #e0f7fa;
+      }
+      .result-section h3 {
+          margin-bottom: 15px;
+      }
+      .back-to-menu {
+          text-align: center;
+          margin-top: 30px;
+      }
+      .back-to-menu a {
+          padding: 10px 20px;
+          background-color: #007bff;
+          color: white;
+          text-decoration: none;
+          border-radius: 5px;
+      }
+      .back-to-menu a:hover {
+          background-color: #0056b3;
+      }
+  </style>
+  <!-- jQuery (for any future enhancements) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Select2 JS (if needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Material Calculator</h1>
+    
+    {% if logged_in_worker %}
+      <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
+    {% else %}
+      <div class="logged-in-user">Not logged in</div>
+    {% endif %}
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash {{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    
+    <!-- Material Calculator Form -->
+    <form method="POST" action="{{ url_for('material_calculator') }}">
+      <h2>Laminate Calculator</h2>
+      <label for="num_tables">Number of Tables:</label>
+      <input type="number" id="num_tables" name="num_tables" min="0" placeholder="Enter number of tables" required>
+      
+      <h2>36mm Board Calculator</h2>
+      <label for="num_top_rails">Number of Top Rails:</label>
+      <input type="number" id="num_top_rails" name="num_top_rails" min="0" placeholder="Enter number of top rails" required>
+      
+      <button type="submit">Calculate Materials</button>
+    </form>
+    
+    <!-- Results Section -->
+    {% if laminate_total or board_total %}
+    <div class="result-section">
+      <h3>Laminate Calculation</h3>
+      <p>For <strong>{{ request.form.get('num_tables', 0) }}</strong> table(s):</p>
+      <ul>
+        <li>Laminate pieces for big pieces: <strong>{{ laminate_big_needed }}</strong></li>
+        <li>Laminate pieces for strips (each piece gives 9 strips): <strong>{{ laminate_strip_needed }}</strong></li>
+        <li>Total laminate pieces required: <strong>{{ laminate_total }}</strong></li>
+      </ul>
+    </div>
+    
+    <div class="result-section">
+      <h3>36mm Board Calculation</h3>
+      <p>For <strong>{{ request.form.get('num_top_rails', 0) }}</strong> top rail(s):</p>
+      <ul>
+        <li>36mm boards needed for long pieces (each board gives 8 long pieces): <strong>{{ board_long_needed }}</strong></li>
+        <li>36mm boards needed for short pieces (each board gives 16 short pieces): <strong>{{ board_short_needed }}</strong></li>
+        <li>Total 36mm boards required: <strong>{{ board_total }}</strong></li>
+      </ul>
+    </div>
+    {% endif %}
+    
+    <!-- Back to Main Menu Button -->
+    <div class="back-to-menu">
+      <a href="{{ url_for('home') }}">Back to Main Menu</a>
+    </div>
+  </div>
+</body>
+</html>
