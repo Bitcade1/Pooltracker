@@ -2463,6 +2463,8 @@ def table_stock():
 
 from math import ceil
 
+from math import ceil
+
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():
     # Initialize default values for output variables.
@@ -2470,10 +2472,12 @@ def material_calculator():
     laminate_strip_needed = 0     # Pieces needed for strips (each piece gives 9 strips)
     laminate_total = 0            # Total laminate pieces needed
     
-    # For 36mm boards calculation variables:
+    # For 36mm board calculation variables:
     boards_jobA = 0    # Boards processed in Job A (yielding 8 long & 2 short pieces)
     boards_jobB = 0    # Boards processed in Job B (yielding 16 short pieces)
-    board_total = 0    # Total boards needed for 36mm job
+    board_total = 0    # Total boards needed for 36mm jobs
+    leftover_long = 0
+    leftover_short = 0
 
     if request.method == 'POST':
         # Laminate Calculation
@@ -2495,21 +2499,27 @@ def material_calculator():
             num_top_rails = 0
 
         # Each top rail requires 2 long pieces and 2 short pieces.
+        long_needed = 2 * num_top_rails
+        short_needed = 2 * num_top_rails
+
         # Job A (CNC Job 1) yields 8 long pieces and 2 short pieces per board.
-        # Job B (CNC Job 2) yields 16 short pieces per board.
-        # First, calculate boards needed from Job A to cover the long piece requirement.
-        # Total long pieces needed = 2 * num_top_rails.
-        boards_jobA = ceil((2 * num_top_rails) / 8) if num_top_rails > 0 else 0
+        boards_jobA = ceil(long_needed / 8) if num_top_rails > 0 else 0
 
-        # Job A also yields short pieces: 2 per board.
+        # From Job A, we also get short pieces: 2 per board.
         short_from_jobA = 2 * boards_jobA
-        total_short_needed = 2 * num_top_rails
+        total_short_needed = short_needed
 
-        # Determine if additional short pieces are needed.
+        # Determine if additional short pieces are needed from Job B.
         additional_short_needed = max(0, total_short_needed - short_from_jobA)
         boards_jobB = ceil(additional_short_needed / 16) if additional_short_needed > 0 else 0
 
         board_total = boards_jobA + boards_jobB
+
+        # Calculate leftovers:
+        produced_long = 8 * boards_jobA
+        produced_short = (2 * boards_jobA) + (16 * boards_jobB)
+        leftover_long = produced_long - long_needed
+        leftover_short = produced_short - short_needed
 
     return render_template(
         'material_calculator.html',
@@ -2518,9 +2528,10 @@ def material_calculator():
         laminate_total=laminate_total,
         boards_jobA=boards_jobA,
         boards_jobB=boards_jobB,
-        board_total=board_total
+        board_total=board_total,
+        leftover_long=leftover_long,
+        leftover_short=leftover_short
     )
-
 
 
 
