@@ -2461,6 +2461,63 @@ def table_stock():
 
     return render_template('table_stock.html', stock_data=stock_data)
 
+from math import ceil
+
+@app.route('/material_calculator', methods=['GET', 'POST'])
+def material_calculator():
+    # Initialize default values for output variables.
+    laminate_big_needed = 0       # Pieces needed for big pieces (one per table)
+    laminate_strip_needed = 0     # Pieces needed for strips (each piece gives 9 strips)
+    laminate_total = 0            # Total laminate pieces needed
+    board_long_needed = 0         # 36mm boards needed for long pieces (each board gives 8 long pieces)
+    board_short_needed = 0        # 36mm boards needed for short pieces (each board gives 16 short pieces)
+    board_total = 0               # Total 36mm boards needed
+
+    if request.method == 'POST':
+        # Get the number of tables for the laminate calculation.
+        try:
+            num_tables = int(request.form.get('num_tables', 0))
+        except ValueError:
+            num_tables = 0
+
+        # For laminate:
+        # - Each table needs 1 big piece.
+        # - Each table needs 3 strips.
+        # - One purchased laminate piece yields 1 big piece OR 9 strips.
+        # Thus, pieces needed for big pieces = num_tables
+        # And for strips: ceil((3 * num_tables) / 9)
+        laminate_big_needed = num_tables
+        laminate_strip_needed = ceil((3 * num_tables) / 9) if num_tables > 0 else 0
+        laminate_total = laminate_big_needed + laminate_strip_needed
+
+        # Get the number of top rails for the 36mm calculation.
+        try:
+            num_top_rails = int(request.form.get('num_top_rails', 0))
+        except ValueError:
+            num_top_rails = 0
+
+        # For 36mm boards:
+        # - Each top rail requires 2 long pieces and 2 short pieces.
+        # - One 36mm board, when cut for long pieces, yields 8 long pieces.
+        # - One 36mm board, when cut for short pieces, yields 16 short pieces.
+        long_needed = 2 * num_top_rails
+        short_needed = 2 * num_top_rails
+
+        board_long_needed = ceil(long_needed / 8) if long_needed > 0 else 0
+        board_short_needed = ceil(short_needed / 16) if short_needed > 0 else 0
+        board_total = board_long_needed + board_short_needed
+
+    return render_template(
+        'material_calculator.html',
+        laminate_big_needed=laminate_big_needed,
+        laminate_strip_needed=laminate_strip_needed,
+        laminate_total=laminate_total,
+        board_long_needed=board_long_needed,
+        board_short_needed=board_short_needed,
+        board_total=board_total
+    )
+
+
 
 
 
