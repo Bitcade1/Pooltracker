@@ -2469,49 +2469,55 @@ def material_calculator():
     laminate_big_needed = 0       # Pieces needed for big pieces (one per table)
     laminate_strip_needed = 0     # Pieces needed for strips (each piece gives 9 strips)
     laminate_total = 0            # Total laminate pieces needed
-    board_long_needed = 0         # 36mm boards needed for long pieces (each board gives 8 long pieces)
-    board_short_needed = 0        # 36mm boards needed for short pieces (each board gives 16 short pieces)
-    board_total = 0               # Total 36mm boards needed
+    
+    # For 36mm boards calculation variables:
+    boards_jobA = 0    # Boards processed in Job A (yielding 8 long & 2 short pieces)
+    boards_jobB = 0    # Boards processed in Job B (yielding 16 short pieces)
+    board_total = 0    # Total boards needed for 36mm job
 
     if request.method == 'POST':
-        # Get the number of tables for the laminate calculation. If empty, default to 0.
+        # Laminate Calculation
         try:
             num_tables = int(request.form.get('num_tables', 0)) if request.form.get('num_tables', '').strip() else 0
         except ValueError:
             num_tables = 0
 
-        # For laminate:
-        # - Each table needs 1 big piece.
-        # - Each table needs 3 strips.
-        # - One purchased laminate piece yields 1 big piece OR 9 strips.
+        # Each table requires 1 big piece and 3 strips.
+        # One laminate piece yields either 1 big piece OR 9 strips.
         laminate_big_needed = num_tables
         laminate_strip_needed = ceil((3 * num_tables) / 9) if num_tables > 0 else 0
         laminate_total = laminate_big_needed + laminate_strip_needed
 
-        # Get the number of top rails for the 36mm calculation. If empty, default to 0.
+        # 36mm Board Calculation
         try:
             num_top_rails = int(request.form.get('num_top_rails', 0)) if request.form.get('num_top_rails', '').strip() else 0
         except ValueError:
             num_top_rails = 0
 
-        # For 36mm boards:
-        # - Each top rail requires 2 long pieces and 2 short pieces.
-        # - One 36mm board, when cut for long pieces, yields 8 long pieces.
-        # - One 36mm board, when cut for short pieces, yields 16 short pieces.
-        long_needed = 2 * num_top_rails
-        short_needed = 2 * num_top_rails
+        # Each top rail requires 2 long pieces and 2 short pieces.
+        # Job A (CNC Job 1) yields 8 long pieces and 2 short pieces per board.
+        # Job B (CNC Job 2) yields 16 short pieces per board.
+        # First, calculate boards needed from Job A to cover the long piece requirement.
+        # Total long pieces needed = 2 * num_top_rails.
+        boards_jobA = ceil((2 * num_top_rails) / 8) if num_top_rails > 0 else 0
 
-        board_long_needed = ceil(long_needed / 8) if long_needed > 0 else 0
-        board_short_needed = ceil(short_needed / 16) if short_needed > 0 else 0
-        board_total = board_long_needed + board_short_needed
+        # Job A also yields short pieces: 2 per board.
+        short_from_jobA = 2 * boards_jobA
+        total_short_needed = 2 * num_top_rails
+
+        # Determine if additional short pieces are needed.
+        additional_short_needed = max(0, total_short_needed - short_from_jobA)
+        boards_jobB = ceil(additional_short_needed / 16) if additional_short_needed > 0 else 0
+
+        board_total = boards_jobA + boards_jobB
 
     return render_template(
         'material_calculator.html',
         laminate_big_needed=laminate_big_needed,
         laminate_strip_needed=laminate_strip_needed,
         laminate_total=laminate_total,
-        board_long_needed=board_long_needed,
-        board_short_needed=board_short_needed,
+        boards_jobA=boards_jobA,
+        boards_jobB=boards_jobB,
         board_total=board_total
     )
 
