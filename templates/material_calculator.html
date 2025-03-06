@@ -57,6 +57,17 @@
       .result-section h3 {
           margin-bottom: 15px;
       }
+      table {
+          width: 100%;
+          border-collapse: collapse;
+      }
+      table, th, td {
+          border: 1px solid #ccc;
+      }
+      th, td {
+          padding: 8px;
+          text-align: center;
+      }
       .back-to-menu {
           text-align: center;
           margin-top: 30px;
@@ -101,8 +112,18 @@
     <!-- Material Calculator Form -->
     <form method="POST" action="{{ url_for('material_calculator') }}">
       <h2>Laminate Calculator</h2>
-      <label for="num_tables">Number of Tables:</label>
-      <input type="number" id="num_tables" name="num_tables" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables', '') }}">
+      <p>Enter the number of tables for each laminate colour:</p>
+      <label for="num_tables_H1330">H1330 ST10 SANTA FE:</label>
+      <input type="number" id="num_tables_H1330" name="num_tables_H1330" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_H1330', '') }}">
+      
+      <label for="num_tables_H1313">H1313 ST10 GREY BROWN WHITE RIVER OAK:</label>
+      <input type="number" id="num_tables_H1313" name="num_tables_H1313" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_H1313', '') }}">
+      
+      <label for="num_tables_F637">F637 ST10 WHITE CHROMIX:</label>
+      <input type="number" id="num_tables_F637" name="num_tables_F637" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_F637', '') }}">
+      
+      <label for="num_tables_F767">F767 ST9 CUBANIT GREY and Black:</label>
+      <input type="number" id="num_tables_F767" name="num_tables_F767" min="0" placeholder="Enter number of tables" value="{{ request.form.get('num_tables_F767', '') }}">
       
       <h2>36mm Board Calculator</h2>
       <label for="num_top_rails">Number of Top Rails:</label>
@@ -112,27 +133,57 @@
     </form>
     
     <!-- Results Section -->
-    {% if laminate_total or board_total %}
+    {% if laminate_results or board_total %}
     <div class="result-section">
       <h3>Laminate Calculation</h3>
-      <p>For <strong>{{ request.form.get('num_tables', 0) }}</strong> table(s):</p>
-      <ul>
-        <li>Laminate pieces for big pieces: <strong>{{ laminate_big_needed }}</strong></li>
-        <li>Laminate pieces for strips (each piece gives 9 strips): <strong>{{ laminate_strip_needed }}</strong></li>
-        <li>Total laminate pieces required: <strong>{{ laminate_total }}</strong></li>
-      </ul>
+      <table>
+        <thead>
+          <tr>
+            <th>Laminate Colour</th>
+            <th>Tables</th>
+            <th>Big Pieces Needed</th>
+            <th>Laminate Pieces for Strips</th>
+            <th>Total Laminate Pieces</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for colour, data in laminate_results.items() %}
+          <tr>
+            <td>{{ colour }}</td>
+            <td>{{ data.tables }}</td>
+            <td>{{ data.big }}</td>
+            <td>{{ data.strips }}</td>
+            <td>{{ data.total }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     
     <div class="result-section">
       <h3>36mm Board Calculation</h3>
-      <p>For <strong>{{ request.form.get('num_top_rails', 0) }}</strong> top rail(s):</p>
-      <ul>
-        <li>Boards needed for CNC Job A (yielding 8 long &amp; 2 short pieces): <strong>{{ boards_jobA }}</strong></li>
-        <li>Additional boards needed for CNC Job B (yielding 16 short pieces): <strong>{{ boards_jobB }}</strong></li>
-        <li>Total 36mm boards required: <strong>{{ board_total }}</strong></li>
-        <li>Leftover long pieces: <strong>{{ leftover_long }}</strong></li>
-        <li>Leftover short pieces: <strong>{{ leftover_short }}</strong></li>
-      </ul>
+      <table>
+        <thead>
+          <tr>
+            <th>Top Rails</th>
+            <th>Boards for CNC Job A<br/>(8 long &amp; 2 short pieces)</th>
+            <th>Additional Boards for CNC Job B<br/>(16 short pieces)</th>
+            <th>Total Boards Required</th>
+            <th>Leftover Long Pieces</th>
+            <th>Leftover Short Pieces</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{{ request.form.get('num_top_rails', 0) }}</td>
+            <td>{{ boards_jobA }}</td>
+            <td>{{ boards_jobB }}</td>
+            <td>{{ board_total }}</td>
+            <td>{{ leftover_long }}</td>
+            <td>{{ leftover_short }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     {% endif %}
     

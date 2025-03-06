@@ -2463,16 +2463,19 @@ def table_stock():
 
 from math import ceil
 
-from math import ceil
-
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():
-    # Initialize default values for output variables.
-    laminate_big_needed = 0       # Pieces needed for big pieces (one per table)
-    laminate_strip_needed = 0     # Pieces needed for strips (each piece gives 9 strips)
-    laminate_total = 0            # Total laminate pieces needed
+    # Define the laminate colours and corresponding form field names.
+    laminate_colours = [
+        {"name": "H1330 ST10 SANTA FE", "field": "num_tables_H1330"},
+        {"name": "H1313 ST10 GREY BROWN WHITE RIVER OAK", "field": "num_tables_H1313"},
+        {"name": "F637 ST10 WHITE CHROMIX", "field": "num_tables_F637"},
+        {"name": "F767 ST9 CUBANIT GREY and Black", "field": "num_tables_F767"}
+    ]
     
-    # For 36mm board calculation variables:
+    # Prepare a dictionary to hold the laminate results per colour.
+    laminate_results = {}
+    # 36mm board variables remain unchanged.
     boards_jobA = 0    # Boards processed in Job A (yielding 8 long & 2 short pieces)
     boards_jobB = 0    # Boards processed in Job B (yielding 16 short pieces)
     board_total = 0    # Total boards needed for 36mm jobs
@@ -2480,19 +2483,26 @@ def material_calculator():
     leftover_short = 0
 
     if request.method == 'POST':
-        # Laminate Calculation
-        try:
-            num_tables = int(request.form.get('num_tables', 0)) if request.form.get('num_tables', '').strip() else 0
-        except ValueError:
-            num_tables = 0
-
-        # Each table requires 1 big piece and 3 strips.
-        # One laminate piece yields either 1 big piece OR 9 strips.
-        laminate_big_needed = num_tables
-        laminate_strip_needed = ceil((3 * num_tables) / 9) if num_tables > 0 else 0
-        laminate_total = laminate_big_needed + laminate_strip_needed
-
-        # 36mm Board Calculation
+        # Process laminate calculations for each colour.
+        for colour in laminate_colours:
+            try:
+                qty = int(request.form.get(colour["field"], 0)) if request.form.get(colour["field"], '').strip() else 0
+            except ValueError:
+                qty = 0
+            # Each table requires:
+            # - 1 big piece (so qty big pieces)
+            # - 3 strips, and one laminate piece gives 9 strips, so pieces for strips = ceil((3 * qty)/9)
+            big_needed = qty
+            strips_needed = ceil((3 * qty) / 9) if qty > 0 else 0
+            total_needed = big_needed + strips_needed
+            laminate_results[colour["name"]] = {
+                "tables": qty,
+                "big": big_needed,
+                "strips": strips_needed,
+                "total": total_needed
+            }
+        
+        # 36mm Board Calculation (unchanged from previous update)
         try:
             num_top_rails = int(request.form.get('num_top_rails', 0)) if request.form.get('num_top_rails', '').strip() else 0
         except ValueError:
@@ -2504,18 +2514,16 @@ def material_calculator():
 
         # Job A (CNC Job 1) yields 8 long pieces and 2 short pieces per board.
         boards_jobA = ceil(long_needed / 8) if num_top_rails > 0 else 0
-
-        # From Job A, we also get short pieces: 2 per board.
         short_from_jobA = 2 * boards_jobA
         total_short_needed = short_needed
 
-        # Determine if additional short pieces are needed from Job B.
+        # Additional short pieces needed from Job B.
         additional_short_needed = max(0, total_short_needed - short_from_jobA)
         boards_jobB = ceil(additional_short_needed / 16) if additional_short_needed > 0 else 0
 
         board_total = boards_jobA + boards_jobB
 
-        # Calculate leftovers:
+        # Leftovers:
         produced_long = 8 * boards_jobA
         produced_short = (2 * boards_jobA) + (16 * boards_jobB)
         leftover_long = produced_long - long_needed
@@ -2523,16 +2531,13 @@ def material_calculator():
 
     return render_template(
         'material_calculator.html',
-        laminate_big_needed=laminate_big_needed,
-        laminate_strip_needed=laminate_strip_needed,
-        laminate_total=laminate_total,
+        laminate_results=laminate_results,
         boards_jobA=boards_jobA,
         boards_jobB=boards_jobB,
         board_total=board_total,
         leftover_long=leftover_long,
         leftover_short=leftover_short
     )
-
 
 
 
