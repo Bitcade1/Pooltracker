@@ -2096,7 +2096,7 @@ def top_rails():
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
-        # Sanitize the serial number input to remove extra spaces around the hyphen.
+        # Sanitize the serial number input: remove extra spaces around the hyphen.
         serial_number_raw = request.form['serial_number']
         serial_number = re.sub(r'\s*-\s*', '-', serial_number_raw.strip())
         issue_text = request.form['issue']
@@ -2164,13 +2164,15 @@ def top_rails():
     today = date.today()
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
-    # Determine the next serial number based on the last entry
+    # --- Next Serial Number Generation ---
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
     if last_entry:
         if '-' in last_entry.serial_number:
             parts = last_entry.serial_number.split('-', 1)
             try:
-                next_serial_number = f"{int(parts[0]) + 1} - {parts[1]}"
+                prefix = parts[0].strip()
+                suffix = parts[1].strip()
+                next_serial_number = f"{int(prefix) + 1}-{suffix}"
             except ValueError:
                 next_serial_number = "1000"
         else:
@@ -2290,6 +2292,7 @@ def top_rails():
         current_top_rails_7ft=current_top_rails_7ft,
         current_top_rails_6ft=current_top_rails_6ft
     )
+
 
 
 
