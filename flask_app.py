@@ -2103,19 +2103,22 @@ def top_rails():
 
         # Retrieve selected size and colour from dropdowns
         selected_size = request.form.get('size')
+        # Convert colour to uppercase so "Black" becomes "BLACK"
         selected_color = request.form.get('color', '').strip().upper()
 
+        # Update allowed colours to include BLACK
         allowed_sizes = {"6ft", "7ft"}
-        allowed_colors = {"C", "O", "GO", "G"}
+        allowed_colors = {"BLACK", "C", "O", "GO", "G"}
 
         if selected_size not in allowed_sizes:
             flash("Invalid size selected. Please choose 6ft or 7ft.", "error")
             return redirect(url_for('top_rails'))
         if selected_color not in allowed_colors:
-            flash("Invalid colour selected. Please choose one of: C, O, GO, G.", "error")
+            flash("Invalid colour selected. Please choose one of: BLACK, C, O, GO, G.", "error")
             return redirect(url_for('top_rails'))
 
-        # Generate new serial number automatically based on the last entry's numeric prefix
+        # Generate new serial number automatically based on the last entry's numeric prefix.
+        # If the colour is not BLACK, append the colour to the serial number.
         last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
         if last_entry:
             if '-' in last_entry.serial_number:
@@ -2132,7 +2135,11 @@ def top_rails():
                     next_prefix = 1000
         else:
             next_prefix = 1000
-        new_serial_number = f"{next_prefix}-{selected_size}"
+
+        if selected_color == "BLACK":
+            new_serial_number = f"{next_prefix}-{selected_size}"
+        else:
+            new_serial_number = f"{next_prefix}-{selected_size}-{selected_color}"
 
         # Deduct inventory for the parts required for a top rail
         parts_to_deduct = {
@@ -2159,7 +2166,7 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Create new TopRail record with auto-generated serial number and selected colour
+        # Create new TopRail record with the auto-generated serial number and selected colour
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -2179,8 +2186,12 @@ def top_rails():
             flash("Error: Serial number already exists. Please try again.", "error")
             return redirect(url_for('top_rails'))
 
-        # Update table stock for top rails using the selected size and colour
-        stock_type = f"top_rail_{selected_size}_{selected_color}"
+        # Update table stock for top rails using the selected size and colour.
+        # If colour is BLACK, omit the colour from the stock type.
+        if selected_color == "BLACK":
+            stock_type = f"top_rail_{selected_size}"
+        else:
+            stock_type = f"top_rail_{selected_size}_{selected_color}"
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
             stock_entry = TableStock(type=stock_type, count=0)
@@ -2210,7 +2221,7 @@ def top_rails():
                 next_prefix = 1000
     else:
         next_prefix = 1000
-    # Default display: assume "7ft" size
+    # Default display: assume "7ft" size and BLACK colour (which omits the colour)
     next_serial_number = f"{next_prefix}-7ft"
 
     try:
@@ -2322,6 +2333,7 @@ def top_rails():
         current_top_rails_7ft=current_top_rails_7ft,
         current_top_rails_6ft=current_top_rails_6ft
     )
+
 
 
 
