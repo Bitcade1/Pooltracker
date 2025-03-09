@@ -2540,6 +2540,59 @@ def material_calculator():
         leftover_short=leftover_short
     )
 
+import os
+import shutil
+import datetime
+import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
+# Assume basedir is already defined (as in your code)
+# basedir = os.path.abspath(os.path.dirname(__file__))
+
+def backup_to_gdrive():
+    # Create a timestamped backup filename
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    backup_filename = f"backup_{timestamp}.zip"
+    backup_filepath = os.path.join(basedir, backup_filename)
+    
+    # Create a zip archive of the directory.
+    # (Adjust the root_dir if you only want to backup specific files.)
+    shutil.make_archive(
+        base_name=backup_filepath.replace('.zip',''),
+        format='zip',
+        root_dir=basedir
+    )
+    
+    # Authenticate with Google Drive.
+    # For interactive testing, you could use:
+    # gauth.LocalWebserverAuth()
+    # For automated backups, using a service account is recommended:
+    gauth = GoogleAuth()
+    gauth.ServiceAuth()  # Ensure you have your service account credentials set up.
+    drive = GoogleDrive(gauth)
+    
+    # Create a file in Google Drive and upload the backup.
+    file_drive = drive.CreateFile({
+        'title': backup_filename,
+        'mimeType': 'application/zip'
+    })
+    file_drive.SetContentFile(backup_filepath)
+    file_drive.Upload()
+    
+    # Optionally remove the local backup file after successful upload.
+    os.remove(backup_filepath)
+    print(f"Backup {backup_filename} successfully uploaded to Google Drive.")
+
+# Set up the background scheduler to run the backup job every hour.
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=backup_to_gdrive, trigger="interval", hours=1)
+scheduler.start()
+
+# Shut down the scheduler when exiting the app.
+atexit.register(lambda: scheduler.shutdown())
+
 
 
 
