@@ -59,7 +59,6 @@ class Issue(db.Model):
     description = db.Column(db.String(100), unique=True, nullable=False)
 
 class TopRail(db.Model):
-    __tablename__ = 'top_rail'
     id = db.Column(db.Integer, primary_key=True)
     worker = db.Column(db.String(50), nullable=False)
     start_time = db.Column(db.String(10), nullable=False)
@@ -68,7 +67,6 @@ class TopRail(db.Model):
     serial_number = db.Column(db.String(20), unique=True, nullable=False)
     issue = db.Column(db.String(50), nullable=False)
     lunch = db.Column(db.String(3), default='No')
-    color = db.Column(db.String(10), nullable=False)  # New field for colour
 
 class WoodCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2098,48 +2096,20 @@ def top_rails():
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
+        # Sanitize the serial number input: remove extra spaces around the hyphen.
+        serial_number_raw = request.form['serial_number']
+        serial_number = re.sub(r'\s*-\s*', '-', serial_number_raw.strip())
         issue_text = request.form['issue']
         lunch = request.form['lunch']
-
-        # Retrieve selected size and color from dropdowns.
-        selected_size = request.form.get('size')
-        selected_color = request.form.get('color', '').strip().upper()
-
-        allowed_sizes = {"6ft", "7ft"}
-        allowed_colors = {"BLACK", "C", "O", "GO", "G"}
-
-        if selected_size not in allowed_sizes:
-            flash("Invalid size selected. Please choose 6ft or 7ft.", "error")
-            return redirect(url_for('top_rails'))
-        if selected_color not in allowed_colors:
-            flash("Invalid color selected. Please choose one of: BLACK, C, O, GO, G.", "error")
+        
+        # Get the color from the form and validate it.
+        color = request.form.get('color', '').strip().upper()
+        allowed_colors = {"C", "O", "GO", "G"}
+        if color not in allowed_colors:
+            flash("Invalid color selected. Please choose one of: C, O, GO, G.", "error")
             return redirect(url_for('top_rails'))
 
-        # Generate new serial number using the last entry's numeric prefix.
-        last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
-        if last_entry:
-            if '-' in last_entry.serial_number:
-                parts = last_entry.serial_number.split('-', 1)
-                try:
-                    prefix = int(parts[0].strip())
-                    next_prefix = prefix + 1
-                except ValueError:
-                    next_prefix = 1000
-            else:
-                try:
-                    next_prefix = int(last_entry.serial_number) + 1
-                except ValueError:
-                    next_prefix = 1000
-        else:
-            next_prefix = 1000
-
-        # If selected color is BLACK, do not include it in the serial number.
-        if selected_color == "BLACK":
-            new_serial_number = f"{next_prefix}-{selected_size}"
-        else:
-            new_serial_number = f"{next_prefix}-{selected_size}-{selected_color}"
-
-        # Deduct inventory for the parts required for a top rail.
+        # Parts and quantities needed for top rail completion
         parts_to_deduct = {
             "Top rail trim long length": 2,
             "Top rail trim short length": 4,
@@ -2147,6 +2117,7 @@ def top_rails():
             "Center pockets": 2,
             "Corner pockets": 4
         }
+        # Deduct inventory for each part needed to complete the top rail.
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
             total_stock = sum(entry.count for entry in part_entries)
@@ -2164,16 +2135,17 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Create a new TopRail record with the generated serial number.
+        # Create the new TopRail record.
+        # (Assuming your TopRail model has been updated to include a "color" field.)
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
             finish_time=finish_time,
-            serial_number=new_serial_number,
+            serial_number=serial_number,
             lunch=lunch,
             issue=issue_text,
             date=date.today(),
-            color=selected_color
+            color=color
         )
         try:
             db.session.add(new_top_rail)
@@ -2181,14 +2153,14 @@ def top_rails():
             flash("Top rail entry added successfully and inventory updated!", "success")
         except IntegrityError:
             db.session.rollback()
-            flash("Error: Serial number already exists. Please try again.", "error")
+            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('top_rails'))
-
-        # Update table stock. If color is BLACK, omit the color from the stock type.
-        if selected_color == "BLACK":
-            stock_type = f"top_rail_{selected_size}"
-        else:
-            stock_type = f"top_rail_{selected_size}_{selected_color}"
+        
+        # --- Update Table Stock for Top Rails ---
+        # Determine the top rail size (7ft or 6ft) by checking if the serial number ends with "-6"
+        ft = "6ft" if serial_number.endswith("-6") else "7ft"
+        # Now include the colour in the stock type key
+        stock_type = f"top_rail_{ft}_{color}"
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
             stock_entry = TableStock(type=stock_type, count=0)
@@ -2197,45 +2169,43 @@ def top_rails():
         db.session.commit()
         return redirect(url_for('top_rails'))
 
-    # GET request handling.
+    # GET request handling
     today = date.today()
-    # Create a "year-month" string (e.g. "2025-03") for filtering.
-    ym = f"{today.year}-{today.month:02d}"
-    # Count all top rail records for the current month using the LIKE filter.
-    top_rails_this_month = TopRail.query.filter(TopRail.date.like(f"{ym}-%")).count()
-    completed_top_rails = TopRail.query.filter(TopRail.date.like(f"{ym}-%")).all()
-    all_top_rails_this_month = TopRail.query.filter(TopRail.date.like(f"{ym}-%")).all()
+    completed_top_rails = TopRail.query.filter_by(date=today).all()
 
-    # Calculate the 6ft and 7ft breakdown.
-    current_top_rails_6ft = sum(1 for rail in all_top_rails_this_month if "6ft" in rail.serial_number)
-    current_top_rails_7ft = sum(1 for rail in all_top_rails_this_month if "7ft" in rail.serial_number)
-
-    # Next serial number generation for display purposes.
+    # --- Next Serial Number Generation ---
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
     if last_entry:
         if '-' in last_entry.serial_number:
             parts = last_entry.serial_number.split('-', 1)
             try:
-                prefix = int(parts[0].strip())
-                next_prefix = prefix + 1
+                prefix = parts[0].strip()
+                suffix = parts[1].strip()
+                next_serial_number = f"{int(prefix) + 1}-{suffix}"
             except ValueError:
-                next_prefix = 1000
+                next_serial_number = "1000"
         else:
             try:
-                next_prefix = int(last_entry.serial_number) + 1
+                next_serial_number = str(int(last_entry.serial_number) + 1)
             except ValueError:
-                next_prefix = 1000
+                next_serial_number = "1000"
     else:
-        next_prefix = 1000
-    # Default display value assumes 7ft size and BLACK color (which omits the color).
-    next_serial_number = f"{next_prefix}-7ft"
+        next_serial_number = "1000"
 
     try:
         current_time = datetime.strptime(last_entry.finish_time, "%H:%M:%S").strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
     except (ValueError, TypeError):
         current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    # Daily history.
+    top_rails_this_month = (
+        db.session.query(func.count(TopRail.id))
+        .filter(
+            extract('year', TopRail.date) == today.year,
+            extract('month', TopRail.date) == today.month
+        )
+        .scalar()
+    )
+
     def get_last_n_working_days(n, reference_date):
         working_days = []
         d = reference_date
@@ -2268,12 +2238,12 @@ def top_rails():
 
     monthly_totals = (
         db.session.query(
-            func.strftime('%Y', TopRail.date).label('year'),
-            func.strftime('%m', TopRail.date).label('month'),
+            extract('year', TopRail.date).label('year'),
+            extract('month', TopRail.date).label('month'),
             func.count(TopRail.id).label('total')
         )
         .group_by('year', 'month')
-        .order_by(desc(func.strftime('%Y', TopRail.date)), desc(func.strftime('%m', TopRail.date)))
+        .order_by(desc(extract('year', TopRail.date)), desc(extract('month', TopRail.date)))
         .all()
     )
     monthly_totals_formatted = []
@@ -2284,8 +2254,8 @@ def top_rails():
         last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
-        if total_top_rails > 0:
-            avg_hours_per_top_rail = cumulative_working_hours / total_top_rails
+        avg_hours_per_top_rail = (cumulative_working_hours / total_top_rails if total_top_rails > 0 else None)
+        if avg_hours_per_top_rail is not None:
             hours = int(avg_hours_per_top_rail)
             minutes = int((avg_hours_per_top_rail - hours) * 60)
             seconds = int((((avg_hours_per_top_rail - hours) * 60) - minutes) * 60)
@@ -2297,6 +2267,25 @@ def top_rails():
             "count": total_top_rails,
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
+
+    all_top_rails_this_month = TopRail.query.filter(
+        extract('year', TopRail.date) == today.year,
+        extract('month', TopRail.date) == today.month
+    ).all()
+
+    def is_6ft(serial):
+        return serial.replace(" ", "").endswith("-6")
+    
+    current_top_rails_6ft = sum(1 for rail in all_top_rails_this_month if is_6ft(rail.serial_number))
+    current_top_rails_7ft = sum(1 for rail in all_top_rails_this_month if not is_6ft(rail.serial_number))
+
+    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        target_7ft = 60
+        target_6ft = 60
 
     return render_template(
         'top_rails.html',
@@ -2312,9 +2301,6 @@ def top_rails():
         current_top_rails_7ft=current_top_rails_7ft,
         current_top_rails_6ft=current_top_rails_6ft
     )
-
-
-
 
 
 
