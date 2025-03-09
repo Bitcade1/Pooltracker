@@ -2103,10 +2103,8 @@ def top_rails():
 
         # Retrieve selected size and colour from dropdowns
         selected_size = request.form.get('size')
-        # Convert colour to uppercase so "Black" becomes "BLACK"
         selected_color = request.form.get('color', '').strip().upper()
 
-        # Update allowed colours to include BLACK
         allowed_sizes = {"6ft", "7ft"}
         allowed_colors = {"BLACK", "C", "O", "GO", "G"}
 
@@ -2118,7 +2116,7 @@ def top_rails():
             return redirect(url_for('top_rails'))
 
         # Generate new serial number automatically based on the last entry's numeric prefix.
-        # If the colour is not BLACK, append the colour to the serial number.
+        # If the colour is not BLACK, append the colour.
         last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
         if last_entry:
             if '-' in last_entry.serial_number:
@@ -2166,7 +2164,7 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Create new TopRail record with the auto-generated serial number and selected colour
+        # Create new TopRail record with auto-generated serial number and selected colour
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -2187,7 +2185,6 @@ def top_rails():
             return redirect(url_for('top_rails'))
 
         # Update table stock for top rails using the selected size and colour.
-        # If colour is BLACK, omit the colour from the stock type.
         if selected_color == "BLACK":
             stock_type = f"top_rail_{selected_size}"
         else:
@@ -2202,7 +2199,20 @@ def top_rails():
 
     # GET request handling
     today = date.today()
-    completed_top_rails = TopRail.query.filter_by(date=today).all()
+    # Use strftime to filter by year and month in SQLite
+    top_rails_this_month = (
+        db.session.query(func.count(TopRail.id))
+        .filter(
+            func.strftime('%Y', TopRail.date) == str(today.year),
+            func.strftime('%m', TopRail.date) == f"{today.month:02d}"
+        )
+        .scalar()
+    )
+
+    completed_top_rails = TopRail.query.filter(
+        func.strftime('%Y', TopRail.date) == str(today.year),
+        func.strftime('%m', TopRail.date) == f"{today.month:02d}"
+    ).all()
 
     # Next Serial Number Generation logic for display purposes
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
@@ -2221,7 +2231,7 @@ def top_rails():
                 next_prefix = 1000
     else:
         next_prefix = 1000
-    # Default display: assume "7ft" size and BLACK colour (which omits the colour)
+    # Default display: assume "7ft" size and BLACK colour (omitting colour)
     next_serial_number = f"{next_prefix}-7ft"
 
     try:
@@ -2229,15 +2239,7 @@ def top_rails():
     except (ValueError, TypeError):
         current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
-    top_rails_this_month = (
-        db.session.query(func.count(TopRail.id))
-        .filter(
-            extract('year', TopRail.date) == today.year,
-            extract('month', TopRail.date) == today.month
-        )
-        .scalar()
-    )
-
+    # Calculate daily history and monthly totals (unchanged from previous logic)
     def get_last_n_working_days(n, reference_date):
         working_days = []
         d = reference_date
@@ -2270,12 +2272,12 @@ def top_rails():
 
     monthly_totals = (
         db.session.query(
-            extract('year', TopRail.date).label('year'),
-            extract('month', TopRail.date).label('month'),
+            func.strftime('%Y', TopRail.date).label('year'),
+            func.strftime('%m', TopRail.date).label('month'),
             func.count(TopRail.id).label('total')
         )
         .group_by('year', 'month')
-        .order_by(desc(extract('year', TopRail.date)), desc(extract('month', TopRail.date)))
+        .order_by(desc(func.strftime('%Y', TopRail.date)), desc(func.strftime('%m', TopRail.date)))
         .all()
     )
     monthly_totals_formatted = []
@@ -2286,8 +2288,8 @@ def top_rails():
         last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
-        avg_hours_per_top_rail = (cumulative_working_hours / total_top_rails if total_top_rails > 0 else None)
-        if avg_hours_per_top_rail is not None:
+        if total_top_rails > 0:
+            avg_hours_per_top_rail = cumulative_working_hours / total_top_rails
             hours = int(avg_hours_per_top_rail)
             minutes = int((avg_hours_per_top_rail - hours) * 60)
             seconds = int((((avg_hours_per_top_rail - hours) * 60) - minutes) * 60)
@@ -2301,8 +2303,8 @@ def top_rails():
         })
 
     all_top_rails_this_month = TopRail.query.filter(
-        extract('year', TopRail.date) == today.year,
-        extract('month', TopRail.date) == today.month
+        func.strftime('%Y', TopRail.date) == str(today.year),
+        func.strftime('%m', TopRail.date) == f"{today.month:02d}"
     ).all()
 
     def is_6ft(serial):
@@ -2333,6 +2335,7 @@ def top_rails():
         current_top_rails_7ft=current_top_rails_7ft,
         current_top_rails_6ft=current_top_rails_6ft
     )
+
 
 
 
