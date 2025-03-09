@@ -7,9 +7,6 @@ import os
 import requests
 from calendar import monthrange
 from sqlalchemy import func, extract
-import re
-
-
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -1872,9 +1869,7 @@ def bodies():
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
-        # Sanitize the serial number input by removing extra spaces around the hyphen.
-        serial_number_raw = request.form['serial_number']
-        serial_number = re.sub(r'\s*-\s*', '-', serial_number_raw.strip())
+        serial_number = request.form['serial_number']
         issue = request.form['issue']
         lunch = request.form['lunch']
 
@@ -1916,8 +1911,10 @@ def bodies():
             "Sticker Set": 1
         }
 
-        # If the serial number indicates a 6ft table, adjust parts accordingly.
-        if serial_number.endswith("-6"):
+        # If the serial number indicates a 6ft table (contains " - 6"),
+        # remove the standard "Large Ramp" and "Cue Ball Separator" parts and
+        # replace them with the 6ft versions.
+        if " - 6" in serial_number:
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
             parts_to_deduct["6ft Large Ramp"] = 1
@@ -1956,7 +1953,8 @@ def bodies():
             return redirect(url_for('bodies'))
 
         # 4. Update Stock Automatically After a Body is Added
-        if serial_number.endswith("-6"):
+        # Normalize the serial number by removing spaces and check if it ends with "-6"
+        if serial_number.replace(" ", "").endswith("-6"):
             stock_type = 'body_6ft'
         else:
             stock_type = 'body_7ft'
@@ -1982,8 +1980,9 @@ def bodies():
     ).all()
     current_month_bodies_count = len(all_bodies_this_month)
     
-    # Helper function for classification:
+    # Define a helper function for classification:
     def is_6ft(serial_number):
+        # Remove spaces and check if it ends with '-6'
         normalized = serial_number.replace(" ", "")
         return normalized.endswith("-6")
     
@@ -2021,7 +2020,8 @@ def bodies():
         }
         for row in daily_history
     ]
-    
+
+    # Monthly Totals: Order by year and month descending (current month first)
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -2082,8 +2082,6 @@ def bodies():
         current_production_6ft=current_production_6ft
     )
 
-
-
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     if 'worker' not in session:
@@ -2096,18 +2094,9 @@ def top_rails():
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
-        # Sanitize the serial number input: remove extra spaces around the hyphen.
-        serial_number_raw = request.form['serial_number']
-        serial_number = re.sub(r'\s*-\s*', '-', serial_number_raw.strip())
+        serial_number = request.form['serial_number']
         issue_text = request.form['issue']
         lunch = request.form['lunch']
-        
-        # Get the color from the form and validate it.
-        color = request.form.get('color', '').strip().upper()
-        allowed_colors = {"C", "O", "GO", "G"}
-        if color not in allowed_colors:
-            flash("Invalid color selected. Please choose one of: C, O, GO, G.", "error")
-            return redirect(url_for('top_rails'))
 
         # Parts and quantities needed for top rail completion
         parts_to_deduct = {
@@ -2117,7 +2106,8 @@ def top_rails():
             "Center pockets": 2,
             "Corner pockets": 4
         }
-        # Deduct inventory for each part needed to complete the top rail.
+
+        # Deduct inventory for each part needed to complete the top rail
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
             total_stock = sum(entry.count for entry in part_entries)
@@ -2135,8 +2125,7 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Create the new TopRail record.
-        # (Assuming your TopRail model has been updated to include a "color" field.)
+        # Create the new TopRail record
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -2144,8 +2133,7 @@ def top_rails():
             serial_number=serial_number,
             lunch=lunch,
             issue=issue_text,
-            date=date.today(),
-            color=color
+            date=date.today()
         )
         try:
             db.session.add(new_top_rail)
@@ -2157,31 +2145,33 @@ def top_rails():
             return redirect(url_for('top_rails'))
         
         # --- Update Table Stock for Top Rails ---
-        # Determine the top rail size (7ft or 6ft) by checking if the serial number ends with "-6"
-        ft = "6ft" if serial_number.endswith("-6") else "7ft"
-        # Now include the colour in the stock type key
-        stock_type = f"top_rail_{ft}_{color}"
+        # Use a robust check for 6ft by removing spaces.
+        def is_6ft(serial):
+            return serial.replace(" ", "").endswith("-6")
+        if is_6ft(serial_number):
+            stock_type = 'top_rail_6ft'
+        else:
+            stock_type = 'top_rail_7ft'
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
             stock_entry = TableStock(type=stock_type, count=0)
             db.session.add(stock_entry)
         stock_entry.count += 1
         db.session.commit()
+        # -----------------------------------------
         return redirect(url_for('top_rails'))
 
     # GET request handling
     today = date.today()
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
-    # --- Next Serial Number Generation ---
+    # Determine the next serial number
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
     if last_entry:
         if '-' in last_entry.serial_number:
             parts = last_entry.serial_number.split('-', 1)
             try:
-                prefix = parts[0].strip()
-                suffix = parts[1].strip()
-                next_serial_number = f"{int(prefix) + 1}-{suffix}"
+                next_serial_number = f"{int(parts[0]) + 1} - {parts[1]}"
             except ValueError:
                 next_serial_number = "1000"
         else:
@@ -2206,6 +2196,7 @@ def top_rails():
         .scalar()
     )
 
+    # Helper: Get last 5 working days (Monday-Friday)
     def get_last_n_working_days(n, reference_date):
         working_days = []
         d = reference_date
@@ -2268,16 +2259,20 @@ def top_rails():
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
 
+    # --- New: Compute Current Production for Top Rails ---
+    # Retrieve all top rail entries for the current month.
     all_top_rails_this_month = TopRail.query.filter(
         extract('year', TopRail.date) == today.year,
         extract('month', TopRail.date) == today.month
     ).all()
 
+    # Helper function for classification:
     def is_6ft(serial):
         return serial.replace(" ", "").endswith("-6")
     
     current_top_rails_6ft = sum(1 for rail in all_top_rails_this_month if is_6ft(rail.serial_number))
     current_top_rails_7ft = sum(1 for rail in all_top_rails_this_month if not is_6ft(rail.serial_number))
+    # ---------------------------------------------------
 
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
@@ -2301,9 +2296,6 @@ def top_rails():
         current_top_rails_7ft=current_top_rails_7ft,
         current_top_rails_6ft=current_top_rails_6ft
     )
-
-
-
 
 
 
