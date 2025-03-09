@@ -1869,7 +1869,9 @@ def bodies():
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
-        serial_number = request.form['serial_number']
+        # Sanitize the serial number input by removing extra spaces around the hyphen.
+        serial_number_raw = request.form['serial_number']
+        serial_number = re.sub(r'\s*-\s*', '-', serial_number_raw.strip())
         issue = request.form['issue']
         lunch = request.form['lunch']
 
@@ -1911,10 +1913,8 @@ def bodies():
             "Sticker Set": 1
         }
 
-        # If the serial number indicates a 6ft table (contains " - 6"),
-        # remove the standard "Large Ramp" and "Cue Ball Separator" parts and
-        # replace them with the 6ft versions.
-        if " - 6" in serial_number:
+        # If the serial number indicates a 6ft table, adjust parts accordingly.
+        if serial_number.endswith("-6"):
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
             parts_to_deduct["6ft Large Ramp"] = 1
@@ -1953,8 +1953,7 @@ def bodies():
             return redirect(url_for('bodies'))
 
         # 4. Update Stock Automatically After a Body is Added
-        # Normalize the serial number by removing spaces and check if it ends with "-6"
-        if serial_number.replace(" ", "").endswith("-6"):
+        if serial_number.endswith("-6"):
             stock_type = 'body_6ft'
         else:
             stock_type = 'body_7ft'
@@ -1980,9 +1979,8 @@ def bodies():
     ).all()
     current_month_bodies_count = len(all_bodies_this_month)
     
-    # Define a helper function for classification:
+    # Helper function for classification:
     def is_6ft(serial_number):
-        # Remove spaces and check if it ends with '-6'
         normalized = serial_number.replace(" ", "")
         return normalized.endswith("-6")
     
@@ -2020,8 +2018,7 @@ def bodies():
         }
         for row in daily_history
     ]
-
-    # Monthly Totals: Order by year and month descending (current month first)
+    
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -2081,6 +2078,8 @@ def bodies():
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft
     )
+
+
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
