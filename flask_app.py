@@ -59,7 +59,7 @@ class Issue(db.Model):
     description = db.Column(db.String(100), unique=True, nullable=False)
 
 class TopRail(db.Model):
-    __tablename__ = 'top_rails'
+    __tablename__ = 'top_rail'
     id = db.Column(db.Integer, primary_key=True)
     worker = db.Column(db.String(50), nullable=False)
     start_time = db.Column(db.String(10), nullable=False)
