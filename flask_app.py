@@ -2430,9 +2430,10 @@ def table_stock():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
-
+    
     if request.method == 'POST':
-        stock_type = request.form.get('stock_type')
+        # Get the base stock type from the form. (e.g. "top_rail_7ft", "body_7ft", etc.)
+        stock_base = request.form.get('stock_type')
         action = request.form.get('action')
         try:
             amount = int(request.form.get('amount', 0))
@@ -2442,6 +2443,16 @@ def table_stock():
         if amount <= 0:
             flash("Amount must be a positive number.", "error")
             return redirect(url_for('table_stock'))
+        
+        # For top rail stocks, include the color.
+        if stock_base.startswith("top_rail"):
+            color = request.form.get('color', '').strip().upper()
+            if not color:
+                color = "BLACK"
+            # Construct full stock type, e.g. "top_rail_7ft_BLACK" or "top_rail_6ft_C"
+            stock_type = f"{stock_base}_{color}"
+        else:
+            stock_type = stock_base
         
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
@@ -2459,15 +2470,23 @@ def table_stock():
                 flash(f"Removed {amount} from {stock_type} stock.", "success")
         db.session.commit()
         return redirect(url_for('table_stock'))
-
-    # Define separate stock types for bodies, top rails, and cushion sets:
-    stock_types = ['body_7ft', 'body_6ft', 'top_rail_7ft', 'top_rail_6ft', 'cushion_set_7ft', 'cushion_set_6ft']
+    
+    # Build the list of stock types to display.
+    # Bodies and cushion sets remain unchanged.
+    stock_types = ["body_7ft", "body_6ft", "cushion_set_7ft", "cushion_set_6ft"]
+    # For top rails, include each size with each allowed color.
+    allowed_top_rail_colors = ["BLACK", "C", "O", "GO", "G"]
+    for size in ["top_rail_7ft", "top_rail_6ft"]:
+        for col in allowed_top_rail_colors:
+            stock_types.append(f"{size}_{col}")
+    
     stock_data = {}
     for st in stock_types:
         entry = TableStock.query.filter_by(type=st).first()
         stock_data[st] = entry.count if entry else 0
 
     return render_template('table_stock.html', stock_data=stock_data)
+
 
 from math import ceil
 
