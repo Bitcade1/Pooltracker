@@ -59,6 +59,7 @@ class Issue(db.Model):
     description = db.Column(db.String(100), unique=True, nullable=False)
 
 class TopRail(db.Model):
+    __tablename__ = 'top_rails'
     id = db.Column(db.Integer, primary_key=True)
     worker = db.Column(db.String(50), nullable=False)
     start_time = db.Column(db.String(10), nullable=False)
@@ -67,6 +68,7 @@ class TopRail(db.Model):
     serial_number = db.Column(db.String(20), unique=True, nullable=False)
     issue = db.Column(db.String(50), nullable=False)
     lunch = db.Column(db.String(3), default='No')
+    color = db.Column(db.String(10), nullable=False)  # New field for colour
 
 class WoodCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2113,7 +2115,7 @@ def top_rails():
             flash("Invalid colour selected. Please choose one of: C, O, GO, G.", "error")
             return redirect(url_for('top_rails'))
 
-        # Generate new serial number automatically
+        # Generate new serial number automatically based on the last entry's numeric prefix
         last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
         if last_entry:
             if '-' in last_entry.serial_number:
@@ -2157,7 +2159,7 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Create new TopRail record with the auto-generated serial number and selected colour
+        # Create new TopRail record with auto-generated serial number and selected colour
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
