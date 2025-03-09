@@ -166,21 +166,8 @@
       <label for="finish_time">Finish Time:</label>
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
       
-      <!-- New dropdown for Size -->
-      <label for="size">Size:</label>
-      <select name="size" id="size" required>
-        <option value="7ft">7ft</option>
-        <option value="6ft">6ft</option>
-      </select>
-      
-      <!-- New dropdown for Colour -->
-      <label for="color">Colour:</label>
-      <select name="color" id="color" required>
-        <option value="C">C</option>
-        <option value="O">O</option>
-        <option value="GO">GO</option>
-        <option value="G">G</option>
-      </select>
+      <label for="serial_number">Serial Number:</label>
+      <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ next_serial_number }}">
       
       <label for="issue">Any issues with the build?:</label>
       <select name="issue" id="issue" required>
