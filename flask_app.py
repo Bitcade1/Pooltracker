@@ -2101,6 +2101,13 @@ def top_rails():
         serial_number = re.sub(r'\s*-\s*', '-', serial_number_raw.strip())
         issue_text = request.form['issue']
         lunch = request.form['lunch']
+        
+        # Get the color from the form and validate it.
+        color = request.form.get('color', '').strip().upper()
+        allowed_colors = {"C", "O", "GO", "G"}
+        if color not in allowed_colors:
+            flash("Invalid color selected. Please choose one of: C, O, GO, G.", "error")
+            return redirect(url_for('top_rails'))
 
         # Parts and quantities needed for top rail completion
         parts_to_deduct = {
@@ -2128,7 +2135,8 @@ def top_rails():
                     remaining_to_deduct -= entry.count
                     entry.count = 0
 
-        # Create the new TopRail record
+        # Create the new TopRail record.
+        # (Assuming your TopRail model has been updated to include a "color" field.)
         new_top_rail = TopRail(
             worker=worker,
             start_time=start_time,
@@ -2136,7 +2144,8 @@ def top_rails():
             serial_number=serial_number,
             lunch=lunch,
             issue=issue_text,
-            date=date.today()
+            date=date.today(),
+            color=color
         )
         try:
             db.session.add(new_top_rail)
@@ -2148,10 +2157,10 @@ def top_rails():
             return redirect(url_for('top_rails'))
         
         # --- Update Table Stock for Top Rails ---
-        if serial_number.endswith("-6"):
-            stock_type = 'top_rail_6ft'
-        else:
-            stock_type = 'top_rail_7ft'
+        # Determine the top rail size (7ft or 6ft) by checking if the serial number ends with "-6"
+        ft = "6ft" if serial_number.endswith("-6") else "7ft"
+        # Now include the colour in the stock type key
+        stock_type = f"top_rail_{ft}_{color}"
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
             stock_entry = TableStock(type=stock_type, count=0)
@@ -2292,6 +2301,7 @@ def top_rails():
         current_top_rails_7ft=current_top_rails_7ft,
         current_top_rails_6ft=current_top_rails_6ft
     )
+
 
 
 
