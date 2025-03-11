@@ -1849,28 +1849,22 @@ from calendar import monthrange
 
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
-    # 1. Check for logged-in user
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
-
-    # 2. Pull data needed for rendering
+    
+    # Retrieve issues and any pods not yet converted
     issues = [issue.description for issue in Issue.query.all()]
-
-    # Query pods that are not yet converted
     unconverted_pods = CompletedPods.query.filter(
-        ~CompletedPods.serial_number.in_(
-            db.session.query(CompletedTable.serial_number)
-        )
+        ~CompletedPods.serial_number.in_(db.session.query(CompletedTable.serial_number))
     ).all()
 
-    # 3. Handle form submission for adding a new table
     if request.method == 'POST':
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
-        issue = request.form['issue']
+        issue_text = request.form['issue']
         lunch = request.form['lunch']
 
         # ---------------------------
@@ -1885,7 +1879,7 @@ def bodies():
             "Small Ramp": 1,
             "Cue Ball Separator": 1,
             "Bushing": 2,
-            # Additional parts for the table build
+            # Additional parts for the table build:
             "Table legs": 4,
             "Ball Gullies 1 (Untouched)": 2,
             "Ball Gullies 2": 1,
@@ -1911,26 +1905,23 @@ def bodies():
             "Sticker Set": 1
         }
 
-        # If the serial number indicates a 6ft table (contains " - 6"),
-        # remove the standard "Large Ramp" and "Cue Ball Separator" parts and
-        # replace them with the 6ft versions.
-        if " - 6" in serial_number:
+        # Normalize serial number to remove spaces and check if it ends with "-6"
+        if serial_number.replace(" ", "").endswith("-6"):
+            # For a 6ft table, remove standard parts and add the 6ft-specific ones.
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
             parts_to_deduct["6ft Large Ramp"] = 1
             parts_to_deduct["6ft Cue Ball Separator"] = 1
 
-        # Deduct parts from inventory
+        # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
-            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name)\
+            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name) \
                                                  .order_by(PrintedPartsCount.date.desc()).first()
             if part_entry and part_entry.count >= quantity_needed:
                 part_entry.count -= quantity_needed
             else:
                 flash(f"Not enough inventory for {part_name} to complete the body!", "error")
                 return redirect(url_for('bodies'))
-
-        # Commit inventory changes before creating the new CompletedTable entry
         db.session.commit()
 
         # Create new CompletedTable record
@@ -1939,7 +1930,7 @@ def bodies():
             start_time=start_time,
             finish_time=finish_time,
             serial_number=serial_number,
-            issue=issue,
+            issue=issue_text,
             lunch=lunch,
             date=date.today()
         )
@@ -1952,8 +1943,7 @@ def bodies():
             flash("Error: Serial number already exists or another error occurred.", "error")
             return redirect(url_for('bodies'))
 
-        # 4. Update Stock Automatically After a Body is Added
-        # Normalize the serial number by removing spaces and check if it ends with "-6"
+        # Update table stock based on table size
         if serial_number.replace(" ", "").endswith("-6"):
             stock_type = 'body_6ft'
         else:
@@ -1967,30 +1957,25 @@ def bodies():
 
         return redirect(url_for('bodies'))
 
-    # 5. Retrieve data for display (GET request)
+    # ---------------------------
+    # GET request handling
+    # ---------------------------
     today = date.today()
-    
-    # "Tables Completed Today": Only today's entries
     completed_tables = CompletedTable.query.filter_by(date=today).all()
-    
-    # Retrieve all bodies for the current month
     all_bodies_this_month = CompletedTable.query.filter(
-         extract('year', CompletedTable.date) == today.year,
-         extract('month', CompletedTable.date) == today.month
+        extract('year', CompletedTable.date) == today.year,
+        extract('month', CompletedTable.date) == today.month
     ).all()
     current_month_bodies_count = len(all_bodies_this_month)
-    
-    # Define a helper function for classification:
-    def is_6ft(serial_number):
-        # Remove spaces and check if it ends with '-6'
-        normalized = serial_number.replace(" ", "")
-        return normalized.endswith("-6")
-    
-    # Calculate current production separated by size
+
+    # Helper: determine table size based on serial number
+    def is_6ft(serial):
+        return serial.replace(" ", "").endswith("-6")
+
     current_production_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
-    
-    # Daily History: Show summary for the last 5 working days in the current month.
+
+    # Daily history (last 5 working days)
     def get_last_n_working_days(n, reference_date):
         working_days = []
         d = reference_date
@@ -2021,7 +2006,7 @@ def bodies():
         for row in daily_history
     ]
 
-    # Monthly Totals: Order by year and month descending (current month first)
+    # Monthly totals summary
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -2041,20 +2026,20 @@ def bodies():
         work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
         if total_bodies > 0:
-            avg_hours_per_table = cumulative_working_hours / total_bodies
-            hours = int(avg_hours_per_table)
-            minutes = int((avg_hours_per_table - hours) * 60)
-            seconds = int((((avg_hours_per_table - hours) * 60) - minutes) * 60)
-            avg_hours_per_table_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+            avg_hours = cumulative_working_hours / total_bodies
+            hours = int(avg_hours)
+            minutes = int((avg_hours - hours) * 60)
+            seconds = int((((avg_hours - hours) * 60) - minutes) * 60)
+            avg_hours_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
-            avg_hours_per_table_formatted = "N/A"
+            avg_hours_formatted = "N/A"
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
-            "average_hours_per_table": avg_hours_per_table_formatted
+            "average_hours_per_table": avg_hours_formatted
         })
 
-    # 6. Retrieve the current month's production schedule targets.
+    # Retrieve production targets for the current month
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
         target_7ft = schedule.target_7ft
@@ -2063,7 +2048,7 @@ def bodies():
         target_7ft = 60
         target_6ft = 60
 
-    # 7. Get the current finish_time to pre-populate the form
+    # Get the current finish time to pre-populate the form
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
@@ -2081,6 +2066,7 @@ def bodies():
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft
     )
+
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
@@ -2533,7 +2519,7 @@ def material_calculator():
     return render_template(
         'material_calculator.html',
         laminate_results=laminate_results,
-        boards_jobA=boards_jobA,
+        boards_jobA=bofards_jobA,
         boards_jobB=boards_jobB,
         board_total=board_total,
         leftover_long=leftover_long,
