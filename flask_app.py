@@ -2449,6 +2449,9 @@ def table_stock():
 
 from math import ceil
 
+from math import ceil
+from flask import render_template, request
+
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():
     # Define the laminate colours and corresponding form field names.
@@ -2489,7 +2492,7 @@ def material_calculator():
                 "total": total_needed
             }
         
-        # 36mm Board Calculation (unchanged from previous update)
+        # 36mm Board Calculation
         try:
             num_top_rails = int(request.form.get('num_top_rails', 0)) if request.form.get('num_top_rails', '').strip() else 0
         except ValueError:
@@ -2519,7 +2522,7 @@ def material_calculator():
     return render_template(
         'material_calculator.html',
         laminate_results=laminate_results,
-        boards_jobA=bofards_jobA,
+        boards_jobA=boards_jobA,
         boards_jobB=boards_jobB,
         board_total=board_total,
         leftover_long=leftover_long,
