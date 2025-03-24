@@ -414,119 +414,6 @@ def manage_mdf_inventory():
 
     return render_template('manage_mdf_inventory.html', inventory=inventory)
 
-@app.route('/counting_3d_printing_parts', methods=['GET', 'POST'])
-def counting_3d_printing_parts():
-    if 'worker' not in session:
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-
-    today = datetime.utcnow().date()
-
-    if request.method == 'POST':
-        part = request.form['part']
-
-        if 'reject' in request.form:
-            reject_amount = int(request.form['reject_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-
-            if current_count and current_count.count >= reject_amount:
-                current_count.count -= reject_amount
-                flash(f"Rejected {reject_amount} of {part} from inventory.", "success")
-                db.session.commit()
-            else:
-                flash(f"Not enough inventory to reject {reject_amount} of {part}.", "error")
-        else:
-            increment_amount = int(request.form['increment_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-
-            if current_count:
-                current_count.count += increment_amount
-                current_count.date = today
-                current_count.time = datetime.utcnow().time()
-                flash(f"Incremented {part} count by {increment_amount}!", "success")
-            else:
-                new_count = PrintedPartsCount(part_name=part, count=increment_amount, date=today, time=datetime.utcnow().time())
-                db.session.add(new_count)
-                flash(f"Added {increment_amount} to {part} as a new entry!", "success")
-
-            db.session.commit()
-
-        return redirect(url_for('counting_3d_printing_parts'))
-
-    parts = ["Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder", "Small Ramp", "Cue Ball Separator", "Bushing", "6ft Cue Ball Separator", "6ft Large Ramp"]
-    parts_counts = {part: PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc()).first() for part in parts}
-    parts_counts = {part: count.count if count else 0 for part, count in parts_counts.items()}
-    
-    # Get the current month and year
-    current_month = datetime.utcnow().month
-    current_year = datetime.utcnow().year
-
-    # Get the production targets for this month
-    schedule = ProductionSchedule.query.filter_by(
-        year=current_year, month=current_month
-    ).first()
-
-    if schedule:
-        target_7ft = schedule.target_7ft
-        target_6ft = schedule.target_6ft
-    else:
-        # Fallback defaults if no schedule is set
-        target_7ft = 60
-        target_6ft = 60
-
-    # Get all completed tables for the current month
-    completed_tables = CompletedTable.query.filter(
-        extract('year', CompletedTable.date) == current_year,
-        extract('month', CompletedTable.date) == current_month
-    ).all()
-
-    # Separate completed tables by size based on serial number
-    bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
-    bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
-
-    # Define usage per table for each part - UPDATED to match inventory route
-    parts_usage_per_body = {
-        "Large Ramp": 1,
-        "Paddle": 1,
-        "Laminate": 4,
-        "Spring Mount": 1,
-        "Spring Holder": 1,
-        "Small Ramp": 1,
-        "Cue Ball Separator": 1,
-        "Bushing": 2,
-        "6ft Cue Ball Separator": 1,
-        "6ft Large Ramp": 1
-    }
-
-    # Calculate parts used this month
-    parts_used_this_month = {}
-    for part, usage in parts_usage_per_body.items():
-        if part in ["Large Ramp", "Cue Ball Separator"]:
-            parts_used_this_month[part] = bodies_built_7ft * usage
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
-            parts_used_this_month[part] = bodies_built_6ft * usage
-        else:
-            parts_used_this_month[part] = (bodies_built_7ft + bodies_built_6ft) * usage
-
-    # Determine the required total for each part
-    parts_status = {}
-    for part, usage in parts_usage_per_body.items():
-        if part in ["Large Ramp", "Cue Ball Separator"]:
-            required_total = target_7ft * usage
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
-            required_total = target_6ft * usage
-        else:
-            required_total = (target_7ft + target_6ft) * usage
-
-        available_total = parts_counts.get(part, 0) + parts_used_this_month.get(part, 0)
-        difference = available_total - required_total
-        if difference >= 0:
-            parts_status[part] = f"{difference} extras"
-        else:
-            parts_status[part] = f"{abs(difference)} left to make"
-
-    return render_template('counting_3d_printing_parts.html', parts_counts=parts_counts, parts_status=parts_status)
-
 @app.route('/inventory', methods=['GET', 'POST'])
 def inventory():
     if 'worker' not in session:
@@ -2531,6 +2418,132 @@ def material_calculator():
 
 
 
+@app.route('/counting_3d_printing_parts', methods=['GET', 'POST'])
+def counting_3d_printing_parts():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    today = datetime.utcnow().date()
+
+    if request.method == 'POST':
+        part = request.form['part']
+
+        if 'reject' in request.form:
+            reject_amount = int(request.form['reject_amount'])
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+
+            if current_count and current_count.count >= reject_amount:
+                current_count.count -= reject_amount
+                flash(f"Rejected {reject_amount} of {part} from inventory.", "success")
+                db.session.commit()
+            else:
+                flash(f"Not enough inventory to reject {reject_amount} of {part}.", "error")
+        else:
+            increment_amount = int(request.form['increment_amount'])
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+
+            if current_count:
+                current_count.count += increment_amount
+                current_count.date = today
+                current_count.time = datetime.utcnow().time()
+                flash(f"Incremented {part} count by {increment_amount}!", "success")
+            else:
+                new_count = PrintedPartsCount(part_name=part, count=increment_amount, date=today, time=datetime.utcnow().time())
+                db.session.add(new_count)
+                flash(f"Added {increment_amount} to {part} as a new entry!", "success")
+
+            db.session.commit()
+
+        return redirect(url_for('counting_3d_printing_parts'))
+
+    parts = [
+        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+        "Small Ramp", "Cue Ball Separator", "Bushing",
+        "6ft Cue Ball Separator", "6ft Large Ramp"
+    ]
+
+    # ✅ FIX: Sum total counts instead of only fetching latest entry
+    parts_counts = {
+        part: db.session.query(db.func.sum(PrintedPartsCount.count))
+            .filter_by(part_name=part)
+            .scalar() or 0
+        for part in parts
+    }
+
+    # Get the current month and year
+    current_month = datetime.utcnow().month
+    current_year = datetime.utcnow().year
+
+    # Get the production targets for this month
+    schedule = ProductionSchedule.query.filter_by(
+        year=current_year, month=current_month
+    ).first()
+
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        # Fallback defaults if no schedule is set
+        target_7ft = 60
+        target_6ft = 60
+
+    # Get all completed tables for the current month
+    completed_tables = CompletedTable.query.filter(
+        extract('year', CompletedTable.date) == current_year,
+        extract('month', CompletedTable.date) == current_month
+    ).all()
+
+    # Separate completed tables by size based on serial number
+    bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
+    bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
+
+    # Define usage per table for each part
+    parts_usage_per_body = {
+        "Large Ramp": 1,
+        "Paddle": 1,
+        "Laminate": 4,
+        "Spring Mount": 1,
+        "Spring Holder": 1,
+        "Small Ramp": 1,
+        "Cue Ball Separator": 1,
+        "Bushing": 2,
+        "6ft Cue Ball Separator": 1,
+        "6ft Large Ramp": 1
+    }
+
+    # Calculate parts used this month
+    parts_used_this_month = {}
+    for part, usage in parts_usage_per_body.items():
+        if part in ["Large Ramp", "Cue Ball Separator"]:
+            parts_used_this_month[part] = bodies_built_7ft * usage
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+            parts_used_this_month[part] = bodies_built_6ft * usage
+        else:
+            parts_used_this_month[part] = (bodies_built_7ft + bodies_built_6ft) * usage
+
+    # Determine the required total for each part
+    parts_status = {}
+    for part, usage in parts_usage_per_body.items():
+        if part in ["Large Ramp", "Cue Ball Separator"]:
+            required_total = target_7ft * usage
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+            required_total = target_6ft * usage
+        else:
+            required_total = (target_7ft + target_6ft) * usage
+
+        available_total = parts_counts.get(part, 0) + parts_used_this_month.get(part, 0)
+        difference = available_total - required_total
+        if difference >= 0:
+            parts_status[part] = f"{difference} extras"
+        else:
+            parts_status[part] = f"{abs(difference)} left to make"
+
+    return render_template(
+        'counting_3d_printing_parts.html',
+        parts_counts=parts_counts,
+        parts_status=parts_status
+    )
 
 
 
