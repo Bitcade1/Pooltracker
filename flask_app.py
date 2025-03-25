@@ -2431,7 +2431,8 @@ def counting_3d_printing_parts():
 
         if 'reject' in request.form:
             reject_amount = int(request.form['reject_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(
+                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
 
             if current_count and current_count.count >= reject_amount:
                 current_count.count -= reject_amount
@@ -2441,7 +2442,8 @@ def counting_3d_printing_parts():
                 flash(f"Not enough inventory to reject {reject_amount} of {part}.", "error")
         else:
             increment_amount = int(request.form['increment_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(
+                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
 
             if current_count:
                 current_count.count += increment_amount
@@ -2463,7 +2465,6 @@ def counting_3d_printing_parts():
         "6ft Cue Ball Separator", "6ft Large Ramp"
     ]
 
-    # ✅ FIX: Sum total counts instead of only fetching latest entry
     parts_counts = {
         part: db.session.query(db.func.sum(PrintedPartsCount.count))
             .filter_by(part_name=part)
@@ -2471,34 +2472,27 @@ def counting_3d_printing_parts():
         for part in parts
     }
 
-    # Get the current month and year
     current_month = datetime.utcnow().month
     current_year = datetime.utcnow().year
 
-    # Get the production targets for this month
-    schedule = ProductionSchedule.query.filter_by(
-        year=current_year, month=current_month
-    ).first()
+    schedule = ProductionSchedule.query.filter_by(year=current_year, month=current_month).first()
+    target_7ft = schedule.target_7ft if schedule else 60
+    target_6ft = schedule.target_6ft if schedule else 60
 
-    if schedule:
-        target_7ft = schedule.target_7ft
-        target_6ft = schedule.target_6ft
-    else:
-        # Fallback defaults if no schedule is set
-        target_7ft = 60
-        target_6ft = 60
-
-    # Get all completed tables for the current month
-    completed_tables = CompletedTable.query.filter(
+    # Fetch tables built this month (exactly as you did in bodies route)
+    all_bodies_this_month = CompletedTable.query.filter(
         extract('year', CompletedTable.date) == current_year,
         extract('month', CompletedTable.date) == current_month
     ).all()
 
-    # Separate completed tables by size based on serial number
-    bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
-    bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
+    # Clearly identify built tables
+    def is_6ft(serial):
+        return serial.replace(" ", "").endswith("-6")
 
-    # Define usage per table for each part
+    bodies_built_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
+    bodies_built_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
+
+    # Now accurately calculate required totals per table type
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
@@ -2512,27 +2506,26 @@ def counting_3d_printing_parts():
         "6ft Large Ramp": 1
     }
 
-    # Calculate parts used this month
-    parts_used_this_month = {}
-    for part, usage in parts_usage_per_body.items():
-        if part in ["Large Ramp", "Cue Ball Separator"]:
-            parts_used_this_month[part] = bodies_built_7ft * usage
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
-            parts_used_this_month[part] = bodies_built_6ft * usage
-        else:
-            parts_used_this_month[part] = (bodies_built_7ft + bodies_built_6ft) * usage
-
-    # Determine the required total for each part
     parts_status = {}
     for part, usage in parts_usage_per_body.items():
         if part in ["Large Ramp", "Cue Ball Separator"]:
             required_total = target_7ft * usage
+            completed_total = bodies_built_7ft * usage
+
         elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
             required_total = target_6ft * usage
+            completed_total = bodies_built_6ft * usage
+
         else:
             required_total = (target_7ft + target_6ft) * usage
+            completed_total = (bodies_built_7ft + bodies_built_6ft) * usage
 
-        available_total = parts_counts.get(part, 0) + parts_used_this_month.get(part, 0)
+        # IMPORTANT: inventory is exactly what's in stock now
+        inventory_total = parts_counts.get(part, 0)
+
+        # How many parts you have available in total
+        available_total = inventory_total + completed_total
+
         difference = available_total - required_total
         if difference >= 0:
             parts_status[part] = f"{difference} extras"
@@ -2544,6 +2537,7 @@ def counting_3d_printing_parts():
         parts_counts=parts_counts,
         parts_status=parts_status
     )
+
 
 
 
