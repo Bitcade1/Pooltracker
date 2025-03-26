@@ -228,7 +228,11 @@
     <script>
         function toggleCollapsible(id) {
             var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
+            if (content.style.display === "block") {
+                content.style.display = "none";
+            } else {
+                content.style.display = "block";
+            }
         }
         
         function updateClock() {
@@ -242,6 +246,12 @@
         
         window.onload = function() {
             updateClock();
+            
+            // Initialize all session details sections as hidden
+            var detailSections = document.querySelectorAll('[id^="sessionDetails"]');
+            for (var i = 0; i < detailSections.length; i++) {
+                detailSections[i].style.display = "none";
+            }
         };
     </script>
 </head>
@@ -413,6 +423,7 @@
                         <th>Actual Time</th>
                         <th>Setup Time</th>
                         <th>Efficiency</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -427,10 +438,58 @@
                             <td class="{% if session.efficiency >= 90 %}efficiency-high{% elif session.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
                                 {{ session.efficiency }}%
                             </td>
+                            <td>
+                                <button onclick="toggleCollapsible('sessionDetails{{ session.id }}')" class="action-btn" style="background-color: #17a2b8;">Details</button>
+                                <form method="POST" action="{{ url_for('counting_cushions') }}" style="display: inline;">
+                                    <input type="hidden" name="delete_session_id" value="{{ session.id }}">
+                                    <button type="submit" name="delete_session" value="delete" class="action-btn" style="background-color: #dc3545;" onclick="return confirm('Are you sure you want to delete this session?')">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="8" style="padding: 0;">
+                                <div id="sessionDetails{{ session.id }}" class="collapsible-content" style="margin: 0; border-radius: 0;">
+                                    <h4>Detailed Job Times</h4>
+                                    <table style="margin-top: 10px;">
+                                        <thead>
+                                            <tr>
+                                                <th>Job</th>
+                                                <th>Goal Time</th>
+                                                <th>Start Time</th>
+                                                <th>Finish Time</th>
+                                                <th>Actual Time</th>
+                                                <th>Setup Time</th>
+                                                <th>Efficiency</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for job in session.job_details %}
+                                                <tr>
+                                                    <td>{{ job.name }}</td>
+                                                    <td>{% if job.goal_minutes %}{{ (job.goal_minutes // 60)|int }}h {{ job.goal_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                                    <td>{{ job.start_time if job.start_time else '-' }}</td>
+                                                    <td>{{ job.finish_time if job.finish_time else '-' }}</td>
+                                                    <td>{% if job.actual_minutes %}{{ (job.actual_minutes // 60)|int }}h {{ job.actual_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                                    <td>{% if job.setup_minutes %}{{ (job.setup_minutes // 60)|int }}h {{ job.setup_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                                    <td>
+                                                        {% if job.efficiency %}
+                                                            <span class="{% if job.efficiency >= 90 %}efficiency-high{% elif job.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
+                                                                {{ job.efficiency }}%
+                                                            </span>
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="7">No historical data available</td>
+                            <td colspan="8">No historical data available</td>
                         </tr>
                     {% endfor %}
                 </tbody>

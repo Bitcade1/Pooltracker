@@ -1506,6 +1506,7 @@ def counting_cushions():
             new_job = CushionJob(name=job["name"], order=job["order"])
             db.session.add(new_job)
         db.session.commit()
+        existing_jobs = CushionJob.query.all()
     
     # Get the active session or create a new one
     active_session = CushionSession.query.filter_by(
@@ -1653,6 +1654,10 @@ def counting_cushions():
         total_actual_minutes = sum(jr.actual_minutes for jr in job_records if jr.actual_minutes)
         total_setup_minutes = sum(jr.setup_minutes for jr in job_records if jr.setup_minutes)
         
+        efficiency = 0
+        if total_actual_minutes > 0 and total_goal_minutes > 0:
+            efficiency = round((total_goal_minutes / total_actual_minutes * 100), 2)
+        
         session_summary = {
             'target_6ft': active_session.target_6ft,
             'target_7ft': active_session.target_7ft,
@@ -1663,8 +1668,24 @@ def counting_cushions():
             'total_actual_formatted': f"{total_actual_minutes // 60}h {total_actual_minutes % 60}m",
             'total_setup_minutes': total_setup_minutes,
             'total_setup_formatted': f"{total_setup_minutes // 60}h {total_setup_minutes % 60}m",
-            'efficiency': round((total_goal_minutes / total_actual_minutes * 100) if total_actual_minutes else 0, 2)
+            'efficiency': efficiency
         }
+    
+    # Handle session deletion
+    if request.method == 'POST' and 'delete_session' in request.form:
+        delete_session_id = int(request.form['delete_session_id'])
+        session_to_delete = CushionSession.query.get(delete_session_id)
+        
+        if session_to_delete:
+            # First delete all associated job records
+            CushionJobRecord.query.filter_by(session_id=delete_session_id).delete()
+            # Then delete the session itself
+            db.session.delete(session_to_delete)
+            db.session.commit()
+            flash("Session and all its records deleted successfully!", "success")
+        else:
+            flash("Session not found.", "error")
+        return redirect(url_for('counting_cushions'))
     
     # Get historical session data
     historical_sessions = (CushionSession.query
@@ -1675,10 +1696,39 @@ def counting_cushions():
     
     historical_data = []
     for hist_session in historical_sessions:
-        hist_records = CushionJobRecord.query.filter_by(session_id=hist_session.id).all()
+        hist_records = (CushionJobRecord.query
+                        .join(CushionJob)
+                        .filter(CushionJobRecord.session_id == hist_session.id)
+                        .order_by(CushionJob.order)
+                        .all())
+        
         hist_goal_minutes = sum(hr.goal_minutes for hr in hist_records if hr.goal_minutes)
         hist_actual_minutes = sum(hr.actual_minutes for hr in hist_records if hr.actual_minutes)
         hist_setup_minutes = sum(hr.setup_minutes for hr in hist_records if hr.setup_minutes)
+        
+        efficiency = 0
+        if hist_actual_minutes > 0 and hist_goal_minutes > 0:
+            efficiency = round((hist_goal_minutes / hist_actual_minutes * 100), 2)
+        
+        # Prepare detailed job information
+        job_details = []
+        for record in hist_records:
+            record_efficiency = None
+            if record.actual_minutes and record.goal_minutes:
+                record_efficiency = round((record.goal_minutes / record.actual_minutes * 100), 2)
+            
+            start_time_str = record.start_time.strftime('%H:%M') if record.start_time else None
+            finish_time_str = record.finish_time.strftime('%H:%M') if record.finish_time else None
+            
+            job_details.append({
+                'name': record.job.name,
+                'goal_minutes': record.goal_minutes,
+                'start_time': start_time_str,
+                'finish_time': finish_time_str,
+                'actual_minutes': record.actual_minutes,
+                'setup_minutes': record.setup_minutes,
+                'efficiency': record_efficiency
+            })
         
         historical_data.append({
             'id': hist_session.id,
@@ -1691,7 +1741,8 @@ def counting_cushions():
             'actual_formatted': f"{hist_actual_minutes // 60}h {hist_actual_minutes % 60}m",
             'setup_minutes': hist_setup_minutes,
             'setup_formatted': f"{hist_setup_minutes // 60}h {hist_setup_minutes % 60}m",
-            'efficiency': round((hist_goal_minutes / hist_actual_minutes * 100) if hist_actual_minutes else 0, 2)
+            'efficiency': efficiency,
+            'job_details': job_details
         })
     
     return render_template(
