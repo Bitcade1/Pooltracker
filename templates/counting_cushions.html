@@ -3,94 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <title>Counting Cushions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        .job-set {
-            border: 2px solid #007bff;
-            border-radius: 10px;
+        .collapsible {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
             padding: 10px;
-            margin-bottom: 15px;
-            background-color: #eef7ff;
+            width: 100%;
+            border: none;
+            text-align: left;
+            font-size: 1.2em;
+            margin-top: 20px;
+            border-radius: 5px;
         }
-        .summary-table {
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+        .collapsible-content {
+            padding: 15px;
+            display: none;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
         }
-        .summary-table th, .summary-table td {
+        th, td {
+            padding: 12px;
             border: 1px solid #ddd;
-            padding: 8px;
+            text-align: center;
         }
-        .summary-table th {
+        th {
             background-color: #f2f2f2;
         }
-        .flash { padding: 10px; border-radius: 5px; margin: 10px 0; }
-        .flash.success { background-color: #d4edda; color: #155724; }
-        .flash.error { background-color: #f8d7da; color: #721c24; }
+        .submit-btn {
+            margin-top: 20px;
+            background-color: #28a745;
+            border: none;
+            padding: 12px 20px;
+            color: white;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .submit-btn:hover {
+            background-color: #218838;
+        }
+        .highlight {
+            background-color: #d1ecf1;
+        }
+        .summary-set {
+            border: 2px solid #007bff;
+            border-radius: 6px;
+            margin-top: 20px;
+            padding: 10px;
+        }
     </style>
+    <script>
+        function toggleCollapsible(id) {
+            var content = document.getElementById(id);
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    </script>
 </head>
 <body>
-    <h1>Counting Cushions</h1>
+    <div class="container">
+        <h1>Counting Cushions</h1>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="flash {{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+        <form method="POST" action="{{ url_for('counting_cushions') }}">
+            <label>6ft Cushions Needed:</label>
+            <input type="number" name="cushions_6ft" value="{{ cushions_6ft }}" required>
+            <label>7ft Cushions Needed:</label>
+            <input type="number" name="cushions_7ft" value="{{ cushions_7ft }}" required>
+            <button type="submit" class="submit-btn">Update Cushion Targets</button>
+        </form>
 
-    <form method="POST">
-        <label>Job Name:
-            <select name="job_name">
-                {% for job in jobs %}
-                    <option value="{{ job }}">{{ job }}</option>
-                {% endfor %}
-            </select>
-        </label><br><br>
+        <h2>Total Cushions: {{ total_cushions }}</h2>
+        <h3>Total Goal Time: {{ total_goal_time }} hours</h3>
 
-        <label>Goal Time (hrs):
-            <input type="number" step="0.01" name="goal_time" required>
-        </label><br><br>
-
-        <label>Start Time:
-            <input type="datetime-local" name="start_time" required>
-        </label><br><br>
-
-        <label>End Time:
-            <input type="datetime-local" name="end_time" required>
-        </label><br><br>
-
-        <button type="submit">Log Job</button>
-    </form>
-
-    <h2>Total Goal Time Today: {{ total_goal_time }} hrs</h2>
-
-    <h2>Job Summary for {{ today }}</h2>
-    {% for job_set in sets %}
-        <div class="job-set">
-            <table class="summary-table">
+        <form method="POST" action="{{ url_for('counting_cushions') }}">
+            <table>
                 <thead>
                     <tr>
-                        <th>Job Name</th>
+                        <th>Job</th>
                         <th>Goal Time (hrs)</th>
-                        <th>Actual Time (hrs)</th>
-                        <th>Setup Time (hrs)</th>
-                        <th>Date</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for job in job_set %}
-                        <tr>
-                            <td>{{ job.job_name }}</td>
-                            <td>{{ job.goal_time_hours }}</td>
-                            <td>{{ job.actual_hours }}</td>
-                            <td>{{ job.setup_hours }}</td>
-                            <td>{{ job.date }}</td>
-                        </tr>
+                    {% for job in job_list %}
+                    <tr>
+                        <td>{{ job }}</td>
+                        <td>
+                            <input type="number" step="0.1" name="goal_time_{{ loop.index0 }}" value="{{ saved_goal_times[job]|default('') }}" required>
+                        </td>
+                        <td><input type="datetime-local" name="start_time_{{ loop.index0 }}"></td>
+                        <td><input type="datetime-local" name="end_time_{{ loop.index0 }}"></td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            <button type="submit" name="submit_jobs" value="1" class="submit-btn">Log Job Times</button>
+        </form>
+
+        <button class="collapsible" onclick="toggleCollapsible('jobSummary')">Job Summary</button>
+        <div id="jobSummary" class="collapsible-content">
+            {% for set in grouped_jobs %}
+                <div class="summary-set">
+                    <h4>Set from {{ set[0].date }}</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job</th>
+                                <th>Goal Time</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Actual Time</th>
+                                <th>Setup Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in set %}
+                            <tr {% if entry.job_name == 'Sand tops' %}class="highlight"{% endif %}>
+                                <td>{{ entry.job_name }}</td>
+                                <td>{{ entry.goal_time_hours }}</td>
+                                <td>{{ entry.start_time }}</td>
+                                <td>{{ entry.end_time }}</td>
+                                <td>{{ entry.actual_hours }}</td>
+                                <td>{{ entry.setup_hours }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endfor %}
         </div>
-    {% endfor %}
+
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
 </body>
 </html>
