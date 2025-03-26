@@ -101,12 +101,16 @@ class CompletedPods(db.Model):
     issue = db.Column(db.String(100)) 
     lunch = db.Column(db.String(3), default='No')
 
-class CushionCount(db.Model):
+class CushionJobLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    cushion_type = db.Column(db.String(10), nullable=False)
-    count = db.Column(db.Integer, default=1, nullable=False)
-    date = db.Column(db.Date, default=datetime.utcnow, nullable=False)
-    time = db.Column(db.Time, default=datetime.utcnow().time, nullable=False)
+    job_name = db.Column(db.String(100), nullable=False)
+    goal_time_hours = db.Column(db.Float, nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    actual_hours = db.Column(db.Float, nullable=False)
+    setup_hours = db.Column(db.Float, nullable=True)  # Nullable for first job
+    date = db.Column(db.Date, default=date.today, nullable=False)
+
 
     def __init__(self, cushion_type):
         self.cushion_type = cushion_type
@@ -1446,155 +1450,92 @@ def counting_cushions():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    today = datetime.utcnow().date()
+    today = date.today()
 
-    # ---------------------------------------
-    # 1. Handle form submissions
-    # ---------------------------------------
+    # Session variables (top of page)
+    cushion_6ft = session.get('cushion_6ft', 0)
+    cushion_7ft = session.get('cushion_7ft', 0)
+    total_goal_time = session.get('total_goal_time', 0)
+
     if request.method == 'POST':
-        # If 'reset' button is pressed, delete today's records
-        if 'reset' in request.form:
-            db.session.query(CushionCount).filter(CushionCount.date == today).delete()
-            db.session.commit()
-            flash("All counts reset successfully!", "success")
+        if 'start_session' in request.form:
+            try:
+                cushion_6ft = int(request.form['cushion_6ft'])
+                cushion_7ft = int(request.form['cushion_7ft'])
+                total_goal_time = float(request.form['total_goal_time'])
+            except ValueError:
+                flash("Invalid numbers provided for session setup.", "error")
+                return redirect(url_for('counting_cushions'))
+
+            session['cushion_6ft'] = cushion_6ft
+            session['cushion_7ft'] = cushion_7ft
+            session['total_goal_time'] = total_goal_time
+            flash("Cushion session started.", "success")
             return redirect(url_for('counting_cushions'))
 
-        # Otherwise, increment a cushion_type count
-        cushion_type = request.form.get('cushion_type')
-        if cushion_type:
-            new_cushion_count = CushionCount(cushion_type=cushion_type)
-            db.session.add(new_cushion_count)
-            db.session.commit()
-            flash(f"Cushion {cushion_type} count incremented!", "success")
-        else:
-            flash("Error: Cushion type not specified.", "error")
+        elif 'log_job' in request.form:
+            job_name = request.form['job_name']
+            goal_time = float(request.form['goal_time'])
+            start_time_str = request.form['start_time']
+            end_time_str = request.form['end_time']
 
-        return redirect(url_for('counting_cushions'))
+            try:
+                start_dt = datetime.strptime(start_time_str, "%Y-%m-%dT%H:%M")
+                end_dt = datetime.strptime(end_time_str, "%Y-%m-%dT%H:%M")
+            except ValueError:
+                flash("Invalid start or end time format.", "error")
+                return redirect(url_for('counting_cushions'))
 
-    # ---------------------------------------
-    # 2. Show daily counts (for today)
-    # ---------------------------------------
-    daily_counts = db.session.query(
-        CushionCount.cushion_type,
-        func.count(CushionCount.id).label('total')
-    ).filter(
-        CushionCount.date == today
-    ).group_by(
-        CushionCount.cushion_type
-    ).all()
+            # Calculate duration in hours, adjusting for lunch (1:30pm)
+            total_seconds = (end_dt - start_dt).total_seconds()
+            actual_hours = total_seconds / 3600
 
-    # ---------------------------------------
-    # 3. Weekly counts for the last 4 weeks
-    # ---------------------------------------
-    # Calculate the cutoff date (4 weeks ago)
-    four_weeks_ago = today - timedelta(weeks=4)
+            lunch_start = start_dt.replace(hour=13, minute=30, second=0, microsecond=0)
+            lunch_end = lunch_start + timedelta(minutes=30)
+            if start_dt <= lunch_start < end_dt:
+                actual_hours -= 0.5
 
-    # Query weekly data from the last 4 weeks
-    weekly_counts = db.session.query(
-        func.strftime('%Y', CushionCount.date).label('year'),
-        func.strftime('%W', CushionCount.date).label('week_number'),
-        CushionCount.cushion_type,
-        func.count(CushionCount.id).label('total')
-    ).filter(
-        CushionCount.date >= four_weeks_ago
-    ).group_by(
-        'year', 'week_number', 'cushion_type'
-    ).order_by(
-        'year', 'week_number'
-    ).all()
+            # Get the last job to compute setup time
+            last_job = CushionJobLog.query.order_by(CushionJobLog.end_time.desc()).first()
+            setup_hours = None
+            if last_job:
+                setup_seconds = (start_dt - last_job.end_time).total_seconds()
+                setup_hours = setup_seconds / 3600 if setup_seconds > 0 else 0
 
-    # Convert query results into a dictionary like:
-    #   {
-    #       "January 6th to 10th": {
-    #           "1": total_count_for_type1,
-    #           "2": total_count_for_type2,
-    #           ...
-    #       },
-    #       ...
-    #   }
-    grouped_weekly_counts = {}
-    for year_str, week_str, cushion_type, total in weekly_counts:
-        year_int = int(year_str)
-        week_int = int(week_str)
-
-        # Create a label like "January 6th to 10th"
-        week_label = get_week_label(year_int, week_int)
-
-        if week_label not in grouped_weekly_counts:
-            grouped_weekly_counts[week_label] = {}
-        grouped_weekly_counts[week_label][cushion_type] = total
-
-    # ---------------------------------------
-    # 4. Average times for each cushion type (today)
-    # ---------------------------------------
-    avg_times = {}
-    for c_type in ['1', '2', '3', '4', '5', '6']:
-        times = db.session.query(CushionCount.time).filter(
-            CushionCount.cushion_type == c_type,
-            CushionCount.date == today
-        ).order_by(CushionCount.time).all()
-
-        if len(times) > 1:
-            total_time_diff = sum(
-                (datetime.combine(today, times[i][0]) - datetime.combine(today, times[i - 1][0])).total_seconds()
-                for i in range(1, len(times))
+            new_log = CushionJobLog(
+                job_name=job_name,
+                goal_time_hours=goal_time,
+                start_time=start_dt,
+                end_time=end_dt,
+                actual_hours=actual_hours,
+                setup_hours=setup_hours,
+                date=today
             )
-            avg_time_diff_seconds = total_time_diff / (len(times) - 1)
-            avg_hours, remainder = divmod(int(avg_time_diff_seconds), 3600)
-            avg_minutes, avg_seconds = divmod(remainder, 60)
-            avg_times[c_type] = f"{avg_hours:02}:{avg_minutes:02}:{avg_seconds:02}"
-        else:
-            avg_times[c_type] = "N/A"
+            db.session.add(new_log)
+            db.session.commit()
+            flash(f"{job_name} logged successfully!", "success")
+            return redirect(url_for('counting_cushions'))
+
+        elif 'reset' in request.form:
+            session.pop('cushion_6ft', None)
+            session.pop('cushion_7ft', None)
+            session.pop('total_goal_time', None)
+            CushionJobLog.query.filter_by(date=today).delete()
+            db.session.commit()
+            flash("Session and logs cleared.", "success")
+            return redirect(url_for('counting_cushions'))
+
+    # GET: Show existing logs and session info
+    job_logs = CushionJobLog.query.filter_by(date=today).order_by(CushionJobLog.start_time).all()
 
     return render_template(
         'counting_cushions.html',
-        daily_counts=daily_counts,
-        grouped_weekly_counts=grouped_weekly_counts,
-        avg_times=avg_times
+        job_logs=job_logs,
+        cushion_6ft=cushion_6ft,
+        cushion_7ft=cushion_7ft,
+        total_goal_time=total_goal_time
     )
 
-def get_week_label(year: int, week: int) -> str:
-    """
-    Given a year and a week number, returns a label like
-    'January 6th to 10th' (Mon-Fri).
-    """
-    # By default, '%W' uses Monday as the first day of the week.
-    # Construct the Monday date for the given year/week:
-    monday = datetime.strptime(f"{year}-W{week}-1", "%Y-W%W-%w").date()
-
-    # Friday is 4 days after Monday
-    friday = monday + timedelta(days=4)
-
-    # Format them into "Month daySuffix" style
-    monday_str = f"{monday.strftime('%B')} {day_suffix(monday.day)}"
-    friday_str = f"{friday.strftime('%B')} {day_suffix(friday.day)}"
-
-    # If both are in the same month, no need to repeat the month name
-    if monday.month == friday.month:
-        # e.g. "January 6th to 10th"
-        return f"{monday_str} to {day_suffix(friday.day)}"
-    else:
-        # Different months, show both, e.g. "January 30th to February 3rd"
-        return f"{monday_str} to {friday_str}"
-
-def day_suffix(day: int) -> str:
-    """
-    Returns the ordinal suffix for a given day of the month.
-    e.g., 1 -> '1st', 2 -> '2nd', 3 -> '3rd', 21 -> '21st', etc.
-    """
-    # Teens (11th, 12th, 13th) always end in "th"
-    if 11 <= day % 100 <= 13:
-        return f"{day}th"
-    # Otherwise, determine suffix by last digit
-    last_digit = day % 10
-    if last_digit == 1:
-        return f"{day}st"
-    elif last_digit == 2:
-        return f"{day}nd"
-    elif last_digit == 3:
-        return f"{day}rd"
-    else:
-        return f"{day}th"
 
 
 @app.route('/predicted_finish', methods=['GET', 'POST'])
