@@ -1441,7 +1441,6 @@ def counting_wood():
 from flask import render_template, request, redirect, url_for, flash
 from datetime import datetime, timedelta
 from sqlalchemy import func
-from your_app.models import CushionJobLog
 
 JOBS = [
     'Cutting wood',
