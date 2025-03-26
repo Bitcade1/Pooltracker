@@ -1438,97 +1438,97 @@ def counting_wood():
     )
 
 
+from flask import render_template, request, redirect, url_for, flash
+from datetime import datetime, timedelta
+from sqlalchemy import func
+from your_app.models import CushionJobLog
+
+JOBS = [
+    'Cutting wood',
+    'Spindle mold',
+    'Cut rubber',
+    'Glue rubber/wood',
+    'Shape wood',
+    'Glue rubber ends',
+    'Shape ends',
+    'Sand tops and bundle'
+]
+
+LUNCH_BREAK_TIME = datetime.strptime('13:30', '%H:%M').time()
+LUNCH_DURATION = timedelta(minutes=30)
+
 @app.route('/counting_cushions', methods=['GET', 'POST'])
 def counting_cushions():
-    if 'worker' not in session:
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-
-    today = date.today()
-
-    # Session variables (top of page)
-    cushion_6ft = session.get('cushion_6ft', 0)
-    cushion_7ft = session.get('cushion_7ft', 0)
-    total_goal_time = session.get('total_goal_time', 0)
-
     if request.method == 'POST':
-        if 'start_session' in request.form:
-            try:
-                cushion_6ft = int(request.form['cushion_6ft'])
-                cushion_7ft = int(request.form['cushion_7ft'])
-                total_goal_time = float(request.form['total_goal_time'])
-            except ValueError:
-                flash("Invalid numbers provided for session setup.", "error")
-                return redirect(url_for('counting_cushions'))
+        job_name = request.form.get('job_name')
+        goal_time_hours = float(request.form.get('goal_time', 0))
+        start_time_str = request.form.get('start_time')
+        end_time_str = request.form.get('end_time')
 
-            session['cushion_6ft'] = cushion_6ft
-            session['cushion_7ft'] = cushion_7ft
-            session['total_goal_time'] = total_goal_time
-            flash("Cushion session started.", "success")
+        if not all([job_name, start_time_str, end_time_str]):
+            flash('All fields are required.', 'error')
             return redirect(url_for('counting_cushions'))
 
-        elif 'log_job' in request.form:
-            job_name = request.form['job_name']
-            goal_time = float(request.form['goal_time'])
-            start_time_str = request.form['start_time']
-            end_time_str = request.form['end_time']
+        start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M')
+        end_time = datetime.strptime(end_time_str, '%Y-%m-%dT%H:%M')
+        date = start_time.date()
 
-            try:
-                start_dt = datetime.strptime(start_time_str, "%Y-%m-%dT%H:%M")
-                end_dt = datetime.strptime(end_time_str, "%Y-%m-%dT%H:%M")
-            except ValueError:
-                flash("Invalid start or end time format.", "error")
-                return redirect(url_for('counting_cushions'))
+        # Calculate actual hours excluding lunch
+        total_time = end_time - start_time
+        if start_time.time() <= LUNCH_BREAK_TIME <= end_time.time():
+            total_time -= LUNCH_DURATION
+        actual_hours = round(total_time.total_seconds() / 3600, 2)
 
-            # Calculate duration in hours, adjusting for lunch (1:30pm)
-            total_seconds = (end_dt - start_dt).total_seconds()
-            actual_hours = total_seconds / 3600
+        # Get last job (if exists) to calculate setup time
+        last_job = CushionJobLog.query.filter(
+            CushionJobLog.date == date
+        ).order_by(CushionJobLog.end_time.desc()).first()
 
-            lunch_start = start_dt.replace(hour=13, minute=30, second=0, microsecond=0)
-            lunch_end = lunch_start + timedelta(minutes=30)
-            if start_dt <= lunch_start < end_dt:
-                actual_hours -= 0.5
+        setup_hours = 0
+        if last_job:
+            gap = start_time - last_job.end_time
+            setup_hours = round(gap.total_seconds() / 3600, 2) if gap.total_seconds() > 0 else 0
 
-            # Get the last job to compute setup time
-            last_job = CushionJobLog.query.order_by(CushionJobLog.end_time.desc()).first()
-            setup_hours = None
-            if last_job:
-                setup_seconds = (start_dt - last_job.end_time).total_seconds()
-                setup_hours = setup_seconds / 3600 if setup_seconds > 0 else 0
+        new_log = CushionJobLog(
+            job_name=job_name,
+            goal_time_hours=goal_time_hours,
+            start_time=start_time,
+            end_time=end_time,
+            actual_hours=actual_hours,
+            setup_hours=setup_hours,
+            date=date
+        )
+        db.session.add(new_log)
+        db.session.commit()
+        flash('Job logged successfully.', 'success')
+        return redirect(url_for('counting_cushions'))
 
-            new_log = CushionJobLog(
-                job_name=job_name,
-                goal_time_hours=goal_time,
-                start_time=start_dt,
-                end_time=end_dt,
-                actual_hours=actual_hours,
-                setup_hours=setup_hours,
-                date=today
-            )
-            db.session.add(new_log)
-            db.session.commit()
-            flash(f"{job_name} logged successfully!", "success")
-            return redirect(url_for('counting_cushions'))
+    today = datetime.today().date()
+    logs = CushionJobLog.query.filter_by(date=today).order_by(CushionJobLog.start_time).all()
 
-        elif 'reset' in request.form:
-            session.pop('cushion_6ft', None)
-            session.pop('cushion_7ft', None)
-            session.pop('total_goal_time', None)
-            CushionJobLog.query.filter_by(date=today).delete()
-            db.session.commit()
-            flash("Session and logs cleared.", "success")
-            return redirect(url_for('counting_cushions'))
+    # Sum total goal time
+    total_goal_time = round(sum(log.goal_time_hours for log in logs), 2)
 
-    # GET: Show existing logs and session info
-    job_logs = CushionJobLog.query.filter_by(date=today).order_by(CushionJobLog.start_time).all()
+    # Group sets (a set ends with 'Sand tops and bundle')
+    sets = []
+    current_set = []
+    for log in logs:
+        current_set.append(log)
+        if log.job_name == 'Sand tops and bundle':
+            sets.append(current_set)
+            current_set = []
+    if current_set:
+        sets.append(current_set)  # in case a set is incomplete
 
     return render_template(
         'counting_cushions.html',
-        job_logs=job_logs,
-        cushion_6ft=cushion_6ft,
-        cushion_7ft=cushion_7ft,
+        jobs=JOBS,
+        logs=logs,
+        sets=sets,
+        today=today,
         total_goal_time=total_goal_time
     )
+
 
 
 

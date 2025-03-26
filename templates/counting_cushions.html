@@ -3,23 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <title>Counting Cushions</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        h1, h2 { margin-bottom: 10px; }
-        form { margin-bottom: 20px; }
-        label { display: block; margin-top: 10px; }
-        input, select { padding: 5px; width: 100%; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
-        th { background-color: #f4f4f4; }
-        .section { border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
-        .flash.success { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; }
-        .flash.error { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; }
-        .button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
-        .button:hover { background-color: #0056b3; }
-        .reset { background-color: #dc3545; }
-        .reset:hover { background-color: #c82333; }
+        .job-set {
+            border: 2px solid #007bff;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #eef7ff;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .summary-table th, .summary-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        .summary-table th {
+            background-color: #f2f2f2;
+        }
+        .flash { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .flash.success { background-color: #d4edda; color: #155724; }
+        .flash.error { background-color: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
@@ -33,88 +39,58 @@
         {% endif %}
     {% endwith %}
 
-    <!-- SESSION SETUP -->
-    <div class="section">
-        <h2>Start Cushion Session</h2>
-        <form method="POST">
-            <label>6ft Cushions Needed:</label>
-            <input type="number" name="cushion_6ft" required>
-
-            <label>7ft Cushions Needed:</label>
-            <input type="number" name="cushion_7ft" required>
-
-            <label>Total Goal Time (in hours):</label>
-            <input type="number" step="0.1" name="total_goal_time" required>
-
-            <button type="submit" name="start_session" class="button">Start Session</button>
-        </form>
-        {% if cushion_6ft and cushion_7ft %}
-            <p><strong>6ft Cushions:</strong> {{ cushion_6ft }} | <strong>7ft Cushions:</strong> {{ cushion_7ft }} | <strong>Total Goal Time:</strong> {{ total_goal_time }} hrs</p>
-        {% endif %}
-    </div>
-
-    <!-- LOG JOB -->
-    <div class="section">
-        <h2>Log a Cushion Job</h2>
-        <form method="POST">
-            <label>Job Name:</label>
-            <select name="job_name" required>
-                {% for job in ['Cut wood to length', 'Spindle mold wood', 'Cut rubber to length', 'Glue wood and rubber', 'Shape wood', 'Glue rubber ends', 'Shape ends', 'Sand tops', 'Bundle'] %}
+    <form method="POST">
+        <label>Job Name:
+            <select name="job_name">
+                {% for job in jobs %}
                     <option value="{{ job }}">{{ job }}</option>
                 {% endfor %}
             </select>
+        </label><br><br>
 
-            <label>Goal Time (in hours):</label>
-            <input type="number" step="0.1" name="goal_time" required>
+        <label>Goal Time (hrs):
+            <input type="number" step="0.01" name="goal_time" required>
+        </label><br><br>
 
-            <label>Start Time:</label>
+        <label>Start Time:
             <input type="datetime-local" name="start_time" required>
+        </label><br><br>
 
-            <label>End Time:</label>
+        <label>End Time:
             <input type="datetime-local" name="end_time" required>
+        </label><br><br>
 
-            <button type="submit" name="log_job" class="button">Log Job</button>
-        </form>
-    </div>
-
-    <!-- JOB LOGS -->
-    <div class="section">
-        <h2>Job Summary</h2>
-        {% if job_logs %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Job</th>
-                    <th>Goal Time (hrs)</th>
-                    <th>Actual Time (hrs)</th>
-                    <th>Setup Time (hrs)</th>
-                    <th>Start</th>
-                    <th>End</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for job in job_logs %}
-                <tr>
-                    <td>{{ job.job_name }}</td>
-                    <td>{{ job.goal_time_hours }}</td>
-                    <td>{{ "%.2f"|format(job.actual_hours) }}</td>
-                    <td>{{ "%.2f"|format(job.setup_hours or 0) }}</td>
-                    <td>{{ job.start_time.strftime('%H:%M') }}</td>
-                    <td>{{ job.end_time.strftime('%H:%M') }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-            <p>No jobs logged yet.</p>
-        {% endif %}
-    </div>
-
-    <!-- RESET -->
-    <form method="POST">
-        <button type="submit" name="reset" value="reset" class="button reset">Reset Session and Logs</button>
+        <button type="submit">Log Job</button>
     </form>
 
-    <p><a href="{{ url_for('home') }}" class="button" style="margin-top: 20px;">Back to Main Menu</a></p>
+    <h2>Total Goal Time Today: {{ total_goal_time }} hrs</h2>
+
+    <h2>Job Summary for {{ today }}</h2>
+    {% for job_set in sets %}
+        <div class="job-set">
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Job Name</th>
+                        <th>Goal Time (hrs)</th>
+                        <th>Actual Time (hrs)</th>
+                        <th>Setup Time (hrs)</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in job_set %}
+                        <tr>
+                            <td>{{ job.job_name }}</td>
+                            <td>{{ job.goal_time_hours }}</td>
+                            <td>{{ job.actual_hours }}</td>
+                            <td>{{ job.setup_hours }}</td>
+                            <td>{{ job.date }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endfor %}
 </body>
 </html>
