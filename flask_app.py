@@ -1438,94 +1438,270 @@ def counting_wood():
     )
 
 
-from flask import render_template, request, redirect, url_for, flash
-from datetime import datetime, timedelta
-from sqlalchemy import func
+# New model class definitions first:
+class CushionJob(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    order = db.Column(db.Integer, nullable=False)  # to maintain job sequence
+    
+    def __repr__(self):
+        return f"<CushionJob {self.name}>"
 
-JOBS = [
-    'Cutting wood',
-    'Spindle mold',
-    'Cut rubber',
-    'Glue rubber/wood',
-    'Shape wood',
-    'Glue rubber ends',
-    'Shape ends',
-    'Sand tops and bundle'
-]
+class CushionSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, default=date.today, nullable=False)
+    worker = db.Column(db.String(50), nullable=False)
+    target_6ft = db.Column(db.Integer, default=0)
+    target_7ft = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+    completed = db.Column(db.Boolean, default=False)
+    
+    def __repr__(self):
+        return f"<CushionSession {self.date} by {self.worker}>"
 
-LUNCH_BREAK_TIME = datetime.strptime('13:30', '%H:%M').time()
-LUNCH_DURATION = timedelta(minutes=30)
+class CushionJobRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('cushion_session.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('cushion_job.id'), nullable=False)
+    goal_minutes = db.Column(db.Integer, default=0)  # Target time in minutes
+    start_time = db.Column(db.DateTime)
+    finish_time = db.Column(db.DateTime)
+    actual_minutes = db.Column(db.Integer)  # Actual working time in minutes
+    setup_minutes = db.Column(db.Integer)  # Setup time in minutes
+    
+    # Relationship to parent entities
+    session = db.relationship('CushionSession', backref='job_records')
+    job = db.relationship('CushionJob', backref='records')
+    
+    def __repr__(self):
+        return f"<CushionJobRecord {self.job.name} for session {self.session_id}>"
 
 @app.route('/counting_cushions', methods=['GET', 'POST'])
 def counting_cushions():
-    if request.method == 'POST':
-        job_name = request.form.get('job_name')
-        goal_time_hours = float(request.form.get('goal_time', 0))
-        start_time_str = request.form.get('start_time')
-        end_time_str = request.form.get('end_time')
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
 
-        if not all([job_name, start_time_str, end_time_str]):
-            flash('All fields are required.', 'error')
-            return redirect(url_for('counting_cushions'))
-
-        start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M')
-        end_time = datetime.strptime(end_time_str, '%Y-%m-%dT%H:%M')
-        date = start_time.date()
-
-        # Calculate actual hours excluding lunch
-        total_time = end_time - start_time
-        if start_time.time() <= LUNCH_BREAK_TIME <= end_time.time():
-            total_time -= LUNCH_DURATION
-        actual_hours = round(total_time.total_seconds() / 3600, 2)
-
-        # Get last job (if exists) to calculate setup time
-        last_job = CushionJobLog.query.filter(
-            CushionJobLog.date == date
-        ).order_by(CushionJobLog.end_time.desc()).first()
-
-        setup_hours = 0
-        if last_job:
-            gap = start_time - last_job.end_time
-            setup_hours = round(gap.total_seconds() / 3600, 2) if gap.total_seconds() > 0 else 0
-
-        new_log = CushionJobLog(
-            job_name=job_name,
-            goal_time_hours=goal_time_hours,
-            start_time=start_time,
-            end_time=end_time,
-            actual_hours=actual_hours,
-            setup_hours=setup_hours,
-            date=date
-        )
-        db.session.add(new_log)
+    worker_name = session['worker']
+    today = date.today()
+    
+    # Ensure we have the standard cushion jobs defined
+    standard_jobs = [
+        {"name": "Cut wood to length", "order": 1},
+        {"name": "Spindle mold wood", "order": 2},
+        {"name": "Cut rubber to length", "order": 3},
+        {"name": "Glue wood and rubber", "order": 4},
+        {"name": "Shape wood", "order": 5},
+        {"name": "Glue rubber ends", "order": 6},
+        {"name": "Shape ends", "order": 7},
+        {"name": "Sand", "order": 8},
+        {"name": "Top coating", "order": 9},
+        {"name": "Bundle", "order": 10}
+    ]
+    
+    existing_jobs = CushionJob.query.all()
+    if not existing_jobs:
+        for job in standard_jobs:
+            new_job = CushionJob(name=job["name"], order=job["order"])
+            db.session.add(new_job)
         db.session.commit()
-        flash('Job logged successfully.', 'success')
+    
+    # Get the active session or create a new one
+    active_session = CushionSession.query.filter_by(
+        date=today, worker=worker_name, active=True
+    ).first()
+    
+    # Handle session creation if needed
+    if request.method == 'POST' and 'create_session' in request.form:
+        try:
+            target_6ft = int(request.form.get('target_6ft', 0))
+            target_7ft = int(request.form.get('target_7ft', 0))
+            
+            # Close any previous active sessions
+            previous_sessions = CushionSession.query.filter_by(
+                worker=worker_name, active=True
+            ).all()
+            for prev in previous_sessions:
+                prev.active = False
+            
+            # Create a new session
+            active_session = CushionSession(
+                date=today,
+                worker=worker_name,
+                target_6ft=target_6ft,
+                target_7ft=target_7ft,
+                active=True
+            )
+            db.session.add(active_session)
+            db.session.commit()
+            flash("New cushion session created!", "success")
+            
+            # Initialize job records with goal times
+            jobs = CushionJob.query.order_by(CushionJob.order).all()
+            for job in jobs:
+                goal_minutes = request.form.get(f'goal_{job.id}', 0)
+                try:
+                    goal_minutes = int(goal_minutes)
+                except ValueError:
+                    goal_minutes = 0
+                    
+                job_record = CushionJobRecord(
+                    session_id=active_session.id,
+                    job_id=job.id,
+                    goal_minutes=goal_minutes
+                )
+                db.session.add(job_record)
+            db.session.commit()
+            
+            return redirect(url_for('counting_cushions'))
+            
+        except ValueError:
+            flash("Please enter valid numbers for targets and goal times.", "error")
+            return redirect(url_for('counting_cushions'))
+    
+    # Handle job start/finish
+    if request.method == 'POST' and 'job_action' in request.form:
+        action = request.form['job_action']
+        job_record_id = int(request.form['job_record_id'])
+        job_record = CushionJobRecord.query.get(job_record_id)
+        
+        if not job_record:
+            flash("Job record not found.", "error")
+        else:
+            now = datetime.now()
+            
+            if action == 'start':
+                # Calculate setup time from previous job if applicable
+                prev_job_record = CushionJobRecord.query.join(CushionJob).filter(
+                    CushionJobRecord.session_id == active_session.id,
+                    CushionJob.order < job_record.job.order,
+                    CushionJobRecord.finish_time.isnot(None)
+                ).order_by(desc(CushionJob.order)).first()
+                
+                if prev_job_record and prev_job_record.finish_time:
+                    setup_time = (now - prev_job_record.finish_time).total_seconds() / 60
+                    job_record.setup_minutes = int(setup_time)
+                
+                job_record.start_time = now
+                db.session.commit()
+                flash(f"Started: {job_record.job.name}", "success")
+                
+            elif action == 'finish':
+                if not job_record.start_time:
+                    flash("Can't finish a job that hasn't started.", "error")
+                else:
+                    job_record.finish_time = now
+                    
+                    # Calculate actual working minutes excluding lunch break if applicable
+                    start = job_record.start_time
+                    finish = job_record.finish_time
+                    lunch_start = datetime.combine(today, datetime.strptime('13:30', '%H:%M').time())
+                    lunch_end = lunch_start + timedelta(minutes=30)
+                    
+                    # Total duration in minutes
+                    duration = (finish - start).total_seconds() / 60
+                    
+                    # Check if the job spans lunch break
+                    if start < lunch_end and finish > lunch_start:
+                        # Calculate overlap with lunch
+                        overlap_start = max(start, lunch_start)
+                        overlap_end = min(finish, lunch_end)
+                        lunch_duration = (overlap_end - overlap_start).total_seconds() / 60
+                        duration -= lunch_duration
+                    
+                    job_record.actual_minutes = int(duration)
+                    db.session.commit()
+                    flash(f"Finished: {job_record.job.name}", "success")
+                    
+                    # Check if all jobs are completed
+                    all_completed = CushionJobRecord.query.filter(
+                        CushionJobRecord.session_id == active_session.id,
+                        CushionJobRecord.finish_time.is_(None)
+                    ).count() == 0
+                    
+                    if all_completed:
+                        active_session.completed = True
+                        db.session.commit()
+                        flash("All cushion jobs completed for this session!", "success")
+            
+            return redirect(url_for('counting_cushions'))
+    
+    # Reset session
+    if request.method == 'POST' and 'reset_session' in request.form:
+        if active_session:
+            active_session.active = False
+            db.session.commit()
+            flash("Session closed. You can start a new one.", "success")
         return redirect(url_for('counting_cushions'))
-
-    today = datetime.today().date()
-    logs = CushionJobLog.query.filter_by(date=today).order_by(CushionJobLog.start_time).all()
-
-    # Sum total goal time
-    total_goal_time = round(sum(log.goal_time_hours for log in logs), 2)
-
-    # Group sets (a set ends with 'Sand tops and bundle')
-    sets = []
-    current_set = []
-    for log in logs:
-        current_set.append(log)
-        if log.job_name == 'Sand tops and bundle':
-            sets.append(current_set)
-            current_set = []
-    if current_set:
-        sets.append(current_set)  # in case a set is incomplete
-
+    
+    # Prepare data for the template
+    jobs = CushionJob.query.order_by(CushionJob.order).all()
+    
+    # If we have an active session, get its job records
+    job_records = []
+    session_summary = None
+    if active_session:
+        job_records = (CushionJobRecord.query
+                      .join(CushionJob)
+                      .filter(CushionJobRecord.session_id == active_session.id)
+                      .order_by(CushionJob.order)
+                      .all())
+        
+        # Calculate session summary
+        total_goal_minutes = sum(jr.goal_minutes for jr in job_records if jr.goal_minutes)
+        total_actual_minutes = sum(jr.actual_minutes for jr in job_records if jr.actual_minutes)
+        total_setup_minutes = sum(jr.setup_minutes for jr in job_records if jr.setup_minutes)
+        
+        session_summary = {
+            'target_6ft': active_session.target_6ft,
+            'target_7ft': active_session.target_7ft,
+            'total_cushions': active_session.target_6ft + active_session.target_7ft,
+            'total_goal_minutes': total_goal_minutes,
+            'total_goal_formatted': f"{total_goal_minutes // 60}h {total_goal_minutes % 60}m",
+            'total_actual_minutes': total_actual_minutes,
+            'total_actual_formatted': f"{total_actual_minutes // 60}h {total_actual_minutes % 60}m",
+            'total_setup_minutes': total_setup_minutes,
+            'total_setup_formatted': f"{total_setup_minutes // 60}h {total_setup_minutes % 60}m",
+            'efficiency': round((total_goal_minutes / total_actual_minutes * 100) if total_actual_minutes else 0, 2)
+        }
+    
+    # Get historical session data
+    historical_sessions = (CushionSession.query
+                         .filter(CushionSession.completed == True)
+                         .order_by(desc(CushionSession.date))
+                         .limit(10)
+                         .all())
+    
+    historical_data = []
+    for hist_session in historical_sessions:
+        hist_records = CushionJobRecord.query.filter_by(session_id=hist_session.id).all()
+        hist_goal_minutes = sum(hr.goal_minutes for hr in hist_records if hr.goal_minutes)
+        hist_actual_minutes = sum(hr.actual_minutes for hr in hist_records if hr.actual_minutes)
+        hist_setup_minutes = sum(hr.setup_minutes for hr in hist_records if hr.setup_minutes)
+        
+        historical_data.append({
+            'id': hist_session.id,
+            'date': hist_session.date.strftime('%d/%m/%Y'),
+            'worker': hist_session.worker,
+            'total_cushions': hist_session.target_6ft + hist_session.target_7ft,
+            'goal_minutes': hist_goal_minutes,
+            'goal_formatted': f"{hist_goal_minutes // 60}h {hist_goal_minutes % 60}m",
+            'actual_minutes': hist_actual_minutes,
+            'actual_formatted': f"{hist_actual_minutes // 60}h {hist_actual_minutes % 60}m",
+            'setup_minutes': hist_setup_minutes,
+            'setup_formatted': f"{hist_setup_minutes // 60}h {hist_setup_minutes % 60}m",
+            'efficiency': round((hist_goal_minutes / hist_actual_minutes * 100) if hist_actual_minutes else 0, 2)
+        })
+    
     return render_template(
         'counting_cushions.html',
-        jobs=JOBS,
-        logs=logs,
-        sets=sets,
-        today=today,
-        total_goal_time=total_goal_time
+        jobs=jobs,
+        active_session=active_session,
+        job_records=job_records,
+        session_summary=session_summary,
+        historical_data=historical_data,
+        current_time=datetime.now().strftime('%H:%M')
     )
 
 
