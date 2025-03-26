@@ -2,230 +2,119 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Counting Cushions</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        .collapsible {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 1.2em;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
-        .collapsible:hover {
-            background-color: #0056b3;
-        }
-        .collapsible-content {
-            padding: 15px;
-            display: none;
-            overflow: hidden;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        .cushion-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-top: 20px;
-        }
-        .cushion-button {
-            background-color: #28a745;
-            color: white;
-            font-size: 2em;
-            border: none;
-            border-radius: 5px;
-            width: 100%;
-            padding: 30px;
-            cursor: pointer;
-            text-align: center;
-        }
-        .cushion-button:hover {
-            background-color: #218838;
-        }
-        .reset-button {
-            background-color: #dc3545;
-            color: white;
-            font-size: 1.2em;
-            border: none;
-            border-radius: 5px;
-            width: 100%;
-            padding: 15px;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-        .reset-button:hover {
-            background-color: #c82333;
-        }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-top: 20px; 
-        }
-        th, td { 
-            padding: 12px; 
-            border: 1px solid #ddd; 
-            text-align: center; 
-        }
-        th { 
-            background-color: #f2f2f2; 
-        }
-        .back-to-menu {
-            margin-top: 20px;
-        }
-        .menu-button {
-            background-color: #6c757d;
-            color: white;
-            text-decoration: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-        }
-        .menu-button:hover {
-            background-color: #5a6268;
-        }
-        .flash-messages p {
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 4px;
-        }
-        .flash.success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .flash.error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h1, h2 { margin-bottom: 10px; }
+        form { margin-bottom: 20px; }
+        label { display: block; margin-top: 10px; }
+        input, select { padding: 5px; width: 100%; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+        th { background-color: #f4f4f4; }
+        .section { border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+        .flash.success { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; }
+        .flash.error { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; }
+        .button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        .button:hover { background-color: #0056b3; }
+        .reset { background-color: #dc3545; }
+        .reset:hover { background-color: #c82333; }
     </style>
-    <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
-        }
-    </script>
 </head>
 <body>
-    <div class="container">
-        <h1>Counting Cushions</h1>
+    <h1>Counting Cushions</h1>
 
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <!-- Cushion Counters in Grid -->
-        <h2>Select a Cushion Type to Count</h2>
-        <form method="POST" action="{{ url_for('counting_cushions') }}">
-            <div class="cushion-grid">
-                {% for cushion_type in ['1', '2', '3', '4', '5', '6'] %}
-                    <button type="submit" name="cushion_type" value="{{ cushion_type }}" class="cushion-button">
-                        Cushion {{ cushion_type }}
-                    </button>
-                {% endfor %}
-            </div>
-        </form>
-
-        <!-- Collapsible Daily Totals Table -->
-        <button class="collapsible" onclick="toggleCollapsible('dailyTotals')">
-            Daily Cushion Counts
-        </button>
-        <div id="dailyTotals" class="collapsible-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Cushion Type</th>
-                        <th>Total Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for cushion_type, total in daily_counts %}
-                        <tr>
-                            <td>{{ cushion_type }}</td>
-                            <td>{{ total }}</td>
-                        </tr>
-                    {% else %}
-                        <tr>
-                            <td colspan="2">No data available for today.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Collapsible Weekly Totals Table (Last 4 Weeks) -->
-        <button class="collapsible" onclick="toggleCollapsible('weeklyTotals')">
-            Weekly Cushion Counts (Last 4 Weeks)
-        </button>
-        <div id="weeklyTotals" class="collapsible-content">
-            {% for week, counts in grouped_weekly_counts.items() %}
-                <h3>{{ week }}</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Cushion Type</th>
-                            <th>Total Count</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cushion_type, total in counts.items() %}
-                            <tr>
-                                <td>{{ cushion_type }}</td>
-                                <td>{{ total }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
             {% endfor %}
-        </div>
+        {% endif %}
+    {% endwith %}
 
-        <!-- Collapsible Average Time Per Cushion Table -->
-        <button class="collapsible" onclick="toggleCollapsible('avgTimeTotals')">
-            Average Time Per Cushion
-        </button>
-        <div id="avgTimeTotals" class="collapsible-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Cushion Type</th>
-                        <th>Average Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for cushion_type, avg_time in avg_times.items() %}
-                        <tr>
-                            <td>{{ cushion_type }}</td>
-                            <td>{{ avg_time }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+    <!-- SESSION SETUP -->
+    <div class="section">
+        <h2>Start Cushion Session</h2>
+        <form method="POST">
+            <label>6ft Cushions Needed:</label>
+            <input type="number" name="cushion_6ft" required>
 
-        <!-- Separate Reset Button Form -->
-        <form method="POST" action="{{ url_for('counting_cushions') }}">
-            <button type="submit" name="reset" value="reset" class="reset-button">
-                Reset Counts
-            </button>
+            <label>7ft Cushions Needed:</label>
+            <input type="number" name="cushion_7ft" required>
+
+            <label>Total Goal Time (in hours):</label>
+            <input type="number" step="0.1" name="total_goal_time" required>
+
+            <button type="submit" name="start_session" class="button">Start Session</button>
         </form>
-
-        <!-- Back to Menu Button -->
-        <div class="back-to-menu">
-            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
-        </div>
+        {% if cushion_6ft and cushion_7ft %}
+            <p><strong>6ft Cushions:</strong> {{ cushion_6ft }} | <strong>7ft Cushions:</strong> {{ cushion_7ft }} | <strong>Total Goal Time:</strong> {{ total_goal_time }} hrs</p>
+        {% endif %}
     </div>
+
+    <!-- LOG JOB -->
+    <div class="section">
+        <h2>Log a Cushion Job</h2>
+        <form method="POST">
+            <label>Job Name:</label>
+            <select name="job_name" required>
+                {% for job in ['Cut wood to length', 'Spindle mold wood', 'Cut rubber to length', 'Glue wood and rubber', 'Shape wood', 'Glue rubber ends', 'Shape ends', 'Sand tops', 'Bundle'] %}
+                    <option value="{{ job }}">{{ job }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Goal Time (in hours):</label>
+            <input type="number" step="0.1" name="goal_time" required>
+
+            <label>Start Time:</label>
+            <input type="datetime-local" name="start_time" required>
+
+            <label>End Time:</label>
+            <input type="datetime-local" name="end_time" required>
+
+            <button type="submit" name="log_job" class="button">Log Job</button>
+        </form>
+    </div>
+
+    <!-- JOB LOGS -->
+    <div class="section">
+        <h2>Job Summary</h2>
+        {% if job_logs %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Job</th>
+                    <th>Goal Time (hrs)</th>
+                    <th>Actual Time (hrs)</th>
+                    <th>Setup Time (hrs)</th>
+                    <th>Start</th>
+                    <th>End</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in job_logs %}
+                <tr>
+                    <td>{{ job.job_name }}</td>
+                    <td>{{ job.goal_time_hours }}</td>
+                    <td>{{ "%.2f"|format(job.actual_hours) }}</td>
+                    <td>{{ "%.2f"|format(job.setup_hours or 0) }}</td>
+                    <td>{{ job.start_time.strftime('%H:%M') }}</td>
+                    <td>{{ job.end_time.strftime('%H:%M') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p>No jobs logged yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- RESET -->
+    <form method="POST">
+        <button type="submit" name="reset" value="reset" class="button reset">Reset Session and Logs</button>
+    </form>
+
+    <p><a href="{{ url_for('home') }}" class="button" style="margin-top: 20px;">Back to Main Menu</a></p>
 </body>
 </html>
