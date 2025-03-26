@@ -2,9 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Counting Cushions</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cushion Production Tracking</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .section {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
         .collapsible {
             background-color: #007bff;
             color: white;
@@ -13,55 +28,201 @@
             width: 100%;
             border: none;
             text-align: left;
+            outline: none;
             font-size: 1.2em;
             margin-top: 20px;
             border-radius: 5px;
         }
+        
         .collapsible:hover {
             background-color: #0056b3;
         }
+        
         .collapsible-content {
             padding: 15px;
             display: none;
+            overflow: hidden;
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             border-radius: 5px;
             margin-top: 10px;
         }
+        
+        .summary-box {
+            background-color: #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            color: #007bff;
+        }
+        
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
+            margin-top: 15px;
         }
+        
         th, td {
             padding: 12px;
             border: 1px solid #ddd;
             text-align: center;
         }
+        
         th {
             background-color: #f2f2f2;
+            font-weight: bold;
         }
-        .submit-btn {
-            margin-top: 20px;
-            background-color: #28a745;
-            border: none;
-            padding: 12px 20px;
-            color: white;
-            font-size: 1em;
-            border-radius: 5px;
-            cursor: pointer;
+        
+        .job-status-pending {
+            background-color: #fff3cd;
         }
-        .submit-btn:hover {
-            background-color: #218838;
-        }
-        .highlight {
+        
+        .job-status-active {
             background-color: #d1ecf1;
         }
-        .summary-set {
-            border: 2px solid #007bff;
-            border-radius: 6px;
-            margin-top: 20px;
+        
+        .job-status-complete {
+            background-color: #d4edda;
+        }
+        
+        .action-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .start-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .finish-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        form {
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .flash-messages p {
             padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .back-to-menu {
+            margin-top: 20px;
+        }
+        
+        .menu-button {
+            background-color: #6c757d;
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        
+        .menu-button:hover {
+            background-color: #5a6268;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .goals-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .time-display {
+            font-size: 1.2em;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .efficiency-high {
+            color: #28a745;
+        }
+        
+        .efficiency-medium {
+            color: #ffc107;
+        }
+        
+        .efficiency-low {
+            color: #dc3545;
         }
     </style>
     <script>
@@ -69,82 +230,214 @@
             var content = document.getElementById(id);
             content.style.display = content.style.display === "block" ? "none" : "block";
         }
+        
+        function updateClock() {
+            var now = new Date();
+            var hours = now.getHours().toString().padStart(2, '0');
+            var minutes = now.getMinutes().toString().padStart(2, '0');
+            var seconds = now.getSeconds().toString().padStart(2, '0');
+            document.getElementById('current-time').innerText = hours + ':' + minutes + ':' + seconds;
+            setTimeout(updateClock, 1000);
+        }
+        
+        window.onload = function() {
+            updateClock();
+        };
     </script>
 </head>
 <body>
     <div class="container">
-        <h1>Counting Cushions</h1>
-
-        <form method="POST" action="{{ url_for('counting_cushions') }}">
-            <label>6ft Cushions Needed:</label>
-            <input type="number" name="cushions_6ft" value="{{ cushions_6ft }}" required>
-            <label>7ft Cushions Needed:</label>
-            <input type="number" name="cushions_7ft" value="{{ cushions_7ft }}" required>
-            <button type="submit" class="submit-btn">Update Cushion Targets</button>
-        </form>
-
-        <h2>Total Cushions: {{ total_cushions }}</h2>
-        <h3>Total Goal Time: {{ total_goal_time }} hours</h3>
-
-        <form method="POST" action="{{ url_for('counting_cushions') }}">
+        <h1>Cushion Production Tracking</h1>
+        
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <!-- Current Time Display -->
+        <div class="time-display">
+            Current Time: <span id="current-time">{{ current_time }}</span>
+        </div>
+        
+        <!-- Session Summary (if active) -->
+        {% if session_summary %}
+            <div class="section">
+                <h2>Current Session Summary</h2>
+                <div class="summary-stats">
+                    <div class="stat-card">
+                        <div class="stat-label">6ft Cushions</div>
+                        <div class="stat-value">{{ session_summary.target_6ft }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">7ft Cushions</div>
+                        <div class="stat-value">{{ session_summary.target_7ft }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Cushions</div>
+                        <div class="stat-value">{{ session_summary.total_cushions }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Goal Time</div>
+                        <div class="stat-value">{{ session_summary.total_goal_formatted }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Actual Time</div>
+                        <div class="stat-value">{{ session_summary.total_actual_formatted }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Setup Time</div>
+                        <div class="stat-value">{{ session_summary.total_setup_formatted }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Efficiency</div>
+                        <div class="stat-value {% if session_summary.efficiency >= 90 %}efficiency-high{% elif session_summary.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
+                            {{ session_summary.efficiency }}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Job Tracking Table -->
+            <div class="section">
+                <h2>Cushion Jobs Progress</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Job</th>
+                            <th>Goal Time</th>
+                            <th>Start Time</th>
+                            <th>Finish Time</th>
+                            <th>Actual Time</th>
+                            <th>Setup Time</th>
+                            <th>Efficiency</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in job_records %}
+                            <tr class="
+                                {% if record.finish_time %}job-status-complete
+                                {% elif record.start_time %}job-status-active
+                                {% else %}job-status-pending{% endif %}
+                            ">
+                                <td>{{ record.job.name }}</td>
+                                <td>{% if record.goal_minutes %}{{ (record.goal_minutes // 60)|int }}h {{ record.goal_minutes % 60 }}m{% else %}Not set{% endif %}</td>
+                                <td>{{ record.start_time.strftime('%H:%M') if record.start_time else 'Not started' }}</td>
+                                <td>{{ record.finish_time.strftime('%H:%M') if record.finish_time else 'Not finished' }}</td>
+                                <td>{% if record.actual_minutes %}{{ (record.actual_minutes // 60)|int }}h {{ record.actual_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                <td>{% if record.setup_minutes %}{{ (record.setup_minutes // 60)|int }}h {{ record.setup_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                <td>
+                                    {% if record.actual_minutes and record.goal_minutes %}
+                                        {% set efficiency = (record.goal_minutes / record.actual_minutes * 100)|round(2) %}
+                                        <span class="{% if efficiency >= 90 %}efficiency-high{% elif efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
+                                            {{ efficiency }}%
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('counting_cushions') }}">
+                                        <input type="hidden" name="job_record_id" value="{{ record.id }}">
+                                        {% if not record.start_time %}
+                                            <button type="submit" name="job_action" value="start" class="action-btn start-btn">Start</button>
+                                        {% elif not record.finish_time %}
+                                            <button type="submit" name="job_action" value="finish" class="action-btn finish-btn">Finish</button>
+                                        {% else %}
+                                            <span>Complete</span>
+                                        {% endif %}
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- Reset Session Button -->
+                <form method="POST" action="{{ url_for('counting_cushions') }}" style="margin-top: 20px;">
+                    <button type="submit" name="reset_session" value="reset" class="btn btn-danger">
+                        Close Session
+                    </button>
+                </form>
+            </div>
+        {% else %}
+            <!-- Create New Session Form -->
+            <div class="section">
+                <h2>Create New Cushion Production Session</h2>
+                <form method="POST" action="{{ url_for('counting_cushions') }}">
+                    <div class="form-group">
+                        <label for="target_6ft">Number of 6ft Cushions:</label>
+                        <input type="number" id="target_6ft" name="target_6ft" class="form-control" min="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="target_7ft">Number of 7ft Cushions:</label>
+                        <input type="number" id="target_7ft" name="target_7ft" class="form-control" min="0" required>
+                    </div>
+                    
+                    <h3>Set Goal Times (in minutes)</h3>
+                    <div class="goals-grid">
+                        {% for job in jobs %}
+                            <div class="form-group">
+                                <label for="goal_{{ job.id }}">{{ job.name }}:</label>
+                                <input type="number" id="goal_{{ job.id }}" name="goal_{{ job.id }}" class="form-control" min="0" required>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="submit" name="create_session" value="create" class="btn btn-success">
+                        Start Production Session
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+        
+        <!-- Historical Data Collapsible -->
+        <button class="collapsible" onclick="toggleCollapsible('historicalData')">
+            Historical Session Data
+        </button>
+        <div id="historicalData" class="collapsible-content">
             <table>
                 <thead>
                     <tr>
-                        <th>Job</th>
-                        <th>Goal Time (hrs)</th>
-                        <th>Start Time</th>
-                        <th>End Time</th>
+                        <th>Date</th>
+                        <th>Worker</th>
+                        <th>Total Cushions</th>
+                        <th>Goal Time</th>
+                        <th>Actual Time</th>
+                        <th>Setup Time</th>
+                        <th>Efficiency</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for job in job_list %}
-                    <tr>
-                        <td>{{ job }}</td>
-                        <td>
-                            <input type="number" step="0.1" name="goal_time_{{ loop.index0 }}" value="{{ saved_goal_times[job]|default('') }}" required>
-                        </td>
-                        <td><input type="datetime-local" name="start_time_{{ loop.index0 }}"></td>
-                        <td><input type="datetime-local" name="end_time_{{ loop.index0 }}"></td>
-                    </tr>
+                    {% for session in historical_data %}
+                        <tr>
+                            <td>{{ session.date }}</td>
+                            <td>{{ session.worker }}</td>
+                            <td>{{ session.total_cushions }}</td>
+                            <td>{{ session.goal_formatted }}</td>
+                            <td>{{ session.actual_formatted }}</td>
+                            <td>{{ session.setup_formatted }}</td>
+                            <td class="{% if session.efficiency >= 90 %}efficiency-high{% elif session.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
+                                {{ session.efficiency }}%
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="7">No historical data available</td>
+                        </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            <button type="submit" name="submit_jobs" value="1" class="submit-btn">Log Job Times</button>
-        </form>
-
-        <button class="collapsible" onclick="toggleCollapsible('jobSummary')">Job Summary</button>
-        <div id="jobSummary" class="collapsible-content">
-            {% for set in grouped_jobs %}
-                <div class="summary-set">
-                    <h4>Set from {{ set[0].date }}</h4>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Job</th>
-                                <th>Goal Time</th>
-                                <th>Start</th>
-                                <th>End</th>
-                                <th>Actual Time</th>
-                                <th>Setup Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for entry in set %}
-                            <tr {% if entry.job_name == 'Sand tops' %}class="highlight"{% endif %}>
-                                <td>{{ entry.job_name }}</td>
-                                <td>{{ entry.goal_time_hours }}</td>
-                                <td>{{ entry.start_time }}</td>
-                                <td>{{ entry.end_time }}</td>
-                                <td>{{ entry.actual_hours }}</td>
-                                <td>{{ entry.setup_hours }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% endfor %}
         </div>
-
+        
+        <!-- Back to Menu Button -->
         <div class="back-to-menu">
             <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
         </div>
