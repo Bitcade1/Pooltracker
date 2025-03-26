@@ -102,21 +102,15 @@ class CompletedPods(db.Model):
     lunch = db.Column(db.String(3), default='No')
 
 class CushionJobLog(db.Model):
+    __tablename__ = 'cushion_job_log'
     id = db.Column(db.Integer, primary_key=True)
     job_name = db.Column(db.String(100), nullable=False)
     goal_time_hours = db.Column(db.Float, nullable=False)
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
     actual_hours = db.Column(db.Float, nullable=False)
-    setup_hours = db.Column(db.Float, nullable=True)  # Nullable for first job
+    setup_hours = db.Column(db.Float)
     date = db.Column(db.Date, default=date.today, nullable=False)
-
-
-    def __init__(self, cushion_type):
-        self.cushion_type = cushion_type
-        self.count = 1
-        self.date = datetime.utcnow().date()
-        self.time = datetime.utcnow().time()
 
 class ProductionSchedule(db.Model):
     __tablename__ = 'production_schedule'
