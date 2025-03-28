@@ -1508,10 +1508,8 @@ def counting_cushions():
         db.session.commit()
         existing_jobs = CushionJob.query.all()
     
-    # Get the active session or create a new one
-    active_session = CushionSession.query.filter_by(
-        date=today, worker=worker_name, active=True
-    ).first()
+    # Get any active session (not just for this worker)
+    active_session = CushionSession.query.filter_by(active=True).first()
     
     # Handle session creation if needed
     if request.method == 'POST' and 'create_session' in request.form:
@@ -1519,10 +1517,8 @@ def counting_cushions():
             target_6ft = int(request.form.get('target_6ft', 0))
             target_7ft = int(request.form.get('target_7ft', 0))
             
-            # Close any previous active sessions
-            previous_sessions = CushionSession.query.filter_by(
-                worker=worker_name, active=True
-            ).all()
+            # Only close previous active sessions if we're creating a new one
+            previous_sessions = CushionSession.query.filter_by(active=True).all()
             for prev in previous_sessions:
                 prev.active = False
             
@@ -1628,7 +1624,7 @@ def counting_cushions():
             
             return redirect(url_for('counting_cushions'))
     
-    # Reset session
+    # Reset session - only mark as inactive, not completed
     if request.method == 'POST' and 'reset_session' in request.form:
         if active_session:
             active_session.active = False
@@ -1754,9 +1750,6 @@ def counting_cushions():
         historical_data=historical_data,
         current_time=datetime.now().strftime('%H:%M')
     )
-
-
-
 
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
