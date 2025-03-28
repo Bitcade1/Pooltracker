@@ -2608,6 +2608,9 @@ def counting_cushions():
                 if request.form.get('setup_minutes'):
                     record.setup_minutes = int(request.form.get('setup_minutes'))
                 
+                if request.form.get('paused_minutes'):
+                    record.paused_minutes = int(request.form.get('paused_minutes'))
+                
                 # Recalculate actual minutes if both start and finish times exist
                 if record.start_time and record.finish_time:
                     # Total duration in minutes
@@ -2623,6 +2626,10 @@ def counting_cushions():
                         overlap_end = min(record.finish_time, lunch_end)
                         lunch_duration = (overlap_end - overlap_start).total_seconds() / 60
                         duration -= lunch_duration
+                    
+                    # Subtract any paused time from the duration
+                    if record.paused_minutes:
+                        duration -= record.paused_minutes
                     
                     record.actual_minutes = int(duration)
                 
@@ -2670,7 +2677,8 @@ def counting_cushions():
                 job_record = CushionJobRecord(
                     session_id=active_session.id,
                     job_id=job.id,
-                    goal_minutes=goal_minutes
+                    goal_minutes=goal_minutes,
+                    paused_minutes=0
                 )
                 db.session.add(job_record)
             db.session.commit()
@@ -2681,7 +2689,7 @@ def counting_cushions():
             flash("Please enter valid numbers for targets and goal times.", "error")
             return redirect(url_for('counting_cushions'))
     
-    # Handle job start/finish
+    # Handle job start/finish/pause
     if request.method == 'POST' and 'job_action' in request.form:
         action = request.form['job_action']
         job_record_id = int(request.form['job_record_id'])
@@ -2693,25 +2701,38 @@ def counting_cushions():
             now = datetime.now()
             
             if action == 'start':
-                # Calculate setup time from previous job if applicable
-                prev_job_record = CushionJobRecord.query.join(CushionJob).filter(
-                    CushionJobRecord.session_id == active_session.id,
-                    CushionJob.order < job_record.job.order,
-                    CushionJobRecord.finish_time.isnot(None)
-                ).order_by(desc(CushionJob.order)).first()
-                
-                if prev_job_record and prev_job_record.finish_time:
-                    setup_time = (now - prev_job_record.finish_time).total_seconds() / 60
-                    job_record.setup_minutes = int(setup_time)
+                # If this job was paused before, calculate total paused time
+                if job_record.paused_time:
+                    pause_duration = (now - job_record.paused_time).total_seconds() / 60
+                    job_record.paused_minutes = (job_record.paused_minutes or 0) + int(pause_duration)
+                    job_record.paused_time = None  # Clear paused time as we're resuming
+                    flash(f"Resumed: {job_record.job.name}", "success")
+                else:
+                    # Calculate setup time from previous job if applicable
+                    prev_job_record = CushionJobRecord.query.join(CushionJob).filter(
+                        CushionJobRecord.session_id == active_session.id,
+                        CushionJob.order < job_record.job.order,
+                        CushionJobRecord.finish_time.isnot(None)
+                    ).order_by(desc(CushionJob.order)).first()
+                    
+                    if prev_job_record and prev_job_record.finish_time:
+                        setup_time = (now - prev_job_record.finish_time).total_seconds() / 60
+                        job_record.setup_minutes = int(setup_time)
+                    
+                    flash(f"Started: {job_record.job.name}", "success")
                 
                 job_record.start_time = now
                 db.session.commit()
-                flash(f"Started: {job_record.job.name}", "success")
                 
             elif action == 'finish':
                 if not job_record.start_time:
                     flash("Can't finish a job that hasn't started.", "error")
                 else:
+                    # If the job was paused, we can't finish it directly
+                    if job_record.paused_time:
+                        flash("Please resume the job before finishing it.", "error")
+                        return redirect(url_for('counting_cushions'))
+                        
                     job_record.finish_time = now
                     
                     # Calculate actual working minutes excluding lunch break if applicable
@@ -2731,6 +2752,10 @@ def counting_cushions():
                         lunch_duration = (overlap_end - overlap_start).total_seconds() / 60
                         duration -= lunch_duration
                     
+                    # Subtract any paused time from the duration
+                    if job_record.paused_minutes:
+                        duration -= job_record.paused_minutes
+                    
                     job_record.actual_minutes = int(duration)
                     db.session.commit()
                     flash(f"Finished: {job_record.job.name}", "success")
@@ -2745,6 +2770,18 @@ def counting_cushions():
                         active_session.completed = True
                         db.session.commit()
                         flash("All cushion jobs completed for this session!", "success")
+            
+            elif action == 'pause':
+                if not job_record.start_time:
+                    flash("Can't pause a job that hasn't started.", "error")
+                elif job_record.finish_time:
+                    flash("Can't pause a job that's already finished.", "error")
+                elif job_record.paused_time:
+                    flash("This job is already paused.", "error")
+                else:
+                    job_record.paused_time = now
+                    db.session.commit()
+                    flash(f"Paused: {job_record.job.name}", "success")
             
             return redirect(url_for('counting_cushions'))
     
@@ -2773,6 +2810,13 @@ def counting_cushions():
         total_goal_minutes = sum(jr.goal_minutes for jr in job_records if jr.goal_minutes)
         total_actual_minutes = sum(jr.actual_minutes for jr in job_records if jr.actual_minutes)
         total_setup_minutes = sum(jr.setup_minutes for jr in job_records if jr.setup_minutes)
+        total_paused_minutes = sum(jr.paused_minutes for jr in job_records if jr.paused_minutes)
+        
+        # Add currently paused time to total
+        for record in job_records:
+            if record.paused_time:
+                current_pause_duration = (datetime.now() - record.paused_time).total_seconds() / 60
+                total_paused_minutes += int(current_pause_duration)
         
         efficiency = 0
         if total_actual_minutes > 0 and total_goal_minutes > 0:
@@ -2788,6 +2832,8 @@ def counting_cushions():
             'total_actual_formatted': f"{total_actual_minutes // 60}h {total_actual_minutes % 60}m",
             'total_setup_minutes': total_setup_minutes,
             'total_setup_formatted': f"{total_setup_minutes // 60}h {total_setup_minutes % 60}m",
+            'total_paused_minutes': total_paused_minutes,
+            'total_paused_formatted': f"{total_paused_minutes // 60}h {total_paused_minutes % 60}m",
             'efficiency': efficiency
         }
     
@@ -2825,6 +2871,7 @@ def counting_cushions():
         hist_goal_minutes = sum(hr.goal_minutes for hr in hist_records if hr.goal_minutes)
         hist_actual_minutes = sum(hr.actual_minutes for hr in hist_records if hr.actual_minutes)
         hist_setup_minutes = sum(hr.setup_minutes for hr in hist_records if hr.setup_minutes)
+        hist_paused_minutes = sum(hr.paused_minutes for hr in hist_records if hr.paused_minutes)
         
         efficiency = 0
         if hist_actual_minutes > 0 and hist_goal_minutes > 0:
@@ -2848,6 +2895,7 @@ def counting_cushions():
                 'finish_time': finish_time_str,
                 'actual_minutes': record.actual_minutes,
                 'setup_minutes': record.setup_minutes,
+                'paused_minutes': record.paused_minutes,
                 'efficiency': record_efficiency
             })
         
@@ -2862,6 +2910,8 @@ def counting_cushions():
             'actual_formatted': f"{hist_actual_minutes // 60}h {hist_actual_minutes % 60}m",
             'setup_minutes': hist_setup_minutes,
             'setup_formatted': f"{hist_setup_minutes // 60}h {hist_setup_minutes % 60}m",
+            'paused_minutes': hist_paused_minutes,
+            'paused_formatted': f"{hist_paused_minutes // 60}h {hist_paused_minutes % 60}m",
             'efficiency': efficiency,
             'job_details': job_details
         })
@@ -2875,7 +2925,6 @@ def counting_cushions():
         historical_data=historical_data,
         current_time=datetime.now().strftime('%H:%M')
     )
-
 
 
 if __name__ == '__main__':
