@@ -15,6 +15,7 @@
             --card-bg-color: #ffffff;
             --text-color: #202124;
             --border-color: #dadce0;
+            --pause-color: #ff9800;
         }
         
         body {
@@ -209,6 +210,11 @@
             border-left: 4px solid var(--secondary-color);
         }
         
+        .job-status-paused {
+            background-color: #fff3cd;
+            border-left: 4px solid var(--pause-color);
+        }
+        
         .action-btn {
             padding: 8px 16px;
             border-radius: 4px;
@@ -243,6 +249,15 @@
         
         .finish-btn:hover {
             background-color: #d23228;
+        }
+        
+        .pause-btn {
+            background-color: var(--pause-color);
+            color: white;
+        }
+        
+        .pause-btn:hover {
+            background-color: #e65100;
         }
         
         .edit-btn {
@@ -570,12 +585,13 @@
             setTimeout(updateClock, 1000);
         }
         
-        function openEditModal(jobId, jobName, startTime, finishTime, setupMinutes) {
+        function openEditModal(jobId, jobName, startTime, finishTime, setupMinutes, pausedMinutes) {
             document.getElementById('modal-job-name').innerText = jobName;
             document.getElementById('record_id').value = jobId;
             document.getElementById('start_time').value = startTime || '';
             document.getElementById('finish_time').value = finishTime || '';
             document.getElementById('setup_minutes').value = setupMinutes || '';
+            document.getElementById('paused_minutes').value = pausedMinutes || '';
             document.getElementById('editModal').style.display = "block";
         }
         
@@ -654,6 +670,10 @@
                         <div class="stat-value">{{ session_summary.total_setup_formatted }}</div>
                     </div>
                     <div class="stat-card">
+                        <div class="stat-label">Paused Time</div>
+                        <div class="stat-value">{{ session_summary.total_paused_formatted }}</div>
+                    </div>
+                    <div class="stat-card">
                         <div class="stat-label">Efficiency</div>
                         <div class="stat-value {% if session_summary.efficiency >= 90 %}efficiency-high{% elif session_summary.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
                             {{ session_summary.efficiency }}%
@@ -670,11 +690,13 @@
                         <thead>
                             <tr>
                                 <th>Job</th>
+                                <th>Status</th>
                                 <th>Goal Time</th>
                                 <th>Start Time</th>
                                 <th>Finish Time</th>
                                 <th class="hidden-mobile">Actual Time</th>
                                 <th class="hidden-mobile">Setup Time</th>
+                                <th class="hidden-mobile">Paused Time</th>
                                 <th class="hidden-mobile">Efficiency</th>
                                 <th>Action</th>
                             </tr>
@@ -683,15 +705,28 @@
                             {% for record in job_records %}
                                 <tr class="
                                     {% if record.finish_time %}job-status-complete
+                                    {% elif record.paused_time %}job-status-paused
                                     {% elif record.start_time %}job-status-active
                                     {% else %}job-status-pending{% endif %}
                                 ">
                                     <td>{{ record.job.name }}</td>
+                                    <td>
+                                        {% if record.finish_time %}
+                                            <span style="color: var(--secondary-color);">Completed</span>
+                                        {% elif record.paused_time %}
+                                            <span style="color: var(--pause-color); font-weight: bold;">Paused</span>
+                                        {% elif record.start_time %}
+                                            <span style="color: var(--primary-color);">In Progress</span>
+                                        {% else %}
+                                            <span style="color: var(--accent-color);">Pending</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{% if record.goal_minutes %}{{ (record.goal_minutes // 60)|int }}h {{ record.goal_minutes % 60 }}m{% else %}Not set{% endif %}</td>
                                     <td>{{ record.start_time.strftime('%H:%M') if record.start_time else 'Not started' }}</td>
                                     <td>{{ record.finish_time.strftime('%H:%M') if record.finish_time else 'Not finished' }}</td>
                                     <td class="hidden-mobile">{% if record.actual_minutes %}{{ (record.actual_minutes // 60)|int }}h {{ record.actual_minutes % 60 }}m{% else %}-{% endif %}</td>
                                     <td class="hidden-mobile">{% if record.setup_minutes %}{{ (record.setup_minutes // 60)|int }}h {{ record.setup_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                    <td class="hidden-mobile">{% if record.paused_minutes %}{{ (record.paused_minutes // 60)|int }}h {{ record.paused_minutes % 60 }}m{% else %}-{% endif %}</td>
                                     <td class="hidden-mobile">
                                         {% if record.actual_minutes and record.goal_minutes %}
                                             {% set efficiency = (record.goal_minutes / record.actual_minutes * 100)|round(2) %}
@@ -703,21 +738,31 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if not record.start_time %}
+                                        {% if record.paused_time %}
+                                            <!-- Job is paused - show Resume button -->
+                                            <form method="POST" action="{{ url_for('counting_cushions') }}" style="margin:0; display:inline;">
+                                                <input type="hidden" name="job_record_id" value="{{ record.id }}">
+                                                <button type="submit" name="job_action" value="start" class="action-btn start-btn">Resume</button>
+                                            </form>
+                                        {% elif not record.start_time %}
+                                            <!-- Job not started yet - show Start button -->
                                             <form method="POST" action="{{ url_for('counting_cushions') }}" style="margin:0; display:inline;">
                                                 <input type="hidden" name="job_record_id" value="{{ record.id }}">
                                                 <button type="submit" name="job_action" value="start" class="action-btn start-btn">Start</button>
                                             </form>
                                         {% elif not record.finish_time %}
+                                            <!-- Job in progress - show Finish and Pause buttons -->
                                             <form method="POST" action="{{ url_for('counting_cushions') }}" style="margin:0; display:inline;">
                                                 <input type="hidden" name="job_record_id" value="{{ record.id }}">
                                                 <button type="submit" name="job_action" value="finish" class="action-btn finish-btn">Finish</button>
+                                                <button type="submit" name="job_action" value="pause" class="action-btn pause-btn">Pause</button>
                                             </form>
                                         {% endif %}
                                         <button type="button" onclick="openEditModal('{{ record.id }}', '{{ record.job.name }}', 
                                             '{{ record.start_time.strftime('%H:%M') if record.start_time else '' }}', 
                                             '{{ record.finish_time.strftime('%H:%M') if record.finish_time else '' }}', 
-                                            '{{ record.setup_minutes if record.setup_minutes else '' }}')" 
+                                            '{{ record.setup_minutes if record.setup_minutes else '' }}', 
+                                            '{{ record.paused_minutes if record.paused_minutes else '' }}')" 
                                             class="action-btn edit-btn">Edit</button>
                                     </td>
                                 </tr>
@@ -781,6 +826,7 @@
                                 <th class="hidden-mobile">Goal Time</th>
                                 <th class="hidden-mobile">Actual Time</th>
                                 <th class="hidden-mobile">Setup Time</th>
+                                <th class="hidden-mobile">Paused Time</th>
                                 <th>Efficiency</th>
                                 <th>Actions</th>
                             </tr>
@@ -794,6 +840,7 @@
                                     <td class="hidden-mobile">{{ session.goal_formatted }}</td>
                                     <td class="hidden-mobile">{{ session.actual_formatted }}</td>
                                     <td class="hidden-mobile">{{ session.setup_formatted }}</td>
+                                    <td class="hidden-mobile">{{ session.paused_formatted }}</td>
                                     <td class="{% if session.efficiency >= 90 %}efficiency-high{% elif session.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
                                         {{ session.efficiency }}%
                                     </td>
@@ -806,7 +853,7 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td colspan="8" style="padding: 0;">
+                                    <td colspan="9" style="padding: 0;">
                                         <div id="sessionDetails{{ session.id }}" class="collapsible-content">
                                             <div class="collapsible-inner">
                                                 <h4>Detailed Job Times</h4>
@@ -820,6 +867,7 @@
                                                                 <th>Finish Time</th>
                                                                 <th>Actual Time</th>
                                                                 <th>Setup Time</th>
+                                                                <th>Paused Time</th>
                                                                 <th>Efficiency</th>
                                                                 <th>Actions</th>
                                                             </tr>
@@ -833,6 +881,7 @@
                                                                     <td>{{ job.finish_time if job.finish_time else '-' }}</td>
                                                                     <td>{% if job.actual_minutes %}{{ (job.actual_minutes // 60)|int }}h {{ job.actual_minutes % 60 }}m{% else %}-{% endif %}</td>
                                                                     <td>{% if job.setup_minutes %}{{ (job.setup_minutes // 60)|int }}h {{ job.setup_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                                                    <td>{% if job.paused_minutes %}{{ (job.paused_minutes // 60)|int }}h {{ job.paused_minutes % 60 }}m{% else %}-{% endif %}</td>
                                                                     <td>
                                                                         {% if job.efficiency %}
                                                                             <span class="{% if job.efficiency >= 90 %}efficiency-high{% elif job.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
@@ -846,7 +895,8 @@
                                                                         <button type="button" onclick="openEditModal('{{ job.id }}', '{{ job.name }}', 
                                                                             '{{ job.start_time }}', 
                                                                             '{{ job.finish_time }}', 
-                                                                            '{{ job.setup_minutes }}')" 
+                                                                            '{{ job.setup_minutes }}',
+                                                                            '{{ job.paused_minutes }}')" 
                                                                             class="action-btn edit-btn">Edit</button>
                                                                     </td>
                                                                 </tr>
@@ -860,7 +910,7 @@
                                 </tr>
                             {% else %}
                                 <tr>
-                                    <td colspan="8">No historical data available</td>
+                                    <td colspan="9">No historical data available</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -893,6 +943,11 @@
                     <div class="form-group">
                         <label for="setup_minutes">Setup Minutes:</label>
                         <input type="number" id="setup_minutes" name="setup_minutes" class="form-control" min="0">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="paused_minutes">Paused Minutes:</label>
+                        <input type="number" id="paused_minutes" name="paused_minutes" class="form-control" min="0">
                     </div>
                     
                     <button type="submit" class="btn btn-primary">Save Changes</button>
