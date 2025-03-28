@@ -2467,7 +2467,7 @@ def reset_cushion_jobs():
         print(f"Error querying job records: {str(e)}")
         return False
     
-    # Standard jobs definition - 9 jobs total
+    # Standard jobs definition - exactly 9 jobs with correct names
     standard_jobs = [
         {"name": "Cut wood to length", "order": 1},
         {"name": "Spindle mold wood", "order": 2},
@@ -2479,6 +2479,23 @@ def reset_cushion_jobs():
         {"name": "Sanding top of the cushions", "order": 8},
         {"name": "Bundle", "order": 9}
     ]
+    
+    # Create a conversion mapping based on similar names or orders
+    conversion_map = {
+        # Direct mappings
+        "Cut wood to length": "Cut wood to length",
+        "Spindle mold wood": "Spindle mold wood",
+        "Cut rubber to length": "Cut rubber to length",
+        "Glue wood and rubber": "Glue wood and rubber",
+        "Shape wood": "Shape wood",
+        "Glue rubber ends": "Glue rubber ends",
+        "Shape ends": "Shape ends",
+        "Bundle": "Bundle",
+        
+        # Special mappings for renamed jobs
+        "Sanding": "Sanding top of the cushions",
+        "Top coating": "Bundle",  # Map "Top coating" to "Bundle" as a fallback
+    }
     
     try:
         # Step 2: Remove all references to job_id in job records
@@ -2510,20 +2527,22 @@ def reset_cushion_jobs():
             if job_id:
                 job_name_to_id[job_name] = job_id
         
-        # For jobs not in the standard list, map to the closest match by order
-        for record_data in job_records_data:
-            old_job_name = record_data['job_name']
-            if old_job_name not in job_name_to_id:
-                old_order = record_data['job_order']
-                # Find closest job by order
-                closest_job = min(standard_jobs, key=lambda j: abs(j["order"] - old_order))
-                job_name_to_id[old_job_name] = job_name_to_id[closest_job["name"]]
-        
         # Step 6: Update all job records with their new job IDs
         for record_data in job_records_data:
             record_id = record_data['record_id']
             old_job_name = record_data['job_name']
-            new_job_id = job_name_to_id.get(old_job_name)
+            
+            # Use the conversion map to get the new job name
+            new_job_name = conversion_map.get(old_job_name)
+            
+            # If no direct mapping, find closest match by order
+            if not new_job_name:
+                old_order = record_data['job_order']
+                closest_job = min(standard_jobs, key=lambda j: abs(j["order"] - old_order))
+                new_job_name = closest_job["name"]
+            
+            # Get the ID for the new job name
+            new_job_id = job_name_to_id.get(new_job_name)
             
             if new_job_id:
                 db.session.execute(
