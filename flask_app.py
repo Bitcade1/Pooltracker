@@ -1486,7 +1486,7 @@ def counting_cushions():
     worker_name = session['worker']
     today = date.today()
     
-    # Ensure we have the standard cushion jobs defined - updated list without "Top coating"
+    # Define standard jobs - 9 jobs total, removed "Top coating", renamed "Sanding"
     standard_jobs = [
         {"name": "Cut wood to length", "order": 1},
         {"name": "Spindle mold wood", "order": 2},
@@ -1499,35 +1499,68 @@ def counting_cushions():
         {"name": "Bundle", "order": 9}
     ]
     
-    # Update existing jobs if needed - this ensures job names and order are updated
-    existing_jobs = CushionJob.query.all()
+    # SAFER JOB MANAGEMENT: We'll first verify existing jobs, then update
+    existing_jobs = CushionJob.query.order_by(CushionJob.order).all()
     
-    # If no jobs exist, create them all
+    # If no jobs exist, create all the standard jobs fresh
     if not existing_jobs:
         for job in standard_jobs:
             new_job = CushionJob(name=job["name"], order=job["order"])
             db.session.add(new_job)
         db.session.commit()
     else:
-        # Update existing jobs to match the standard_jobs list
-        for i, std_job in enumerate(standard_jobs):
-            if i < len(existing_jobs):
-                # Update existing job name and order
-                existing_jobs[i].name = std_job["name"]
-                existing_jobs[i].order = std_job["order"]
-            else:
-                # Add any new jobs that might be missing
+        # Update existing jobs more carefully
+        job_changes_needed = False
+        
+        # First check if the count matches what we need
+        if len(existing_jobs) != len(standard_jobs):
+            job_changes_needed = True
+        else:
+            # Check if any job names or orders need updating
+            for i, std_job in enumerate(standard_jobs):
+                if (existing_jobs[i].name != std_job["name"] or 
+                    existing_jobs[i].order != std_job["order"]):
+                    job_changes_needed = True
+                    break
+        
+        # Only make changes if necessary
+        if job_changes_needed:
+            # Instead of modifying existing jobs, we'll create a fresh set
+            # First, get all job records that use the current jobs
+            job_records = CushionJobRecord.query.all()
+            
+            # Create a mapping from old job IDs to new job objects
+            old_to_new_job_map = {}
+            
+            # Create all new jobs first
+            new_jobs = []
+            for std_job in standard_jobs:
                 new_job = CushionJob(name=std_job["name"], order=std_job["order"])
                 db.session.add(new_job)
-        
-        # Remove any extra jobs beyond our standard 9
-        for job in existing_jobs[len(standard_jobs):]:
-            db.session.delete(job)
+                new_jobs.append(new_job)
             
-        db.session.commit()
-    
-    # Get the updated job list
-    existing_jobs = CushionJob.query.order_by(CushionJob.order).all()
+            # Commit to get IDs for the new jobs
+            db.session.commit()
+            
+            # Map old jobs to new jobs based on order
+            for old_job in existing_jobs:
+                # Find the new job with the closest matching order
+                closest_new_job = min(new_jobs, key=lambda j: abs(j.order - old_job.order))
+                old_to_new_job_map[old_job.id] = closest_new_job
+            
+            # Update all job records to use the new job IDs
+            for record in job_records:
+                if record.job_id in old_to_new_job_map:
+                    record.job_id = old_to_new_job_map[record.job_id].id
+            
+            # Now that records point to new jobs, delete the old jobs
+            for old_job in existing_jobs:
+                db.session.delete(old_job)
+                
+            db.session.commit()
+            
+            # Refresh the job list
+            existing_jobs = CushionJob.query.order_by(CushionJob.order).all()
     
     # Get any active session (not just for this worker)
     active_session = CushionSession.query.filter_by(active=True).first()
@@ -1821,6 +1854,7 @@ def counting_cushions():
         historical_data=historical_data,
         current_time=datetime.now().strftime('%H:%M')
     )
+
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if 'worker' not in session:
