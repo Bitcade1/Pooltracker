@@ -1467,8 +1467,11 @@ class CushionJobRecord(db.Model):
     goal_minutes = db.Column(db.Integer, default=0)  # Target time in minutes
     start_time = db.Column(db.DateTime)
     finish_time = db.Column(db.DateTime)
+    paused_time = db.Column(db.DateTime)  # New field for tracking when a job is paused
     actual_minutes = db.Column(db.Integer)  # Actual working time in minutes
     setup_minutes = db.Column(db.Integer)  # Setup time in minutes
+    paused_minutes = db.Column(db.Integer, default=0)  # New field to store accumulated pause time
+	
     
     # Relationship to parent entities
     session = db.relationship('CushionSession', backref='job_records')
