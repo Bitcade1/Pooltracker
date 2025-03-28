@@ -832,4 +832,79 @@
                                                                     <td>{{ job.start_time if job.start_time else '-' }}</td>
                                                                     <td>{{ job.finish_time if job.finish_time else '-' }}</td>
                                                                     <td>{% if job.actual_minutes %}{{ (job.actual_minutes // 60)|int }}h {{ job.actual_minutes % 60 }}m{% else %}-{% endif %}</td>
-                                                                    <td>{% if job.setup_minutes %}{{ (job.setup_minutes // 60)|int }}h {{ job.setup
+                                                                    <td>{% if job.setup_minutes %}{{ (job.setup_minutes // 60)|int }}h {{ job.setup_minutes % 60 }}m{% else %}-{% endif %}</td>
+                                                                    <td>
+                                                                        {% if job.efficiency %}
+                                                                            <span class="{% if job.efficiency >= 90 %}efficiency-high{% elif job.efficiency >= 70 %}efficiency-medium{% else %}efficiency-low{% endif %}">
+                                                                                {{ job.efficiency }}%
+                                                                            </span>
+                                                                        {% else %}
+                                                                            -
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td>
+                                                                        <button type="button" onclick="openEditModal('{{ job.id }}', '{{ job.name }}', 
+                                                                            '{{ job.start_time }}', 
+                                                                            '{{ job.finish_time }}', 
+                                                                            '{{ job.setup_minutes }}')" 
+                                                                            class="action-btn edit-btn">Edit</button>
+                                                                    </td>
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="8">No historical data available</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal for Editing Times -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <span class="close" onclick="closeModal()">&times;</span>
+                    <h2>Edit Time for <span id="modal-job-name"></span></h2>
+                </div>
+                <form method="POST" action="{{ url_for('counting_cushions') }}">
+                    <input type="hidden" name="adjust_time" value="true">
+                    <input type="hidden" id="record_id" name="record_id">
+                    
+                    <div class="form-group">
+                        <label for="start_time">Start Time (HH:MM):</label>
+                        <input type="time" id="start_time" name="start_time" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="finish_time">Finish Time (HH:MM):</label>
+                        <input type="time" id="finish_time" name="finish_time" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="setup_minutes">Setup Minutes:</label>
+                        <input type="number" id="setup_minutes" name="setup_minutes" class="form-control" min="0">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" class="btn btn-danger" onclick="closeModal()">Cancel</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>
