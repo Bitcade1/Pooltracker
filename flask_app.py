@@ -1445,76 +1445,101 @@ def counting_wood():
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
 
-    # Calculate weekly sheets cut
+    # Calculate weekly sheets cut - improved approach
     weekly_sheets_cut = 0
-    weekly_plain_mdf_entries = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today,
-        WoodCount.section.like("% - Body")  # For Black MDF
-    ).all()
-    weekly_sheets_cut += sum(entry.count for entry in weekly_plain_mdf_entries)
-
-    weekly_black_mdf_entries = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today,
-        WoodCount.section.like("% - Pod Sides") | WoodCount.section.like("% - Bases")  # For Plain MDF
-    ).all()
-    weekly_sheets_cut += sum(entry.count for entry in weekly_black_mdf_entries)
-
-    weekly_plain_mdf_36_entries = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today,
-        WoodCount.section.like("% - Top Rail Pieces %")  # For 36mm Plain MDF
-    ).all()
-    # Calculate how many actual sheets were used for Top Rail Pieces
-    # We need to count only Long pieces OR Short pieces, but not both
-    # as they come from the same sheet
-    weekly_top_rail_long_count = sum(entry.count for entry in weekly_plain_mdf_36_entries 
-                               if "Top Rail Pieces Long" in entry.section)
-    weekly_top_rail_short_count = sum(entry.count for entry in weekly_plain_mdf_36_entries 
-                                if "Top Rail Pieces Short" in entry.section and entry.count > 0)
     
-    # For Long pieces, each 8 pieces means 1 sheet
-    weekly_sheets_from_long = weekly_top_rail_long_count // 8
-    # For Short pieces that weren't counted in Long (standalone short cuts), each 16 pieces means 1 sheet
-    weekly_sheets_from_short = weekly_top_rail_short_count // 16
+    # Count Body, Pod Sides, and Bases pieces that were added (not decremented)
+    weekly_regular_entries = WoodCount.query.filter(
+        WoodCount.date >= start_of_week,
+        WoodCount.date <= today,
+        (WoodCount.section.like("% - Body") | 
+         WoodCount.section.like("% - Pod Sides") | 
+         WoodCount.section.like("% - Bases")),
+        WoodCount.count > 0  # Only count positive entries (additions, not subtractions)
+    ).all()
     
-    weekly_sheets_cut += weekly_sheets_from_long + weekly_sheets_from_short
+    # Each regular entry with positive count represents a sheet used
+    for entry in weekly_regular_entries:
+        if entry.count > 0:
+            weekly_sheets_cut += 1
+    
+    # Count Top Rail Pieces sheets by looking at log entries for Long cuts
+    weekly_long_entries = WoodCount.query.filter(
+        WoodCount.date >= start_of_week,
+        WoodCount.date <= today,
+        WoodCount.section.like("% - Top Rail Pieces Long"),
+        WoodCount.count > 0  # Only count positive entries
+    ).all()
+    
+    # For Long pieces, we need to count the actual number of sheets used
+    # Each Long entry represents 1 sheet
+    for entry in weekly_long_entries:
+        # Only count if it's a positive entry (adding pieces, not removing)
+        if entry.count > 0:
+            weekly_sheets_cut += 1
+    
+    # Count sheets used for standalone Short cuts
+    # (these would be cuts specifically for Short pieces, not the ones generated from Long cuts)
+    weekly_short_entries = WoodCount.query.filter(
+        WoodCount.date >= start_of_week,
+        WoodCount.date <= today,
+        WoodCount.section.like("% - Top Rail Pieces Short"),
+        WoodCount.count > 0,  # Only count positive entries
+        ~WoodCount.section.in_([e.section.replace("Long", "Short") for e in weekly_long_entries])  # Exclude shorts from longs
+    ).all()
+    
+    # For Short pieces, each entry represents a sheet used
+    for entry in weekly_short_entries:
+        if entry.count > 0 and entry.count % 16 == 0:  # It's a full sheet cut (16 shorts)
+            weekly_sheets_cut += 1
 
-    # Calculate monthly sheets cut (similar logic to weekly)
+    # Calculate monthly sheets cut - improved approach
     monthly_sheets_cut = 0
-    monthly_plain_mdf_entries = WoodCount.query.filter(
+    
+    # Count Body, Pod Sides, and Bases pieces that were added (not decremented)
+    monthly_regular_entries = WoodCount.query.filter(
         WoodCount.date >= month_start_date,
         WoodCount.date <= month_end_date,
-        WoodCount.section.like("% - Body")  # For Black MDF
+        (WoodCount.section.like("% - Body") | 
+         WoodCount.section.like("% - Pod Sides") | 
+         WoodCount.section.like("% - Bases")),
+        WoodCount.count > 0  # Only count positive entries (additions, not subtractions)
     ).all()
-    monthly_sheets_cut += sum(entry.count for entry in monthly_plain_mdf_entries)
-
-    monthly_black_mdf_entries = WoodCount.query.filter(
+    
+    # Each regular entry with positive count represents a sheet used
+    for entry in monthly_regular_entries:
+        if entry.count > 0:
+            monthly_sheets_cut += 1
+    
+    # Count Top Rail Pieces sheets by looking at log entries for Long cuts
+    monthly_long_entries = WoodCount.query.filter(
         WoodCount.date >= month_start_date,
         WoodCount.date <= month_end_date,
-        WoodCount.section.like("% - Pod Sides") | WoodCount.section.like("% - Bases")  # For Plain MDF
+        WoodCount.section.like("% - Top Rail Pieces Long"),
+        WoodCount.count > 0  # Only count positive entries
     ).all()
-    monthly_sheets_cut += sum(entry.count for entry in monthly_black_mdf_entries)
-
-    monthly_plain_mdf_36_entries = WoodCount.query.filter(
+    
+    # For Long pieces, we need to count the actual number of sheets used
+    # Each 8 Long pieces (or fraction thereof) represents 1 sheet
+    for entry in monthly_long_entries:
+        # Only count if it's a positive entry (adding pieces, not removing)
+        if entry.count > 0:
+            monthly_sheets_cut += 1
+    
+    # Count sheets used for standalone Short cuts
+    # (these would be cuts specifically for Short pieces, not the ones generated from Long cuts)
+    monthly_short_entries = WoodCount.query.filter(
         WoodCount.date >= month_start_date,
         WoodCount.date <= month_end_date,
-        WoodCount.section.like("% - Top Rail Pieces %")  # For 36mm Plain MDF
+        WoodCount.section.like("% - Top Rail Pieces Short"),
+        WoodCount.count > 0,  # Only count positive entries
+        ~WoodCount.section.in_([e.section.replace("Long", "Short") for e in monthly_long_entries])  # Exclude shorts from longs
     ).all()
     
-    # Calculate how many actual sheets were used for Top Rail Pieces
-    monthly_top_rail_long_count = sum(entry.count for entry in monthly_plain_mdf_36_entries 
-                                if "Top Rail Pieces Long" in entry.section)
-    monthly_top_rail_short_count = sum(entry.count for entry in monthly_plain_mdf_36_entries 
-                                 if "Top Rail Pieces Short" in entry.section and entry.count > 0)
-    
-    # For Long pieces, each 8 pieces means 1 sheet
-    monthly_sheets_from_long = monthly_top_rail_long_count // 8
-    # For Short pieces that weren't counted in Long (standalone short cuts), each 16 pieces means 1 sheet
-    monthly_sheets_from_short = monthly_top_rail_short_count // 16
-    
-    monthly_sheets_cut += monthly_sheets_from_long + monthly_sheets_from_short
+    # For Short pieces, each entry represents a sheet used
+    for entry in monthly_short_entries:
+        if entry.count > 0 and entry.count % 16 == 0:  # It's a full sheet cut (16 shorts)
+            monthly_sheets_cut += 1
 
     # Retrieve wood entries for today.
     daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
@@ -1530,7 +1555,6 @@ def counting_wood():
         weekly_sheets_cut=weekly_sheets_cut,
         monthly_sheets_cut=monthly_sheets_cut
     )
-
 # New model class definitions first:
 class CushionJob(db.Model):
     id = db.Column(db.Integer, primary_key=True)
