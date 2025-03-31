@@ -1650,9 +1650,11 @@ def counting_wood():
         weekly_sheets_cut=weekly_sheets_cut,
         monthly_sheets_cut=monthly_sheets_cut,
         weekly_breakdown=weekly_breakdown,
-        yearly_breakdown=yearly_breakdown
+        yearly_breakdown=yearly_breakdown,
+        today=today,
+        current_year=today.year
     )
-#New model class definitions first:
+# New model class definitions first:
 class CushionJob(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
