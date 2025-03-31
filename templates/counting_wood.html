@@ -302,6 +302,61 @@
         <p>The total number of MDF sheets cut in the selected month (all types combined):</p>
         <div class="summary-value">{{ monthly_sheets_cut }}</div>
       </div>
+      
+      <!-- Weekly Breakdown -->
+      <h4>Weekly Breakdown</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>Date Range</th>
+            <th>Sheets Cut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if weekly_breakdown %}
+            {% for week, data in weekly_breakdown.items() %}
+              <tr>
+                <td>{{ week }}</td>
+                <td>{{ data.start_date }} - {{ data.end_date }}</td>
+                <td>{{ data.sheets_cut }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="3">No weekly data available.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Yearly Sheets Cut Data -->
+    <button class="collapsible" onclick="toggleCollapsible('yearlySheets')">Yearly Sheets Cut</button>
+    <div id="yearlySheets" class="collapsible-content">
+      <h3>Monthly Breakdown for {{ today.year }}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Sheets Cut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if yearly_breakdown %}
+            {% for month, count in yearly_breakdown.items() %}
+              <tr>
+                <td>{{ month }}</td>
+                <td>{{ count }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="2">No yearly data available.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
     </div>
 
     <!-- Back to Menu Button -->
