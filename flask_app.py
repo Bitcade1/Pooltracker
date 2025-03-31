@@ -1520,7 +1520,7 @@ def counting_wood():
     ).all()
     
     # For Long pieces, we need to count the actual number of sheets used
-    # Each 8 Long pieces (or fraction thereof) represents 1 sheet
+    # Each Long entry represents 1 sheet
     for entry in monthly_long_entries:
         # Only count if it's a positive entry (adding pieces, not removing)
         if entry.count > 0:
@@ -1540,6 +1540,101 @@ def counting_wood():
     for entry in monthly_short_entries:
         if entry.count > 0 and entry.count % 16 == 0:  # It's a full sheet cut (16 shorts)
             monthly_sheets_cut += 1
+            
+    # Break down monthly data by weeks
+    weekly_breakdown = {}
+    
+    # Define a function to count sheets for a specific date range
+    def count_sheets_for_range(start_date, end_date):
+        sheet_count = 0
+        
+        # Regular pieces
+        regular_entries = WoodCount.query.filter(
+            WoodCount.date >= start_date,
+            WoodCount.date <= end_date,
+            (WoodCount.section.like("% - Body") | 
+             WoodCount.section.like("% - Pod Sides") | 
+             WoodCount.section.like("% - Bases")),
+            WoodCount.count > 0
+        ).all()
+        
+        for entry in regular_entries:
+            if entry.count > 0:
+                sheet_count += 1
+        
+        # Long cuts
+        long_entries = WoodCount.query.filter(
+            WoodCount.date >= start_date,
+            WoodCount.date <= end_date,
+            WoodCount.section.like("% - Top Rail Pieces Long"),
+            WoodCount.count > 0
+        ).all()
+        
+        for entry in long_entries:
+            if entry.count > 0:
+                sheet_count += 1
+        
+        # Short cuts (excluding those from long cuts)
+        short_entries = WoodCount.query.filter(
+            WoodCount.date >= start_date,
+            WoodCount.date <= end_date,
+            WoodCount.section.like("% - Top Rail Pieces Short"),
+            WoodCount.count > 0,
+            ~WoodCount.section.in_([e.section.replace("Long", "Short") for e in long_entries])
+        ).all()
+        
+        for entry in short_entries:
+            if entry.count > 0 and entry.count % 16 == 0:
+                sheet_count += 1
+                
+        return sheet_count
+    
+    # Calculate sheets cut for each week of the month
+    current_date = month_start_date
+    week_number = 1
+    
+    while current_date <= month_end_date:
+        # Calculate end of week (either Saturday or end of month, whichever comes first)
+        days_until_saturday = (5 - current_date.weekday()) % 7
+        if days_until_saturday == 0:
+            days_until_saturday = 7
+        week_end = min(current_date + timedelta(days=days_until_saturday - 1), month_end_date)
+        
+        # Count sheets for this week
+        sheets_this_week = count_sheets_for_range(current_date, week_end)
+        weekly_breakdown[f"Week {week_number}"] = {
+            "start_date": current_date.strftime("%d %b"),
+            "end_date": week_end.strftime("%d %b"),
+            "sheets_cut": sheets_this_week
+        }
+        
+        # Move to next week
+        current_date = week_end + timedelta(days=1)
+        week_number += 1
+        
+        # Break if we've reached the end of the month
+        if current_date > month_end_date:
+            break
+    
+    # Calculate yearly breakdown (all months this year)
+    year_start = date(today.year, 1, 1)
+    yearly_breakdown = {}
+    
+    for month_num in range(1, 13):
+        month_start = date(today.year, month_num, 1)
+        if month_num == 12:
+            month_end = date(today.year, month_num, 31)
+        else:
+            month_end = date(today.year, month_num + 1, 1) - timedelta(days=1)
+        
+        # Skip future months
+        if month_start > today:
+            continue
+            
+        # Count sheets for this month
+        sheets_this_month = count_sheets_for_range(month_start, month_end)
+        month_name = month_start.strftime("%B")
+        yearly_breakdown[month_name] = sheets_this_month
 
     # Retrieve wood entries for today.
     daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
@@ -1553,9 +1648,11 @@ def counting_wood():
         daily_wood_data=daily_wood_data,
         weekly_summary=weekly_summary,
         weekly_sheets_cut=weekly_sheets_cut,
-        monthly_sheets_cut=monthly_sheets_cut
+        monthly_sheets_cut=monthly_sheets_cut,
+        weekly_breakdown=weekly_breakdown,
+        yearly_breakdown=yearly_breakdown
     )
-# New model class definitions first:
+#New model class definitions first:
 class CushionJob(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
