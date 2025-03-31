@@ -1191,6 +1191,28 @@ def counting_wood():
         db.session.add(inventory)
         db.session.commit()
 
+    # Get DST info for the UK
+    def is_dst_active():
+        # Simple DST calculation for UK:
+        # DST starts last Sunday of March and ends last Sunday of October
+        now = datetime.now()
+        year = now.year
+        
+        # Last Sunday of March
+        march_end = datetime(year, 3, 31)
+        while march_end.weekday() != 6:  # 6 = Sunday
+            march_end = march_end - timedelta(days=1)
+        
+        # Last Sunday of October
+        october_end = datetime(year, 10, 31)
+        while october_end.weekday() != 6:  # 6 = Sunday
+            october_end = october_end - timedelta(days=1)
+        
+        return march_end <= now < october_end
+    
+    # Determine the hour offset based on DST
+    hour_offset = 1 if is_dst_active() else 0
+
     today = datetime.now().date()
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
@@ -1650,8 +1672,25 @@ def counting_wood():
         month_name = month_start.strftime("%B")
         yearly_breakdown[month_name] = sheets_this_month
 
-    # Retrieve wood entries for today.
+    # Retrieve wood entries for today and adjust time display
     daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
+    
+    # Adjust times for display
+    daily_wood_data_with_local_time = []
+    for entry in daily_wood_data:
+        # Create a copy of entry with the adjusted time
+        adjusted_time = entry.time
+        if hour_offset > 0:
+            # Add the hour offset while handling overflow (e.g., 23:00 + 1 hour)
+            adjusted_hours = (adjusted_time.hour + hour_offset) % 24
+            adjusted_time = adjusted_time.replace(hour=adjusted_hours)
+        
+        entry_copy = {
+            'time': adjusted_time,
+            'section': entry.section,
+            'count': entry.count
+        }
+        daily_wood_data_with_local_time.append(entry_copy)
 
     return render_template(
         'counting_wood.html',
@@ -1659,7 +1698,7 @@ def counting_wood():
         available_months=available_months,
         selected_month=selected_month,
         counts=counts,
-        daily_wood_data=daily_wood_data,
+        daily_wood_data=daily_wood_data_with_local_time,
         weekly_summary=weekly_summary,
         weekly_sheets_cut=weekly_sheets_cut,
         monthly_sheets_cut=monthly_sheets_cut,
