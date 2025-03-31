@@ -1258,7 +1258,7 @@ def counting_wood():
             # Yield logic for Top Rail Pieces:
             if action == 'increment':
                 if "Long" in section:
-                    # A long cut yields: +8 to Long and +2 to the corresponding Short.
+                    # A long cut yields: +8 to Long and +3 to the corresponding Short for 6ft, or +2 for 7ft
                     monthly_entry.count += 8
                     new_entry.count = 8
                     # Update the corresponding Short section.
@@ -1271,9 +1271,16 @@ def counting_wood():
                     if not short_entry:
                         short_entry = WoodCount(section=corresponding_section, count=0, date=month_start_date, time=current_time)
                         db.session.add(short_entry)
-                    short_entry.count += 2
+                    
+                    # Check if it's 6ft or 7ft section
+                    if "6ft" in section:
+                        short_count = 3
+                    else:  # 7ft section
+                        short_count = 2
+                        
+                    short_entry.count += short_count
                     # Also log a separate entry for the short yield.
-                    new_short = WoodCount(section=corresponding_section, count=2, date=today, time=current_time)
+                    new_short = WoodCount(section=corresponding_section, count=short_count, date=today, time=current_time)
                     db.session.add(new_short)
                 elif "Short" in section:
                     # A short cut yields: +16 to Short.
@@ -1292,9 +1299,16 @@ def counting_wood():
                             WoodCount.date >= month_start_date,
                             WoodCount.date <= month_end_date
                         ).first()
-                        if short_entry and short_entry.count >= 2:
-                            short_entry.count -= 2
-                            new_short = WoodCount(section=corresponding_section, count=-2, date=today, time=current_time)
+                        
+                        # Check if it's 6ft or 7ft section
+                        if "6ft" in section:
+                            short_count = 3
+                        else:  # 7ft section
+                            short_count = 2
+                            
+                        if short_entry and short_entry.count >= short_count:
+                            short_entry.count -= short_count
+                            new_short = WoodCount(section=corresponding_section, count=-short_count, date=today, time=current_time)
                             db.session.add(new_short)
                         else:
                             flash("Not enough count in the corresponding Short section to decrement.", "error")
@@ -1329,8 +1343,15 @@ def counting_wood():
                         if not short_entry:
                             short_entry = WoodCount(section=corresponding_section, count=0, date=month_start_date, time=current_time)
                             db.session.add(short_entry)
-                        short_entry.count += bulk_amount * 2
-                        new_short = WoodCount(section=corresponding_section, count=bulk_amount * 2, date=today, time=current_time)
+                        
+                        # Check if it's 6ft or 7ft section
+                        if "6ft" in section:
+                            short_count = 3
+                        else:  # 7ft section
+                            short_count = 2
+                            
+                        short_entry.count += bulk_amount * short_count
+                        new_short = WoodCount(section=corresponding_section, count=bulk_amount * short_count, date=today, time=current_time)
                         db.session.add(new_short)
                     elif "Short" in section:
                         monthly_entry.count += bulk_amount * 16
