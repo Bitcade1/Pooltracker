@@ -1445,6 +1445,77 @@ def counting_wood():
         weekday = entry.date.strftime("%A")
         weekly_summary[weekday] += entry.count
 
+    # Calculate weekly sheets cut
+    weekly_sheets_cut = 0
+    weekly_plain_mdf_entries = WoodCount.query.filter(
+        WoodCount.date >= start_of_week,
+        WoodCount.date <= today,
+        WoodCount.section.like("% - Body")  # For Black MDF
+    ).all()
+    weekly_sheets_cut += sum(entry.count for entry in weekly_plain_mdf_entries)
+
+    weekly_black_mdf_entries = WoodCount.query.filter(
+        WoodCount.date >= start_of_week,
+        WoodCount.date <= today,
+        WoodCount.section.like("% - Pod Sides") | WoodCount.section.like("% - Bases")  # For Plain MDF
+    ).all()
+    weekly_sheets_cut += sum(entry.count for entry in weekly_black_mdf_entries)
+
+    weekly_plain_mdf_36_entries = WoodCount.query.filter(
+        WoodCount.date >= start_of_week,
+        WoodCount.date <= today,
+        WoodCount.section.like("% - Top Rail Pieces %")  # For 36mm Plain MDF
+    ).all()
+    # Calculate how many actual sheets were used for Top Rail Pieces
+    # We need to count only Long pieces OR Short pieces, but not both
+    # as they come from the same sheet
+    weekly_top_rail_long_count = sum(entry.count for entry in weekly_plain_mdf_36_entries 
+                               if "Top Rail Pieces Long" in entry.section)
+    weekly_top_rail_short_count = sum(entry.count for entry in weekly_plain_mdf_36_entries 
+                                if "Top Rail Pieces Short" in entry.section and entry.count > 0)
+    
+    # For Long pieces, each 8 pieces means 1 sheet
+    weekly_sheets_from_long = weekly_top_rail_long_count // 8
+    # For Short pieces that weren't counted in Long (standalone short cuts), each 16 pieces means 1 sheet
+    weekly_sheets_from_short = weekly_top_rail_short_count // 16
+    
+    weekly_sheets_cut += weekly_sheets_from_long + weekly_sheets_from_short
+
+    # Calculate monthly sheets cut (similar logic to weekly)
+    monthly_sheets_cut = 0
+    monthly_plain_mdf_entries = WoodCount.query.filter(
+        WoodCount.date >= month_start_date,
+        WoodCount.date <= month_end_date,
+        WoodCount.section.like("% - Body")  # For Black MDF
+    ).all()
+    monthly_sheets_cut += sum(entry.count for entry in monthly_plain_mdf_entries)
+
+    monthly_black_mdf_entries = WoodCount.query.filter(
+        WoodCount.date >= month_start_date,
+        WoodCount.date <= month_end_date,
+        WoodCount.section.like("% - Pod Sides") | WoodCount.section.like("% - Bases")  # For Plain MDF
+    ).all()
+    monthly_sheets_cut += sum(entry.count for entry in monthly_black_mdf_entries)
+
+    monthly_plain_mdf_36_entries = WoodCount.query.filter(
+        WoodCount.date >= month_start_date,
+        WoodCount.date <= month_end_date,
+        WoodCount.section.like("% - Top Rail Pieces %")  # For 36mm Plain MDF
+    ).all()
+    
+    # Calculate how many actual sheets were used for Top Rail Pieces
+    monthly_top_rail_long_count = sum(entry.count for entry in monthly_plain_mdf_36_entries 
+                                if "Top Rail Pieces Long" in entry.section)
+    monthly_top_rail_short_count = sum(entry.count for entry in monthly_plain_mdf_36_entries 
+                                 if "Top Rail Pieces Short" in entry.section and entry.count > 0)
+    
+    # For Long pieces, each 8 pieces means 1 sheet
+    monthly_sheets_from_long = monthly_top_rail_long_count // 8
+    # For Short pieces that weren't counted in Long (standalone short cuts), each 16 pieces means 1 sheet
+    monthly_sheets_from_short = monthly_top_rail_short_count // 16
+    
+    monthly_sheets_cut += monthly_sheets_from_long + monthly_sheets_from_short
+
     # Retrieve wood entries for today.
     daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
 
@@ -1455,9 +1526,10 @@ def counting_wood():
         selected_month=selected_month,
         counts=counts,
         daily_wood_data=daily_wood_data,
-        weekly_summary=weekly_summary
+        weekly_summary=weekly_summary,
+        weekly_sheets_cut=weekly_sheets_cut,
+        monthly_sheets_cut=monthly_sheets_cut
     )
-
 
 # New model class definitions first:
 class CushionJob(db.Model):
