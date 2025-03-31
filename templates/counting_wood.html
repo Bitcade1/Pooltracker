@@ -61,6 +61,35 @@
     .button:hover, button:hover {
       background-color: #0056b3;
     }
+    .summary-box {
+      background-color: #e9f7ef;
+      border: 1px solid #85c1e9;
+      border-radius: 5px;
+      padding: 15px;
+      margin-top: 20px;
+      text-align: center;
+    }
+    .summary-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2471a3;
+      margin: 10px 0;
+    }
+    .summary-label {
+      font-size: 16px;
+      color: #566573;
+    }
+    .summary-container {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      margin: 20px 0;
+    }
+    .summary-item {
+      flex: 1;
+      min-width: 200px;
+      margin: 10px;
+    }
   </style>
   <script>
     function toggleCollapsible(id) {
@@ -93,6 +122,22 @@
         {% endfor %}
       </select>
     </form>
+
+    <!-- Sheets Cut Summary -->
+    <div class="summary-container">
+      <div class="summary-item">
+        <div class="summary-box">
+          <div class="summary-label">Total Sheets Cut This Week</div>
+          <div class="summary-value">{{ weekly_sheets_cut }}</div>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-box">
+          <div class="summary-label">Total Sheets Cut This Month</div>
+          <div class="summary-value">{{ monthly_sheets_cut }}</div>
+        </div>
+      </div>
+    </div>
 
     <!-- 7ft Wood Counts Section -->
     <h2 class="group-heading">7ft Wood Counts</h2>
@@ -237,6 +282,26 @@
           {% endif %}
         </tbody>
       </table>
+    </div>
+    
+    <!-- Weekly Sheets Cut Data -->
+    <button class="collapsible" onclick="toggleCollapsible('weeklySheets')">Weekly Sheets Cut</button>
+    <div id="weeklySheets" class="collapsible-content">
+      <h3>Total Sheets Cut This Week</h3>
+      <div class="summary-box">
+        <p>The total number of MDF sheets cut this week (all types combined):</p>
+        <div class="summary-value">{{ weekly_sheets_cut }}</div>
+      </div>
+    </div>
+    
+    <!-- Monthly Sheets Cut Data -->
+    <button class="collapsible" onclick="toggleCollapsible('monthlySheets')">Monthly Sheets Cut</button>
+    <div id="monthlySheets" class="collapsible-content">
+      <h3>Total Sheets Cut This Month</h3>
+      <div class="summary-box">
+        <p>The total number of MDF sheets cut in the selected month (all types combined):</p>
+        <div class="summary-value">{{ monthly_sheets_cut }}</div>
+      </div>
     </div>
 
     <!-- Back to Menu Button -->
