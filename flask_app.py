@@ -1548,44 +1548,58 @@ def counting_wood():
     def count_sheets_for_range(start_date, end_date):
         sheet_count = 0
         
-        # Regular pieces
-        regular_entries = WoodCount.query.filter(
+        # Count Body, Pod Sides, and Bases pieces (each increment = 1 sheet)
+        body_entries = WoodCount.query.filter(
             WoodCount.date >= start_date,
             WoodCount.date <= end_date,
-            (WoodCount.section.like("% - Body") | 
-             WoodCount.section.like("% - Pod Sides") | 
-             WoodCount.section.like("% - Bases")),
+            WoodCount.section.like("% - Body"),
+            WoodCount.count > 0
+        ).all()
+        sheet_count += len(body_entries)
+        
+        pod_sides_bases_entries = WoodCount.query.filter(
+            WoodCount.date >= start_date,
+            WoodCount.date <= end_date,
+            (WoodCount.section.like("% - Pod Sides") | WoodCount.section.like("% - Bases")),
+            WoodCount.count > 0
+        ).all()
+        sheet_count += len(pod_sides_bases_entries)
+        
+        # Count Top Rail pieces - each log entry is a sheet
+        # 1 sheet produces either 8 Long pieces or 16 Short pieces
+        top_rail_entries = WoodCount.query.filter(
+            WoodCount.date >= start_date,
+            WoodCount.date <= end_date,
+            WoodCount.section.like("% - Top Rail Pieces %"),
             WoodCount.count > 0
         ).all()
         
-        for entry in regular_entries:
-            if entry.count > 0:
-                sheet_count += 1
-        
-        # Long cuts
-        long_entries = WoodCount.query.filter(
-            WoodCount.date >= start_date,
-            WoodCount.date <= end_date,
-            WoodCount.section.like("% - Top Rail Pieces Long"),
-            WoodCount.count > 0
-        ).all()
-        
-        for entry in long_entries:
-            if entry.count > 0:
-                sheet_count += 1
-        
-        # Short cuts (excluding those from long cuts)
-        short_entries = WoodCount.query.filter(
-            WoodCount.date >= start_date,
-            WoodCount.date <= end_date,
-            WoodCount.section.like("% - Top Rail Pieces Short"),
-            WoodCount.count > 0,
-            ~WoodCount.section.in_([e.section.replace("Long", "Short") for e in long_entries])
-        ).all()
-        
-        for entry in short_entries:
-            if entry.count > 0 and entry.count % 16 == 0:
-                sheet_count += 1
+        # Group by section and date to avoid double counting
+        counted_dates = set()
+        for entry in top_rail_entries:
+            # Create a unique key for each date+section to avoid double counting
+            if "Top Rail Pieces Long" in entry.section:
+                key = (entry.date, entry.section)
+                if key not in counted_dates:
+                    sheet_count += 1
+                    counted_dates.add(key)
+            elif "Top Rail Pieces Short" in entry.section:
+                # Need to check if this was a standalone entry or from a Long cut
+                # If it was from a Long cut, we already counted it
+                # If it was a standalone entry, count it as 1 sheet
+                corresponding_long = entry.section.replace("Short", "Long")
+                # Check if there was a Long entry on the same date
+                long_entry = WoodCount.query.filter(
+                    WoodCount.date == entry.date,
+                    WoodCount.section == corresponding_long,
+                    WoodCount.count > 0
+                ).first()
+                if not long_entry:
+                    # This was a standalone Short cut
+                    key = (entry.date, entry.section)
+                    if key not in counted_dates:
+                        sheet_count += 1
+                        counted_dates.add(key)
                 
         return sheet_count
     
@@ -1654,6 +1668,7 @@ def counting_wood():
         today=today,
         current_year=today.year
     )
+
 # New model class definitions first:
 class CushionJob(db.Model):
     id = db.Column(db.Integer, primary_key=True)
