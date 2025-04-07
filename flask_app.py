@@ -3199,6 +3199,74 @@ def counting_cushions():
         current_time=datetime.now().strftime('%H:%M')
     )
 
+@app.route('/sales_extrapolation', methods=['GET', 'POST'])
+def sales_extrapolation():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+    
+    # Define the product list
+    products = [
+        "6ft Oak", "6ft Black", "6ft Grey Oak", "6ft Stone",
+        "7ft Stone", "7ft Grey Oak", "7ft Black", "7ft Oak", "7ft White"
+    ]
+    
+    # Initialize data dictionary for the template
+    data = {
+        'products': products,
+        'current_sales': {product: 0 for product in products},
+        'extrapolated_sales': {product: 0 for product in products},
+        'total_current': 0,
+        'total_extrapolated': 0,
+        'current_period': 30,  # Default current period in days
+        'target_period': 365,  # Default target period in days
+    }
+    
+    if request.method == 'POST':
+        try:
+            # Get the current period and target period from form
+            current_period = int(request.form.get('current_period', 30))
+            target_period = int(request.form.get('target_period', 365))
+            
+            # Validate input periods
+            if current_period <= 0 or target_period <= 0:
+                flash("Periods must be positive numbers.", "error")
+                return redirect(url_for('sales_extrapolation'))
+            
+            # Store the current and target periods in data dict
+            data['current_period'] = current_period
+            data['target_period'] = target_period
+            
+            # Calculate the extrapolation ratio
+            extrapolation_ratio = target_period / current_period
+            
+            # Process sales data for each product
+            total_current = 0
+            total_extrapolated = 0
+            
+            for product in products:
+                # Get the current sales from the form
+                current_sales = int(request.form.get(f'sales_{product.replace(" ", "_")}', 0))
+                data['current_sales'][product] = current_sales
+                total_current += current_sales
+                
+                # Calculate extrapolated sales
+                extrapolated_sales = round(current_sales * extrapolation_ratio)
+                data['extrapolated_sales'][product] = extrapolated_sales
+                total_extrapolated += extrapolated_sales
+            
+            # Store totals in data dict
+            data['total_current'] = total_current
+            data['total_extrapolated'] = total_extrapolated
+            
+            flash("Sales data extrapolation complete!", "success")
+            
+        except ValueError:
+            flash("Please enter valid numbers for all fields.", "error")
+            return redirect(url_for('sales_extrapolation'))
+    
+    return render_template('sales_extrapolation.html', **data)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

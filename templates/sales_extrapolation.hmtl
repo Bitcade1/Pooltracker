@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Extrapolation - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .form-row label {
+            flex: 1;
+            font-weight: bold;
+        }
+        .form-row input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .button-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .total-row {
+            font-weight: bold;
+            background-color: #d1ecf1;
+        }
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 1.2em;
+            color: #007bff;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .menu-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #6c757d;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .menu-button:hover {
+            background-color: #5a6268;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sales Extrapolation</h1>
+        
+        {% if logged_in_worker %}
+            <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
+        {% else %}
+            <div class="logged-in-user">Not logged in</div>
+        {% endif %}
+        
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <div class="card">
+            <div class="card-title">Configure Extrapolation</div>
+            <form method="POST" action="{{ url_for('sales_extrapolation') }}">
+                <div class="form-row">
+                    <label for="current_period">Current Period (days):</label>
+                    <input type="number" id="current_period" name="current_period" value="{{ current_period }}" min="1" required>
+                </div>
+                <div class="form-row">
+                    <label for="target_period">Target Period (days):</label>
+                    <input type="number" id="target_period" name="target_period" value="{{ target_period }}" min="1" required>
+                </div>
+                
+                <div class="card-title">Enter Current Sales Data</div>
+                {% for product in products %}
+                    <div class="form-row">
+                        <label for="sales_{{ product.replace(' ', '_') }}">{{ product }}:</label>
+                        <input type="number" id="sales_{{ product.replace(' ', '_') }}" 
+                            name="sales_{{ product.replace(' ', '_') }}" 
+                            value="{{ current_sales[product] }}" min="0" required>
+                    </div>
+                {% endfor %}
+                
+                <div class="button-container">
+                    <button type="submit" class="button">Calculate Extrapolation</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Results Section -->
+        {% if total_current > 0 %}
+            <div class="card">
+                <div class="card-title">Extrapolation Results</div>
+                <p>Extrapolating from {{ current_period }} days to {{ target_period }} days (ratio: {{ (target_period / current_period) | round(2) }})</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Current Sales<br>({{ current_period }} days)</th>
+                            <th>Extrapolated Sales<br>({{ target_period }} days)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products %}
+                            <tr>
+                                <td>{{ product }}</td>
+                                <td>{{ current_sales[product] }}</td>
+                                <td>{{ extrapolated_sales[product] }}</td>
+                            </tr>
+                        {% endfor %}
+                        <tr class="total-row">
+                            <td>Total</td>
+                            <td>{{ total_current }}</td>
+                            <td>{{ total_extrapolated }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+        
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>
