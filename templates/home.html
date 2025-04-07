@@ -101,10 +101,17 @@
             <a href="{{ url_for('counting_chinese_parts') }}">Counting Chinese Parts</a>
         </div>
 
+        <!-- Planning and Forecasting Dropdown (New) -->
+        <button class="dropdown-button" data-target="planningDropdown" onclick="toggleDropdown('planningDropdown')">Planning & Forecasting</button>
+        <div id="planningDropdown" class="dropdown-content">
+            <a href="{{ url_for('material_calculator') }}">Material Calculator</a>
+            <a href="{{ url_for('sales_extrapolation') }}">Sales Extrapolation</a>
+            <a href="{{ url_for('predicted_finish') }}">Predicted Finish</a>
+        </div>
+
         <!-- Admin Dropdown -->
         <button class="dropdown-button" data-target="adminDropdown" onclick="toggleDropdown('adminDropdown')">Admin</button>
         <div id="adminDropdown" class="dropdown-content">
-            <a href="{{ url_for('predicted_finish') }}">Predicted Finish</a>
             <a href="{{ url_for('inventory') }}">Inventory</a>
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
             <a href="{{ url_for('working_days') }}">Number of Working Days</a>
