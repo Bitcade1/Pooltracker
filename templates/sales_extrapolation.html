@@ -94,6 +94,18 @@
             background-color: #5a6268;
             text-decoration: none;
         }
+        .section-header {
+            background-color: #e9f5ff;
+            padding: 10px;
+            margin: 15px 0 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: left;
+        }
+        .table-divider {
+            background-color: #f0f8ff;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -130,11 +142,25 @@
                 </div>
                 
                 <div class="card-title">Enter Current Sales Data</div>
-                {% for product in products %}
+                
+                <!-- 7ft Tables Section -->
+                <div class="section-header">7ft Tables</div>
+                {% for product in products if product.startswith('7ft') %}
                     <div class="form-row">
-                        <label for="sales_{{ product.replace(' ', '_') }}">{{ product }}:</label>
-                        <input type="number" id="sales_{{ product.replace(' ', '_') }}" 
-                            name="sales_{{ product.replace(' ', '_') }}" 
+                        <label for="sales_{{ product.replace(' ', '_').replace('-', '') }}">{{ product }}:</label>
+                        <input type="number" id="sales_{{ product.replace(' ', '_').replace('-', '') }}" 
+                            name="sales_{{ product.replace(' ', '_').replace('-', '') }}" 
+                            value="{{ current_sales[product] }}" min="0" required>
+                    </div>
+                {% endfor %}
+                
+                <!-- 6ft Tables Section -->
+                <div class="section-header">6ft Tables</div>
+                {% for product in products if product.startswith('6ft') %}
+                    <div class="form-row">
+                        <label for="sales_{{ product.replace(' ', '_').replace('-', '') }}">{{ product }}:</label>
+                        <input type="number" id="sales_{{ product.replace(' ', '_').replace('-', '') }}" 
+                            name="sales_{{ product.replace(' ', '_').replace('-', '') }}" 
                             value="{{ current_sales[product] }}" min="0" required>
                     </div>
                 {% endfor %}
@@ -160,13 +186,31 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for product in products %}
+                        <!-- 7ft Models -->
+                        <tr class="table-divider">
+                            <td colspan="3"><strong>7ft Models</strong></td>
+                        </tr>
+                        {% for product in products if product.startswith('7ft') %}
                             <tr>
                                 <td>{{ product }}</td>
                                 <td>{{ current_sales[product] }}</td>
                                 <td>{{ extrapolated_sales[product] }}</td>
                             </tr>
                         {% endfor %}
+                        
+                        <!-- 6ft Models -->
+                        <tr class="table-divider">
+                            <td colspan="3"><strong>6ft Models</strong></td>
+                        </tr>
+                        {% for product in products if product.startswith('6ft') %}
+                            <tr>
+                                <td>{{ product }}</td>
+                                <td>{{ current_sales[product] }}</td>
+                                <td>{{ extrapolated_sales[product] }}</td>
+                            </tr>
+                        {% endfor %}
+                        
+                        <!-- Totals row -->
                         <tr class="total-row">
                             <td>Total</td>
                             <td>{{ total_current }}</td>

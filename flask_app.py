@@ -3205,10 +3205,16 @@ def sales_extrapolation():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
     
-    # Define the product list
+    # Define the product list (in the exact order requested)
     products = [
-        "6ft Oak", "6ft Black", "6ft Grey Oak", "6ft Stone",
-        "7ft Stone", "7ft Grey Oak", "7ft Black", "7ft Oak", "7ft White"
+        "7ft - Black",
+        "7ft - Rustic Oak",
+        "7ft - Grey Oak",
+        "7ft - Stone",
+        "6ft - Black", 
+        "6ft - Rustic Oak",
+        "6ft - Grey Oak",
+        "6ft - Stone"
     ]
     
     # Initialize data dictionary for the template
@@ -3246,7 +3252,7 @@ def sales_extrapolation():
             
             for product in products:
                 # Get the current sales from the form
-                current_sales = int(request.form.get(f'sales_{product.replace(" ", "_")}', 0))
+                current_sales = int(request.form.get(f'sales_{product.replace(" ", "_").replace("-", "")}', 0))
                 data['current_sales'][product] = current_sales
                 total_current += current_sales
                 
