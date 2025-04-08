@@ -1950,6 +1950,7 @@ def bodies():
             # For a 6ft table, remove standard parts and add the 6ft-specific ones.
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
+            parts_to_deduct.pop("Small Ramp", None)  # Also remove Small Ramp for 6ft tables
             parts_to_deduct["6ft Large Ramp"] = 1
             parts_to_deduct["6ft Cue Ball Separator"] = 1
 
@@ -2106,7 +2107,6 @@ def bodies():
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft
     )
-
 
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
