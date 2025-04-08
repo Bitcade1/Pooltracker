@@ -2047,7 +2047,7 @@ def bodies():
         for row in daily_history
     ]
 
-    # Monthly totals summary - get the years and months with completed tables
+    # Monthly totals summary
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -2058,84 +2058,26 @@ def bodies():
         .order_by(desc(extract('year', CompletedTable.date)), desc(extract('month', CompletedTable.date)))
         .all()
     )
-    
-    # Improved approach for calculating average time per body
     monthly_totals_formatted = []
     for row in monthly_totals:
         yr = int(row.year)
         mo = int(row.month)
-        
-        # Get all completed tables for this month
-        month_tables = CompletedTable.query.filter(
-            extract('year', CompletedTable.date) == yr,
-            extract('month', CompletedTable.date) == mo
-        ).all()
-        
-        total_bodies = len(month_tables)
-        total_minutes = 0
-        
-        # Calculate actual time spent on each body
-        for table in month_tables:
-            try:
-                # Handle different time formats that might be stored
-                try:
-                    start = datetime.strptime(table.start_time, "%H:%M")
-                except ValueError:
-                    start = datetime.strptime(table.start_time, "%H:%M:%S")
-                
-                try:
-                    finish = datetime.strptime(table.finish_time, "%H:%M")
-                except ValueError:
-                    finish = datetime.strptime(table.finish_time, "%H:%M:%S")
-                
-                # Calculate duration in minutes, handling wraparound for next day
-                minutes = 0
-                if finish.time() < start.time():  # If finish time is earlier than start time, assume next day
-                    # Calculate minutes until midnight, then add minutes from midnight to finish
-                    minutes_to_midnight = (datetime.combine(date.today(), datetime.max.time()) - 
-                                         datetime.combine(date.today(), start.time())).total_seconds() / 60
-                    minutes_from_midnight = (datetime.combine(date.today(), finish.time()) - 
-                                           datetime.combine(date.today(), datetime.min.time())).total_seconds() / 60
-                    minutes = minutes_to_midnight + minutes_from_midnight
-                else:
-                    minutes = (finish - start).total_seconds() / 60
-                
-                # Subtract lunch break if applicable and if lunch flag is 'Yes'
-                if table.lunch == 'Yes':
-                    lunch_start = datetime.strptime("13:00", "%H:%M")
-                    lunch_end = datetime.strptime("13:30", "%H:%M")
-                    
-                    # Check if work period overlaps with lunch
-                    if (start.time() <= lunch_end.time() and finish.time() >= lunch_start.time()):
-                        # Work period overlaps with lunch
-                        overlap_start = max(start.time(), lunch_start.time())
-                        overlap_end = min(finish.time(), lunch_end.time())
-                        
-                        # Calculate lunch duration in minutes
-                        lunch_minutes = ((datetime.combine(date.today(), overlap_end) - 
-                                       datetime.combine(date.today(), overlap_start)).total_seconds() / 60)
-                        
-                        minutes -= lunch_minutes
-                
-                total_minutes += minutes
-            except (ValueError, TypeError) as e:
-                # Skip entries with invalid time formats
-                continue
-        
-        # Calculate average time per body
-        if total_bodies > 0 and total_minutes > 0:
-            avg_minutes = total_minutes / total_bodies
-            hours = int(avg_minutes // 60)
-            minutes = int(avg_minutes % 60)
-            seconds = int((avg_minutes * 60) % 60)
-            avg_time_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        total_bodies = row.total
+        last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
+        work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
+        cumulative_working_hours = work_days * 7.5
+        if total_bodies > 0:
+            avg_hours = cumulative_working_hours / total_bodies
+            hours = int(avg_hours)
+            minutes = int((avg_hours - hours) * 60)
+            seconds = int((((avg_hours - hours) * 60) - minutes) * 60)
+            avg_hours_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
-            avg_time_formatted = "N/A"
-        
+            avg_hours_formatted = "N/A"
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
-            "average_hours_per_table": avg_time_formatted
+            "average_hours_per_table": avg_hours_formatted
         })
 
     # Retrieve production targets for the current month
