@@ -88,22 +88,6 @@
           max-height: 150px;
           overflow-y: auto;
       }
-      /* Size selector styles */
-      .size-field {
-          margin-bottom: 15px;
-      }
-      .size-field label {
-          font-weight: bold;
-          margin-right: 10px;
-      }
-      .size-field select {
-          padding: 8px;
-          border-radius: 4px;
-          border: 1px solid #ddd;
-          font-size: 1em;
-          min-width: 100px;
-      }
-      
       /* Color selector styles */
       .color-field {
           margin-bottom: 15px;
@@ -141,6 +125,12 @@
       .stone-swatch {
           background-color: #c2b8a3;
       }
+      
+      .size-indicator {
+          margin-top: 5px;
+          font-style: italic;
+          color: #666;
+      }
   </style>
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -154,23 +144,22 @@
       
       function updateSerialNumber() {
           const selectedSerialNumber = document.getElementById('serial_number').value;
-          const sizeSelector = document.getElementById('size_selector');
           const colorSelector = document.getElementById('color_selector');
           
           if (!selectedSerialNumber || selectedSerialNumber === "") {
               return; // Don't update if no serial is selected
           }
           
-          // First, clean any existing size/color suffix from the serial number
-          let cleanedSerialNumber = selectedSerialNumber;
+          // First, determine if this is a 6ft pod from the serial number
+          const is6ft = selectedSerialNumber.includes(" - 6") || 
+                       selectedSerialNumber.includes("-6") || 
+                       selectedSerialNumber.endsWith("-6");
+                       
+          // Update the size indicator text
+          document.getElementById('size_indicator').textContent = "Pod Size: " + (is6ft ? "6ft" : "7ft");
           
-          // Remove size suffix
-          if (cleanedSerialNumber.includes(' - 6') || cleanedSerialNumber.includes('-6')) {
-              cleanedSerialNumber = cleanedSerialNumber.replace(/ - 6|-6/g, '');
-          }
-          if (cleanedSerialNumber.includes(' - 7') || cleanedSerialNumber.includes('-7')) {
-              cleanedSerialNumber = cleanedSerialNumber.replace(/ - 7|-7/g, '');
-          }
+          // Clean any existing color suffix from the serial number
+          let cleanedSerialNumber = selectedSerialNumber;
           
           // Remove color suffix
           if (cleanedSerialNumber.includes(' - GO') || cleanedSerialNumber.includes('-GO')) {
@@ -186,13 +175,7 @@
               cleanedSerialNumber = cleanedSerialNumber.replace(/ - B|-B/g, '');
           }
           
-          // Build new serial number with size suffix
-          let newSerialNumber = cleanedSerialNumber;
-          if (sizeSelector.value === '6ft') {
-              newSerialNumber += ' - 6';
-          }
-          
-          // Add color suffix
+          // Add color suffix based on selection
           let colorSuffix = '';
           switch (colorSelector.value) {
               case 'Grey Oak':
@@ -210,10 +193,10 @@
           }
           
           // Update the hidden formatted_serial_number field
-          document.getElementById('formatted_serial_number').value = newSerialNumber + colorSuffix;
+          document.getElementById('formatted_serial_number').value = cleanedSerialNumber + colorSuffix;
           
           // Display the formatted serial number to the user
-          document.getElementById('formatted_serial_display').textContent = "Serial will be submitted as: " + (newSerialNumber + colorSuffix);
+          document.getElementById('formatted_serial_display').textContent = "Serial will be submitted as: " + (cleanedSerialNumber + colorSuffix);
       }
       
       $(document).ready(function() {
@@ -225,7 +208,6 @@
           
           // Attach event listeners
           $('#serial_number').on('change', updateSerialNumber);
-          $('#size_selector').on('change', updateSerialNumber);
           $('#color_selector').on('change', updateSerialNumber);
           
           // Initialize the formatted serial number
@@ -278,14 +260,20 @@
       <label for="finish_time">Finish Time:</label>
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
 
-      <!-- Size Selector -->
-      <div class="size-field">
-        <label for="size_selector">Table Size:</label>
-        <select id="size_selector" name="size_selector">
-          <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
-          <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
-        </select>
-      </div>
+      <label for="serial_number">Pod Serial Number:</label>
+      <!-- The select element will be enhanced by Select2 -->
+      <select id="serial_number" name="serial_number" required>
+        {% if unconverted_pods %}
+          {% for pod in unconverted_pods %}
+            <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="" disabled selected>No unconverted pods available</option>
+        {% endif %}
+      </select>
+      
+      <!-- Size indicator (determined from selected pod serial) -->
+      <div class="size-indicator" id="size_indicator">Pod Size: Select a pod to see size</div>
       
       <!-- Color Selector -->
       <div class="color-field">
@@ -305,18 +293,6 @@
           </option>
         </select>
       </div>
-
-      <label for="serial_number">Pod Serial Number:</label>
-      <!-- The select element will be enhanced by Select2 -->
-      <select id="serial_number" name="serial_number" required>
-        {% if unconverted_pods %}
-          {% for pod in unconverted_pods %}
-            <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
-          {% endfor %}
-        {% else %}
-          <option value="" disabled selected>No unconverted pods available</option>
-        {% endif %}
-      </select>
       
       <!-- Display the formatted serial number to the user -->
       <p id="formatted_serial_display" style="color: #007bff; font-size: 0.9em; margin-top: 5px;"></p>
@@ -384,6 +360,53 @@
           </tr>
         </thead>
         <tbody>
+          {% for entry in daily_history %}
+            <tr>
+              <td>{{ entry.date }}</td>
+              <td>{{ entry.count }}</td>
+              <td>{{ entry.serial_numbers }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Collapsible Section for Monthly Totals -->
+    <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
+    <div id="monthlyTotals" class="collapsible-content">
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Total Tables Made</th>
+            <th>Average Hours per Table</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for month in monthly_totals %}
+            <tr>
+              <td>{{ month.month }}</td>
+              <td>{{ month.count }}</td>
+              <td>
+                {% if month.average_hours_per_table %}
+                  {{ month.average_hours_per_table }} hours
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Back to Menu Button -->
+    <div class="back-to-menu">
+      <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+    </div>
+  </div>
+</body>
+</html><tbody>
           {% for entry in daily_history %}
             <tr>
               <td>{{ entry.date }}</td>
