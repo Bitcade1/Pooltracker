@@ -407,8 +407,8 @@
             <th>Size</th>
             <th>Color</th>
             <th>Stock Count</th>
-            <th>Unit Cost</th>
-            <th>Total Cost</th>
+            <th>Unit Cost (£, incl. VAT)</th>
+            <th>Total Cost (£, incl. VAT)</th>
           </tr>
         </thead>
         <tbody>
@@ -421,18 +421,18 @@
                 <td>{{ table_data[stock_key] }}</td>
                 <td>
                   {% if color|lower == 'black' %}
-                    993.6
+                    £993.60
                   {% else %}
-                    1089.6
+                    £1089.60
                   {% endif %}
                 </td>
-                <td>{{ cost | round(2) }}</td>
+                <td>{{ cost }}</td>
               </tr>
             {% endfor %}
           {% endfor %}
           <tr class="subtotal">
             <td colspan="4"><strong>Grand Total</strong></td>
-            <td><strong>{{ grand_total | round(2) }}</strong></td>
+            <td><strong>{{ grand_total }}</strong></td>
           </tr>
         </tbody>
       </table>
