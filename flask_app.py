@@ -2620,6 +2620,7 @@ def table_stock():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    # Process POST submissions (stock adjustments)
     if request.method == 'POST':
         stock_type = request.form.get('stock_type')
         action = request.form.get('action')
@@ -2631,30 +2632,28 @@ def table_stock():
         if amount <= 0:
             flash("Amount must be a positive number.", "error")
             return redirect(url_for('table_stock'))
-        
-        # Debug info to help identify the issue
+
+        # Debug information
         print(f"Processing {action} for stock_type: {stock_type}, amount: {amount}")
-        
+
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
-        
-        # For debugging, print all available stock entries
+
+        # Debug: Print all current stock entries
         all_stock = TableStock.query.all()
         print("Available stock entries:")
         for entry in all_stock:
             print(f"Type: {entry.type}, Count: {entry.count}")
-        
+
         if not stock_entry:
-            # If no stock entry found, create one for 'add' action
-            # For 'remove' action, flash an appropriate message
             if action == 'remove':
                 flash(f"No stock entry found for '{stock_type}'. Cannot remove stock.", "error")
                 return redirect(url_for('table_stock'))
-            else:  # add
+            else:
                 stock_entry = TableStock(type=stock_type, count=0)
                 db.session.add(stock_entry)
                 db.session.commit()
                 flash(f"Created new stock entry for '{stock_type}'.", "info")
-        
+
         if action == 'add':
             stock_entry.count += amount
             db.session.commit()
@@ -2666,67 +2665,61 @@ def table_stock():
                 stock_entry.count -= amount
                 db.session.commit()
                 flash(f"Removed {amount} from {stock_type} stock. New count: {stock_entry.count}", "success")
-        
+
         return redirect(url_for('table_stock'))
 
-    # Common dimensions for all products
+    # For GET requests, set up stock display and cost calculations.
+
+    # Define the dimensions (sizes and colors)
     sizes = ['6ft', '7ft']
     colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone']
-    
-    # Initialize stock data dictionaries
+
+    # Initialize dictionaries for each stock category.
     table_data = {}
     top_rail_data = {}
     cushion_data = {}
     other_data = {}
-    
-    # Process all entries from TableStock
+
+    # Fetch all TableStock entries.
     all_stock_entries = TableStock.query.all()
-    
-    # Initialize all possible combinations for tables, top rails, and cushions
+
+    # Initialize potential keys for tables, top rails, and cushions.
     for size in sizes:
         for color in colors:
-            # For tables
             table_key = f"body_{size.lower()}_{color.lower().replace(' ', '_')}"
             table_data[table_key] = 0
-            
-            # For top rails
+
             top_rail_key = f"top_rail_{size.lower()}_{color.lower().replace(' ', '_')}"
             top_rail_data[top_rail_key] = 0
-        
-        # For cushions (only size matters, not color)
+
+        # Cushion sets depend only on size.
         cushion_key = f"cushion_set_{size.lower()}"
         cushion_data[cushion_key] = 0
-    
-    # Process existing stock entries
+
+    # Process existing stock entries to populate the dictionaries.
     for entry in all_stock_entries:
         stock_type = entry.type
-        
-        # Determine which category this entry belongs to
         if stock_type.startswith('body_'):
-            if '_black' in stock_type or '_rustic_oak' in stock_type or '_grey_oak' in stock_type or '_stone' in stock_type:
+            # If color is already present in the key, assign it.
+            if any(col.lower().replace(' ', '_') in stock_type for col in colors):
                 table_data[stock_type] = entry.count
             else:
-                # Handle legacy entries without color: default to black
+                # Legacy entries default to black.
                 size = '6ft' if '6ft' in stock_type else '7ft'
                 table_data[f"body_{size.lower()}_black"] = entry.count
-        
         elif stock_type.startswith('top_rail_'):
-            if '_black' in stock_type or '_rustic_oak' in stock_type or '_grey_oak' in stock_type or '_stone' in stock_type:
+            if any(col.lower().replace(' ', '_') in stock_type for col in colors):
                 top_rail_data[stock_type] = entry.count
             else:
-                # Handle legacy entries without color: default to black
                 size = '6ft' if '6ft' in stock_type else '7ft'
                 top_rail_data[f"top_rail_{size.lower()}_black"] = entry.count
-        
         elif stock_type.startswith('cushion_set_'):
             cushion_data[stock_type] = entry.count
         else:
-            # Other stock types
             other_data[stock_type] = entry.count
 
-    # New feature: Calculate stock costs for table bodies.
-    # Rule: Black bodies cost 993.6 (incl. VAT) and any colored body costs 1089.6.
-    # Both sizes share the same pricing.
+    # Calculate cost for each table body stock.
+    # Black bodies cost £993.60 (incl. VAT); colored bodies cost £1089.60.
     stock_costs = {}
     grand_total = 0
     for size in sizes:
@@ -2739,7 +2732,7 @@ def table_stock():
             stock_costs[size][color] = cost
             grand_total += cost
 
-    # Format the cost values so they include the pound sign and a note that VAT is included.
+    # Format the cost values so they include a pound sign and the note that VAT is included.
     formatted_stock_costs = {}
     for size in sizes:
         formatted_stock_costs[size] = {}
@@ -2747,19 +2740,20 @@ def table_stock():
             cost = stock_costs[size][color]
             formatted_stock_costs[size][color] = "£{:.2f} (incl. VAT)".format(cost)
     formatted_grand_total = "£{:.2f} (incl. VAT)".format(grand_total)
-    
-    # Combine all data for the template and pass the new variables.
+
+    # Pass all required variables to the template.
     return render_template(
-        'table_stock.html', 
+        'table_stock.html',
         table_data=table_data,
         top_rail_data=top_rail_data,
         cushion_data=cushion_data,
         other_data=other_data,
-        sizes=sizes, 
+        sizes=sizes,
         colors=colors,
         stock_costs=formatted_stock_costs,
         grand_total=formatted_grand_total
     )
+
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():
