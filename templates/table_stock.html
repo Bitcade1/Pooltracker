@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <!-- Select2 CSS (if needed) -->
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <!-- Font Awesome for collapse icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <style>
       .container {
           max-width: 1200px;
@@ -17,17 +19,31 @@
           text-align: center;
           margin-bottom: 20px;
       }
-      h2 {
+      .section-header {
           background-color: #007bff;
           color: white;
-          padding: 10px;
+          padding: 10px 15px;
           border-radius: 5px;
           margin-top: 30px;
+          cursor: pointer;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+      .section-header:hover {
+          background-color: #0056b3;
+      }
+      .section-content {
+          display: none;
+          margin-bottom: 20px;
+      }
+      .section-content.active {
+          display: block;
       }
       table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
+          margin: 15px 0;
       }
       table, th, td {
           border: 1px solid #ddd;
@@ -99,6 +115,18 @@
       .color-stone {
           background-color: #f0eee9;
       }
+      .section-indicator {
+          font-size: 1.2em;
+          font-weight: bold;
+      }
+      .section-count {
+          font-size: 0.9em;
+          background-color: white;
+          color: #007bff;
+          border-radius: 50%;
+          padding: 2px 8px;
+          margin-left: 10px;
+      }
   </style>
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -127,98 +155,171 @@
     {% endwith %}
     
     <!-- 1. TABLE BODIES SECTION -->
-    <h2>Table Bodies</h2>
-    
-    <table>
-      <thead>
-        <tr>
-          <th>Size</th>
-          <th>Color</th>
-          <th>Current Stock</th>
-          <th>Adjust Stock</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for size in sizes %}
-          <!-- Row for size header -->
-          <tr class="size-header">
-            <td colspan="4">{{ size }} Table Bodies</td>
+    <div class="section-header" id="bodies-header">
+      <span>
+        <i class="fas fa-caret-right section-indicator" id="bodies-indicator"></i> 
+        Table Bodies
+        <span class="section-count">{{ table_data.values()|sum }}</span>
+      </span>
+    </div>
+    <div class="section-content" id="bodies-content">
+      <table>
+        <thead>
+          <tr>
+            <th>Size</th>
+            <th>Color</th>
+            <th>Current Stock</th>
+            <th>Adjust Stock</th>
           </tr>
-          
-          {% set size_total = 0 %}
-          
-          {% for color in colors %}
-            {% set stock_key = 'body_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
-            {% set stock_count = table_data.get(stock_key, 0) %}
-            {% set size_total = size_total + stock_count %}
-            {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
+        </thead>
+        <tbody>
+          {% for size in sizes %}
+            <!-- Row for size header -->
+            <tr class="size-header">
+              <td colspan="4">{{ size }} Table Bodies</td>
+            </tr>
             
-            <tr class="{{ color_class }}">
-              <td>{{ size }}</td>
-              <td class="color-cell">{{ color }}</td>
-              <td>{{ stock_count }}</td>
-              <td>
-                <form method="post" style="display:inline;">
-                  <input type="hidden" name="stock_type" value="{{ stock_key }}">
-                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
-                  <button type="submit" name="action" value="add" class="button">Add</button>
-                  <button type="submit" name="action" value="remove" class="button">Remove</button>
-                </form>
-              </td>
+            {% set size_total = 0 %}
+            
+            {% for color in colors %}
+              {% set stock_key = 'body_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
+              {% set stock_count = table_data.get(stock_key, 0) %}
+              {% set size_total = size_total + stock_count %}
+              {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
+              
+              <tr class="{{ color_class }}">
+                <td>{{ size }}</td>
+                <td class="color-cell">{{ color }}</td>
+                <td>{{ stock_count }}</td>
+                <td>
+                  <form method="post" style="display:inline;">
+                    <input type="hidden" name="stock_type" value="{{ stock_key }}">
+                    <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                    <button type="submit" name="action" value="add" class="button">Add</button>
+                    <button type="submit" name="action" value="remove" class="button">Remove</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            
+            <!-- Row for size subtotal -->
+            <tr class="subtotal">
+              <td colspan="2">Total {{ size }} Bodies</td>
+              <td>{{ size_total }}</td>
+              <td></td>
             </tr>
           {% endfor %}
           
-          <!-- Row for size subtotal -->
+          <!-- Row for overall total -->
           <tr class="subtotal">
-            <td colspan="2">Total {{ size }} Bodies</td>
-            <td>{{ size_total }}</td>
+            <td colspan="2"><strong>Total Bodies</strong></td>
+            <td>
+              <strong>
+                {{ table_data.values()|sum }}
+              </strong>
+            </td>
             <td></td>
           </tr>
-        {% endfor %}
-        
-        <!-- Row for overall total -->
-        <tr class="subtotal">
-          <td colspan="2"><strong>Total Bodies</strong></td>
-          <td>
-            <strong>
-              {{ table_data.values()|sum }}
-            </strong>
-          </td>
-          <td></td>
-        </tr>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </div>
     
     <!-- 2. TOP RAILS SECTION -->
-    <h2>Top Rails</h2>
-    
-    <table>
-      <thead>
-        <tr>
-          <th>Size</th>
-          <th>Color</th>
-          <th>Current Stock</th>
-          <th>Adjust Stock</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for size in sizes %}
-          <!-- Row for size header -->
-          <tr class="size-header">
-            <td colspan="4">{{ size }} Top Rails</td>
+    <div class="section-header" id="top-rails-header">
+      <span>
+        <i class="fas fa-caret-right section-indicator" id="top-rails-indicator"></i> 
+        Top Rails
+        <span class="section-count">{{ top_rail_data.values()|sum }}</span>
+      </span>
+    </div>
+    <div class="section-content" id="top-rails-content">
+      <table>
+        <thead>
+          <tr>
+            <th>Size</th>
+            <th>Color</th>
+            <th>Current Stock</th>
+            <th>Adjust Stock</th>
           </tr>
-          
-          {% set size_total = 0 %}
-          
-          {% for color in colors %}
-            {% set stock_key = 'top_rail_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
-            {% set stock_count = top_rail_data.get(stock_key, 0) %}
-            {% set size_total = size_total + stock_count %}
-            {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
+        </thead>
+        <tbody>
+          {% for size in sizes %}
+            <!-- Row for size header -->
+            <tr class="size-header">
+              <td colspan="4">{{ size }} Top Rails</td>
+            </tr>
             
-            <tr class="{{ color_class }}">
-              <td>{{ size }}</td>
-              <td class="color-cell">{{ color }}</td>
+            {% set size_total = 0 %}
+            
+            {% for color in colors %}
+              {% set stock_key = 'top_rail_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
+              {% set stock_count = top_rail_data.get(stock_key, 0) %}
+              {% set size_total = size_total + stock_count %}
+              {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
+              
+              <tr class="{{ color_class }}">
+                <td>{{ size }}</td>
+                <td class="color-cell">{{ color }}</td>
+                <td>{{ stock_count }}</td>
+                <td>
+                  <form method="post" style="display:inline;">
+                    <input type="hidden" name="stock_type" value="{{ stock_key }}">
+                    <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                    <button type="submit" name="action" value="add" class="button">Add</button>
+                    <button type="submit" name="action" value="remove" class="button">Remove</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            
+            <!-- Row for size subtotal -->
+            <tr class="subtotal">
+              <td colspan="2">Total {{ size }} Top Rails</td>
+              <td>{{ size_total }}</td>
+              <td></td>
+            </tr>
+          {% endfor %}
+          
+          <!-- Row for overall total -->
+          <tr class="subtotal">
+            <td colspan="2"><strong>Total Top Rails</strong></td>
+            <td>
+              <strong>
+                {{ top_rail_data.values()|sum }}
+              </strong>
+            </td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- 3. CUSHION SETS SECTION -->
+    <div class="section-header" id="cushions-header">
+      <span>
+        <i class="fas fa-caret-right section-indicator" id="cushions-indicator"></i> 
+        Cushion Sets
+        <span class="section-count">{{ cushion_data.values()|sum }}</span>
+      </span>
+    </div>
+    <div class="section-content" id="cushions-content">
+      <table>
+        <thead>
+          <tr>
+            <th>Size</th>
+            <th>Current Stock</th>
+            <th>Adjust Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set total_cushions = 0 %}
+          {% for size in sizes %}
+            {% set stock_key = 'cushion_set_' + size.lower() %}
+            {% set stock_count = cushion_data.get(stock_key, 0) %}
+            {% set total_cushions = total_cushions + stock_count %}
+            
+            <tr>
+              <td>{{ size }} Cushion Set</td>
               <td>{{ stock_count }}</td>
               <td>
                 <form method="post" style="display:inline;">
@@ -231,105 +332,90 @@
             </tr>
           {% endfor %}
           
-          <!-- Row for size subtotal -->
+          <!-- Row for overall total -->
           <tr class="subtotal">
-            <td colspan="2">Total {{ size }} Top Rails</td>
-            <td>{{ size_total }}</td>
+            <td><strong>Total Cushion Sets</strong></td>
+            <td>
+              <strong>
+                {{ total_cushions }}
+              </strong>
+            </td>
             <td></td>
           </tr>
-        {% endfor %}
-        
-        <!-- Row for overall total -->
-        <tr class="subtotal">
-          <td colspan="2"><strong>Total Top Rails</strong></td>
-          <td>
-            <strong>
-              {{ top_rail_data.values()|sum }}
-            </strong>
-          </td>
-          <td></td>
-        </tr>
-      </tbody>
-    </table>
-    
-    <!-- 3. CUSHION SETS SECTION -->
-    <h2>Cushion Sets</h2>
-    
-    <table>
-      <thead>
-        <tr>
-          <th>Size</th>
-          <th>Current Stock</th>
-          <th>Adjust Stock</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% set total_cushions = 0 %}
-        {% for size in sizes %}
-          {% set stock_key = 'cushion_set_' + size.lower() %}
-          {% set stock_count = cushion_data.get(stock_key, 0) %}
-          {% set total_cushions = total_cushions + stock_count %}
-          
-          <tr>
-            <td>{{ size }} Cushion Set</td>
-            <td>{{ stock_count }}</td>
-            <td>
-              <form method="post" style="display:inline;">
-                <input type="hidden" name="stock_type" value="{{ stock_key }}">
-                <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
-                <button type="submit" name="action" value="add" class="button">Add</button>
-                <button type="submit" name="action" value="remove" class="button">Remove</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-        
-        <!-- Row for overall total -->
-        <tr class="subtotal">
-          <td><strong>Total Cushion Sets</strong></td>
-          <td>
-            <strong>
-              {{ total_cushions }}
-            </strong>
-          </td>
-          <td></td>
-        </tr>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </div>
     
     <!-- 4. OTHER COMPONENTS SECTION (if any) -->
     {% if other_data %}
-    <h2>Other Components</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Component</th>
-          <th>Current Stock</th>
-          <th>Adjust Stock</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for type, count in other_data.items() %}
+    <div class="section-header" id="other-header">
+      <span>
+        <i class="fas fa-caret-right section-indicator" id="other-indicator"></i> 
+        Other Components
+        <span class="section-count">{{ other_data.values()|sum }}</span>
+      </span>
+    </div>
+    <div class="section-content" id="other-content">
+      <table>
+        <thead>
           <tr>
-            <td>{{ type.replace('_', ' ').title() }}</td>
-            <td>{{ count }}</td>
-            <td>
-              <form method="post" style="display:inline;">
-                <input type="hidden" name="stock_type" value="{{ type }}">
-                <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
-                <button type="submit" name="action" value="add" class="button">Add</button>
-                <button type="submit" name="action" value="remove" class="button">Remove</button>
-              </form>
-            </td>
+            <th>Component</th>
+            <th>Current Stock</th>
+            <th>Adjust Stock</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for type, count in other_data.items() %}
+            <tr>
+              <td>{{ type.replace('_', ' ').title() }}</td>
+              <td>{{ count }}</td>
+              <td>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="stock_type" value="{{ type }}">
+                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                  <button type="submit" name="action" value="add" class="button">Add</button>
+                  <button type="submit" name="action" value="remove" class="button">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% endif %}
     
     <div style="text-align: center; margin-top: 30px;">
       <a href="{{ url_for('admin') }}" class="button">Back to Admin</a>
     </div>
   </div>
+
+  <script>
+    $(document).ready(function() {
+      // Function to toggle section visibility
+      function toggleSection(headerID, contentID, indicatorID) {
+        $('#' + headerID).click(function() {
+          $('#' + contentID).toggleClass('active');
+          
+          // Toggle the indicator icon (right caret vs down caret)
+          if ($('#' + contentID).hasClass('active')) {
+            $('#' + indicatorID).removeClass('fa-caret-right').addClass('fa-caret-down');
+          } else {
+            $('#' + indicatorID).removeClass('fa-caret-down').addClass('fa-caret-right');
+          }
+        });
+      }
+      
+      // Initialize all sections as toggleable
+      toggleSection('bodies-header', 'bodies-content', 'bodies-indicator');
+      toggleSection('top-rails-header', 'top-rails-content', 'top-rails-indicator');
+      toggleSection('cushions-header', 'cushions-content', 'cushions-indicator');
+      {% if other_data %}
+      toggleSection('other-header', 'other-content', 'other-indicator');
+      {% endif %}
+      
+      // Expand the first section by default
+      $('#bodies-header').click();
+    });
+  </script>
 </body>
 </html>
