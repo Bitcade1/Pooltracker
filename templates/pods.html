@@ -109,12 +109,73 @@
       .menu-button:hover {
           background-color: #0056b3;
       }
+
+      /* Size selector styles */
+      .size-selector {
+          background-color: #f8f9fa;
+          padding: 15px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          border: 1px solid #ddd;
+      }
+      .size-selector label {
+          font-weight: bold;
+          margin-right: 10px;
+      }
+      .size-selector select {
+          padding: 8px;
+          border-radius: 4px;
+          border: 1px solid #ddd;
+          font-size: 1em;
+          min-width: 100px;
+      }
   </style>
   <script>
       function toggleCollapsible(id) {
           var content = document.getElementById(id);
           content.style.display = content.style.display === "block" ? "none" : "block";
       }
+
+      // Function to format serial number based on size selection
+      function updateSerialNumber() {
+          const baseSerialNumber = document.getElementById('base_serial_number').value;
+          const sizeSelector = document.getElementById('size_selector');
+          const serialNumberField = document.getElementById('serial_number');
+          
+          if (baseSerialNumber.trim() === '') {
+              return; // Don't update if base serial is empty
+          }
+          
+          // First, clean any existing size suffix
+          let cleanedSerialNumber = baseSerialNumber;
+          if (cleanedSerialNumber.includes(' - 6') || cleanedSerialNumber.includes('-6')) {
+              cleanedSerialNumber = cleanedSerialNumber.replace(/ - 6|-6/g, '');
+          }
+          if (cleanedSerialNumber.includes(' - 7') || cleanedSerialNumber.includes('-7')) {
+              cleanedSerialNumber = cleanedSerialNumber.replace(/ - 7|-7/g, '');
+          }
+          
+          // Add the new size suffix based on selection
+          if (sizeSelector.value === '6ft') {
+              serialNumberField.value = cleanedSerialNumber + ' - 6';
+          } else {
+              // For 7ft, we typically don't add a suffix as it's the default,
+              // but we'll add it here for consistency and clarity
+              serialNumberField.value = cleanedSerialNumber;
+          }
+      }
+      
+      // Initialize when the page loads
+      document.addEventListener('DOMContentLoaded', function() {
+          // Set initial value
+          updateSerialNumber();
+          
+          // Add event listener for size selector changes
+          document.getElementById('size_selector').addEventListener('change', updateSerialNumber);
+          
+          // Add event listener for base serial number changes
+          document.getElementById('base_serial_number').addEventListener('input', updateSerialNumber);
+      });
   </script>
 </head>
 <body>
@@ -158,11 +219,23 @@
     
     <!-- Form to Add a New Completed Pod -->
     <form method="POST" action="{{ url_for('pods') }}">
+      <!-- New Size Selector Section -->
+      <div class="size-selector">
+        <label for="size_selector">Select Pod Size:</label>
+        <select id="size_selector" name="size_selector">
+          <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
+          <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
+        </select>
+      </div>
+      
       <label for="start_time">Start Time:</label>
       <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
       
       <label for="finish_time">Finish Time:</label>
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
+      
+      <!-- Hidden field to store the base serial number -->
+      <input type="hidden" id="base_serial_number" value="{{ next_serial_number }}">
       
       <label for="serial_number">Serial Number:</label>
       <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ next_serial_number }}">

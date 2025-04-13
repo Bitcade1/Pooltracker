@@ -828,6 +828,13 @@ def pods():
         serial_number = request.form['serial_number']
         issue_text = request.form['issue']
         lunch = request.form['lunch']
+        size_selector = request.form.get('size_selector', '7ft')  # Get the size from dropdown
+        
+        # Ensure serial number has proper format
+        if size_selector == '6ft' and ' - 6' not in serial_number and '-6' not in serial_number:
+            # Add the 6ft suffix if not already present
+            serial_number = serial_number + ' - 6'
+        
         try:
             start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
         except ValueError:
@@ -952,20 +959,34 @@ def pods():
     
     # Next serial number generation logic
     last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
+    next_serial_number = "1000"  # Default value
+    default_size = '7ft'  # Default size
+    
     if last_pod:
-        if '-' in last_pod.serial_number:
-            parts = last_pod.serial_number.split('-', 1)
-            try:
-                next_serial_number = f"{int(parts[0]) + 1} - {parts[1]}"
-            except ValueError:
-                next_serial_number = "1000"
+        # Determine the next serial number and the size
+        serial = last_pod.serial_number
+        
+        # Check if it's a 6ft pod
+        if is_6ft(serial):
+            default_size = '6ft'
+            # Extract base serial number without the size suffix
+            serial_parts = serial.split('-')
+            if len(serial_parts) >= 2:
+                try:
+                    base_serial = serial_parts[0].strip()
+                    next_serial_number = str(int(base_serial) + 1)
+                except ValueError:
+                    next_serial_number = "1000"
         else:
+            # For 7ft, just increment the number
             try:
-                next_serial_number = str(int(last_pod.serial_number) + 1)
+                if '-' in serial:
+                    base_serial = serial.split('-')[0].strip()
+                    next_serial_number = str(int(base_serial) + 1)
+                else:
+                    next_serial_number = str(int(serial) + 1)
             except ValueError:
                 next_serial_number = "1000"
-    else:
-        next_serial_number = "1000"
     
     return render_template(
         'pods.html',
@@ -979,7 +1000,8 @@ def pods():
         monthly_totals=monthly_totals_formatted,
         next_serial_number=next_serial_number,
         target_7ft=target_7ft,
-        target_6ft=target_6ft
+        target_6ft=target_6ft,
+        default_size=default_size
     )
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
