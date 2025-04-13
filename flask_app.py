@@ -2725,7 +2725,8 @@ def table_stock():
             other_data[stock_type] = entry.count
 
     # New feature: Calculate stock costs for table bodies.
-    # Rule: Black bodies cost 993.6 (including VAT) and any colored body costs 1089.6.
+    # Rule: Black bodies cost 993.6 (incl. VAT) and any colored body costs 1089.6.
+    # Both sizes share the same pricing.
     stock_costs = {}
     grand_total = 0
     for size in sizes:
@@ -2737,6 +2738,15 @@ def table_stock():
             cost = count * unit_cost
             stock_costs[size][color] = cost
             grand_total += cost
+
+    # Format the cost values so they include the pound sign and a note that VAT is included.
+    formatted_stock_costs = {}
+    for size in sizes:
+        formatted_stock_costs[size] = {}
+        for color in colors:
+            cost = stock_costs[size][color]
+            formatted_stock_costs[size][color] = "£{:.2f} (incl. VAT)".format(cost)
+    formatted_grand_total = "£{:.2f} (incl. VAT)".format(grand_total)
     
     # Combine all data for the template and pass the new variables.
     return render_template(
@@ -2747,8 +2757,8 @@ def table_stock():
         other_data=other_data,
         sizes=sizes, 
         colors=colors,
-        stock_costs=stock_costs,
-        grand_total=grand_total
+        stock_costs=formatted_stock_costs,
+        grand_total=formatted_grand_total
     )
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
