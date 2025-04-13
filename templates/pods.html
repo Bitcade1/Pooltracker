@@ -111,18 +111,14 @@
       }
 
       /* Size selector styles */
-      .size-selector {
-          background-color: #f8f9fa;
-          padding: 15px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-          border: 1px solid #ddd;
+      .size-field {
+          margin-bottom: 15px;
       }
-      .size-selector label {
+      .size-field label {
           font-weight: bold;
           margin-right: 10px;
       }
-      .size-selector select {
+      .size-field select {
           padding: 8px;
           border-radius: 4px;
           border: 1px solid #ddd;
@@ -219,20 +215,20 @@
     
     <!-- Form to Add a New Completed Pod -->
     <form method="POST" action="{{ url_for('pods') }}">
-      <!-- New Size Selector Section -->
-      <div class="size-selector">
-        <label for="size_selector">Select Pod Size:</label>
-        <select id="size_selector" name="size_selector">
-          <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
-          <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
-        </select>
-      </div>
-      
       <label for="start_time">Start Time:</label>
       <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
       
       <label for="finish_time">Finish Time:</label>
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
+      
+      <!-- Size Selector moved here between finish time and serial number -->
+      <div class="size-field">
+        <label for="size_selector">Pod Size:</label>
+        <select id="size_selector" name="size_selector">
+          <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
+          <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
+        </select>
+      </div>
       
       <!-- Hidden field to store the base serial number -->
       <input type="hidden" id="base_serial_number" value="{{ next_serial_number }}">
