@@ -7,6 +7,7 @@ import os
 import requests
 from calendar import monthrange
 from sqlalchemy import func, extract
+import re  # Add this import at the top of the file
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
