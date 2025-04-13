@@ -111,12 +111,142 @@
     .menu-button:hover {
       background-color: #0056b3;
     }
+    
+    /* Size selector styles */
+    .size-field {
+      margin-bottom: 15px;
+    }
+    .size-field label {
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    .size-field select {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      font-size: 1em;
+      min-width: 100px;
+    }
+    
+    /* Color selector styles */
+    .color-field {
+      margin-bottom: 15px;
+    }
+    .color-field label {
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    .color-field select {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      font-size: 1em;
+      min-width: 100px;
+    }
+    
+    /* Color preview swatches */
+    .color-option {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    .black-swatch {
+      background-color: #333;
+    }
+    .rustic-oak-swatch {
+      background-color: #b67c3d;
+    }
+    .grey-oak-swatch {
+      background-color: #8a9296;
+    }
+    .stone-swatch {
+      background-color: #c2b8a3;
+    }
   </style>
   <script>
     function toggleCollapsible(id) {
       var content = document.getElementById(id);
       content.style.display = content.style.display === "block" ? "none" : "block";
     }
+    
+    // Function to format serial number based on size and color selection
+    function updateSerialNumber() {
+      const baseSerialNumber = document.getElementById('base_serial_number').value;
+      const sizeSelector = document.getElementById('size_selector');
+      const colorSelector = document.getElementById('color_selector');
+      const serialNumberField = document.getElementById('serial_number');
+      
+      if (baseSerialNumber.trim() === '') {
+        return; // Don't update if base serial is empty
+      }
+      
+      // First, clean any existing size/color suffix
+      let cleanedSerialNumber = baseSerialNumber;
+      
+      // Remove size suffix
+      if (cleanedSerialNumber.includes(' - 6') || cleanedSerialNumber.includes('-6')) {
+        cleanedSerialNumber = cleanedSerialNumber.replace(/ - 6|-6/g, '');
+      }
+      if (cleanedSerialNumber.includes(' - 7') || cleanedSerialNumber.includes('-7')) {
+        cleanedSerialNumber = cleanedSerialNumber.replace(/ - 7|-7/g, '');
+      }
+      
+      // Remove color suffix
+      if (cleanedSerialNumber.includes(' - GO') || cleanedSerialNumber.includes('-GO')) {
+        cleanedSerialNumber = cleanedSerialNumber.replace(/ - GO|-GO/g, '');
+      }
+      if (cleanedSerialNumber.includes(' - O') || cleanedSerialNumber.includes('-O')) {
+        cleanedSerialNumber = cleanedSerialNumber.replace(/ - O|-O/g, '');
+      }
+      if (cleanedSerialNumber.includes(' - C') || cleanedSerialNumber.includes('-C')) {
+        cleanedSerialNumber = cleanedSerialNumber.replace(/ - C|-C/g, '');
+      }
+      if (cleanedSerialNumber.includes(' - B') || cleanedSerialNumber.includes('-B')) {
+        cleanedSerialNumber = cleanedSerialNumber.replace(/ - B|-B/g, '');
+      }
+      
+      // Build new serial number with size suffix
+      let newSerialNumber = cleanedSerialNumber;
+      if (sizeSelector.value === '6ft') {
+        newSerialNumber += ' - 6';
+      }
+      
+      // Add color suffix
+      let colorSuffix = '';
+      switch (colorSelector.value) {
+        case 'Grey Oak':
+          colorSuffix = ' - GO';
+          break;
+        case 'Rustic Oak':
+          colorSuffix = ' - O';
+          break;
+        case 'Stone':
+          colorSuffix = ' - C';
+          break;
+        case 'Black':
+          // Black is the default so we don't need a suffix, but we could add one for consistency
+          // colorSuffix = ' - B';
+          break;
+      }
+      
+      serialNumberField.value = newSerialNumber + colorSuffix;
+    }
+    
+    // Initialize when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Set initial values
+      updateSerialNumber();
+      
+      // Add event listeners for selector changes
+      document.getElementById('size_selector').addEventListener('change', updateSerialNumber);
+      document.getElementById('color_selector').addEventListener('change', updateSerialNumber);
+      
+      // Add event listener for base serial number changes
+      document.getElementById('base_serial_number').addEventListener('input', updateSerialNumber);
+    });
   </script>
 </head>
 <body>
@@ -165,6 +295,37 @@
       
       <label for="finish_time">Finish Time:</label>
       <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
+      
+      <!-- Size Selector -->
+      <div class="size-field">
+        <label for="size_selector">Top Rail Size:</label>
+        <select id="size_selector" name="size_selector">
+          <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
+          <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
+        </select>
+      </div>
+      
+      <!-- Color Selector -->
+      <div class="color-field">
+        <label for="color_selector">Top Rail Color:</label>
+        <select id="color_selector" name="color_selector">
+          <option value="Black" {% if default_color == 'Black' %}selected{% endif %}>
+            <span class="color-option black-swatch"></span> Black
+          </option>
+          <option value="Rustic Oak" {% if default_color == 'Rustic Oak' %}selected{% endif %}>
+            <span class="color-option rustic-oak-swatch"></span> Rustic Oak
+          </option>
+          <option value="Grey Oak" {% if default_color == 'Grey Oak' %}selected{% endif %}>
+            <span class="color-option grey-oak-swatch"></span> Grey Oak
+          </option>
+          <option value="Stone" {% if default_color == 'Stone' %}selected{% endif %}>
+            <span class="color-option stone-swatch"></span> Stone
+          </option>
+        </select>
+      </div>
+      
+      <!-- Hidden field to store the base serial number -->
+      <input type="hidden" id="base_serial_number" value="{{ next_serial_number }}">
       
       <label for="serial_number">Serial Number:</label>
       <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ next_serial_number }}">

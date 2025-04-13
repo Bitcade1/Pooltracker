@@ -2145,6 +2145,46 @@ def top_rails():
         serial_number = request.form['serial_number']
         issue_text = request.form['issue']
         lunch = request.form['lunch']
+        
+        # Get the selected size and color
+        size_selector = request.form.get('size_selector', '7ft')
+        color_selector = request.form.get('color_selector', 'Black')
+
+        # Ensure serial number has proper format with size and color
+        # First handle any existing size/color suffixes in the serial number
+        clean_serial = serial_number
+        
+        # Check if size suffix is already in the serial number
+        has_size_suffix = ' - 6' in clean_serial or '-6' in clean_serial
+        if not has_size_suffix and size_selector == '6ft':
+            # Add size suffix if not present
+            if '-' in clean_serial or ' - ' in clean_serial:
+                parts = re.split(r'(-| - )', clean_serial, 1)
+                base_serial = parts[0]
+                clean_serial = f"{base_serial} - 6"
+            else:
+                clean_serial = f"{clean_serial} - 6"
+                
+        # Set the corrected serial number with appropriate suffixes
+        serial_number = clean_serial
+        
+        # Make sure color suffix is present if needed
+        # Colors use the following convention: GO (Grey Oak), O (Rustic Oak), C (Stone), B or none (Black)
+        has_color_suffix = any(suffix in serial_number for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B'])
+        
+        if not has_color_suffix:
+            # Add color suffix based on selection
+            color_suffix = ''
+            if color_selector == 'Grey Oak':
+                color_suffix = ' - GO'
+            elif color_selector == 'Rustic Oak':
+                color_suffix = ' - O'
+            elif color_selector == 'Stone':
+                color_suffix = ' - C'
+            # Black is default, so no suffix needed
+            
+            if color_suffix:
+                serial_number = serial_number + color_suffix
 
         # Parts and quantities needed for top rail completion
         parts_to_deduct = {
@@ -2193,13 +2233,29 @@ def top_rails():
             return redirect(url_for('top_rails'))
         
         # --- Update Table Stock for Top Rails ---
-        # Use a robust check for 6ft by removing spaces.
+        # Determine size and color from serial number
         def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6")
-        if is_6ft(serial_number):
-            stock_type = 'top_rail_6ft'
-        else:
-            stock_type = 'top_rail_7ft'
+            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+        
+        def get_color(serial):
+            norm_serial = serial.replace(" ", "")
+            if "-GO" in norm_serial or "-go" in norm_serial:
+                return "grey_oak"
+            elif "-O" in norm_serial and not "-GO" in norm_serial:
+                return "rustic_oak"
+            elif "-C" in norm_serial or "-c" in norm_serial:
+                return "stone"
+            else:
+                return "black"  # Default if no color suffix or has -B
+        
+        # Determine size and color
+        size = "6ft" if is_6ft(serial_number) else "7ft"
+        color = get_color(serial_number)
+        
+        # Create the stock key
+        stock_type = f"top_rail_{size.lower()}_{color}"
+        
+        # Update the stock count
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
             stock_entry = TableStock(type=stock_type, count=0)
@@ -2213,22 +2269,48 @@ def top_rails():
     today = date.today()
     completed_top_rails = TopRail.query.filter_by(date=today).all()
 
-    # Determine the next serial number
+    # Determine the next serial number and default size/color
     last_entry = TopRail.query.order_by(TopRail.id.desc()).first()
+    next_serial_number = "1000"  # Default value
+    default_size = '7ft'  # Default size
+    default_color = 'Black'  # Default color
+    
     if last_entry:
-        if '-' in last_entry.serial_number:
-            parts = last_entry.serial_number.split('-', 1)
-            try:
-                next_serial_number = f"{int(parts[0]) + 1} - {parts[1]}"
-            except ValueError:
-                next_serial_number = "1000"
-        else:
-            try:
-                next_serial_number = str(int(last_entry.serial_number) + 1)
-            except ValueError:
-                next_serial_number = "1000"
-    else:
-        next_serial_number = "1000"
+        # Helper function to determine size and color from serial
+        def is_6ft(serial):
+            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+            
+        def get_color(serial):
+            norm_serial = serial.replace(" ", "")
+            if "-GO" in norm_serial or "-go" in norm_serial:
+                return "Grey Oak"
+            elif "-O" in norm_serial and not "-GO" in norm_serial:
+                return "Rustic Oak"
+            elif "-C" in norm_serial or "-c" in norm_serial:
+                return "Stone"
+            else:
+                return "Black"  # Default if no color suffix or has -B
+        
+        serial = last_entry.serial_number
+        
+        # Determine default size based on last entry
+        if is_6ft(serial):
+            default_size = '6ft'
+        
+        # Determine default color based on last entry
+        default_color = get_color(serial)
+            
+        # Generate next serial number by incrementing the number part
+        try:
+            # Extract numeric part at start of serial
+            match = re.match(r'(\d+)', serial)
+            if match:
+                base_num = int(match.group(1))
+                next_serial_number = str(base_num + 1)
+            else:
+                next_serial_number = "1000"  # Fallback
+        except ValueError:
+            next_serial_number = "1000"  # Fallback on parsing error
 
     try:
         current_time = datetime.strptime(last_entry.finish_time, "%H:%M:%S").strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
@@ -2307,8 +2389,7 @@ def top_rails():
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
 
-    # --- New: Compute Current Production for Top Rails ---
-    # Retrieve all top rail entries for the current month.
+    # --- Calculate Current Production for Top Rails by Size ---
     all_top_rails_this_month = TopRail.query.filter(
         extract('year', TopRail.date) == today.year,
         extract('month', TopRail.date) == today.month
@@ -2316,12 +2397,12 @@ def top_rails():
 
     # Helper function for classification:
     def is_6ft(serial):
-        return serial.replace(" ", "").endswith("-6")
+        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
     
     current_top_rails_6ft = sum(1 for rail in all_top_rails_this_month if is_6ft(rail.serial_number))
     current_top_rails_7ft = sum(1 for rail in all_top_rails_this_month if not is_6ft(rail.serial_number))
-    # ---------------------------------------------------
 
+    # Get production targets
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
         target_7ft = schedule.target_7ft
@@ -2342,9 +2423,10 @@ def top_rails():
         target_7ft=target_7ft,
         target_6ft=target_6ft,
         current_top_rails_7ft=current_top_rails_7ft,
-        current_top_rails_6ft=current_top_rails_6ft
+        current_top_rails_6ft=current_top_rails_6ft,
+        default_size=default_size,
+        default_color=default_color
     )
-
 
 
 
