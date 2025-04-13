@@ -2632,21 +2632,41 @@ def table_stock():
             flash("Amount must be a positive number.", "error")
             return redirect(url_for('table_stock'))
         
+        # Debug info to help identify the issue
+        print(f"Processing {action} for stock_type: {stock_type}, amount: {amount}")
+        
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
+        
+        # For debugging, print all available stock entries
+        all_stock = TableStock.query.all()
+        print("Available stock entries:")
+        for entry in all_stock:
+            print(f"Type: {entry.type}, Count: {entry.count}")
+        
         if not stock_entry:
-            stock_entry = TableStock(type=stock_type, count=0)
-            db.session.add(stock_entry)
+            # If no stock entry found, create one for 'add' action
+            # For 'remove' action, flash an appropriate message
+            if action == 'remove':
+                flash(f"No stock entry found for '{stock_type}'. Cannot remove stock.", "error")
+                return redirect(url_for('table_stock'))
+            else:  # add
+                stock_entry = TableStock(type=stock_type, count=0)
+                db.session.add(stock_entry)
+                db.session.commit()
+                flash(f"Created new stock entry for '{stock_type}'.", "info")
         
         if action == 'add':
             stock_entry.count += amount
-            flash(f"Added {amount} to {stock_type} stock.", "success")
+            db.session.commit()
+            flash(f"Added {amount} to {stock_type} stock. New count: {stock_entry.count}", "success")
         elif action == 'remove':
             if stock_entry.count < amount:
-                flash("Not enough stock to remove.", "error")
+                flash(f"Not enough stock to remove. Current count for '{stock_type}': {stock_entry.count}", "error")
             else:
                 stock_entry.count -= amount
-                flash(f"Removed {amount} from {stock_type} stock.", "success")
-        db.session.commit()
+                db.session.commit()
+                flash(f"Removed {amount} from {stock_type} stock. New count: {stock_entry.count}", "success")
+        
         return redirect(url_for('table_stock'))
 
     # Common dimensions for all products
@@ -2658,26 +2678,6 @@ def table_stock():
     top_rail_data = {}
     cushion_data = {}
     other_data = {}
-    
-    # Helper function to determine size and color from serial number
-    def get_component_info(serial_number):
-        # Normalize the serial number by removing spaces
-        norm_serial = serial_number.replace(" ", "")
-        
-        # Check if it's a 6ft or 7ft
-        size = '6ft' if '-6' in norm_serial else '7ft'
-        
-        # Determine color based on suffix
-        if '-GO' in norm_serial or '-go' in norm_serial:
-            color = 'Grey Oak'
-        elif '-O' in norm_serial or '-o' in norm_serial and not '-GO' in norm_serial and not '-go' in norm_serial:
-            color = 'Rustic Oak'
-        elif '-C' in norm_serial or '-c' in norm_serial:
-            color = 'Stone'
-        else:
-            color = 'Black'  # Default or if it has a -B suffix
-            
-        return size, color
     
     # Process all entries from TableStock
     all_stock_entries = TableStock.query.all()
@@ -2724,24 +2724,6 @@ def table_stock():
         else:
             # Other stock types
             other_data[stock_type] = entry.count
-    
-    # If we don't have table data, try to analyze completed tables
-    if all(count == 0 for count in table_data.values()):
-        completed_tables = CompletedTable.query.all()
-        for table in completed_tables:
-            size, color = get_component_info(table.serial_number)
-            table_key = f"body_{size.lower()}_{color.lower().replace(' ', '_')}"
-            if table_key in table_data:
-                table_data[table_key] += 1
-    
-    # If we don't have top rail data, try to analyze top rails
-    if all(count == 0 for count in top_rail_data.values()):
-        top_rails = TopRail.query.all()
-        for rail in top_rails:
-            size, color = get_component_info(rail.serial_number)
-            rail_key = f"top_rail_{size.lower()}_{color.lower().replace(' ', '_')}"
-            if rail_key in top_rail_data:
-                top_rail_data[rail_key] += 1
     
     # Combine all data for the template
     return render_template(
