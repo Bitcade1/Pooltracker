@@ -131,6 +131,36 @@
           font-style: italic;
           color: #666;
       }
+      
+      .flash {
+          padding: 10px;
+          margin: 10px 0;
+          border-radius: 5px;
+      }
+      
+      .flash.success {
+          background-color: #d4edda;
+          color: #155724;
+      }
+      
+      .flash.error {
+          background-color: #f8d7da;
+          color: #721c24;
+      }
+      
+      .back-to-menu {
+          margin-top: 20px;
+          text-align: center;
+      }
+      
+      .menu-button {
+          background-color: #007bff;
+          color: #fff;
+          text-decoration: none;
+          padding: 8px 12px;
+          border-radius: 4px;
+          display: inline-block;
+      }
   </style>
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -147,13 +177,15 @@
           const colorSelector = document.getElementById('color_selector');
           
           if (!selectedSerialNumber || selectedSerialNumber === "") {
+              document.getElementById('size_indicator').textContent = "Pod Size: Select a pod to see size";
+              document.getElementById('formatted_serial_display').textContent = "";
               return; // Don't update if no serial is selected
           }
           
           // First, determine if this is a 6ft pod from the serial number
           const is6ft = selectedSerialNumber.includes(" - 6") || 
                        selectedSerialNumber.includes("-6") || 
-                       selectedSerialNumber.endsWith("-6");
+                       (selectedSerialNumber.replace(/\s/g, "").endsWith("-6"));
                        
           // Update the size indicator text
           document.getElementById('size_indicator').textContent = "Pod Size: " + (is6ft ? "6ft" : "7ft");
@@ -166,7 +198,10 @@
               cleanedSerialNumber = cleanedSerialNumber.replace(/ - GO|-GO/g, '');
           }
           if (cleanedSerialNumber.includes(' - O') || cleanedSerialNumber.includes('-O')) {
-              cleanedSerialNumber = cleanedSerialNumber.replace(/ - O|-O/g, '');
+              // Make sure we don't remove -O from -GO that's already been removed
+              if (!selectedSerialNumber.includes('GO')) {
+                  cleanedSerialNumber = cleanedSerialNumber.replace(/ - O|-O/g, '');
+              }
           }
           if (cleanedSerialNumber.includes(' - C') || cleanedSerialNumber.includes('-C')) {
               cleanedSerialNumber = cleanedSerialNumber.replace(/ - C|-C/g, '');
@@ -279,18 +314,10 @@
       <div class="color-field">
         <label for="color_selector">Table Color:</label>
         <select id="color_selector" name="color_selector">
-          <option value="Black" {% if default_color == 'Black' %}selected{% endif %}>
-            <span class="color-option black-swatch"></span> Black
-          </option>
-          <option value="Rustic Oak" {% if default_color == 'Rustic Oak' %}selected{% endif %}>
-            <span class="color-option rustic-oak-swatch"></span> Rustic Oak
-          </option>
-          <option value="Grey Oak" {% if default_color == 'Grey Oak' %}selected{% endif %}>
-            <span class="color-option grey-oak-swatch"></span> Grey Oak
-          </option>
-          <option value="Stone" {% if default_color == 'Stone' %}selected{% endif %}>
-            <span class="color-option stone-swatch"></span> Stone
-          </option>
+          <option value="Black" {% if default_color == 'Black' %}selected{% endif %}>Black</option>
+          <option value="Rustic Oak" {% if default_color == 'Rustic Oak' %}selected{% endif %}>Rustic Oak</option>
+          <option value="Grey Oak" {% if default_color == 'Grey Oak' %}selected{% endif %}>Grey Oak</option>
+          <option value="Stone" {% if default_color == 'Stone' %}selected{% endif %}>Stone</option>
         </select>
       </div>
       
@@ -360,53 +387,6 @@
           </tr>
         </thead>
         <tbody>
-          {% for entry in daily_history %}
-            <tr>
-              <td>{{ entry.date }}</td>
-              <td>{{ entry.count }}</td>
-              <td>{{ entry.serial_numbers }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Collapsible Section for Monthly Totals -->
-    <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
-    <div id="monthlyTotals" class="collapsible-content">
-      <table>
-        <thead>
-          <tr>
-            <th>Month</th>
-            <th>Total Tables Made</th>
-            <th>Average Hours per Table</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for month in monthly_totals %}
-            <tr>
-              <td>{{ month.month }}</td>
-              <td>{{ month.count }}</td>
-              <td>
-                {% if month.average_hours_per_table %}
-                  {{ month.average_hours_per_table }} hours
-                {% else %}
-                  N/A
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Back to Menu Button -->
-    <div class="back-to-menu">
-      <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
-    </div>
-  </div>
-</body>
-</html><tbody>
           {% for entry in daily_history %}
             <tr>
               <td>{{ entry.date }}</td>
