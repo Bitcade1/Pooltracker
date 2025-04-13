@@ -2706,26 +2706,39 @@ def table_stock():
             if '_black' in stock_type or '_rustic_oak' in stock_type or '_grey_oak' in stock_type or '_stone' in stock_type:
                 table_data[stock_type] = entry.count
             else:
-                # Handle legacy entries without color
+                # Handle legacy entries without color: default to black
                 size = '6ft' if '6ft' in stock_type else '7ft'
-                table_data[f"body_{size.lower()}_black"] = entry.count  # Default to black for old entries
+                table_data[f"body_{size.lower()}_black"] = entry.count
         
         elif stock_type.startswith('top_rail_'):
             if '_black' in stock_type or '_rustic_oak' in stock_type or '_grey_oak' in stock_type or '_stone' in stock_type:
                 top_rail_data[stock_type] = entry.count
             else:
-                # Handle legacy entries without color
+                # Handle legacy entries without color: default to black
                 size = '6ft' if '6ft' in stock_type else '7ft'
-                top_rail_data[f"top_rail_{size.lower()}_black"] = entry.count  # Default to black for old entries
+                top_rail_data[f"top_rail_{size.lower()}_black"] = entry.count
         
         elif stock_type.startswith('cushion_set_'):
             cushion_data[stock_type] = entry.count
-            
         else:
             # Other stock types
             other_data[stock_type] = entry.count
+
+    # New feature: Calculate stock costs for table bodies.
+    # Rule: Black bodies cost 993.6 (including VAT) and any colored body costs 1089.6.
+    stock_costs = {}
+    grand_total = 0
+    for size in sizes:
+        stock_costs[size] = {}
+        for color in colors:
+            key = f"body_{size.lower()}_{color.lower().replace(' ', '_')}"
+            count = table_data.get(key, 0)
+            unit_cost = 993.6 if color.lower() == 'black' else 1089.6
+            cost = count * unit_cost
+            stock_costs[size][color] = cost
+            grand_total += cost
     
-    # Combine all data for the template
+    # Combine all data for the template and pass the new variables.
     return render_template(
         'table_stock.html', 
         table_data=table_data,
@@ -2733,7 +2746,9 @@ def table_stock():
         cushion_data=cushion_data,
         other_data=other_data,
         sizes=sizes, 
-        colors=colors
+        colors=colors,
+        stock_costs=stock_costs,
+        grand_total=grand_total
     )
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
