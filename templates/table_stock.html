@@ -438,6 +438,83 @@
       </table>
     </div>
     
+    <!-- NEW: Complete Table Requirements Panel -->
+    <div class="section-header" id="complete-table-header">
+      <span>
+        <i class="fas fa-caret-right section-indicator" id="complete-table-indicator"></i> 
+        What do we need to make to make complete table
+      </span>
+    </div>
+    <div class="section-content" id="complete-table-content">
+      <h3>Component Deficits by Size & Color</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Size</th>
+            <th>Color</th>
+            <th>Body Count</th>
+            <th>Top Rail Count</th>
+            <th>Deficit (Body)</th>
+            <th>Deficit (Top Rail)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for size in sizes %}
+            {% for color in colors %}
+              {% set body_key = 'body_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
+              {% set top_key = 'top_rail_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
+              {% set body_count = table_data.get(body_key, 0) %}
+              {% set top_count = top_rail_data.get(top_key, 0) %}
+              {% set deficit_body = top_count - body_count if top_count > body_count else 0 %}
+              {% set deficit_top = body_count - top_count if body_count > top_count else 0 %}
+              <tr>
+                <td>{{ size }}</td>
+                <td>{{ color }}</td>
+                <td>{{ body_count }}</td>
+                <td>{{ top_count }}</td>
+                <td>{{ deficit_body }}</td>
+                <td>{{ deficit_top }}</td>
+              </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+      
+      <h3>Cushion Set Deficit by Size</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Size</th>
+            <th>Cushion Set Count</th>
+            <th>Complete Sets (if bodies and top rails were equalized)</th>
+            <th>Deficit (Cushions)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for size in sizes %}
+            {% set total_complete = 0 %}
+            {% for color in colors %}
+              {% set body_key = 'body_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
+              {% set top_key = 'top_rail_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
+              {% set body_count = table_data.get(body_key, 0) %}
+              {% set top_count = top_rail_data.get(top_key, 0) %}
+              {% set complete_pair = body_count if body_count >= top_count else top_count %}
+              {% set total_complete = total_complete + complete_pair %}
+            {% endfor %}
+            {% set cushion_key = 'cushion_set_' ~ size|lower %}
+            {% set cushion_count = cushion_data.get(cushion_key, 0) %}
+            {% set deficit_cushions = total_complete - cushion_count if total_complete > cushion_count else 0 %}
+            <tr>
+              <td>{{ size }}</td>
+              <td>{{ cushion_count }}</td>
+              <td>{{ total_complete }}</td>
+              <td>{{ deficit_cushions }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
     <div style="text-align: center; margin-top: 30px;">
       <a href="{{ url_for('admin') }}" class="button">Back to Admin</a>
     </div>
@@ -449,7 +526,6 @@
       function toggleSection(headerID, contentID, indicatorID) {
         $('#' + headerID).click(function() {
           $('#' + contentID).toggleClass('active');
-          
           // Toggle the indicator icon (right caret vs down caret)
           if ($('#' + contentID).hasClass('active')) {
             $('#' + indicatorID).removeClass('fa-caret-right').addClass('fa-caret-down');
@@ -459,18 +535,17 @@
         });
       }
       
-      // Initialize all sections as toggleable
+      // Initialize togglable sections
       toggleSection('bodies-header', 'bodies-content', 'bodies-indicator');
       toggleSection('top-rails-header', 'top-rails-content', 'top-rails-indicator');
       toggleSection('cushions-header', 'cushions-content', 'cushions-indicator');
       {% if other_data %}
       toggleSection('other-header', 'other-content', 'other-indicator');
       {% endif %}
+      toggleSection('complete-table-header', 'complete-table-content', 'complete-table-indicator');
 
-      // List of section content IDs to manage
-      var sections = ['bodies-content', 'top-rails-content', 'cushions-content' {% if other_data %}, 'other-content' {% endif %}];
-
-      // If no state for bodies-content is stored, open it by default.
+      // List of section content IDs to manage for persistent open state
+      var sections = ['bodies-content', 'top-rails-content', 'cushions-content', {% if other_data %}'other-content',{% endif %}'complete-table-content'];
       var toggleState = JSON.parse(localStorage.getItem("toggleState") || "{}");
       if (toggleState['bodies-content'] === undefined) {
         $('#bodies-content').addClass('active');
@@ -478,7 +553,6 @@
         toggleState['bodies-content'] = true;
         localStorage.setItem("toggleState", JSON.stringify(toggleState));
       } else {
-        // Restore state for each section based on saved data
         sections.forEach(function(section) {
           if (toggleState[section]) {
             $('#' + section).addClass('active');
@@ -490,31 +564,33 @@
               $('#cushions-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
             } else if(section === 'other-content'){
               $('#other-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+            } else if(section === 'complete-table-content'){
+              $('#complete-table-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
             }
           }
         });
       }
 
-      // Save current scroll position when a form is submitted
+      // Save current scroll position when any form is submitted
       $('form').on('submit', function() {
         localStorage.setItem('scrollPosition', $(window).scrollTop());
       });
 
-      // Restore scroll position if one was saved
+      // Restore scroll position if previously saved
       var savedScroll = localStorage.getItem('scrollPosition');
       if (savedScroll) {
         $(window).scrollTop(savedScroll);
         localStorage.removeItem('scrollPosition');
       }
 
-      // Handle the password protection for the Stock Cost panel.
+      // Handle password protection for Stock Cost panel
       $("#stock-cost-submit").click(function() {
         var entered = $("#stock-cost-password").val();
         if(entered === "cost123") {
           $("#stock-cost-access").hide();
           $("#stock-cost-header").show();
           $("#stock-cost-content").show();
-          // Make the stock cost panel togglable like the others
+          // Enable toggling for Stock Cost panel as well
           toggleSection('stock-cost-header', 'stock-cost-content', 'stock-cost-indicator');
         } else {
           alert("Incorrect password!");
