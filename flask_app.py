@@ -1926,7 +1926,46 @@ def bodies():
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
-        serial_number = request.form['serial_number']
+        original_serial_number = request.form['serial_number']
+        
+        # Get the selected size and color
+        size_selector = request.form.get('size_selector', '7ft')
+        color_selector = request.form.get('color_selector', 'Black')
+        
+        # Get the formatted serial number if it exists, otherwise use the original
+        serial_number = request.form.get('formatted_serial_number', original_serial_number)
+        
+        # If formatted_serial_number is empty or not provided, format the serial number manually
+        if not serial_number or serial_number.strip() == "":
+            # Clean any existing size/color suffix
+            clean_serial = original_serial_number
+            
+            # Remove size suffix
+            if clean_serial.find(' - 6') > 0 or clean_serial.find('-6') > 0:
+                clean_serial = re.sub(r' - 6|-6', '', clean_serial)
+            if clean_serial.find(' - 7') > 0 or clean_serial.find('-7') > 0:
+                clean_serial = re.sub(r' - 7|-7', '', clean_serial)
+            
+            # Remove color suffix
+            for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B']:
+                if suffix in clean_serial:
+                    clean_serial = clean_serial.replace(suffix, '')
+            
+            # Add size suffix if needed
+            if size_selector == '6ft':
+                clean_serial += ' - 6'
+            
+            # Add color suffix
+            if color_selector == 'Grey Oak':
+                clean_serial += ' - GO'
+            elif color_selector == 'Rustic Oak':
+                clean_serial += ' - O'
+            elif color_selector == 'Stone':
+                clean_serial += ' - C'
+            # Black is default, so no suffix needed
+            
+            serial_number = clean_serial
+
         issue_text = request.form['issue']
         lunch = request.form['lunch']
 
@@ -1968,8 +2007,12 @@ def bodies():
             "Sticker Set": 1
         }
 
-        # Normalize serial number to remove spaces and check if it ends with "-6"
-        if serial_number.replace(" ", "").endswith("-6"):
+        # Helper function to determine if it's a 6ft table
+        def is_6ft(serial):
+            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+
+        # Adjust parts for 6ft tables
+        if is_6ft(serial_number):
             # For a 6ft table, remove standard parts and add the 6ft-specific ones.
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
@@ -2004,14 +2047,26 @@ def bodies():
             flash("Body entry added successfully and inventory updated!", "success")
         except Exception as e:
             db.session.rollback()
-            flash("Error: Serial number already exists or another error occurred.", "error")
+            flash(f"Error: {str(e)}", "error")
             return redirect(url_for('bodies'))
 
-        # Update table stock based on table size
-        if serial_number.replace(" ", "").endswith("-6"):
-            stock_type = 'body_6ft'
-        else:
-            stock_type = 'body_7ft'
+        # Helper function to determine color from serial number
+        def get_color(serial):
+            norm_serial = serial.replace(" ", "")
+            if "-GO" in norm_serial or "-go" in norm_serial:
+                return "grey_oak"
+            elif "-O" in norm_serial and not "-GO" in norm_serial:
+                return "rustic_oak"
+            elif "-C" in norm_serial or "-c" in norm_serial:
+                return "stone"
+            else:
+                return "black"  # Default if no color suffix or has -B
+
+        # Update table stock based on size and color
+        size = "6ft" if is_6ft(serial_number) else "7ft"
+        color = get_color(serial_number)
+        stock_type = f'body_{size.lower()}_{color}'
+        
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
             stock_entry = TableStock(type=stock_type, count=0)
@@ -2032,9 +2087,25 @@ def bodies():
     ).all()
     current_month_bodies_count = len(all_bodies_this_month)
 
-    # Helper: determine table size based on serial number
+    # Helper: determine table size and color based on serial number
     def is_6ft(serial):
-        return serial.replace(" ", "").endswith("-6")
+        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+
+    def get_color(serial):
+        norm_serial = serial.replace(" ", "")
+        if "-GO" in norm_serial or "-go" in norm_serial:
+            return "Grey Oak"
+        elif "-O" in norm_serial and not "-GO" in norm_serial:
+            return "Rustic Oak"
+        elif "-C" in norm_serial or "-c" in norm_serial:
+            return "Stone"
+        else:
+            return "Black"  # Default if no color suffix or has -B
+
+    # Determine default size and color based on the last completed table
+    last_table = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
+    default_size = '6ft' if last_table and is_6ft(last_table.serial_number) else '7ft'
+    default_color = get_color(last_table.serial_number) if last_table else 'Black'
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
@@ -2128,7 +2199,9 @@ def bodies():
         target_7ft=target_7ft,
         target_6ft=target_6ft,
         current_production_7ft=current_production_7ft,
-        current_production_6ft=current_production_6ft
+        current_production_6ft=current_production_6ft,
+        default_size=default_size,
+        default_color=default_color
     )
 
 @app.route('/top_rails', methods=['GET', 'POST'])
