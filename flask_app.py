@@ -2478,19 +2478,52 @@ def table_stock():
         db.session.commit()
         return redirect(url_for('table_stock'))
 
-    # Define separate stock types for bodies, top rails, and cushion sets:
-    stock_types = ['body_7ft', 'body_6ft', 'top_rail_7ft', 'top_rail_6ft', 'cushion_set_7ft', 'cushion_set_6ft']
+    # Process completed tables to count by size and color
+    sizes = ['6ft', '7ft']
+    colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone']
+    
+    # Initialize the stock data dictionary
     stock_data = {}
-    for st in stock_types:
-        entry = TableStock.query.filter_by(type=st).first()
-        stock_data[st] = entry.count if entry else 0
-
-    return render_template('table_stock.html', stock_data=stock_data)
-
-from math import ceil
-
-from math import ceil
-from flask import render_template, request
+    
+    # First, check if we have any existing stock data in the TableStock table
+    for size in sizes:
+        for color in colors:
+            stock_key = f"{size.lower()}_{color.lower().replace(' ', '_')}"
+            stock_entry = TableStock.query.filter_by(type=stock_key).first()
+            stock_data[stock_key] = stock_entry.count if stock_entry else 0
+    
+    # Now let's analyze the completed tables to count by color and size
+    all_completed_tables = CompletedTable.query.all()
+    
+    # Helper function to determine table size and color from serial number
+    def get_table_info(serial_number):
+        # Normalize the serial number by removing spaces
+        norm_serial = serial_number.replace(" ", "")
+        
+        # Check if it's a 6ft or 7ft table
+        size = '6ft' if '-6' in norm_serial else '7ft'
+        
+        # Determine color based on suffix
+        if '-GO' in norm_serial or '-go' in norm_serial:
+            color = 'Grey Oak'
+        elif '-O' in norm_serial or '-o' in norm_serial and not '-GO' in norm_serial and not '-go' in norm_serial:
+            color = 'Rustic Oak'
+        elif '-C' in norm_serial or '-c' in norm_serial:
+            color = 'Stone'
+        else:
+            color = 'Black'  # Default or if it has a -B suffix
+            
+        return size, color
+    
+    # Get counts from completed tables if we don't have them in TableStock
+    if all(count == 0 for count in stock_data.values()):
+        for table in all_completed_tables:
+            size, color = get_table_info(table.serial_number)
+            stock_key = f"{size.lower()}_{color.lower().replace(' ', '_')}"
+            if stock_key in stock_data:
+                stock_data[stock_key] += 1
+    
+    return render_template('table_stock.html', stock_data=stock_data, sizes=sizes, colors=colors)
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():

@@ -62,6 +62,15 @@
           background-color: #f8d7da;
           color: #721c24;
       }
+      .size-header {
+          background-color: #17a2b8;
+          color: white;
+          font-weight: bold;
+      }
+      .subtotal {
+          font-weight: bold;
+          background-color: #f8f9fa;
+      }
   </style>
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -89,6 +98,69 @@
       {% endif %}
     {% endwith %}
     
+    <h2>Table Stock by Size and Color</h2>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Table Type</th>
+          <th>Color</th>
+          <th>Current Stock</th>
+          <th>Adjust Stock</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for size in sizes %}
+          <!-- Row for size header -->
+          <tr class="size-header">
+            <td colspan="4">{{ size }} Tables</td>
+          </tr>
+          
+          {% set size_total = 0 %}
+          
+          {% for color in colors %}
+            {% set stock_key = size.lower() + '_' + color.lower().replace(' ', '_') %}
+            {% set stock_count = stock_data.get(stock_key, 0) %}
+            {% set size_total = size_total + stock_count %}
+            
+            <tr>
+              <td>{{ size }}</td>
+              <td>{{ color }}</td>
+              <td>{{ stock_count }}</td>
+              <td>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="stock_type" value="{{ stock_key }}">
+                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                  <button type="submit" name="action" value="add" class="button">Add</button>
+                  <button type="submit" name="action" value="remove" class="button">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          
+          <!-- Row for size subtotal -->
+          <tr class="subtotal">
+            <td colspan="2">Total {{ size }}</td>
+            <td>{{ size_total }}</td>
+            <td></td>
+          </tr>
+        {% endfor %}
+        
+        <!-- Row for overall total -->
+        <tr class="subtotal">
+          <td colspan="2"><strong>Overall Total</strong></td>
+          <td>
+            <strong>
+              {{ stock_data.values()|sum }}
+            </strong>
+          </td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <!-- Legacy section for other stock types (top rails, cushion sets) -->
+    <h2>Other Components Stock</h2>
     <table>
       <thead>
         <tr>
@@ -99,18 +171,20 @@
       </thead>
       <tbody>
         {% for type, count in stock_data.items() %}
-          <tr>
-            <td>{{ type.replace('_', ' ').title() }}</td>
-            <td>{{ count }}</td>
-            <td>
-              <form method="post" style="display:inline;">
-                <input type="hidden" name="stock_type" value="{{ type }}">
-                <input type="number" name="amount" placeholder="Amount" min="1" required>
-                <button type="submit" name="action" value="add" class="button">Add</button>
-                <button type="submit" name="action" value="remove" class="button">Remove</button>
-              </form>
-            </td>
-          </tr>
+          {% if not (type.startswith('6ft_') or type.startswith('7ft_')) %}
+            <tr>
+              <td>{{ type.replace('_', ' ').title() }}</td>
+              <td>{{ count }}</td>
+              <td>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="stock_type" value="{{ type }}">
+                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                  <button type="submit" name="action" value="add" class="button">Add</button>
+                  <button type="submit" name="action" value="remove" class="button">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endif %}
         {% endfor %}
       </tbody>
     </table>
