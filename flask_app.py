@@ -1910,6 +1910,8 @@ from sqlalchemy import func, extract, desc
 from datetime import datetime, date, timedelta
 from calendar import monthrange
 
+import re  # Make sure this is at the top of the file
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     if 'worker' not in session:
@@ -1927,9 +1929,6 @@ def bodies():
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
         original_serial_number = request.form['serial_number']
-        
-        # Get the selected size and color
-        size_selector = request.form.get('size_selector', '7ft')
         color_selector = request.form.get('color_selector', 'Black')
         
         # Get the formatted serial number if it exists, otherwise use the original
@@ -1937,25 +1936,20 @@ def bodies():
         
         # If formatted_serial_number is empty or not provided, format the serial number manually
         if not serial_number or serial_number.strip() == "":
-            # Clean any existing size/color suffix
+            # Clean any existing color suffix from the serial number, but preserve size suffix
             clean_serial = original_serial_number
             
-            # Remove size suffix
-            if clean_serial.find(' - 6') > 0 or clean_serial.find('-6') > 0:
-                clean_serial = re.sub(r' - 6|-6', '', clean_serial)
-            if clean_serial.find(' - 7') > 0 or clean_serial.find('-7') > 0:
-                clean_serial = re.sub(r' - 7|-7', '', clean_serial)
-            
-            # Remove color suffix
+            # Check for and remove existing color suffixes
             for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B']:
                 if suffix in clean_serial:
-                    clean_serial = clean_serial.replace(suffix, '')
+                    # If suffix is in the middle of the string, keep what comes after it
+                    parts = clean_serial.split(suffix, 1)
+                    if len(parts) > 1 and parts[1]:
+                        clean_serial = parts[0] + parts[1]
+                    else:
+                        clean_serial = parts[0]
             
-            # Add size suffix if needed
-            if size_selector == '6ft':
-                clean_serial += ' - 6'
-            
-            # Add color suffix
+            # Add color suffix based on selection
             if color_selector == 'Grey Oak':
                 clean_serial += ' - GO'
             elif color_selector == 'Rustic Oak':
@@ -2087,10 +2081,7 @@ def bodies():
     ).all()
     current_month_bodies_count = len(all_bodies_this_month)
 
-    # Helper: determine table size and color based on serial number
-    def is_6ft(serial):
-        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
-
+    # Helper: determine table color based on serial number
     def get_color(serial):
         norm_serial = serial.replace(" ", "")
         if "-GO" in norm_serial or "-go" in norm_serial:
@@ -2102,10 +2093,13 @@ def bodies():
         else:
             return "Black"  # Default if no color suffix or has -B
 
-    # Determine default size and color based on the last completed table
+    # Determine default color based on the last completed table
     last_table = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
-    default_size = '6ft' if last_table and is_6ft(last_table.serial_number) else '7ft'
     default_color = get_color(last_table.serial_number) if last_table else 'Black'
+
+    # Helper: determine table size based on serial number
+    def is_6ft(serial):
+        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
@@ -2200,7 +2194,6 @@ def bodies():
         target_6ft=target_6ft,
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft,
-        default_size=default_size,
         default_color=default_color
     )
 
