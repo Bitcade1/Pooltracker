@@ -2478,29 +2478,22 @@ def table_stock():
         db.session.commit()
         return redirect(url_for('table_stock'))
 
-    # Process completed tables to count by size and color
+    # Common dimensions for all products
     sizes = ['6ft', '7ft']
     colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone']
     
-    # Initialize the stock data dictionary
-    stock_data = {}
+    # Initialize stock data dictionaries
+    table_data = {}
+    top_rail_data = {}
+    cushion_data = {}
+    other_data = {}
     
-    # First, check if we have any existing stock data in the TableStock table
-    for size in sizes:
-        for color in colors:
-            stock_key = f"{size.lower()}_{color.lower().replace(' ', '_')}"
-            stock_entry = TableStock.query.filter_by(type=stock_key).first()
-            stock_data[stock_key] = stock_entry.count if stock_entry else 0
-    
-    # Now let's analyze the completed tables to count by color and size
-    all_completed_tables = CompletedTable.query.all()
-    
-    # Helper function to determine table size and color from serial number
-    def get_table_info(serial_number):
+    # Helper function to determine size and color from serial number
+    def get_component_info(serial_number):
         # Normalize the serial number by removing spaces
         norm_serial = serial_number.replace(" ", "")
         
-        # Check if it's a 6ft or 7ft table
+        # Check if it's a 6ft or 7ft
         size = '6ft' if '-6' in norm_serial else '7ft'
         
         # Determine color based on suffix
@@ -2515,15 +2508,80 @@ def table_stock():
             
         return size, color
     
-    # Get counts from completed tables if we don't have them in TableStock
-    if all(count == 0 for count in stock_data.values()):
-        for table in all_completed_tables:
-            size, color = get_table_info(table.serial_number)
-            stock_key = f"{size.lower()}_{color.lower().replace(' ', '_')}"
-            if stock_key in stock_data:
-                stock_data[stock_key] += 1
+    # Process all entries from TableStock
+    all_stock_entries = TableStock.query.all()
     
-    return render_template('table_stock.html', stock_data=stock_data, sizes=sizes, colors=colors)
+    # Initialize all possible combinations for tables, top rails, and cushions
+    for size in sizes:
+        for color in colors:
+            # For tables
+            table_key = f"body_{size.lower()}_{color.lower().replace(' ', '_')}"
+            table_data[table_key] = 0
+            
+            # For top rails
+            top_rail_key = f"top_rail_{size.lower()}_{color.lower().replace(' ', '_')}"
+            top_rail_data[top_rail_key] = 0
+        
+        # For cushions (only size matters, not color)
+        cushion_key = f"cushion_set_{size.lower()}"
+        cushion_data[cushion_key] = 0
+    
+    # Process existing stock entries
+    for entry in all_stock_entries:
+        stock_type = entry.type
+        
+        # Determine which category this entry belongs to
+        if stock_type.startswith('body_'):
+            if '_black' in stock_type or '_rustic_oak' in stock_type or '_grey_oak' in stock_type or '_stone' in stock_type:
+                table_data[stock_type] = entry.count
+            else:
+                # Handle legacy entries without color
+                size = '6ft' if '6ft' in stock_type else '7ft'
+                table_data[f"body_{size.lower()}_black"] = entry.count  # Default to black for old entries
+        
+        elif stock_type.startswith('top_rail_'):
+            if '_black' in stock_type or '_rustic_oak' in stock_type or '_grey_oak' in stock_type or '_stone' in stock_type:
+                top_rail_data[stock_type] = entry.count
+            else:
+                # Handle legacy entries without color
+                size = '6ft' if '6ft' in stock_type else '7ft'
+                top_rail_data[f"top_rail_{size.lower()}_black"] = entry.count  # Default to black for old entries
+        
+        elif stock_type.startswith('cushion_set_'):
+            cushion_data[stock_type] = entry.count
+            
+        else:
+            # Other stock types
+            other_data[stock_type] = entry.count
+    
+    # If we don't have table data, try to analyze completed tables
+    if all(count == 0 for count in table_data.values()):
+        completed_tables = CompletedTable.query.all()
+        for table in completed_tables:
+            size, color = get_component_info(table.serial_number)
+            table_key = f"body_{size.lower()}_{color.lower().replace(' ', '_')}"
+            if table_key in table_data:
+                table_data[table_key] += 1
+    
+    # If we don't have top rail data, try to analyze top rails
+    if all(count == 0 for count in top_rail_data.values()):
+        top_rails = TopRail.query.all()
+        for rail in top_rails:
+            size, color = get_component_info(rail.serial_number)
+            rail_key = f"top_rail_{size.lower()}_{color.lower().replace(' ', '_')}"
+            if rail_key in top_rail_data:
+                top_rail_data[rail_key] += 1
+    
+    # Combine all data for the template
+    return render_template(
+        'table_stock.html', 
+        table_data=table_data,
+        top_rail_data=top_rail_data,
+        cushion_data=cushion_data,
+        other_data=other_data,
+        sizes=sizes, 
+        colors=colors
+    )
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():

@@ -17,6 +17,13 @@
           text-align: center;
           margin-bottom: 20px;
       }
+      h2 {
+          background-color: #007bff;
+          color: white;
+          padding: 10px;
+          border-radius: 5px;
+          margin-top: 30px;
+      }
       table {
           width: 100%;
           border-collapse: collapse;
@@ -67,9 +74,30 @@
           color: white;
           font-weight: bold;
       }
+      .component-header {
+          background-color: #5a6268;
+          color: white;
+          font-weight: bold;
+          text-align: center;
+      }
       .subtotal {
           font-weight: bold;
           background-color: #f8f9fa;
+      }
+      .color-cell {
+          font-weight: bold;
+      }
+      .color-black {
+          background-color: #f8f9fa;
+      }
+      .color-rustic-oak {
+          background-color: #f5f0e6;
+      }
+      .color-grey-oak {
+          background-color: #e6e6e6;
+      }
+      .color-stone {
+          background-color: #f0eee9;
       }
   </style>
   <!-- jQuery -->
@@ -79,7 +107,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>Table Stock</h1>
+    <h1>Pool Table Stock Management</h1>
     
     {% if logged_in_worker %}
       <div class="logged-in-user">Logged in as: {{ logged_in_worker }}</div>
@@ -98,12 +126,13 @@
       {% endif %}
     {% endwith %}
     
-    <h2>Table Stock by Size and Color</h2>
+    <!-- 1. TABLE BODIES SECTION -->
+    <h2>Table Bodies</h2>
     
     <table>
       <thead>
         <tr>
-          <th>Table Type</th>
+          <th>Size</th>
           <th>Color</th>
           <th>Current Stock</th>
           <th>Adjust Stock</th>
@@ -113,19 +142,20 @@
         {% for size in sizes %}
           <!-- Row for size header -->
           <tr class="size-header">
-            <td colspan="4">{{ size }} Tables</td>
+            <td colspan="4">{{ size }} Table Bodies</td>
           </tr>
           
           {% set size_total = 0 %}
           
           {% for color in colors %}
-            {% set stock_key = size.lower() + '_' + color.lower().replace(' ', '_') %}
-            {% set stock_count = stock_data.get(stock_key, 0) %}
+            {% set stock_key = 'body_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
+            {% set stock_count = table_data.get(stock_key, 0) %}
             {% set size_total = size_total + stock_count %}
+            {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
             
-            <tr>
+            <tr class="{{ color_class }}">
               <td>{{ size }}</td>
-              <td>{{ color }}</td>
+              <td class="color-cell">{{ color }}</td>
               <td>{{ stock_count }}</td>
               <td>
                 <form method="post" style="display:inline;">
@@ -140,7 +170,7 @@
           
           <!-- Row for size subtotal -->
           <tr class="subtotal">
-            <td colspan="2">Total {{ size }}</td>
+            <td colspan="2">Total {{ size }} Bodies</td>
             <td>{{ size_total }}</td>
             <td></td>
           </tr>
@@ -148,10 +178,10 @@
         
         <!-- Row for overall total -->
         <tr class="subtotal">
-          <td colspan="2"><strong>Overall Total</strong></td>
+          <td colspan="2"><strong>Total Bodies</strong></td>
           <td>
             <strong>
-              {{ stock_data.values()|sum }}
+              {{ table_data.values()|sum }}
             </strong>
           </td>
           <td></td>
@@ -159,8 +189,117 @@
       </tbody>
     </table>
     
-    <!-- Legacy section for other stock types (top rails, cushion sets) -->
-    <h2>Other Components Stock</h2>
+    <!-- 2. TOP RAILS SECTION -->
+    <h2>Top Rails</h2>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Size</th>
+          <th>Color</th>
+          <th>Current Stock</th>
+          <th>Adjust Stock</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for size in sizes %}
+          <!-- Row for size header -->
+          <tr class="size-header">
+            <td colspan="4">{{ size }} Top Rails</td>
+          </tr>
+          
+          {% set size_total = 0 %}
+          
+          {% for color in colors %}
+            {% set stock_key = 'top_rail_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
+            {% set stock_count = top_rail_data.get(stock_key, 0) %}
+            {% set size_total = size_total + stock_count %}
+            {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
+            
+            <tr class="{{ color_class }}">
+              <td>{{ size }}</td>
+              <td class="color-cell">{{ color }}</td>
+              <td>{{ stock_count }}</td>
+              <td>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="stock_type" value="{{ stock_key }}">
+                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                  <button type="submit" name="action" value="add" class="button">Add</button>
+                  <button type="submit" name="action" value="remove" class="button">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          
+          <!-- Row for size subtotal -->
+          <tr class="subtotal">
+            <td colspan="2">Total {{ size }} Top Rails</td>
+            <td>{{ size_total }}</td>
+            <td></td>
+          </tr>
+        {% endfor %}
+        
+        <!-- Row for overall total -->
+        <tr class="subtotal">
+          <td colspan="2"><strong>Total Top Rails</strong></td>
+          <td>
+            <strong>
+              {{ top_rail_data.values()|sum }}
+            </strong>
+          </td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <!-- 3. CUSHION SETS SECTION -->
+    <h2>Cushion Sets</h2>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Size</th>
+          <th>Current Stock</th>
+          <th>Adjust Stock</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set total_cushions = 0 %}
+        {% for size in sizes %}
+          {% set stock_key = 'cushion_set_' + size.lower() %}
+          {% set stock_count = cushion_data.get(stock_key, 0) %}
+          {% set total_cushions = total_cushions + stock_count %}
+          
+          <tr>
+            <td>{{ size }} Cushion Set</td>
+            <td>{{ stock_count }}</td>
+            <td>
+              <form method="post" style="display:inline;">
+                <input type="hidden" name="stock_type" value="{{ stock_key }}">
+                <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                <button type="submit" name="action" value="add" class="button">Add</button>
+                <button type="submit" name="action" value="remove" class="button">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        
+        <!-- Row for overall total -->
+        <tr class="subtotal">
+          <td><strong>Total Cushion Sets</strong></td>
+          <td>
+            <strong>
+              {{ total_cushions }}
+            </strong>
+          </td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <!-- 4. OTHER COMPONENTS SECTION (if any) -->
+    {% if other_data %}
+    <h2>Other Components</h2>
     <table>
       <thead>
         <tr>
@@ -170,26 +309,25 @@
         </tr>
       </thead>
       <tbody>
-        {% for type, count in stock_data.items() %}
-          {% if not (type.startswith('6ft_') or type.startswith('7ft_')) %}
-            <tr>
-              <td>{{ type.replace('_', ' ').title() }}</td>
-              <td>{{ count }}</td>
-              <td>
-                <form method="post" style="display:inline;">
-                  <input type="hidden" name="stock_type" value="{{ type }}">
-                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
-                  <button type="submit" name="action" value="add" class="button">Add</button>
-                  <button type="submit" name="action" value="remove" class="button">Remove</button>
-                </form>
-              </td>
-            </tr>
-          {% endif %}
+        {% for type, count in other_data.items() %}
+          <tr>
+            <td>{{ type.replace('_', ' ').title() }}</td>
+            <td>{{ count }}</td>
+            <td>
+              <form method="post" style="display:inline;">
+                <input type="hidden" name="stock_type" value="{{ type }}">
+                <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                <button type="submit" name="action" value="add" class="button">Add</button>
+                <button type="submit" name="action" value="remove" class="button">Remove</button>
+              </form>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% endif %}
     
-    <div style="text-align: center;">
+    <div style="text-align: center; margin-top: 30px;">
       <a href="{{ url_for('admin') }}" class="button">Back to Admin</a>
     </div>
   </div>
