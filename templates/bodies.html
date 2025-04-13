@@ -177,7 +177,6 @@
           const colorSelector = document.getElementById('color_selector');
           
           if (!selectedSerialNumber || selectedSerialNumber === "") {
-              document.getElementById('size_indicator').textContent = "Pod Size: Select a pod to see size";
               document.getElementById('formatted_serial_display').textContent = "";
               return; // Don't update if no serial is selected
           }
@@ -186,9 +185,6 @@
           const is6ft = selectedSerialNumber.includes(" - 6") || 
                        selectedSerialNumber.includes("-6") || 
                        (selectedSerialNumber.replace(/\s/g, "").endsWith("-6"));
-                       
-          // Update the size indicator text
-          document.getElementById('size_indicator').textContent = "Pod Size: " + (is6ft ? "6ft" : "7ft");
           
           // Clean any existing color suffix from the serial number
           let cleanedSerialNumber = selectedSerialNumber;
@@ -307,9 +303,6 @@
         {% endif %}
       </select>
       
-      <!-- Size indicator (determined from selected pod serial) -->
-      <div class="size-indicator" id="size_indicator">Pod Size: Select a pod to see size</div>
-      
       <!-- Color Selector -->
       <div class="color-field">
         <label for="color_selector">Table Color:</label>
@@ -321,8 +314,8 @@
         </select>
       </div>
       
-      <!-- Display the formatted serial number to the user -->
-      <p id="formatted_serial_display" style="color: #007bff; font-size: 0.9em; margin-top: 5px;"></p>
+      <!-- Display the formatted serial number to the user (now in larger bold font) -->
+      <p id="formatted_serial_display" style="color: #007bff; font-size: 1.2em; font-weight: bold; margin-top: 10px;"></p>
       
       <!-- Hidden field to store the formatted serial number -->
       <input type="hidden" id="formatted_serial_number" name="formatted_serial_number">
