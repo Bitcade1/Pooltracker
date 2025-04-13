@@ -391,30 +391,74 @@
 
   <script>
     $(document).ready(function() {
-      // Function to toggle section visibility
+      // Retrieve the saved toggle state from localStorage, or initialize as an empty object.
+      var toggleState = JSON.parse(localStorage.getItem("toggleState") || "{}");
+
+      // Function to toggle section visibility and update state in localStorage
       function toggleSection(headerID, contentID, indicatorID) {
         $('#' + headerID).click(function() {
           $('#' + contentID).toggleClass('active');
-          
+          var isActive = $('#' + contentID).hasClass('active');
+
+          // Save the updated state
+          toggleState[contentID] = isActive;
+          localStorage.setItem("toggleState", JSON.stringify(toggleState));
+
           // Toggle the indicator icon (right caret vs down caret)
-          if ($('#' + contentID).hasClass('active')) {
+          if (isActive) {
             $('#' + indicatorID).removeClass('fa-caret-right').addClass('fa-caret-down');
           } else {
             $('#' + indicatorID).removeClass('fa-caret-down').addClass('fa-caret-right');
           }
         });
       }
-      
-      // Initialize all sections as toggleable
+
+      // Initialize section toggles
       toggleSection('bodies-header', 'bodies-content', 'bodies-indicator');
       toggleSection('top-rails-header', 'top-rails-content', 'top-rails-indicator');
       toggleSection('cushions-header', 'cushions-content', 'cushions-indicator');
       {% if other_data %}
       toggleSection('other-header', 'other-content', 'other-indicator');
       {% endif %}
-      
-      // Expand the first section by default
-      $('#bodies-header').click();
+
+      // List of section content IDs to manage
+      var sections = ['bodies-content', 'top-rails-content', 'cushions-content' {% if other_data %}, 'other-content' {% endif %}];
+
+      // If no state for bodies-content is stored, open it by default.
+      if (toggleState['bodies-content'] === undefined) {
+        $('#bodies-content').addClass('active');
+        $('#bodies-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+        toggleState['bodies-content'] = true;
+        localStorage.setItem("toggleState", JSON.stringify(toggleState));
+      } else {
+        // Restore state for each section based on saved data
+        sections.forEach(function(section) {
+          if (toggleState[section]) {
+            $('#' + section).addClass('active');
+            if(section === 'bodies-content'){
+              $('#bodies-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+            } else if(section === 'top-rails-content'){
+              $('#top-rails-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+            } else if(section === 'cushions-content'){
+              $('#cushions-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+            } else if(section === 'other-content'){
+              $('#other-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+            }
+          }
+        });
+      }
+
+      // Save current scroll position when a form is submitted
+      $('form').on('submit', function() {
+        localStorage.setItem('scrollPosition', $(window).scrollTop());
+      });
+
+      // Restore scroll position if one was saved
+      var savedScroll = localStorage.getItem('scrollPosition');
+      if (savedScroll) {
+        $(window).scrollTop(savedScroll);
+        localStorage.removeItem('scrollPosition');
+      }
     });
   </script>
 </body>
