@@ -472,8 +472,8 @@
                 <td>{{ color }}</td>
                 <td>{{ body_count }}</td>
                 <td>{{ top_count }}</td>
-                <td>{{ deficit_body }}</td>
-                <td>{{ deficit_top }}</td>
+                <td style="color:red;font-weight:bold;">{{ deficit_body }}</td>
+                <td style="color:red;font-weight:bold;">{{ deficit_top }}</td>
               </tr>
             {% endfor %}
           {% endfor %}
@@ -508,7 +508,7 @@
               <td>{{ size }}</td>
               <td>{{ cushion_count }}</td>
               <td>{{ total_complete }}</td>
-              <td>{{ deficit_cushions }}</td>
+              <td style="color:red;font-weight:bold;">{{ deficit_cushions }}</td>
             </tr>
           {% endfor %}
         </tbody>
