@@ -127,6 +127,11 @@
           padding: 2px 8px;
           margin-left: 10px;
       }
+      /* Style for the password access area */
+      #stock-cost-access {
+          text-align: center;
+          margin: 20px 0;
+      }
   </style>
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -384,6 +389,55 @@
     </div>
     {% endif %}
     
+    <!-- NEW: Password-protected Stock Cost Panel -->
+    <div id="stock-cost-access">
+      <input type="password" id="stock-cost-password" placeholder="Enter password to view stock cost">
+      <button id="stock-cost-submit" class="button">Submit</button>
+    </div>
+    <div class="section-header" id="stock-cost-header" style="display:none;">
+      <span>
+        <i class="fas fa-caret-right section-indicator" id="stock-cost-indicator"></i> 
+        Stock Cost
+      </span>
+    </div>
+    <div class="section-content" id="stock-cost-content" style="display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Size</th>
+            <th>Color</th>
+            <th>Stock Count</th>
+            <th>Unit Cost</th>
+            <th>Total Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for size, cost_dict in stock_costs.items() %}
+            {% for color, cost in cost_dict.items() %}
+              {% set stock_key = 'body_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
+              <tr>
+                <td>{{ size }}</td>
+                <td>{{ color }}</td>
+                <td>{{ table_data[stock_key] }}</td>
+                <td>
+                  {% if color|lower == 'black' %}
+                    993.6
+                  {% else %}
+                    1089.6
+                  {% endif %}
+                </td>
+                <td>{{ cost | round(2) }}</td>
+              </tr>
+            {% endfor %}
+          {% endfor %}
+          <tr class="subtotal">
+            <td colspan="4"><strong>Grand Total</strong></td>
+            <td><strong>{{ grand_total | round(2) }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
     <div style="text-align: center; margin-top: 30px;">
       <a href="{{ url_for('admin') }}" class="button">Back to Admin</a>
     </div>
@@ -391,29 +445,21 @@
 
   <script>
     $(document).ready(function() {
-      // Retrieve the saved toggle state from localStorage, or initialize as an empty object.
-      var toggleState = JSON.parse(localStorage.getItem("toggleState") || "{}");
-
-      // Function to toggle section visibility and update state in localStorage
+      // Function to toggle section visibility
       function toggleSection(headerID, contentID, indicatorID) {
         $('#' + headerID).click(function() {
           $('#' + contentID).toggleClass('active');
-          var isActive = $('#' + contentID).hasClass('active');
-
-          // Save the updated state
-          toggleState[contentID] = isActive;
-          localStorage.setItem("toggleState", JSON.stringify(toggleState));
-
+          
           // Toggle the indicator icon (right caret vs down caret)
-          if (isActive) {
+          if ($('#' + contentID).hasClass('active')) {
             $('#' + indicatorID).removeClass('fa-caret-right').addClass('fa-caret-down');
           } else {
             $('#' + indicatorID).removeClass('fa-caret-down').addClass('fa-caret-right');
           }
         });
       }
-
-      // Initialize section toggles
+      
+      // Initialize all sections as toggleable
       toggleSection('bodies-header', 'bodies-content', 'bodies-indicator');
       toggleSection('top-rails-header', 'top-rails-content', 'top-rails-indicator');
       toggleSection('cushions-header', 'cushions-content', 'cushions-indicator');
@@ -425,6 +471,7 @@
       var sections = ['bodies-content', 'top-rails-content', 'cushions-content' {% if other_data %}, 'other-content' {% endif %}];
 
       // If no state for bodies-content is stored, open it by default.
+      var toggleState = JSON.parse(localStorage.getItem("toggleState") || "{}");
       if (toggleState['bodies-content'] === undefined) {
         $('#bodies-content').addClass('active');
         $('#bodies-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
@@ -459,6 +506,20 @@
         $(window).scrollTop(savedScroll);
         localStorage.removeItem('scrollPosition');
       }
+
+      // Handle the password protection for the Stock Cost panel.
+      $("#stock-cost-submit").click(function() {
+        var entered = $("#stock-cost-password").val();
+        if(entered === "cost123") {
+          $("#stock-cost-access").hide();
+          $("#stock-cost-header").show();
+          $("#stock-cost-content").show();
+          // Make the stock cost panel togglable like the others
+          toggleSection('stock-cost-header', 'stock-cost-content', 'stock-cost-indicator');
+        } else {
+          alert("Incorrect password!");
+        }
+      });
     });
   </script>
 </body>
