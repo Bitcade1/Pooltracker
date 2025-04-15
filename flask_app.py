@@ -1217,7 +1217,7 @@ def counting_wood():
         # Handle the different actions
         if action == 'increment':
             # Check if it's a Coloured Body section
-            if "Coloured Body" in section:
+            if "Body - Coloured" in section:
                 # Decrement plain MDF from inventory when adding Coloured Body
                 inventory = get_inventory(conn)
                 if inventory['plain_mdf'] > 0:  # Make sure there's inventory to take from
@@ -1227,7 +1227,7 @@ def counting_wood():
                     conn.commit()
                     flash('Count updated and inventory adjusted', 'success')
                 else:
-                    flash('Cannot add Coloured Body - No Plain MDF available in inventory', 'error')
+                    flash('Cannot add Body - Coloured - No Plain MDF available in inventory', 'error')
             else:
                 # Regular increment for other sections
                 increment_wood_count(conn, section, selected_month)
@@ -1244,7 +1244,7 @@ def counting_wood():
             bulk_amount = int(request.form.get('bulk_amount', 0))
             
             # Check if it's a Coloured Body section
-            if "Coloured Body" in section and bulk_amount > 0:
+            if "Body - Coloured" in section and bulk_amount > 0:
                 # Make sure there's enough inventory
                 inventory = get_inventory(conn)
                 if inventory['plain_mdf'] >= bulk_amount:
@@ -1255,7 +1255,7 @@ def counting_wood():
                     conn.commit()
                     flash(f'Added {bulk_amount} and adjusted inventory', 'success')
                 else:
-                    flash(f'Cannot add {bulk_amount} Coloured Body - Only {inventory["plain_mdf"]} Plain MDF available', 'error')
+                    flash(f'Cannot add {bulk_amount} Body - Coloured - Only {inventory["plain_mdf"]} Plain MDF available', 'error')
             else:
                 # Regular bulk increment for other sections
                 bulk_increment_wood_count(conn, section, selected_month, bulk_amount)
@@ -1268,10 +1268,10 @@ def counting_wood():
     # Handle GET request
     conn = get_db_connection()
     
-    # Make sure your sections include the new "Coloured Body" options
+    # Make sure your sections include the new "Body - Coloured" options
     sections = [
-        "7ft Rails", "7ft Diamond", "7ft K66", "7ft Standard Black", "7ft Coloured Body",
-        "6ft Rails", "6ft Diamond", "6ft K66", "6ft Standard Black", "6ft Coloured Body"
+        "7ft Rails", "7ft Diamond", "7ft K66", "7ft Standard Black", "7ft Body - Coloured",
+        "6ft Rails", "6ft Diamond", "6ft K66", "6ft Standard Black", "6ft Body - Coloured"
     ]
     
     # Initialize counts if they don't exist in database
