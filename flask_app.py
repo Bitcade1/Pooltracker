@@ -1203,533 +1203,411 @@ def manage_raw_data():
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():
-    if 'worker' not in session:
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-
-    # Ensure MDF inventory record exists.
-    inventory = MDFInventory.query.first()
-    if not inventory:
-        inventory = MDFInventory(plain_mdf=0, black_mdf=0, plain_mdf_36=0)
-        db.session.add(inventory)
-        db.session.commit()
-
-    # Get DST info for the UK
-    def is_dst_active():
-        # Simple DST calculation for UK:
-        # DST starts last Sunday of March and ends last Sunday of October
-        now = datetime.now()
-        year = now.year
-        
-        # Last Sunday of March
-        march_end = datetime(year, 3, 31)
-        while march_end.weekday() != 6:  # 6 = Sunday
-            march_end = march_end - timedelta(days=1)
-        
-        # Last Sunday of October
-        october_end = datetime(year, 10, 31)
-        while october_end.weekday() != 6:  # 6 = Sunday
-            october_end = october_end - timedelta(days=1)
-        
-        return march_end <= now < october_end
+    # Get the current month or the selected month
+    current_date = datetime.now()
+    selected_month = request.form.get('month', f"{current_date.year}-{current_date.month:02d}")
     
-    # Determine the hour offset based on DST
-    hour_offset = 1 if is_dst_active() else 0
-
-    today = datetime.now().date()
-    previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
-    current_month = today.replace(day=1)
-    next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
-    available_months = [
-        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
-        (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
-        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
-    ]
-    # Selected month is taken from form or query string.
-    selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
-    selected_year, selected_month_num = map(int, selected_month.split('-'))
-    month_start_date = date(selected_year, selected_month_num, 1)
-    month_end_date = date(selected_year, selected_month_num, monthrange(selected_year, selected_month_num)[1])
-
-    # Define wood counting sections.
-    # For each group ("7ft" and "6ft"), we have these five items.
-    sections = {
-        "7ft": ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"],
-        "6ft": ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"]
-    }
-
-    if request.method == 'POST' and 'section' in request.form:
-        # Expect a section value like "7ft - Body" or "6ft - Top Rail Pieces Long"
-        section = request.form['section']
-        action = request.form.get('action', 'increment')
-        current_time = datetime.now().time()
-
-        # Retrieve (or create) the monthly wood count record for this section.
-        monthly_entry = WoodCount.query.filter(
-            WoodCount.section == section,
-            WoodCount.date >= month_start_date,
-            WoodCount.date <= month_end_date
-        ).first()
-        if not monthly_entry:
-            monthly_entry = WoodCount(section=section, count=0, date=month_start_date, time=current_time)
-            db.session.add(monthly_entry)
-
-        # Create a new wood count log entry for today.
-        new_entry = WoodCount(section=section, count=0, date=today, time=current_time)
-
-        # --- Special logic for Top Rail Pieces ---
-        if "Top Rail Pieces" in section:
-            # For any top rail piece cut, deduct 1 sheet of 36mm Plain MDF per cut (or per unit in bulk)
-            if action in ['increment', 'bulk_increment']:
-                # Determine the number of cuts (1 for increment; bulk_amount for bulk)
-                multiplier = 1
-                if action == 'bulk_increment':
-                    try:
-                        multiplier = int(request.form.get('bulk_amount', 0))
-                    except ValueError:
-                        flash("Please enter a valid bulk amount.", "error")
-                        return redirect(url_for('counting_wood', month=selected_month))
-                    if multiplier <= 0:
-                        flash("Please enter a valid bulk amount.", "error")
-                        return redirect(url_for('counting_wood', month=selected_month))
-                if inventory.plain_mdf_36 < multiplier:
-                    flash("Not enough 36mm Plain MDF to perform this cut.", "error")
-                    return redirect(url_for('counting_wood', month=selected_month))
-                inventory.plain_mdf_36 -= multiplier
-            elif action == 'decrement':
-                # When decrementing, we add back one sheet per cut reversed.
-                inventory.plain_mdf_36 += 1
-
-            # Yield logic for Top Rail Pieces:
-            if action == 'increment':
-                if "Long" in section:
-                    # A long cut yields: +8 to Long and +3 to the corresponding Short for 6ft, or +2 for 7ft
-                    monthly_entry.count += 8
-                    new_entry.count = 8
-                    # Update the corresponding Short section.
-                    corresponding_section = section.replace("Long", "Short")
-                    short_entry = WoodCount.query.filter(
-                        WoodCount.section == corresponding_section,
-                        WoodCount.date >= month_start_date,
-                        WoodCount.date <= month_end_date
-                    ).first()
-                    if not short_entry:
-                        short_entry = WoodCount(section=corresponding_section, count=0, date=month_start_date, time=current_time)
-                        db.session.add(short_entry)
-                    
-                    # Check if it's 6ft or 7ft section
-                    if "6ft" in section:
-                        short_count = 3
-                    else:  # 7ft section
-                        short_count = 2
-                        
-                    short_entry.count += short_count
-                    # Also log a separate entry for the short yield.
-                    new_short = WoodCount(section=corresponding_section, count=short_count, date=today, time=current_time)
-                    db.session.add(new_short)
-                elif "Short" in section:
-                    # A short cut yields: +16 to Short.
-                    monthly_entry.count += 16
-                    new_entry.count = 16
-
-            elif action == 'decrement':
-                if "Long" in section:
-                    if monthly_entry.count >= 8:
-                        monthly_entry.count -= 8
-                        new_entry.count = -8
-                        # Also update the corresponding Short section.
-                        corresponding_section = section.replace("Long", "Short")
-                        short_entry = WoodCount.query.filter(
-                            WoodCount.section == corresponding_section,
-                            WoodCount.date >= month_start_date,
-                            WoodCount.date <= month_end_date
-                        ).first()
-                        
-                        # Check if it's 6ft or 7ft section
-                        if "6ft" in section:
-                            short_count = 3
-                        else:  # 7ft section
-                            short_count = 2
-                            
-                        if short_entry and short_entry.count >= short_count:
-                            short_entry.count -= short_count
-                            new_short = WoodCount(section=corresponding_section, count=-short_count, date=today, time=current_time)
-                            db.session.add(new_short)
-                        else:
-                            flash("Not enough count in the corresponding Short section to decrement.", "error")
-                            return redirect(url_for('counting_wood', month=selected_month))
-                    else:
-                        flash("Cannot decrement below zero for Long top rail pieces.", "error")
-                        return redirect(url_for('counting_wood', month=selected_month))
-                elif "Short" in section:
-                    if monthly_entry.count >= 16:
-                        monthly_entry.count -= 16
-                        new_entry.count = -16
-                    else:
-                        flash("Cannot decrement below zero for Short top rail pieces.", "error")
-                        return redirect(url_for('counting_wood', month=selected_month))
-            elif action == 'bulk_increment':
-                try:
-                    bulk_amount = int(request.form.get('bulk_amount', 0))
-                except ValueError:
-                    flash("Please enter a valid bulk amount.", "error")
-                    return redirect(url_for('counting_wood', month=selected_month))
-                if bulk_amount > 0:
-                    if "Long" in section:
-                        monthly_entry.count += bulk_amount * 8
-                        new_entry.count = bulk_amount * 8
-                        # Update corresponding Short section.
-                        corresponding_section = section.replace("Long", "Short")
-                        short_entry = WoodCount.query.filter(
-                            WoodCount.section == corresponding_section,
-                            WoodCount.date >= month_start_date,
-                            WoodCount.date <= month_end_date
-                        ).first()
-                        if not short_entry:
-                            short_entry = WoodCount(section=corresponding_section, count=0, date=month_start_date, time=current_time)
-                            db.session.add(short_entry)
-                        
-                        # Check if it's 6ft or 7ft section
-                        if "6ft" in section:
-                            short_count = 3
-                        else:  # 7ft section
-                            short_count = 2
-                            
-                        short_entry.count += bulk_amount * short_count
-                        new_short = WoodCount(section=corresponding_section, count=bulk_amount * short_count, date=today, time=current_time)
-                        db.session.add(new_short)
-                    elif "Short" in section:
-                        monthly_entry.count += bulk_amount * 16
-                        new_entry.count = bulk_amount * 16
-                    # Deduct one sheet per cut in bulk.
-                    if inventory.plain_mdf_36 < bulk_amount:
-                        flash("Insufficient 36mm Plain MDF for bulk operation.", "error")
-                        return redirect(url_for('counting_wood', month=selected_month))
-                    inventory.plain_mdf_36 -= bulk_amount
+    if request.method == 'POST':
+        section = request.form.get('section')
+        action = request.form.get('action')
+        
+        # Initialize database connection
+        conn = get_db_connection()
+        
+        # Handle the different actions
+        if action == 'increment':
+            # Check if it's a Coloured Body section
+            if "Coloured Body" in section:
+                # Decrement plain MDF from inventory when adding Coloured Body
+                inventory = get_inventory(conn)
+                if inventory['plain_mdf'] > 0:  # Make sure there's inventory to take from
+                    conn.execute('UPDATE inventory SET plain_mdf = plain_mdf - 1')
+                    # Now increment the counter
+                    increment_wood_count(conn, section, selected_month)
+                    conn.commit()
+                    flash('Count updated and inventory adjusted', 'success')
                 else:
-                    flash("Please enter a valid bulk amount.", "error")
-                    return redirect(url_for('counting_wood', month=selected_month))
+                    flash('Cannot add Coloured Body - No Plain MDF available in inventory', 'error')
             else:
-                flash("Invalid action.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
-
-        else:
-            # --- Original logic for sections other than Top Rail Pieces ---
-            if action == 'increment':
-                monthly_entry.count += 1
-                new_entry.count = 1
-                if section.endswith("Body") and inventory.black_mdf > 0:
-                    inventory.black_mdf -= 1
-                elif (section.endswith("Pod Sides") or section.endswith("Bases")) and inventory.plain_mdf > 0:
-                    inventory.plain_mdf -= 1
-                # No additional inventory change for other sections.
-            elif action == 'decrement':
-                if monthly_entry.count > 0:
-                    monthly_entry.count -= 1
-                    new_entry.count = -1
-                    if section.endswith("Body"):
-                        inventory.black_mdf += 1
-                    elif (section.endswith("Pod Sides") or section.endswith("Bases")):
-                        inventory.plain_mdf += 1
-                else:
-                    flash("Cannot decrement below zero.", "error")
-                    return redirect(url_for('counting_wood', month=selected_month))
-            elif action == 'bulk_increment':
-                try:
-                    bulk_amount = int(request.form.get('bulk_amount', 0))
-                except ValueError:
-                    flash("Please enter a valid bulk amount.", "error")
-                    return redirect(url_for('counting_wood', month=selected_month))
-                if bulk_amount > 0:
-                    if section.endswith("Body"):
-                        if inventory.black_mdf >= bulk_amount:
-                            inventory.black_mdf -= bulk_amount
-                        else:
-                            flash("Insufficient inventory for bulk operation.", "error")
-                            return redirect(url_for('counting_wood', month=selected_month))
-                    elif section.endswith("Pod Sides") or section.endswith("Bases"):
-                        if inventory.plain_mdf >= bulk_amount:
-                            inventory.plain_mdf -= bulk_amount
-                        else:
-                            flash("Insufficient inventory for bulk operation.", "error")
-                            return redirect(url_for('counting_wood', month=selected_month))
-                    monthly_entry.count += bulk_amount
-                    new_entry.count = bulk_amount
-                else:
-                    flash("Please enter a valid bulk amount.", "error")
-                    return redirect(url_for('counting_wood', month=selected_month))
-            else:
-                flash("Invalid action.", "error")
-                return redirect(url_for('counting_wood', month=selected_month))
-
-        db.session.add(new_entry)
-        db.session.commit()
-        return redirect(url_for('counting_wood', month=selected_month))
-
-    # --- GET request handling ---
-    # Build a counts dictionary for display.
-    counts = {}
-    for group, items in sections.items():
-        for item in items:
-            sec = f"{group} - {item}"
-            entry = WoodCount.query.filter(
-                WoodCount.section == sec,
-                WoodCount.date >= month_start_date,
-                WoodCount.date <= month_end_date
-            ).first()
-            counts[sec] = entry.count if entry else 0
-
-    # Weekly summary: Sum the counts for each weekday over the current week.
-    start_of_week = today - timedelta(days=today.weekday())
-    weekly_summary = {day: 0 for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']}
-    daily_entries = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today
-    ).all()
-    for entry in daily_entries:
-        weekday = entry.date.strftime("%A")
-        weekly_summary[weekday] += entry.count
-
-    # Calculate weekly sheets cut - improved approach
-    weekly_sheets_cut = 0
-    
-    # Count Body, Pod Sides, and Bases pieces that were added (not decremented)
-    weekly_regular_entries = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today,
-        (WoodCount.section.like("% - Body") | 
-         WoodCount.section.like("% - Pod Sides") | 
-         WoodCount.section.like("% - Bases")),
-        WoodCount.count > 0  # Only count positive entries (additions, not subtractions)
-    ).all()
-    
-    # Each regular entry with positive count represents a sheet used
-    for entry in weekly_regular_entries:
-        if entry.count > 0:
-            weekly_sheets_cut += 1
-    
-    # Count Top Rail Pieces sheets by looking at log entries for Long cuts
-    weekly_long_entries = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today,
-        WoodCount.section.like("% - Top Rail Pieces Long"),
-        WoodCount.count > 0  # Only count positive entries
-    ).all()
-    
-    # For Long pieces, we need to count the actual number of sheets used
-    # Each Long entry represents 1 sheet
-    for entry in weekly_long_entries:
-        # Only count if it's a positive entry (adding pieces, not removing)
-        if entry.count > 0:
-            weekly_sheets_cut += 1
-    
-    # Count sheets used for standalone Short cuts
-    # (these would be cuts specifically for Short pieces, not the ones generated from Long cuts)
-    weekly_short_entries = WoodCount.query.filter(
-        WoodCount.date >= start_of_week,
-        WoodCount.date <= today,
-        WoodCount.section.like("% - Top Rail Pieces Short"),
-        WoodCount.count > 0,  # Only count positive entries
-        ~WoodCount.section.in_([e.section.replace("Long", "Short") for e in weekly_long_entries])  # Exclude shorts from longs
-    ).all()
-    
-    # For Short pieces, each entry represents a sheet used
-    for entry in weekly_short_entries:
-        if entry.count > 0 and entry.count % 16 == 0:  # It's a full sheet cut (16 shorts)
-            weekly_sheets_cut += 1
-
-    # Calculate monthly sheets cut - improved approach
-    monthly_sheets_cut = 0
-    
-    # Count Body, Pod Sides, and Bases pieces that were added (not decremented)
-    monthly_regular_entries = WoodCount.query.filter(
-        WoodCount.date >= month_start_date,
-        WoodCount.date <= month_end_date,
-        (WoodCount.section.like("% - Body") | 
-         WoodCount.section.like("% - Pod Sides") | 
-         WoodCount.section.like("% - Bases")),
-        WoodCount.count > 0  # Only count positive entries (additions, not subtractions)
-    ).all()
-    
-    # Each regular entry with positive count represents a sheet used
-    for entry in monthly_regular_entries:
-        if entry.count > 0:
-            monthly_sheets_cut += 1
-    
-    # Count Top Rail Pieces sheets by looking at log entries for Long cuts
-    monthly_long_entries = WoodCount.query.filter(
-        WoodCount.date >= month_start_date,
-        WoodCount.date <= month_end_date,
-        WoodCount.section.like("% - Top Rail Pieces Long"),
-        WoodCount.count > 0  # Only count positive entries
-    ).all()
-    
-    # For Long pieces, we need to count the actual number of sheets used
-    # Each Long entry represents 1 sheet
-    for entry in monthly_long_entries:
-        # Only count if it's a positive entry (adding pieces, not removing)
-        if entry.count > 0:
-            monthly_sheets_cut += 1
-    
-    # Count sheets used for standalone Short cuts
-    # (these would be cuts specifically for Short pieces, not the ones generated from Long cuts)
-    monthly_short_entries = WoodCount.query.filter(
-        WoodCount.date >= month_start_date,
-        WoodCount.date <= month_end_date,
-        WoodCount.section.like("% - Top Rail Pieces Short"),
-        WoodCount.count > 0,  # Only count positive entries
-        ~WoodCount.section.in_([e.section.replace("Long", "Short") for e in monthly_long_entries])  # Exclude shorts from longs
-    ).all()
-    
-    # For Short pieces, each entry represents a sheet used
-    for entry in monthly_short_entries:
-        if entry.count > 0 and entry.count % 16 == 0:  # It's a full sheet cut (16 shorts)
-            monthly_sheets_cut += 1
-            
-    # Break down monthly data by weeks
-    weekly_breakdown = {}
-    
-    # Define a function to count sheets for a specific date range
-    def count_sheets_for_range(start_date, end_date):
-        sheet_count = 0
-        
-        # Count Body, Pod Sides, and Bases pieces (each increment = 1 sheet)
-        body_entries = WoodCount.query.filter(
-            WoodCount.date >= start_date,
-            WoodCount.date <= end_date,
-            WoodCount.section.like("% - Body"),
-            WoodCount.count > 0
-        ).all()
-        sheet_count += len(body_entries)
-        
-        pod_sides_bases_entries = WoodCount.query.filter(
-            WoodCount.date >= start_date,
-            WoodCount.date <= end_date,
-            (WoodCount.section.like("% - Pod Sides") | WoodCount.section.like("% - Bases")),
-            WoodCount.count > 0
-        ).all()
-        sheet_count += len(pod_sides_bases_entries)
-        
-        # Count Top Rail pieces - each log entry is a sheet
-        # 1 sheet produces either 8 Long pieces or 16 Short pieces
-        top_rail_entries = WoodCount.query.filter(
-            WoodCount.date >= start_date,
-            WoodCount.date <= end_date,
-            WoodCount.section.like("% - Top Rail Pieces %"),
-            WoodCount.count > 0
-        ).all()
-        
-        # Group by section and date to avoid double counting
-        counted_dates = set()
-        for entry in top_rail_entries:
-            # Create a unique key for each date+section to avoid double counting
-            if "Top Rail Pieces Long" in entry.section:
-                key = (entry.date, entry.section)
-                if key not in counted_dates:
-                    sheet_count += 1
-                    counted_dates.add(key)
-            elif "Top Rail Pieces Short" in entry.section:
-                # Need to check if this was a standalone entry or from a Long cut
-                # If it was from a Long cut, we already counted it
-                # If it was a standalone entry, count it as 1 sheet
-                corresponding_long = entry.section.replace("Short", "Long")
-                # Check if there was a Long entry on the same date
-                long_entry = WoodCount.query.filter(
-                    WoodCount.date == entry.date,
-                    WoodCount.section == corresponding_long,
-                    WoodCount.count > 0
-                ).first()
-                if not long_entry:
-                    # This was a standalone Short cut
-                    key = (entry.date, entry.section)
-                    if key not in counted_dates:
-                        sheet_count += 1
-                        counted_dates.add(key)
+                # Regular increment for other sections
+                increment_wood_count(conn, section, selected_month)
+                conn.commit()
+                flash('Count incremented', 'success')
                 
-        return sheet_count
-    
-    # Calculate sheets cut for each week of the month
-    current_date = month_start_date
-    week_number = 1
-    
-    while current_date <= month_end_date:
-        # Calculate end of week (either Saturday or end of month, whichever comes first)
-        days_until_saturday = (5 - current_date.weekday()) % 7
-        if days_until_saturday == 0:
-            days_until_saturday = 7
-        week_end = min(current_date + timedelta(days=days_until_saturday - 1), month_end_date)
-        
-        # Count sheets for this week
-        sheets_this_week = count_sheets_for_range(current_date, week_end)
-        weekly_breakdown[f"Week {week_number}"] = {
-            "start_date": current_date.strftime("%d %b"),
-            "end_date": week_end.strftime("%d %b"),
-            "sheets_cut": sheets_this_week
-        }
-        
-        # Move to next week
-        current_date = week_end + timedelta(days=1)
-        week_number += 1
-        
-        # Break if we've reached the end of the month
-        if current_date > month_end_date:
-            break
-    
-    # Calculate yearly breakdown (all months this year)
-    year_start = date(today.year, 1, 1)
-    yearly_breakdown = {}
-    
-    for month_num in range(1, 13):
-        month_start = date(today.year, month_num, 1)
-        if month_num == 12:
-            month_end = date(today.year, month_num, 31)
-        else:
-            month_end = date(today.year, month_num + 1, 1) - timedelta(days=1)
-        
-        # Skip future months
-        if month_start > today:
-            continue
+        elif action == 'decrement':
+            # Handle decrement (no need to adjust inventory when decrementing)
+            decrement_wood_count(conn, section, selected_month)
+            conn.commit()
+            flash('Count decremented', 'success')
             
-        # Count sheets for this month
-        sheets_this_month = count_sheets_for_range(month_start, month_end)
-        month_name = month_start.strftime("%B")
-        yearly_breakdown[month_name] = sheets_this_month
-
-    # Retrieve wood entries for today and adjust time display
-    daily_wood_data = WoodCount.query.filter(WoodCount.date == today).all()
-    
-    # Adjust times for display
-    daily_wood_data_with_local_time = []
-    for entry in daily_wood_data:
-        # Create a copy of entry with the adjusted time
-        adjusted_time = entry.time
-        if hour_offset > 0:
-            # Add the hour offset while handling overflow (e.g., 23:00 + 1 hour)
-            adjusted_hours = (adjusted_time.hour + hour_offset) % 24
-            adjusted_time = adjusted_time.replace(hour=adjusted_hours)
+        elif action == 'bulk_increment':
+            bulk_amount = int(request.form.get('bulk_amount', 0))
+            
+            # Check if it's a Coloured Body section
+            if "Coloured Body" in section and bulk_amount > 0:
+                # Make sure there's enough inventory
+                inventory = get_inventory(conn)
+                if inventory['plain_mdf'] >= bulk_amount:
+                    # Decrease plain MDF by the bulk amount
+                    conn.execute('UPDATE inventory SET plain_mdf = plain_mdf - ?', (bulk_amount,))
+                    # Add the bulk amount to the counter
+                    bulk_increment_wood_count(conn, section, selected_month, bulk_amount)
+                    conn.commit()
+                    flash(f'Added {bulk_amount} and adjusted inventory', 'success')
+                else:
+                    flash(f'Cannot add {bulk_amount} Coloured Body - Only {inventory["plain_mdf"]} Plain MDF available', 'error')
+            else:
+                # Regular bulk increment for other sections
+                bulk_increment_wood_count(conn, section, selected_month, bulk_amount)
+                conn.commit()
+                flash(f'Added {bulk_amount}', 'success')
         
-        entry_copy = {
-            'time': adjusted_time,
-            'section': entry.section,
-            'count': entry.count
-        }
-        daily_wood_data_with_local_time.append(entry_copy)
+        conn.close()
+        return redirect(url_for('counting_wood', month=selected_month))
+    
+    # Handle GET request
+    conn = get_db_connection()
+    
+    # Make sure your sections include the new "Coloured Body" options
+    sections = [
+        "7ft Rails", "7ft Diamond", "7ft K66", "7ft Standard Black", "7ft Coloured Body",
+        "6ft Rails", "6ft Diamond", "6ft K66", "6ft Standard Black", "6ft Coloured Body"
+    ]
+    
+    # Initialize counts if they don't exist in database
+    for section in sections:
+        if not get_section_count(conn, section, selected_month):
+            initialize_section_count(conn, section, selected_month)
+    
+    # Get current counts for all sections
+    counts = {}
+    for section in sections:
+        counts[section] = get_section_count(conn, section, selected_month)
+    
+    # Get inventory
+    inventory = get_inventory(conn)
+    
+    # Get daily wood data
+    daily_wood_data = get_daily_wood_data(conn)
+    
+    # Calculate weekly summary
+    weekly_summary = calculate_weekly_summary(conn)
+    
+    # Calculate weekly sheets cut
+    weekly_sheets_cut = calculate_weekly_sheets_cut(conn)
+    
+    # Calculate monthly sheets cut for the selected month
+    monthly_sheets_cut = calculate_monthly_sheets_cut(conn, selected_month)
+    
+    # Get weekly breakdown for the selected month
+    weekly_breakdown = get_weekly_breakdown(conn, selected_month)
+    
+    # Get yearly breakdown
+    current_year = datetime.now().year
+    yearly_breakdown = get_yearly_breakdown(conn, current_year)
+    
+    # Create available months for the dropdown
+    available_months = get_available_months(conn)
+    
+    conn.close()
+    
+    return render_template('counting_wood.html', 
+                          counts=counts,
+                          inventory=inventory,
+                          daily_wood_data=daily_wood_data,
+                          weekly_summary=weekly_summary,
+                          weekly_sheets_cut=weekly_sheets_cut,
+                          monthly_sheets_cut=monthly_sheets_cut,
+                          weekly_breakdown=weekly_breakdown,
+                          yearly_breakdown=yearly_breakdown,
+                          current_year=current_year,
+                          selected_month=selected_month,
+                          available_months=available_months)
 
-    return render_template(
-        'counting_wood.html',
-        inventory=inventory,
-        available_months=available_months,
-        selected_month=selected_month,
-        counts=counts,
-        daily_wood_data=daily_wood_data_with_local_time,
-        weekly_summary=weekly_summary,
-        weekly_sheets_cut=weekly_sheets_cut,
-        monthly_sheets_cut=monthly_sheets_cut,
-        weekly_breakdown=weekly_breakdown,
-        yearly_breakdown=yearly_breakdown,
-        today=today,
-        current_year=today.year
-    )
+# Helper functions
+def get_db_connection():
+    conn = sqlite3.connect('pool_table_tracker.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def get_section_count(conn, section, month):
+    result = conn.execute('SELECT count FROM wood_counts WHERE section = ? AND month = ?', 
+                         (section, month)).fetchone()
+    return result['count'] if result else None
+
+def initialize_section_count(conn, section, month):
+    conn.execute('INSERT INTO wood_counts (section, month, count) VALUES (?, ?, 0)', 
+                (section, month))
+    conn.commit()
+
+def increment_wood_count(conn, section, month):
+    # First check if section exists for the month
+    if get_section_count(conn, section, month) is None:
+        initialize_section_count(conn, section, month)
+    
+    # Increment the count
+    conn.execute('''
+        UPDATE wood_counts 
+        SET count = count + 1 
+        WHERE section = ? AND month = ?
+    ''', (section, month))
+    
+    # Log this entry
+    log_wood_entry(conn, section)
+
+def decrement_wood_count(conn, section, month):
+    # Check if section exists and has a count > 0
+    current_count = get_section_count(conn, section, month)
+    if current_count is None:
+        initialize_section_count(conn, section, month)
+        return
+        
+    if current_count > 0:
+        conn.execute('''
+            UPDATE wood_counts 
+            SET count = count - 1 
+            WHERE section = ? AND month = ?
+        ''', (section, month))
+
+def bulk_increment_wood_count(conn, section, month, amount):
+    # First check if section exists for the month
+    if get_section_count(conn, section, month) is None:
+        initialize_section_count(conn, section, month)
+    
+    # Increment the count by the bulk amount
+    conn.execute('''
+        UPDATE wood_counts 
+        SET count = count + ? 
+        WHERE section = ? AND month = ?
+    ''', (amount, section, month))
+    
+    # Log this entry (as bulk)
+    log_wood_entry(conn, section, amount)
+
+def log_wood_entry(conn, section, count=1):
+    now = datetime.now()
+    date_str = now.strftime('%Y-%m-%d')
+    
+    conn.execute('''
+        INSERT INTO wood_log (date, time, section, count) 
+        VALUES (?, ?, ?, ?)
+    ''', (date_str, now, section, count))
+
+def get_inventory(conn):
+    result = conn.execute('SELECT plain_mdf, black_mdf, plain_mdf_36 FROM inventory').fetchone()
+    if result:
+        return {
+            'plain_mdf': result['plain_mdf'],
+            'black_mdf': result['black_mdf'],
+            'plain_mdf_36': result['plain_mdf_36']
+        }
+    else:
+        # Initialize inventory if it doesn't exist
+        conn.execute('INSERT INTO inventory (plain_mdf, black_mdf, plain_mdf_36) VALUES (0, 0, 0)')
+        conn.commit()
+        return {'plain_mdf': 0, 'black_mdf': 0, 'plain_mdf_36': 0}
+
+def get_daily_wood_data(conn):
+    today = datetime.now().strftime('%Y-%m-%d')
+    return conn.execute('''
+        SELECT * FROM wood_log 
+        WHERE date = ? 
+        ORDER BY time DESC
+    ''', (today,)).fetchall()
+
+def calculate_weekly_summary(conn):
+    # Get start of the week (Monday)
+    today = datetime.now()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_date = start_of_week.strftime('%Y-%m-%d')
+    
+    # Query for data grouped by day
+    results = conn.execute('''
+        SELECT 
+            date, 
+            SUM(count) as total 
+        FROM wood_log 
+        WHERE date >= ? 
+        GROUP BY date 
+        ORDER BY date
+    ''', (start_date,)).fetchall()
+    
+    # Format into a dictionary
+    summary = {}
+    for row in results:
+        day = datetime.strptime(row['date'], '%Y-%m-%d').strftime('%A')
+        summary[day] = row['total']
+    
+    return summary
+
+def calculate_weekly_sheets_cut(conn):
+    # Get start of the week (Monday)
+    today = datetime.now()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_date = start_of_week.strftime('%Y-%m-%d')
+    
+    # Query for total sum
+    result = conn.execute('''
+        SELECT SUM(count) as total 
+        FROM wood_log 
+        WHERE date >= ?
+    ''', (start_date,)).fetchone()
+    
+    return result['total'] if result and result['total'] else 0
+
+def calculate_monthly_sheets_cut(conn, month):
+    # Extract year and month from the selected_month format (YYYY-MM)
+    if '-' in month:
+        year, month_num = month.split('-')
+        
+        # Create date range for the month
+        start_date = f"{year}-{month_num}-01"
+        
+        # Calculate end date
+        if month_num == '12':
+            end_year = int(year) + 1
+            end_month = '01'
+        else:
+            end_year = year
+            end_month = f"{int(month_num) + 1:02d}"
+        
+        end_date = f"{end_year}-{end_month}-01"
+        
+        # Query for total sum for the month
+        result = conn.execute('''
+            SELECT SUM(count) as total 
+            FROM wood_log 
+            WHERE date >= ? AND date < ?
+        ''', (start_date, end_date)).fetchone()
+        
+        return result['total'] if result and result['total'] else 0
+    
+    return 0
+
+def get_weekly_breakdown(conn, month):
+    # Extract year and month
+    if '-' in month:
+        year, month_num = month.split('-')
+        
+        # Create date range for the month
+        start_date = f"{year}-{month_num}-01"
+        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+        
+        # Calculate end date
+        if month_num == '12':
+            end_year = int(year) + 1
+            end_month = '01'
+        else:
+            end_year = year
+            end_month = f"{int(month_num) + 1:02d}"
+        
+        end_date = f"{end_year}-{end_month}-01"
+        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+        
+        # Initialize result
+        breakdown = {}
+        
+        # Calculate weeks in the month
+        current_week_start = start_date_obj
+        week_num = 1
+        
+        while current_week_start < end_date_obj:
+            # Calculate week end (Sunday)
+            days_to_sunday = 6 - current_week_start.weekday()
+            current_week_end = current_week_start + timedelta(days=days_to_sunday)
+            
+            # Ensure week end doesn't exceed month end
+            if current_week_end > end_date_obj:
+                current_week_end = end_date_obj - timedelta(days=1)
+            
+            # Format dates for query
+            query_start = current_week_start.strftime('%Y-%m-%d')
+            query_end = (current_week_end + timedelta(days=1)).strftime('%Y-%m-%d')
+            
+            # Query for total sum for this week
+            result = conn.execute('''
+                SELECT SUM(count) as total 
+                FROM wood_log 
+                WHERE date >= ? AND date < ?
+            ''', (query_start, query_end)).fetchone()
+            
+            total = result['total'] if result and result['total'] else 0
+            
+            # Add to breakdown
+            breakdown[f"Week {week_num}"] = {
+                "start_date": current_week_start.strftime('%d %b'),
+                "end_date": current_week_end.strftime('%d %b'),
+                "sheets_cut": total
+            }
+            
+            # Move to next week
+            current_week_start = current_week_end + timedelta(days=1)
+            week_num += 1
+        
+        return breakdown
+    
+    return {}
+
+def get_yearly_breakdown(conn, year):
+    breakdown = {}
+    
+    # For each month in the year
+    for month in range(1, 13):
+        month_str = f"{month:02d}"
+        
+        # Create date range for the month
+        start_date = f"{year}-{month_str}-01"
+        
+        # Calculate end date
+        if month == 12:
+            end_year = year + 1
+            end_month = '01'
+        else:
+            end_year = year
+            end_month = f"{month + 1:02d}"
+        
+        end_date = f"{end_year}-{end_month}-01"
+        
+        # Query for total sum for the month
+        result = conn.execute('''
+            SELECT SUM(count) as total 
+            FROM wood_log 
+            WHERE date >= ? AND date < ?
+        ''', (start_date, end_date)).fetchone()
+        
+        total = result['total'] if result and result['total'] else 0
+        
+        # Add to breakdown with month name
+        month_name = datetime(year, month, 1).strftime('%B')
+        breakdown[month_name] = total
+    
+    return breakdown
+
+def get_available_months(conn):
+    # Get unique months from wood_counts
+    results = conn.execute('''
+        SELECT DISTINCT month FROM wood_counts
+        ORDER BY month DESC
+    ''').fetchall()
+    
+    # Create a list of (value, label) tuples for the dropdown
+    months = []
+    for row in results:
+        month_val = row['month']
+        if '-' in month_val:
+            year, month_num = month_val.split('-')
+            month_name = datetime(int(year), int(month_num), 1).strftime('%B %Y')
+            months.append((month_val, month_name))
+    
+    # Add current month if not already in the list
+    current_date = datetime.now()
+    current_month = f"{current_date.year}-{current_date.month:02d}"
+    current_month_name = current_date.strftime('%B %Y')
+    
+    if not any(month[0] == current_month for month in months):
+        months.insert(0, (current_month, current_month_name))
+    
+    return months
 
 # New model class definitions first:
 class CushionJob(db.Model):
