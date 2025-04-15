@@ -1609,6 +1609,7 @@ def get_available_months(conn):
     
     return months
 
+
 # New model class definitions first:
 class CushionJob(db.Model):
     id = db.Column(db.Integer, primary_key=True)
