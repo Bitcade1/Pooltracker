@@ -3537,9 +3537,36 @@ def sales_extrapolation():
     
     return render_template('sales_extrapolation.html', **data)
 
-@app.route('/dust_extractor', methods=['GET', 'POST'])
-def dust_extractor():
-    return "Dust Extractor Page Works!"
+import tinytuya
+from flask import flash, redirect, url_for
+
+@app.route('/turn_on_dust_extractor', methods=['POST'])
+def turn_on_dust_extractor():
+    """Turn on the dust extractor via Fingerbot"""
+    try:
+        # Cloud API configuration
+        cloud = tinytuya.Cloud(
+            apiRegion="eu",  # Based on your region
+            apiKey="5gcttjq87ffjvvk84a54",  # Your API Key
+            apiSecret="55bec326c6e3466db6c1a3374c4d88ec",  # Your API Secret
+            apiDeviceID="bfcf09124259fcecdd6ied"  # Your Hub/Gateway ID
+        )
+        
+        # Fingerbot device ID
+        FINGERBOT_ID = "bfdbd2ybbo1zwocd"
+        
+        # Send command to turn on
+        commands = {"commands": [{"code": "switch", "value": True}]}
+        result = cloud.sendcommand(FINGERBOT_ID, commands)
+        
+        # Flash a success message
+        flash("Dust extractor turned on!", "success")
+    except Exception as e:
+        # Flash an error message if something goes wrong
+        flash(f"Error turning on dust extractor: {str(e)}", "error")
+    
+    # Redirect back to the counting wood page
+    return redirect(url_for('counting_wood'))
 
 if __name__ == '__main__':
     app.run(debug=True)
