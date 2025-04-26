@@ -3537,32 +3537,9 @@ def sales_extrapolation():
     
     return render_template('sales_extrapolation.html', **data)
 
-import tinytuya
-from flask import flash, redirect, url_for, render_template, request, session
-
-import logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
 @app.route('/dust_extractor', methods=['GET', 'POST'])
 def dust_extractor():
-    logger.debug("Dust extractor route accessed!")
-    print("Dust extractor route called!")  # Additional print for direct logging
-    
-    if 'worker' not in session:
-        logger.debug("No worker in session, redirecting to login")
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-    
-    try:
-        if request.method == 'POST':
-            logger.debug("POST method received")
-            # Rest of your existing code
-    except Exception as e:
-        logger.error(f"Error in dust extractor route: {str(e)}")
-        flash(f"Error: {str(e)}", "error")
-    
-    return render_template('dust_extractor.html')
+    return "Dust Extractor Page Works!"
 
 if __name__ == '__main__':
     app.run(debug=True)
