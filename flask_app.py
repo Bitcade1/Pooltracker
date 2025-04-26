@@ -3542,7 +3542,7 @@ from flask import flash, redirect, url_for, render_template, request, session
 
 @app.route('/dust_extractor', methods=['GET', 'POST'])
 def dust_extractor():
-    """Dust Extractor Control Page"""
+    print("Dust Extractor route called!")  # Add this debug print
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
