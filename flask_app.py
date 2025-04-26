@@ -3538,6 +3538,7 @@ def sales_extrapolation():
     return render_template('sales_extrapolation.html', **data)
 
 import tinytuya
+from flask import flash, redirect, url_for, render_template, request, session
 
 @app.route('/dust_extractor', methods=['GET', 'POST'])
 def dust_extractor():
@@ -3570,7 +3571,6 @@ def dust_extractor():
         flash(f"Error turning on dust extractor: {str(e)}", "error")
     
     return render_template('dust_extractor.html')
-
 
 if __name__ == '__main__':
     app.run(debug=True)
