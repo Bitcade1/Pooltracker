@@ -3543,6 +3543,10 @@ from flask import flash, redirect, url_for
 @app.route('/turn_on_dust_extractor', methods=['POST'])
 def turn_on_dust_extractor():
     """Turn on the dust extractor via Fingerbot"""
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+    
     try:
         # Cloud API configuration
         cloud = tinytuya.Cloud(
@@ -3565,8 +3569,8 @@ def turn_on_dust_extractor():
         # Flash an error message if something goes wrong
         flash(f"Error turning on dust extractor: {str(e)}", "error")
     
-    # Redirect back to the counting wood page
-    return redirect(url_for('counting_wood'))
+    # Redirect back to the previous page
+    return redirect(request.referrer or url_for('counting_wood'))
 
 if __name__ == '__main__':
     app.run(debug=True)
