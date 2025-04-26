@@ -100,7 +100,12 @@
 </head>
 <body>
   <div class="container">
-    <h1>Counting Wood</h1>
+    <div class="flex items-center">
+      <h1 class="mr-4">Counting Wood</h1>
+      <form method="POST" action="{{ url_for('turn_on_dust_extractor') }}">
+        <button type="submit" class="button">Turn Dust Extractor On</button>
+      </form>
+    </div>
 
     <!-- Flash Messages Display -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -217,14 +222,13 @@
       {% endfor %}
     </div>
 
-<!-- Wood Inventory Display -->
-<h2>Wood Remaining</h2>
-<div class="inventory">
-    <p>Plain MDF: {{ inventory.plain_mdf }}</p>
-    <p>Black MDF: {{ inventory.black_mdf }}</p>
-    <p>36mm Plain MDF: {{ inventory.plain_mdf_36 }}</p>
-</div>
-
+    <!-- Wood Inventory Display -->
+    <h2>Wood Remaining</h2>
+    <div class="inventory">
+        <p>Plain MDF: {{ inventory.plain_mdf }}</p>
+        <p>Black MDF: {{ inventory.black_mdf }}</p>
+        <p>36mm Plain MDF: {{ inventory.plain_mdf_36 }}</p>
+    </div>
 
     <!-- Daily Wood Data -->
     <button class="collapsible" onclick="toggleCollapsible('dailyData')">Daily Wood Data</button>
