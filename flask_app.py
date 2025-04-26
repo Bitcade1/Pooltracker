@@ -3540,35 +3540,27 @@ def sales_extrapolation():
 import tinytuya
 from flask import flash, redirect, url_for, render_template, request, session
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 @app.route('/dust_extractor', methods=['GET', 'POST'])
 def dust_extractor():
-    print("Dust Extractor route called!")  # Add this debug print
+    logger.debug("Dust extractor route accessed!")
+    print("Dust extractor route called!")  # Additional print for direct logging
+    
     if 'worker' not in session:
+        logger.debug("No worker in session, redirecting to login")
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
     
     try:
         if request.method == 'POST':
-            # Cloud API configuration
-            cloud = tinytuya.Cloud(
-                apiRegion="eu",  # Based on your region
-                apiKey="5gcttjq87ffjvvk84a54",  # Your API Key
-                apiSecret="55bec326c6e3466db6c1a3374c4d88ec",  # Your API Secret
-                apiDeviceID="bfcf09124259fcecdd6ied"  # Your Hub/Gateway ID
-            )
-            
-            # Fingerbot device ID
-            FINGERBOT_ID = "bfdbd2ybbo1zwocd"
-            
-            # Send command to turn on
-            commands = {"commands": [{"code": "switch", "value": True}]}
-            result = cloud.sendcommand(FINGERBOT_ID, commands)
-            
-            # Flash a success message
-            flash("Dust extractor turned on!", "success")
+            logger.debug("POST method received")
+            # Rest of your existing code
     except Exception as e:
-        # Flash an error message if something goes wrong
-        flash(f"Error turning on dust extractor: {str(e)}", "error")
+        logger.error(f"Error in dust extractor route: {str(e)}")
+        flash(f"Error: {str(e)}", "error")
     
     return render_template('dust_extractor.html')
 
