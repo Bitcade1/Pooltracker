@@ -3542,12 +3542,15 @@ from flask import flash, redirect, url_for
 
 @app.route('/turn_on_dust_extractor', methods=['POST'])
 def turn_on_dust_extractor():
-    """Turn on the dust extractor via Fingerbot"""
+    """Turn on or off the dust extractor via Fingerbot"""
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
     
     try:
+        # Determine action from form submission
+        action = request.form.get('action', 'on')
+        
         # Cloud API configuration
         cloud = tinytuya.Cloud(
             apiRegion="eu",  # Based on your region
@@ -3556,18 +3559,22 @@ def turn_on_dust_extractor():
             apiDeviceID="bfcf09124259fcecdd6ied"  # Your Hub/Gateway ID
         )
         
-        # Fingerbot device ID
-        FINGERBOT_ID = "bfdbd2ybbo1zwocd"
+        # Device IDs
+        ON_FINGERBOT_ID = "bfdbd2ybbo1zwocd"
+        OFF_FINGERBOT_ID = "bf8f805498a758d70epago"
         
-        # Send command to turn on
+        # Select the appropriate device ID based on action
+        device_id = ON_FINGERBOT_ID if action == 'on' else OFF_FINGERBOT_ID
+        
+        # Send command to turn on/off
         commands = {"commands": [{"code": "switch", "value": True}]}
-        result = cloud.sendcommand(FINGERBOT_ID, commands)
+        result = cloud.sendcommand(device_id, commands)
         
         # Flash a success message
-        flash("Dust extractor turned on!", "success")
+        flash(f"Dust extractor turned {action}!", "success")
     except Exception as e:
         # Flash an error message if something goes wrong
-        flash(f"Error turning on dust extractor: {str(e)}", "error")
+        flash(f"Error turning {action} dust extractor: {str(e)}", "error")
     
     # Redirect back to the previous page
     return redirect(request.referrer or url_for('counting_wood'))
