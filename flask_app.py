@@ -3564,8 +3564,8 @@ def turn_on_dust_extractor():
         # Flash an error message if something goes wrong
         flash(f"Error turning on dust extractor: {str(e)}", "error")
     
-    # Redirect back to the previous page
-    return redirect(request.referrer or url_for('counting_wood'))
+    # Redirect back to the counting wood page
+    return redirect(url_for('counting_wood'))
 
 
 if __name__ == '__main__':
