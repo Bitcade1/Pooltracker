@@ -3560,8 +3560,8 @@ def turn_on_dust_extractor():
         )
         
         # Device IDs
-        ON_FINGERBOT_ID = "bfdbd2ybbo1zwocd"
-        OFF_FINGERBOT_ID = "bf8f805498a758d70epago"
+        ON_FINGERBOT_ID = "bfdbd2ybbo1zwocd"  # Original Fingerbot (first one)
+        OFF_FINGERBOT_ID = "bf8f805498a758d70epago"  # New Fingerbot (second one)
         
         # Select the appropriate device ID based on action
         device_id = ON_FINGERBOT_ID if action == 'on' else OFF_FINGERBOT_ID
