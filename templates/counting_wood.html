@@ -90,6 +90,28 @@
       min-width: 200px;
       margin: 10px;
     }
+    .dust-extractor-buttons {
+      display: flex;
+      align-items: center;
+      margin-left: 20px;
+    }
+    .dust-extractor-buttons form {
+      margin-right: 10px;
+    }
+    .dust-extractor-on {
+      background-color: #28a745;
+      color: white;
+    }
+    .dust-extractor-on:hover {
+      background-color: #218838;
+    }
+    .dust-extractor-off {
+      background-color: #dc3545;
+      color: white;
+    }
+    .dust-extractor-off:hover {
+      background-color: #c82333;
+    }
   </style>
   <script>
     function toggleCollapsible(id) {
@@ -101,12 +123,24 @@
 <body>
   <div class="container">
     <div class="flex items-center">
-      <h1 class="mr-4">Counting Wood</h1>
-      <form method="POST" action="{{ url_for('turn_on_dust_extractor') }}">
-        <button type="submit" class="button">Turn Dust Extractor On</button>
-      </form>
+      <h1>Counting Wood</h1>
+      <div class="dust-extractor-buttons">
+        <form method="POST" action="{{ url_for('turn_on_dust_extractor') }}">
+          <input type="hidden" name="action" value="on">
+          <button type="submit" class="button dust-extractor-on">
+            Dust Extractor On
+          </button>
+        </form>
+        <form method="POST" action="{{ url_for('turn_on_dust_extractor') }}">
+          <input type="hidden" name="action" value="off">
+          <button type="submit" class="button dust-extractor-off">
+            Dust Extractor Off
+          </button>
+        </form>
+      </div>
     </div>
 
+    <!-- Rest of the existing counting_wood.html content remains the same -->
     <!-- Flash Messages Display -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
