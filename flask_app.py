@@ -2009,7 +2009,6 @@ def bodies():
             # For a 6ft table, remove standard parts and add the 6ft-specific ones.
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
-	    parts_to_deduct.pop("Ramp 158mm", None)
             parts_to_deduct.pop("Ramp 170mm", None)	
             parts_to_deduct.pop("Small Ramp", None)  # Also remove Small Ramp for 6ft tables
             parts_to_deduct["6ft Large Ramp"] = 1
