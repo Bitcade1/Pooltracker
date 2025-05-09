@@ -540,8 +540,8 @@ def inventory():
         "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1,
         "Feet": 4, "Triangle trim": 1, "White ball return trim": 1,
         "Color ball trim": 1, "Ball window trim": 1, "Aluminum corner": 4,
-        "Chrome corner": 4, "Top rail trim short length": 1,
-        "Top rail trim long length": 1, "Ramp 170mm": 1, "Ramp 158mm": 1,
+        "Chrome corner": 4, "Top rail trim short length": 4,
+        "Top rail trim long length": 2, "Ramp 170mm": 1, "Ramp 158mm": 1,
         "Ramp 918mm": 1, "Ramp 376mm": 1, "Chrome handles": 1,
         "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
     }
@@ -1997,8 +1997,6 @@ def bodies():
             "Ramp 918mm": 1,
             "Ramp 376mm": 1,
             "Chrome handles": 1,
-            "Center pockets": 2,
-            "Corner pockets": 4,
             "Sticker Set": 1
         }
 
@@ -2011,6 +2009,8 @@ def bodies():
             # For a 6ft table, remove standard parts and add the 6ft-specific ones.
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
+	    parts_to_deduct.pop("Ramp 158mm", None)
+            parts_to_deduct.pop("Ramp 170mm", None)	
             parts_to_deduct.pop("Small Ramp", None)  # Also remove Small Ramp for 6ft tables
             parts_to_deduct["6ft Large Ramp"] = 1
             parts_to_deduct["6ft Cue Ball Separator"] = 1
