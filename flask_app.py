@@ -1921,9 +1921,30 @@ def bodies():
     
     # Retrieve issues and any pods not yet converted
     issues = [issue.description for issue in Issue.query.all()]
-    unconverted_pods = CompletedPods.query.filter(
-        ~CompletedPods.serial_number.in_(db.session.query(CompletedTable.serial_number))
-    ).all()
+    
+    # Get the base serial numbers of all completed tables (without color suffixes)
+    completed_table_serials = db.session.query(CompletedTable.serial_number).all()
+    completed_base_serials = []
+    
+    for (serial,) in completed_table_serials:
+        # Strip any color suffixes to get the base serial
+        base_serial = serial
+        for suffix in [' - GO', '-GO', ' - O', '-O', ' - C', '-C', ' - B', '-B']:
+            if suffix in base_serial:
+                base_serial = base_serial.split(suffix, 1)[0].strip()
+        completed_base_serials.append(base_serial)
+    
+    # Find pods that haven't been converted to tables (considering base serial numbers)
+    unconverted_pods = []
+    for pod in CompletedPods.query.all():
+        # Clean the pod serial number if it has the prefix
+        pod_serial = pod.serial_number
+        if "**Pod Serial Number:" in pod_serial:
+            pod_serial = pod_serial.replace("**Pod Serial Number:", "").strip()
+            
+        # Check if the base serial is not in completed tables
+        if pod_serial not in completed_base_serials:
+            unconverted_pods.append(pod)
 
     if request.method == 'POST':
         worker = session['worker']
@@ -2014,6 +2035,7 @@ def bodies():
             parts_to_deduct.pop("Cue Ball Separator", None)
             parts_to_deduct.pop("Small Ramp", None)  # Remove Small Ramp for 6ft tables
             parts_to_deduct.pop("Ramp 170mm", None)  # Also remove Ramp 170mm for 6ft tables
+            parts_to_deduct.pop("Ramp 158mm", None)  # Also remove Ramp 158mm for 6ft tables
             parts_to_deduct["6ft Large Ramp"] = 1
             parts_to_deduct["6ft Cue Ball Separator"] = 1
 
