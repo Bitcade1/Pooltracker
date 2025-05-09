@@ -1940,6 +1940,10 @@ def bodies():
             # Clean any existing color suffix from the serial number, but preserve size suffix
             clean_serial = original_serial_number
             
+            # Remove "**Pod Serial Number:" prefix if present
+            if "**Pod Serial Number:" in clean_serial:
+                clean_serial = clean_serial.replace("**Pod Serial Number:", "").strip()
+            
             # Check for and remove existing color suffixes
             for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B']:
                 if suffix in clean_serial:
@@ -2008,8 +2012,8 @@ def bodies():
             # For a 6ft table, remove standard parts and add the 6ft-specific ones.
             parts_to_deduct.pop("Large Ramp", None)
             parts_to_deduct.pop("Cue Ball Separator", None)
-            parts_to_deduct.pop("Ramp 170mm", None)	
-            parts_to_deduct.pop("Small Ramp", None)  # Also remove Small Ramp for 6ft tables
+            parts_to_deduct.pop("Small Ramp", None)  # Remove Small Ramp for 6ft tables
+            parts_to_deduct.pop("Ramp 170mm", None)  # Also remove Ramp 170mm for 6ft tables
             parts_to_deduct["6ft Large Ramp"] = 1
             parts_to_deduct["6ft Cue Ball Separator"] = 1
 
