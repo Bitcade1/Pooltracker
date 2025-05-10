@@ -3,9 +3,8 @@ from datetime import datetime, timedelta, date
 from sqlalchemy import func, extract, desc
 from functools import wraps # Import wraps here
 
-# Corrected imports: Assuming your main Flask app file is app.py
-# and it initializes 'app', 'db', and all your models.
-from app import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
+# Corrected imports: Import from 'flask_app' which is your main application module
+from flask_app import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
 
 api = Blueprint('api', __name__, url_prefix='/api')
 
@@ -34,7 +33,7 @@ def api_status():
     """Simple API status check endpoint"""
     return jsonify({
         "status": "online",
-        "version": "1.1.0",
+        "version": "1.1.1", # Incremented version for this fix
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -88,10 +87,6 @@ def daily_work_summary_historical(target_date_str):
 def daily_work_summary_today():
     """Get summary of work completed today (default)"""
     today_str = date.today().strftime("%Y-%m-%d")
-    # This will call the daily_work_summary_historical function with today's date
-    # For Flask, it's better to call the function directly if it's in the same module,
-    # or use url_for then redirect if you want a true redirect.
-    # For simplicity and directness within the API, calling the function is fine.
     return daily_work_summary_historical(today_str)
 
 
