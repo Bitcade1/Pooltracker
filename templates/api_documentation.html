@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1, h2, h3 {
+            color: #007bff;
+        }
+        
+        .endpoint-card {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .endpoint-title {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .http-method {
+            background-color: #28a745;
+            color: white;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+        
+        .url-path {
+            font-family: monospace;
+            background-color: #e9ecef;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: normal;
+        }
+        
+        .description {
+            margin-bottom: 15px;
+        }
+        
+        .auth-required {
+            background-color: #dc3545;
+            color: white;
+            padding: 5px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-size: 0.8em;
+        }
+        
+        .code-block {
+            background-color: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: monospace;
+            margin: 15px 0;
+        }
+        
+        .parameter-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        
+        .parameter-table th, .parameter-table td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .parameter-table th {
+            background-color: #e9ecef;
+        }
+        
+        .example-response {
+            margin-top: 20px;
+        }
+        
+        .section-divider {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 40px 0;
+        }
+        
+        .auth-section {
+            background-color: #e9f7fd;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .back-to-menu {
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .menu-button {
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            display: inline-block;
+            font-weight: bold;
+        }
+        
+        .menu-button:hover {
+            background-color: #0056b3;
+            text-decoration: none;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pool Table Tracker API Documentation</h1>
+        
+        <p>This API allows you to programmatically interact with the Pool Table Tracker system. You can retrieve information about production status, inventory levels, and completed work.</p>
+        
+        <div class="auth-section">
+            <h2>Authentication</h2>
+            <p>Most API endpoints require authentication via API token. Include the token in your request headers:</p>
+            <div class="code-block">
+                X-API-Token: your_api_token_here
+            </div>
+            <p>Contact the administrator to get a valid API token.</p>
+        </div>
+        
+        <h2>API Endpoints</h2>
+        
+        <!-- API Status Endpoint -->
+        <div class="endpoint-card">
+            <h3 class="endpoint-title">
+                <span class="http-method">GET</span>
+                <span class="url-path">/api/status</span>
+            </h3>
+            <p class="description">Check if the API is online and working properly.</p>
+            <p><strong>Authentication:</strong> Not required</p>
+            
+            <h4>Example Response:</h4>>
+            <div class="code-block">
+{
+    "status": "online",
+    "version": "1.0.0",
+    "timestamp": "2025-05-10T12:34:56.789Z"
+}
+            </div>
+        </div>
+        
+        <!-- Production Summary Endpoint -->
+        <div class="endpoint-card">
+            <h3 class="endpoint-title">
+                <span class="http-method">GET</span>
+                <span class="url-path">/api/production/summary</span>
+            </h3>
+            <p class="description">Get current month's production summary including targets and progress.</p>
+            <div class="auth-required">Authentication Required</div>
+            
+            <h4>Example Response:</h4>
+            <div class="code-block">
+{
+    "type": "body",
+    "serial_number": "1234 - GO",
+    "worker": "John Smith",
+    "date": "2025-05-10",
+    "start_time": "09:30",
+    "finish_time": "11:45",
+    "issue": "No Issues",
+    "had_lunch": false
+}
+            </div>
+        </div>
+
+        <hr class="section-divider">
+        
+        <h2>Using the API</h2>
+        
+        <h3>Code Examples</h3>
+        
+        <h4>Python Example</h4>
+        <div class="code-block">
+import requests
+
+# Base URL of your API
+BASE_URL = "http://your-domain.com"  # Change to your actual domain
+API_TOKEN = "your_api_token_here"     # Your API token
+
+# Set up headers for authentication
+headers = {
+    "X-API-Token": API_TOKEN
+}
+
+# Get production summary
+response = requests.get(f"{BASE_URL}/api/production/summary", headers=headers)
+
+if response.status_code == 200:
+    # Request was successful
+    data = response.json()
+    print(f"Production Targets: 7ft: {data['production_targets']['target_7ft']}, 6ft: {data['production_targets']['target_6ft']}")
+    print(f"Bodies completed: {data['current_production']['total']['bodies']}")
+    print(f"Top Rails completed: {data['current_production']['total']['top_rails']}")
+    print(f"Pods completed: {data['current_production']['total']['pods']}")
+else:
+    # Request failed
+    print(f"Error: {response.status_code}")
+    print(response.text)
+        </div>
+        
+        <h4>JavaScript Example</h4>
+        <div class="code-block">
+// Using fetch API in modern browsers
+const API_URL = 'http://your-domain.com';  // Change to your actual domain
+const API_TOKEN = 'your_api_token_here';   // Your API token
+
+// Function to fetch inventory summary
+async function getInventorySummary() {
+    try {
+        const response = await fetch(`${API_URL}/api/inventory/summary`, {
+            method: 'GET',
+            headers: {
+                'X-API-Token': API_TOKEN
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Example: Display MDF inventory
+        console.log('MDF Inventory:');
+        console.log(`Plain MDF: ${data.mdf_inventory.plain_mdf}`);
+        console.log(`Black MDF: ${data.mdf_inventory.black_mdf}`);
+        console.log(`36mm Plain MDF: ${data.mdf_inventory.plain_mdf_36}`);
+        
+        // Example: Show max tables possible
+        console.log(`\nMaximum Tables Possible: ${data.production_capacity.max_tables_possible}`);
+        console.log(`Limiting Parts: ${data.production_capacity.limiting_parts.join(', ')}`);
+        
+        return data;
+    } catch (error) {
+        console.error('Error fetching inventory data:', error);
+    }
+}
+
+// Call the function
+getInventorySummary();
+        </div>
+
+        <h4>cURL Example (Command Line)</h4>
+        <div class="code-block">
+# Check API status (no authentication required)
+curl -X GET http://your-domain.com/api/status
+
+# Get production summary (with authentication)
+curl -X GET http://your-domain.com/api/production/summary \
+     -H "X-API-Token: your_api_token_here"
+
+# Get specific table by serial number
+curl -X GET http://your-domain.com/api/tables/1234-GO \
+     -H "X-API-Token: your_api_token_here"
+        </div>
+        
+        <h3>Error Responses</h3>
+        <p>The API may return the following error responses:</p>
+        
+        <table class="parameter-table">
+            <tr>
+                <th>Status Code</th>
+                <th>Description</th>
+                <th>Example Response</th>
+            </tr>
+            <tr>
+                <td>401</td>
+                <td>Unauthorized - Invalid or missing API token</td>
+                <td><code>{"error": "Unauthorized access. Valid API token required."}</code></td>
+            </tr>
+            <tr>
+                <td>404</td>
+                <td>Not Found - The requested resource does not exist</td>
+                <td><code>{"error": "Table not found with this serial number"}</code></td>
+            </tr>
+            <tr>
+                <td>500</td>
+                <td>Internal Server Error - Something went wrong on the server</td>
+                <td><code>{"error": "Internal server error"}</code></td>
+            </tr>
+        </table>
+        
+        <!-- Back to Menu Button -->
+        <div class="back-to-menu">
+            <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>
+            <div class="code-block">
+{
+    "production_targets": {
+        "target_7ft": 60,
+        "target_6ft": 40,
+        "total_target": 100
+    },
+    "current_production": {
+        "total": {
+            "bodies": 43,
+            "top_rails": 38,
+            "pods": 51
+        },
+        "by_size": {
+            "bodies": {
+                "6ft": 15,
+                "7ft": 28
+            },
+            "top_rails": {
+                "6ft": 12,
+                "7ft": 26
+            },
+            "pods": {
+                "6ft": 18,
+                "7ft": 33
+            }
+        }
+    },
+    "progress_percentage": {
+        "bodies": 43.0,
+        "top_rails": 38.0,
+        "pods": 51.0
+    }
+}
+            </div>
+        </div>
+        
+        <!-- Inventory Summary Endpoint -->
+        <div class="endpoint-card">
+            <h3 class="endpoint-title">
+                <span class="http-method">GET</span>
+                <span class="url-path">/api/inventory/summary</span>
+            </h3>
+            <p class="description">Get summary of all inventory items including MDF, wooden components, table parts, and 3D printed parts.</p>
+            <div class="auth-required">Authentication Required</div>
+            
+            <h4>Example Response:</h4>
+            <div class="code-block">
+{
+    "mdf_inventory": {
+        "plain_mdf": 24,
+        "black_mdf": 18,
+        "plain_mdf_36": 15
+    },
+    "wooden_components": {
+        "7ft_body": 12,
+        "7ft_pod_sides": 8,
+        "7ft_bases": 10,
+        "6ft_body": 8,
+        "6ft_pod_sides": 6,
+        "6ft_bases": 7
+    },
+    "table_parts": {
+        "Table legs": 48,
+        "Ball Gullies 1 (Untouched)": 22,
+        ...
+    },
+    "printed_parts": {
+        "Large Ramp": 15,
+        "Paddle": 20,
+        ...
+    },
+    "hardware_parts": {
+        "Screws": 500,
+        "Bolts": 300,
+        ...
+    },
+    "finished_components": {
+        "body_7ft_black": 5,
+        "body_6ft_rustic_oak": 3,
+        ...
+    },
+    "production_capacity": {
+        "max_tables_possible": 12,
+        "limiting_parts": ["Chrome corner", "Ball Gullies 3"]
+    }
+}
+            </div>
+        </div>
+        
+        <!-- Daily Work Summary Endpoint -->
+        <div class="endpoint-card">
+            <h3 class="endpoint-title">
+                <span class="http-method">GET</span>
+                <span class="url-path">/api/work/daily</span>
+            </h3>
+            <p class="description">Get a summary of work completed today, including all bodies, top rails, and pods.</p>
+            <div class="auth-required">Authentication Required</div>
+            
+            <h4>Example Response:</h4>
+            <div class="code-block">
+{
+    "date": "2025-05-10",
+    "completed_components": {
+        "bodies": [
+            {
+                "worker": "John Smith",
+                "start_time": "09:30",
+                "finish_time": "11:45",
+                "serial_number": "1234 - GO",
+                "issue": "No Issues",
+                "had_lunch": false
+            },
+            ...
+        ],
+        "top_rails": [...],
+        "pods": [...]
+    },
+    "counts": {
+        "bodies": 5,
+        "top_rails": 4,
+        "pods": 6,
+        "total_components": 15
+    }
+}
+            </div>
+        </div>
+        
+        <!-- Wood Counts Endpoint -->
+        <div class="endpoint-card">
+            <h3 class="endpoint-title">
+                <span class="http-method">GET</span>
+                <span class="url-path">/api/wood/counts</span>
+            </h3>
+            <p class="description">Get current wood counts for all sections, including weekly and monthly sheet totals.</p>
+            <div class="auth-required">Authentication Required</div>
+            
+            <h4>Example Response:</h4>
+            <div class="code-block">
+{
+    "7ft": {
+        "Body": 15,
+        "Pod Sides": 12,
+        "Bases": 14,
+        "Top Rail Pieces Short": 28,
+        "Top Rail Pieces Long": 16
+    },
+    "6ft": {
+        "Body": 10,
+        "Pod Sides": 8,
+        "Bases": 9,
+        "Top Rail Pieces Short": 18,
+        "Top Rail Pieces Long": 12
+    },
+    "summary": {
+        "weekly_sheets_cut": 32,
+        "monthly_sheets_cut": 87
+    }
+}
+            </div>
+        </div>
+        
+        <!-- Table by Serial Number Endpoint -->
+        <div class="endpoint-card">
+            <h3 class="endpoint-title">
+                <span class="http-method">GET</span>
+                <span class="url-path">/api/tables/{serial_number}</span>
+            </h3>
+            <p class="description">Get details for a specific table component by its serial number.</p>
+            <div class="auth-required">Authentication Required</div>
+            
+            <h4>Parameters:</h4>
+            <table class="parameter-table">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>serial_number</td>
+                    <td>String</td>
+                    <td>The serial number of the table component to look up</td>
+                </tr>
+            </table>
+            
+            <h4>Example Response:</h4
