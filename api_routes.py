@@ -1,7 +1,8 @@
 from flask import Blueprint, jsonify, request
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date # Keep this import
+import datetime as dt # Import datetime module itself to access datetime.time
 from sqlalchemy import func, extract, desc
-from functools import wraps # Import wraps here
+from functools import wraps
 
 # Corrected imports: Import from 'flask_app' which is your main application module
 from flask_app import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
@@ -23,6 +24,7 @@ def require_api_token(view_function):
 # Helper function to parse date string
 def parse_date_str(date_str):
     try:
+        # Use the imported datetime class directly for strptime
         return datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         return None
@@ -33,8 +35,8 @@ def api_status():
     """Simple API status check endpoint"""
     return jsonify({
         "status": "online",
-        "version": "1.1.1", # Incremented version for this fix
-        "timestamp": datetime.utcnow().isoformat()
+        "version": "1.1.2", # Incremented version for this fix
+        "timestamp": datetime.utcnow().isoformat() # Use imported datetime class
     })
 
 @api.route('/work/daily/<target_date_str>', methods=['GET'])
@@ -67,8 +69,9 @@ def daily_work_summary_historical(target_date_str):
             "pods": [
                 {
                     "worker": pod.worker, 
-                    "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, (datetime, date.time)) else str(pod.start_time),
-                    "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, (datetime, date.time)) else str(pod.finish_time),
+                    # Corrected isinstance check: use dt.datetime and dt.time
+                    "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, (dt.datetime, dt.time)) else str(pod.start_time),
+                    "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, (dt.datetime, dt.time)) else str(pod.finish_time),
                     "serial_number": pod.serial_number, "issue": pod.issue, "had_lunch": pod.lunch == "Yes"
                 } for pod in pods_done
             ]
@@ -86,6 +89,7 @@ def daily_work_summary_historical(target_date_str):
 @require_api_token
 def daily_work_summary_today():
     """Get summary of work completed today (default)"""
+    # Use the imported date class directly
     today_str = date.today().strftime("%Y-%m-%d")
     return daily_work_summary_historical(today_str)
 
@@ -157,6 +161,7 @@ def production_summary_historical(year, month):
     """Get production summary for a specific year and month"""
     if not (1 <= month <= 12):
         return jsonify({"error": "Invalid month. Must be between 1 and 12."}), 400
+    # Use imported date class
     if year < 2000 or year > date.today().year + 5: 
         return jsonify({"error": "Invalid year."}), 400
         
@@ -167,6 +172,7 @@ def production_summary_historical(year, month):
 @require_api_token
 def production_summary_current():
     """Get production summary for the current month"""
+    # Use imported date class
     today = date.today()
     summary_data = get_production_summary_for_period(today.year, today.month)
     return jsonify(summary_data)
@@ -384,8 +390,9 @@ def get_table_by_serial(serial_number):
         return jsonify({
             "type": "pod", "serial_number": pod.serial_number, "worker": pod.worker,
             "date": pod.date.isoformat(), 
-            "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, (datetime, date.time)) else str(pod.start_time),
-            "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, (datetime, date.time)) else str(pod.finish_time),
+            # Corrected isinstance check: use dt.datetime and dt.time
+            "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, (dt.datetime, dt.time)) else str(pod.start_time),
+            "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, (dt.datetime, dt.time)) else str(pod.finish_time),
             "issue": pod.issue, "had_lunch": pod.lunch == "Yes"
         })
         
