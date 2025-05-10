@@ -3603,5 +3603,15 @@ def turn_on_dust_extractor():
     # Redirect back to the previous page
     return redirect(request.referrer or url_for('counting_wood'))
 
+# Add this route with your other routes in flask_app.py
+
+@app.route('/api/docs')
+def api_documentation():
+    """Render the API documentation page"""
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+    return render_template('api_documentation.html')
+
 if __name__ == '__main__':
     app.run(debug=True)
