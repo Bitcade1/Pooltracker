@@ -3613,5 +3613,8 @@ def api_documentation():
         return redirect(url_for('login'))
     return render_template('api_documentation.html')
 
+from api_routes import api
+app.register_blueprint(api)
+
 if __name__ == '__main__':
     app.run(debug=True)
