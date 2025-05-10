@@ -499,32 +499,3 @@ def get_production_schedule_for_month(year, month):
 # You would register this blueprint in your main app.py:
 # from .api_routes import api as api_blueprint # Assuming this file is api_routes.py
 # app.register_blueprint(api_blueprint)
-```
-
-**How to Integrate This:**
-
-1.  **Save the code:** Save the code above into a new file named `api_routes.py` in the same directory as your main `app.py` file.
-2.  **Import Models and `db`**:
-    * At the top of `api_routes.py`, you'll see comments about importing `db` and your models. The most straightforward way if your models and `db` are defined in `app.py` and you run `app.py` directly is to use:
-        ```python
-        from __main__ import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock 
-        ```
-        Place this import inside each route function that needs them, or once at the top if your project structure ensures `__main__` is consistently your main app module. A cleaner long-term solution is to move your models into their own `models.py` file.
-3.  **Register the Blueprint in `app.py`**:
-    * In your main `app.py` file, *after* your Flask `app` instance is created and *before* `if __name__ == '__main__':`, add:
-        ```python
-        from api_routes import api as api_blueprint 
-        app.register_blueprint(api_blueprint)
-        ```
-    * Make sure to remove the old `api = Blueprint('api', __name__)` and all the old `@api.route` definitions from your main `app.py` file, as they are now in `api_routes.py`.
-
-**Important Notes on the API Code:**
-
-* **Model Imports**: The provided `api_routes.py` assumes that the database `db` object and your SQLAlchemy models (`CompletedTable`, `TopRail`, etc.) are accessible. The `from __main__ import ...` lines are a common way to do this when running `app.py` as the main script. If you have a different project structure (e.g., models in `models.py`), you'll need to adjust these imports accordingly (e.g., `from .models import db, CompletedTable`).
-* **Error Handling**: Basic error handling (e.g., for invalid dates) is included. You might want to expand this.
-* **Data Conversion**: Times and dates are converted to ISO format strings for JSON compatibility.
-* **`is_6ft_serial` helper**: A helper function `is_6ft_serial` is included within `get_production_summary_for_period` as it was used in your original API.
-* **Efficiency**: For endpoints that query "as of" a certain date by looking for the latest record, performance might degrade on very large tables if not indexed properly on `part_name`/`section` and `date`.
-* **Inventory Summary**: The main `/api/inventory/summary` endpoint still provides the *current* state. The new endpoints for `printed_parts_count` and `wood_counts` allow you to get historical data for those specific tables. A fully historical version of the combined inventory summary would be much more complex.
-
-This updated API should give you much more granular access to your application's data. Remember to test it thoroughly after integrati
