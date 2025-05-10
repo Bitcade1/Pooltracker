@@ -1,11 +1,13 @@
 from flask import Blueprint, jsonify, request
-from datetime import datetime, timedelta, date # Keep this import
-import datetime as dt # Import datetime module itself to access datetime.time
+from datetime import datetime, timedelta, date
+import calendar # For monthrange
 from sqlalchemy import func, extract, desc
 from functools import wraps
 
 # Corrected imports: Import from 'flask_app' which is your main application module
 from flask_app import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
+# Import datetime module itself to access datetime.time if needed for other parts (dt alias)
+import datetime as dt 
 
 api = Blueprint('api', __name__, url_prefix='/api')
 
@@ -24,7 +26,6 @@ def require_api_token(view_function):
 # Helper function to parse date string
 def parse_date_str(date_str):
     try:
-        # Use the imported datetime class directly for strptime
         return datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         return None
@@ -35,8 +36,8 @@ def api_status():
     """Simple API status check endpoint"""
     return jsonify({
         "status": "online",
-        "version": "1.1.2", # Incremented version for this fix
-        "timestamp": datetime.utcnow().isoformat() # Use imported datetime class
+        "version": "1.2.0", # Version updated for monthly endpoint
+        "timestamp": datetime.utcnow().isoformat()
     })
 
 @api.route('/work/daily/<target_date_str>', methods=['GET'])
@@ -69,7 +70,6 @@ def daily_work_summary_historical(target_date_str):
             "pods": [
                 {
                     "worker": pod.worker, 
-                    # Corrected isinstance check: use dt.datetime and dt.time
                     "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, (dt.datetime, dt.time)) else str(pod.start_time),
                     "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, (dt.datetime, dt.time)) else str(pod.finish_time),
                     "serial_number": pod.serial_number, "issue": pod.issue, "had_lunch": pod.lunch == "Yes"
@@ -89,11 +89,88 @@ def daily_work_summary_historical(target_date_str):
 @require_api_token
 def daily_work_summary_today():
     """Get summary of work completed today (default)"""
-    # Use the imported date class directly
     today_str = date.today().strftime("%Y-%m-%d")
     return daily_work_summary_historical(today_str)
 
+@api.route('/work/monthly/<int:year>/<int:month>', methods=['GET'])
+@require_api_token
+def monthly_work_summary(year, month):
+    """
+    Get a summary of work completed for each day in a specific month.
+    Returns a list of daily production counts.
+    """
+    if not (1 <= month <= 12):
+        return jsonify({"error": "Invalid month. Must be between 1 and 12."}), 400
+    if year < 2000 or year > date.today().year + 10: # Allow a bit into the future for planning
+        return jsonify({"error": "Invalid year."}), 400
 
+    try:
+        num_days_in_month = calendar.monthrange(year, month)[1]
+    except calendar.IllegalMonthError: # Should be caught by above check, but good practice
+        return jsonify({"error": "Invalid month number provided."}), 400
+    except Exception as e: # Catch any other calendar errors
+        return jsonify({"error": f"Error determining days in month: {str(e)}"}), 500
+
+    results_for_month = []
+
+    # Fetch all relevant records for the month in fewer queries
+    month_start_date = date(year, month, 1)
+    month_end_date = date(year, month, num_days_in_month)
+
+    bodies_in_month = CompletedTable.query.filter(CompletedTable.date.between(month_start_date, month_end_date)).all()
+    pods_in_month = CompletedPods.query.filter(CompletedPods.date.between(month_start_date, month_end_date)).all()
+    top_rails_in_month = TopRail.query.filter(TopRail.date.between(month_start_date, month_end_date)).all()
+
+    # Group counts by date
+    daily_counts = {} # Using dict for easier aggregation: { "YYYY-MM-DD": {"bodies": N, ...} }
+
+    for b in bodies_in_month:
+        date_str = b.date.isoformat()
+        if date_str not in daily_counts: daily_counts[date_str] = {"bodies": 0, "pods": 0, "top_rails": 0}
+        daily_counts[date_str]["bodies"] += 1
+    
+    for p in pods_in_month:
+        date_str = p.date.isoformat()
+        if date_str not in daily_counts: daily_counts[date_str] = {"bodies": 0, "pods": 0, "top_rails": 0}
+        daily_counts[date_str]["pods"] += 1
+
+    for tr in top_rails_in_month:
+        date_str = tr.date.isoformat()
+        if date_str not in daily_counts: daily_counts[date_str] = {"bodies": 0, "pods": 0, "top_rails": 0}
+        daily_counts[date_str]["top_rails"] += 1
+
+    # Construct the final list, ensuring all days of the month are present
+    for day_num in range(1, num_days_in_month + 1):
+        current_date_obj = date(year, month, day_num)
+        current_date_str = current_date_obj.isoformat()
+        
+        if current_date_str in daily_counts:
+            results_for_month.append({
+                "date": current_date_str,
+                "bodies": daily_counts[current_date_str]["bodies"],
+                "pods": daily_counts[current_date_str]["pods"],
+                "top_rails": daily_counts[current_date_str]["top_rails"],
+                "error_info": None 
+            })
+        else:
+            results_for_month.append({
+                "date": current_date_str,
+                "bodies": 0,
+                "pods": 0,
+                "top_rails": 0,
+                "error_info": None # Or "No production data for this day"
+            })
+    
+    return jsonify(results_for_month)
+
+
+# --- Other existing API routes from flask_api_routes_v3 ---
+# (get_production_summary_for_period, production_summary_historical, production_summary_current,
+# inventory_summary, all_printed_parts_counts, printed_parts_counts_as_of,
+# all_wood_counts, wood_counts_as_of, get_table_by_serial,
+# get_all_hardware_parts_definitions, get_all_production_schedules,
+# get_production_schedule_for_month)
+# ... Ensure these are included below ...
 def get_production_summary_for_period(year, month):
     """Helper function to get production summary for a given year and month"""
     schedule = ProductionSchedule.query.filter_by(year=year, month=month).first()
@@ -158,30 +235,23 @@ def get_production_summary_for_period(year, month):
 @api.route('/production/summary/<int:year>/<int:month>', methods=['GET'])
 @require_api_token
 def production_summary_historical(year, month):
-    """Get production summary for a specific year and month"""
     if not (1 <= month <= 12):
         return jsonify({"error": "Invalid month. Must be between 1 and 12."}), 400
-    # Use imported date class
     if year < 2000 or year > date.today().year + 5: 
         return jsonify({"error": "Invalid year."}), 400
-        
     summary_data = get_production_summary_for_period(year, month)
     return jsonify(summary_data)
 
 @api.route('/production/summary', methods=['GET'])
 @require_api_token
 def production_summary_current():
-    """Get production summary for the current month"""
-    # Use imported date class
     today = date.today()
     summary_data = get_production_summary_for_period(today.year, today.month)
     return jsonify(summary_data)
 
-
 @api.route('/inventory/summary', methods=['GET'])
 @require_api_token
 def inventory_summary():
-    """Get summary of current inventory levels (existing endpoint, kept for current state)"""
     mdf_inventory_db = MDFInventory.query.first()
     if not mdf_inventory_db:
         mdf_inventory_db = MDFInventory(plain_mdf=0, black_mdf=0, plain_mdf_36=0)
@@ -277,7 +347,6 @@ def inventory_summary():
 @api.route('/inventory/printed_parts_count/all', methods=['GET'])
 @require_api_token
 def all_printed_parts_counts():
-    """Returns all historical records from PrintedPartsCount."""
     records = PrintedPartsCount.query.order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).all()
     return jsonify([{
         "id": r.id, "part_name": r.part_name, "count": r.count, 
@@ -287,45 +356,31 @@ def all_printed_parts_counts():
 @api.route('/inventory/printed_parts_count/as_of/<target_date_str>', methods=['GET'])
 @require_api_token
 def printed_parts_counts_as_of(target_date_str):
-    """
-    Returns the latest count for each part in PrintedPartsCount on or before target_date.
-    """
     target_d = parse_date_str(target_date_str)
     if not target_d:
         return jsonify({"error": "Invalid date format. Please use YYYY-MM-DD."}), 400
-
     distinct_parts_query = db.session.query(PrintedPartsCount.part_name.distinct()).filter(
         PrintedPartsCount.date <= target_d
     ).all()
     distinct_part_names = [name for (name,) in distinct_parts_query]
-
     parts_as_of_date = {}
     for part_name in distinct_part_names:
         latest_entry = (
             PrintedPartsCount.query
-            .filter(
-                PrintedPartsCount.part_name == part_name,
-                PrintedPartsCount.date <= target_d
-            )
-            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
-            .first()
-        )
+            .filter(PrintedPartsCount.part_name == part_name, PrintedPartsCount.date <= target_d)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first())
         if latest_entry:
             parts_as_of_date[part_name] = {
                 "count": latest_entry.count,
                 "last_recorded_date": latest_entry.date.isoformat(),
-                "last_recorded_time": latest_entry.time.strftime('%H:%M:%S')
-            }
+                "last_recorded_time": latest_entry.time.strftime('%H:%M:%S')}
         else:
             parts_as_of_date[part_name] = {"count": 0, "last_recorded_date": None, "last_recorded_time": None}
-            
     return jsonify(parts_as_of_date)
-
 
 @api.route('/inventory/wood_counts/all', methods=['GET'])
 @require_api_token
 def all_wood_counts():
-    """Returns all historical records from WoodCount."""
     records = WoodCount.query.order_by(WoodCount.date.desc(), WoodCount.time.desc()).all()
     return jsonify([{
         "id": r.id, "section": r.section, "count": r.count, 
@@ -335,98 +390,65 @@ def all_wood_counts():
 @api.route('/inventory/wood_counts/as_of/<target_date_str>', methods=['GET'])
 @require_api_token
 def wood_counts_as_of(target_date_str):
-    """Returns the latest count for each wood section on or before target_date."""
     target_d = parse_date_str(target_date_str)
     if not target_d:
         return jsonify({"error": "Invalid date format. Please use YYYY-MM-DD."}), 400
-
-    distinct_sections_query = db.session.query(WoodCount.section.distinct()).filter(
-        WoodCount.date <= target_d
-    ).all()
+    distinct_sections_query = db.session.query(WoodCount.section.distinct()).filter(WoodCount.date <= target_d).all()
     distinct_sections = [name for (name,) in distinct_sections_query]
-    
     sections_as_of_date = {}
     for section_name in distinct_sections:
         latest_entry = (
             WoodCount.query
-            .filter(
-                WoodCount.section == section_name,
-                WoodCount.date <= target_d
-            )
-            .order_by(WoodCount.date.desc(), WoodCount.time.desc())
-            .first()
-        )
+            .filter(WoodCount.section == section_name, WoodCount.date <= target_d)
+            .order_by(WoodCount.date.desc(), WoodCount.time.desc()).first())
         if latest_entry:
             sections_as_of_date[section_name] = {
                 "count": latest_entry.count,
                 "last_recorded_date": latest_entry.date.isoformat(),
-                "last_recorded_time": latest_entry.time.strftime('%H:%M:%S')
-            }
+                "last_recorded_time": latest_entry.time.strftime('%H:%M:%S')}
     return jsonify(sections_as_of_date)
-
 
 @api.route('/tables/<string:serial_number>', methods=['GET'])
 @require_api_token
 def get_table_by_serial(serial_number):
-    """Get details for a completed item (body, top_rail, pod) by its serial number"""
     table = CompletedTable.query.filter_by(serial_number=serial_number).first()
     if table:
         return jsonify({
             "type": "body", "serial_number": table.serial_number, "worker": table.worker,
             "date": table.date.isoformat(), "start_time": str(table.start_time), 
-            "finish_time": str(table.finish_time), "issue": table.issue, "had_lunch": table.lunch == "Yes"
-        })
-    
+            "finish_time": str(table.finish_time), "issue": table.issue, "had_lunch": table.lunch == "Yes"})
     top_rail = TopRail.query.filter_by(serial_number=serial_number).first()
     if top_rail:
         return jsonify({
             "type": "top_rail", "serial_number": top_rail.serial_number, "worker": top_rail.worker,
             "date": top_rail.date.isoformat(), "start_time": str(top_rail.start_time), 
-            "finish_time": str(top_rail.finish_time), "issue": top_rail.issue, "had_lunch": top_rail.lunch == "Yes"
-        })
-        
+            "finish_time": str(top_rail.finish_time), "issue": top_rail.issue, "had_lunch": top_rail.lunch == "Yes"})
     pod = CompletedPods.query.filter_by(serial_number=serial_number).first()
     if pod:
         return jsonify({
             "type": "pod", "serial_number": pod.serial_number, "worker": pod.worker,
             "date": pod.date.isoformat(), 
-            # Corrected isinstance check: use dt.datetime and dt.time
             "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, (dt.datetime, dt.time)) else str(pod.start_time),
             "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, (dt.datetime, dt.time)) else str(pod.finish_time),
-            "issue": pod.issue, "had_lunch": pod.lunch == "Yes"
-        })
-        
+            "issue": pod.issue, "had_lunch": pod.lunch == "Yes"})
     return jsonify({"error": "Item not found with this serial number"}), 404
 
 @api.route('/definitions/hardware_parts', methods=['GET'])
 @require_api_token
 def get_all_hardware_parts_definitions():
-    """Get definitions of all hardware parts."""
     parts = HardwarePart.query.all()
-    return jsonify([{
-        "id": p.id, "name": p.name, 
-        "initial_count": p.initial_count, 
-        "used_per_table": p.used_per_table
-    } for p in parts])
+    return jsonify([{"id": p.id, "name": p.name, "initial_count": p.initial_count, "used_per_table": p.used_per_table} for p in parts])
 
 @api.route('/definitions/production_schedule/all', methods=['GET'])
 @require_api_token
 def get_all_production_schedules():
-    """Get all production schedule entries."""
     schedules = ProductionSchedule.query.order_by(ProductionSchedule.year, ProductionSchedule.month).all()
-    return jsonify([{
-        "id": s.id, "year": s.year, "month": s.month,
-        "target_7ft": s.target_7ft, "target_6ft": s.target_6ft
-    } for s in schedules])
+    return jsonify([{"id": s.id, "year": s.year, "month": s.month, "target_7ft": s.target_7ft, "target_6ft": s.target_6ft} for s in schedules])
 
 @api.route('/definitions/production_schedule/<int:year>/<int:month>', methods=['GET'])
 @require_api_token
 def get_production_schedule_for_month(year, month):
-    """Get production schedule for a specific year and month."""
     schedule = ProductionSchedule.query.filter_by(year=year, month=month).first()
     if schedule:
-        return jsonify({
-            "id": schedule.id, "year": schedule.year, "month": schedule.month,
-            "target_7ft": schedule.target_7ft, "target_6ft": schedule.target_6ft
-        })
+        return jsonify({"id": schedule.id, "year": schedule.year, "month": schedule.month, "target_7ft": schedule.target_7ft, "target_6ft": schedule.target_6ft})
     return jsonify({"error": "Production schedule not found for this period"}), 404
