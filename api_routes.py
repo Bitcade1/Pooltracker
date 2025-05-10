@@ -1,62 +1,18 @@
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta, date
-from sqlalchemy import func, extract, desc # Added desc
-# Assuming your models are in flask_app.py or accessible via flask_app.db
-# If your models are in the same file as your app (app.py), you'd import them like:
-# from . import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
-# For this example, I'll assume they are accessible via a 'models' module or similar structure
-# For a single file app structure, you might need to adjust imports based on how 'db' and models are defined.
-# If app.py has "from flask_app import db, CompletedTable, ...", then this file should too.
-# For this example, I'll use placeholder imports. Replace with your actual model imports.
+from sqlalchemy import func, extract, desc
+from functools import wraps # Import wraps here
 
-# Placeholder: Replace with your actual db and model imports
-# from your_app_module import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
-# For the provided app.py structure, it seems models are directly available after db is initialized.
-# So, we'll need to import them from the main app instance if this is a separate file.
-# If this code is to be integrated directly into app.py, these imports might not be needed at the top here.
+# Corrected imports: Assuming your main Flask app file is app.py
+# and it initializes 'app', 'db', and all your models.
+from app import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
 
-# Assuming db and models are imported from the main app file (e.g. app.py)
-# This is a common pattern for blueprints.
-# In your main app.py, you'd have:
-# from .api_routes import api_blueprint # or whatever you name this file
-# app.register_blueprint(api_blueprint)
+api = Blueprint('api', __name__, url_prefix='/api')
 
-# For the provided full app.py, the models are defined globally after 'db = SQLAlchemy(app)'.
-# If this api_routes.py is separate, it needs access to them.
-# A common way is to pass 'db' and models or import them from where they are defined.
-# For now, I will write it as if 'db' and model classes are in scope.
-# You will need to ensure they are correctly imported in your project structure.
-# Example: from .models import db, CompletedTable, TopRail, ... if you move models to models.py
-
-# --- Start of API Blueprint ---
-# If this code is to be part of your main app.py, you would define 'api' like this:
-# api = Blueprint('api', __name__)
-# And then use @api.route(...)
-# The models like CompletedTable, etc., would already be in scope.
-
-# If this is a separate api_routes.py file:
-# from . import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
-# (Assuming your main app file is in the same directory and initializes db and models)
-
-# Let's assume for now this code will be integrated into the main app.py or models are accessible.
-# If you are creating a separate api_routes.py, you'll need to adjust imports for db and models.
-# For example, if your main file is `app.py`:
-# from .app import db, CompletedTable, TopRail, ... (if models are in app.py)
-# or from .models import db, CompletedTable, ... (if models are in models.py)
-
-# For the purpose of this snippet, I'll define the blueprint and assume models are accessible.
-# You'll need to integrate this into your Flask app structure.
-
-api = Blueprint('api', __name__, url_prefix='/api') # Added url_prefix
-
-# API Authentication (simple token-based auth) - Copied from your app
-# Ensure API_TOKENS is defined or imported if this is a separate file
+# API Authentication
 API_TOKENS = ["bitcade_api_key_1", "mobile_app_token_2"] 
 
 def require_api_token(view_function):
-    """Decorator to check for valid API token"""
-    # Import wraps if this is a separate file
-    from functools import wraps
     @wraps(view_function)
     def decorated(*args, **kwargs):
         token = request.headers.get('X-API-Token')
@@ -78,7 +34,7 @@ def api_status():
     """Simple API status check endpoint"""
     return jsonify({
         "status": "online",
-        "version": "1.1.0", # Updated version
+        "version": "1.1.0",
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -86,9 +42,6 @@ def api_status():
 @require_api_token
 def daily_work_summary_historical(target_date_str):
     """Get summary of work completed for a specific date (YYYY-MM-DD)"""
-    # Import models here if they are not globally available in this blueprint context
-    from __main__ import db, CompletedTable, TopRail, CompletedPods # Assuming app.py is run as __main__
-
     target_d = parse_date_str(target_date_str)
     if not target_d:
         return jsonify({"error": "Invalid date format. Please use YYYY-MM-DD."}), 400
@@ -115,8 +68,8 @@ def daily_work_summary_historical(target_date_str):
             "pods": [
                 {
                     "worker": pod.worker, 
-                    "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, datetime) else str(pod.start_time), # Ensure time is string
-                    "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, datetime) else str(pod.finish_time), # Ensure time is string
+                    "start_time": pod.start_time.strftime('%H:%M:%S') if isinstance(pod.start_time, (datetime, date.time)) else str(pod.start_time),
+                    "finish_time": pod.finish_time.strftime('%H:%M:%S') if isinstance(pod.finish_time, (datetime, date.time)) else str(pod.finish_time),
                     "serial_number": pod.serial_number, "issue": pod.issue, "had_lunch": pod.lunch == "Yes"
                 } for pod in pods_done
             ]
@@ -134,15 +87,16 @@ def daily_work_summary_historical(target_date_str):
 @require_api_token
 def daily_work_summary_today():
     """Get summary of work completed today (default)"""
-    # Redirects or calls the historical one with today's date
     today_str = date.today().strftime("%Y-%m-%d")
+    # This will call the daily_work_summary_historical function with today's date
+    # For Flask, it's better to call the function directly if it's in the same module,
+    # or use url_for then redirect if you want a true redirect.
+    # For simplicity and directness within the API, calling the function is fine.
     return daily_work_summary_historical(today_str)
 
 
 def get_production_summary_for_period(year, month):
     """Helper function to get production summary for a given year and month"""
-    from __main__ import db, CompletedTable, TopRail, CompletedPods, ProductionSchedule # Assuming app.py is run as __main__
-
     schedule = ProductionSchedule.query.filter_by(year=year, month=month).first()
     
     completed_bodies = CompletedTable.query.filter(
@@ -160,7 +114,7 @@ def get_production_summary_for_period(year, month):
         extract('month', CompletedPods.date) == month
     ).count()
 
-    def is_6ft_serial(serial_str): # Helper for serial check
+    def is_6ft_serial(serial_str): 
         if not serial_str: return False
         return " - 6" in serial_str or "-6" in serial_str or serial_str.replace(" ", "").endswith("-6")
 
@@ -175,7 +129,7 @@ def get_production_summary_for_period(year, month):
     target_7ft_val = schedule.target_7ft if schedule else 60
     target_6ft_val = schedule.target_6ft if schedule else 60
     total_target_val = (target_7ft_val + target_6ft_val) if schedule else 120
-    if total_target_val == 0: total_target_val = 1 # Avoid division by zero
+    if total_target_val == 0: total_target_val = 1 
 
     response = {
         "period": {"year": year, "month": month},
@@ -208,7 +162,7 @@ def production_summary_historical(year, month):
     """Get production summary for a specific year and month"""
     if not (1 <= month <= 12):
         return jsonify({"error": "Invalid month. Must be between 1 and 12."}), 400
-    if year < 2000 or year > date.today().year + 5: # Basic year validation
+    if year < 2000 or year > date.today().year + 5: 
         return jsonify({"error": "Invalid year."}), 400
         
     summary_data = get_production_summary_for_period(year, month)
@@ -227,14 +181,10 @@ def production_summary_current():
 @require_api_token
 def inventory_summary():
     """Get summary of current inventory levels (existing endpoint, kept for current state)"""
-    from __main__ import db, MDFInventory, PrintedPartsCount, HardwarePart, TableStock, WoodCount # Assuming app.py is run as __main__
-    
-    # MDF Inventory
     mdf_inventory_db = MDFInventory.query.first()
     if not mdf_inventory_db:
         mdf_inventory_db = MDFInventory(plain_mdf=0, black_mdf=0, plain_mdf_36=0)
     
-    # Table parts (Chinese parts) - these names are specific
     table_parts_definitions = {
         "Table legs": 4, "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1,
         "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1,
@@ -255,7 +205,6 @@ def inventory_summary():
         )
         table_parts_counts[part_name_def] = latest_entry[0] if latest_entry else 0
     
-    # 3D printed parts inventory
     printed_parts_definitions = [
         "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
@@ -271,25 +220,22 @@ def inventory_summary():
         )
         printed_parts_counts[part_name_def] = latest_entry[0] if latest_entry else 0
     
-    # Hardware parts inventory
     hardware_parts_db = HardwarePart.query.all()
     hardware_counts = {}
     for part_hw in hardware_parts_db:
         latest_entry = (
             db.session.query(PrintedPartsCount.count)
-            .filter_by(part_name=part_hw.name) # Hardware parts also use PrintedPartsCount table
+            .filter_by(part_name=part_hw.name) 
             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
             .first()
         )
         hardware_counts[part_hw.name] = latest_entry[0] if latest_entry else part_hw.initial_count
     
-    # Table stock (finished components)
     table_stock_entries_db = TableStock.query.all()
     table_stock_finished = {entry.type: entry.count for entry in table_stock_entries_db}
     
-    # Wooden components (latest counts)
     wooden_counts = {}
-    for section_wc in ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"]: # Added Top Rail Pieces
+    for section_wc in ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"]:
         for size_wc in ["7ft", "6ft"]:
             full_section_name = f"{size_wc} - {section_wc}"
             latest_entry = (
@@ -300,7 +246,6 @@ def inventory_summary():
             )
             wooden_counts[full_section_name.replace(" ", "_").lower()] = latest_entry[0] if latest_entry else 0
             
-    # Calculate tables possible based on inventory (simplified from your app code)
     tables_possible_per_part = {
         part: table_parts_counts[part] // req
         for part, req in table_parts_definitions.items() if req > 0
@@ -314,8 +259,8 @@ def inventory_summary():
             "plain_mdf_36": mdf_inventory_db.plain_mdf_36
         },
         "wooden_components_current": wooden_counts,
-        "table_parts_current": table_parts_counts,      # Chinese parts
-        "printed_parts_current": printed_parts_counts,  # 3D Printed parts
+        "table_parts_current": table_parts_counts,
+        "printed_parts_current": printed_parts_counts,
         "hardware_parts_current": hardware_counts,
         "finished_components_stock": table_stock_finished,
         "production_capacity_current": {
@@ -323,7 +268,7 @@ def inventory_summary():
             "limiting_table_parts": [
                 part for part, count in tables_possible_per_part.items() 
                 if count == max_tables_possible
-            ] if max_tables_possible >= 0 else [] # Ensure positive or zero
+            ] if max_tables_possible >= 0 else []
         }
     }
     return jsonify(response)
@@ -332,7 +277,6 @@ def inventory_summary():
 @require_api_token
 def all_printed_parts_counts():
     """Returns all historical records from PrintedPartsCount."""
-    from __main__ import PrintedPartsCount # Assuming app.py is run as __main__
     records = PrintedPartsCount.query.order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).all()
     return jsonify([{
         "id": r.id, "part_name": r.part_name, "count": r.count, 
@@ -344,14 +288,11 @@ def all_printed_parts_counts():
 def printed_parts_counts_as_of(target_date_str):
     """
     Returns the latest count for each part in PrintedPartsCount on or before target_date.
-    This covers 3D printed parts, table parts (Chinese), and hardware parts.
     """
-    from __main__ import db, PrintedPartsCount # Assuming app.py is run as __main__
     target_d = parse_date_str(target_date_str)
     if not target_d:
         return jsonify({"error": "Invalid date format. Please use YYYY-MM-DD."}), 400
 
-    # Get all distinct part names that have records on or before the target date
     distinct_parts_query = db.session.query(PrintedPartsCount.part_name.distinct()).filter(
         PrintedPartsCount.date <= target_d
     ).all()
@@ -375,7 +316,6 @@ def printed_parts_counts_as_of(target_date_str):
                 "last_recorded_time": latest_entry.time.strftime('%H:%M:%S')
             }
         else:
-            # This case should ideally not happen if distinct_part_names is derived correctly
             parts_as_of_date[part_name] = {"count": 0, "last_recorded_date": None, "last_recorded_time": None}
             
     return jsonify(parts_as_of_date)
@@ -385,7 +325,6 @@ def printed_parts_counts_as_of(target_date_str):
 @require_api_token
 def all_wood_counts():
     """Returns all historical records from WoodCount."""
-    from __main__ import WoodCount # Assuming app.py is run as __main__
     records = WoodCount.query.order_by(WoodCount.date.desc(), WoodCount.time.desc()).all()
     return jsonify([{
         "id": r.id, "section": r.section, "count": r.count, 
@@ -396,7 +335,6 @@ def all_wood_counts():
 @require_api_token
 def wood_counts_as_of(target_date_str):
     """Returns the latest count for each wood section on or before target_date."""
-    from __main__ import db, WoodCount # Assuming app.py is run as __main__
     target_d = parse_date_str(target_date_str)
     if not target_d:
         return jsonify({"error": "Invalid date format. Please use YYYY-MM-DD."}), 400
@@ -430,8 +368,6 @@ def wood_counts_as_of(target_date_str):
 @require_api_token
 def get_table_by_serial(serial_number):
     """Get details for a completed item (body, top_rail, pod) by its serial number"""
-    from __main__ import CompletedTable, TopRail, CompletedPods # Assuming app.py is run as __main__
-    # This function seems fine as is from your provided code.
     table = CompletedTable.query.filter_by(serial_number=serial_number).first()
     if table:
         return jsonify({
@@ -464,7 +400,6 @@ def get_table_by_serial(serial_number):
 @require_api_token
 def get_all_hardware_parts_definitions():
     """Get definitions of all hardware parts."""
-    from __main__ import HardwarePart # Assuming app.py is run as __main__
     parts = HardwarePart.query.all()
     return jsonify([{
         "id": p.id, "name": p.name, 
@@ -476,7 +411,6 @@ def get_all_hardware_parts_definitions():
 @require_api_token
 def get_all_production_schedules():
     """Get all production schedule entries."""
-    from __main__ import ProductionSchedule # Assuming app.py is run as __main__
     schedules = ProductionSchedule.query.order_by(ProductionSchedule.year, ProductionSchedule.month).all()
     return jsonify([{
         "id": s.id, "year": s.year, "month": s.month,
@@ -487,7 +421,6 @@ def get_all_production_schedules():
 @require_api_token
 def get_production_schedule_for_month(year, month):
     """Get production schedule for a specific year and month."""
-    from __main__ import ProductionSchedule # Assuming app.py is run as __main__
     schedule = ProductionSchedule.query.filter_by(year=year, month=month).first()
     if schedule:
         return jsonify({
@@ -495,7 +428,3 @@ def get_production_schedule_for_month(year, month):
             "target_7ft": schedule.target_7ft, "target_6ft": schedule.target_6ft
         })
     return jsonify({"error": "Production schedule not found for this period"}), 404
-
-# You would register this blueprint in your main app.py:
-# from .api_routes import api as api_blueprint # Assuming this file is api_routes.py
-# app.register_blueprint(api_blueprint)
