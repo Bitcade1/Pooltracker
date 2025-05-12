@@ -2779,6 +2779,7 @@ def table_stock():
         grand_total=formatted_grand_total
     )
 
+from math import ceil
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():
