@@ -367,7 +367,8 @@ def inventory_summary():
     printed_parts_definitions = [
         "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
-        "6ft Cue Ball Separator", "6ft Large Ramp"
+        "6ft Cue Ball Separator", "6ft Large Ramp",
+        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt",  # Added new carpet and felt parts
     ]
     printed_parts_counts = {}
     for part_name_def in printed_parts_definitions:
