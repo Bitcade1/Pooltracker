@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (
     QTabWidget, QComboBox, QCheckBox, QProgressBar, QFrame,
     QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget # Added QStackedWidget
 )
-from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon # QColor, QPalette needed for coloring
+from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator  # Add QIntValidator
 from PyQt5.QtCore import Qt, QTimer
 
 # --- Modern UI Styling ---
