@@ -942,38 +942,53 @@ class MainWindow(QMainWindow):
                     color_group_deficit = QGroupBox(config['color_display'])
                     form_layout_deficit = QFormLayout(color_group_deficit)
                     
-                    # Apply color styling to the group box
+                    # Apply color styling to the group box, similar to assembly deficit tab
                     hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
                     q_color = QColor(hex_color_code)
+                    
+                    # Set background color more strongly
                     color_group_deficit.setAutoFillBackground(True)
-                    palette = color_group_deficit.palette()
-                    palette.setColor(QPalette.Window, q_color)
-                    color_group_deficit.setPalette(palette)
+                    color_group_deficit.setStyleSheet(f"""
+                        QGroupBox {{
+                            background-color: {hex_color_code};
+                            border: 1px solid #d0d0d0;
+                            border-radius: 8px;
+                            margin-top: 10px;
+                            padding: 10px;
+                        }}
+                        QGroupBox::title {{
+                            color: {'white' if q_color.lightnessF() < 0.5 else 'black'};
+                            subcontrol-origin: margin;
+                            left: 7px;
+                            padding: 0 5px 0 5px;
+                        }}
+                    """)
 
-                    # Set text color based on background brightness
-                    text_color_hex = 'white' if q_color.lightnessF() < 0.5 else 'black'
+                    # Set text color based on background brightness for better contrast
+                    text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
                     form_layout_deficit.setSpacing(10)
                     
-                    # Create and style labels using the determined text color
+                    # Style all labels with appropriate contrast
+                    label_style = f"color: {text_color}; font-size: 10pt;"
+                    
                     body_stock_val_label = QLabel("N/A")
-                    body_stock_val_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    body_stock_val_label.setStyleSheet(label_style)
                     body_stock_val_label.setObjectName("StockValue")
                     
                     rail_stock_val_label = QLabel("N/A")
-                    rail_stock_val_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    rail_stock_val_label.setStyleSheet(label_style)
                     rail_stock_val_label.setObjectName("StockValue")
                     
                     status_val_label = QLabel("N/A")
-                    status_val_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    status_val_label.setStyleSheet(label_style)
                     status_val_label.setWordWrap(True)
 
-                    # Style the field labels too
                     body_label = QLabel("Body Stock:")
-                    body_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    body_label.setStyleSheet(label_style)
                     rail_label = QLabel("Top Rail Stock:")
-                    rail_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    rail_label.setStyleSheet(label_style)
                     status_label = QLabel("Status:")
-                    status_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    status_label.setStyleSheet(label_style)
 
                     form_layout_deficit.addRow(body_label, body_stock_val_label)
                     form_layout_deficit.addRow(rail_label, rail_stock_val_label)
@@ -984,7 +999,7 @@ class MainWindow(QMainWindow):
                         "rail_stock": rail_stock_val_label,
                         "status": status_val_label,
                         "group_box": color_group_deficit,
-                        "text_color": text_color_hex  # Store text color for later updates
+                        "text_color": text_color
                     }
                     if config['size'] == "7ft":
                         self.tr_dash_deficits_layout_7ft.addWidget(color_group_deficit)
