@@ -678,8 +678,8 @@ class MainWindow(QMainWindow):
         
         self.scroll_timer_input = QLineEdit(str(self.config.get("SCROLL_TIMER", 10)))
         self.scroll_timer_input.setFixedWidth(80)
-        # Only allow integers
-        self.scroll_timer_input.setValidator(QtGui.QIntValidator(1, 60))
+        # Only allow integers - use QIntValidator directly since we imported it
+        self.scroll_timer_input.setValidator(QIntValidator(1, 60))
         
         timer_layout.addRow("Screen scroll interval (seconds):", self.scroll_timer_input)
         timer_group.setLayout(timer_layout)
