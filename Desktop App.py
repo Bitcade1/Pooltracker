@@ -965,8 +965,8 @@ class MainWindow(QMainWindow):
                             background-color: rgba(0, 0, 0, 0.5);
                             font-weight: bold;
                         }}
-                    """
-
+                    """)  # Added closing parenthesis here
+                    
                     # Always use white text for dark backgrounds and black for light ones
                     text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
                     label_style = f"color: {text_color}; font-size: 11pt; margin: 2px;"  # Increased font size and margin
