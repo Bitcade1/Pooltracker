@@ -86,7 +86,7 @@ def mark_task_completed_performance():
         return jsonify({
             "message": "Task completion time for performance tracking recorded successfully.",
             "last_completion_time_utc": current_ts_iso
-        }), 200
+        }, 200)
     except Exception as e:
         db.session.rollback()
         # Log the error server-side
@@ -554,4 +554,24 @@ def get_production_schedule_for_month(year, month):
     if schedule:
         return jsonify({"id": schedule.id, "year": schedule.year, "month": schedule.month, "target_7ft": schedule.target_7ft, "target_6ft": schedule.target_6ft})
     return jsonify({"error": "Production schedule not found for this period"}), 404
+
+# --- Valid parts list for inventory tracking ---
+VALID_PARTS = [
+    "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+    "Small Ramp", "Cue Ball Separator", "Bushing",
+    "6ft Cue Ball Separator", "6ft Large Ramp", 
+    "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt",
+    "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2",
+    "Ball Gullies 3", "Ball Gullies 4", "Ball Gullies 5",
+    "Feet", "Triangle trim", "White ball return trim",
+    "Color ball trim", "Ball window trim", "Aluminum corner",
+    "Chrome corner", "Top rail trim short length",
+    "Top rail trim long length", "Ramp 170mm", "Ramp 158mm",
+    "Ramp 918mm", "Ramp 376mm", "Chrome handles",
+    "Center pockets", "Corner pockets", "Sticker Set",
+    "M5 x 18 x 1.25 Penny Mudguard Washer",  # Added new hardware
+    "M5 x 20 Socket Cap Screw",              # Added new hardware
+    "Catch Plate",                           # Added new hardware
+    "4.8x32mm Self Tapping Screw"            # Added new hardware
+]
 
