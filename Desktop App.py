@@ -545,28 +545,51 @@ class MainWindow(QMainWindow):
 
         # Page 1: Performance
         page1 = QWidget(); page1.setObjectName("DashboardPage")
-        layout1 = QVBoxLayout(page1); layout1.setAlignment(Qt.AlignCenter)
-        header1 = QLabel("Top Rail - Worker Performance"); header1.setObjectName("DashboardHeader"); header1.setAlignment(Qt.AlignCenter)
+        layout1 = QVBoxLayout(page1); layout1.setAlignment(Qt.AlignTop)  # Changed to AlignTop
+        header1 = QLabel("Top Rail Performance"); header1.setObjectName("DashboardHeader"); header1.setAlignment(Qt.AlignCenter)
         layout1.addWidget(header1)
         
-        form_layout1 = QFormLayout(); form_layout1.setSpacing(15)
+        # Current Performance
+        current_perf_group = QGroupBox("Current Performance")
+        current_perf_layout = QFormLayout()
         self.tr_dash_current_time_label = QLabel("N/A"); self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        form_layout1.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"), self.tr_dash_current_time_label)
+        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"), self.tr_dash_current_time_label)
         self.tr_dash_avg_time_label = QLabel("N/A"); self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
-        form_layout1.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), self.tr_dash_avg_time_label)
+        current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), self.tr_dash_avg_time_label)
         self.tr_dash_predicted_label = QLabel("N/A"); self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
-        form_layout1.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"), self.tr_dash_predicted_label)
-        layout1.addLayout(form_layout1)
+        current_perf_layout.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"), self.tr_dash_predicted_label)
+        current_perf_group.setLayout(current_perf_layout)
+        layout1.addWidget(current_perf_group)
+        
+        # Production Statistics
+        prod_stats_group = QGroupBox("Production Statistics")
+        prod_stats_layout = QFormLayout()
+        self.tr_dash_daily_label = QLabel("0"); self.tr_dash_daily_label.setObjectName("DashboardMetricValue")
+        prod_stats_layout.addRow(QLabel("Today's Production:", objectName="DashboardMetricLabel"), self.tr_dash_daily_label)
+        self.tr_dash_monthly_label = QLabel("0"); self.tr_dash_monthly_label.setObjectName("DashboardMetricValue")
+        prod_stats_layout.addRow(QLabel("This Month:", objectName="DashboardMetricLabel"), self.tr_dash_monthly_label)
+        self.tr_dash_yearly_label = QLabel("0"); self.tr_dash_yearly_label.setObjectName("DashboardMetricValue")
+        prod_stats_layout.addRow(QLabel("This Year:", objectName="DashboardMetricLabel"), self.tr_dash_yearly_label)
+        prod_stats_group.setLayout(prod_stats_layout)
+        layout1.addWidget(prod_stats_group)
+        
         layout1.addStretch()
         self.dashboard_stacked_widget.addWidget(page1)
 
-        # Page 2: Parts Inventory
+        # Page 2: Parts Inventory - Updated layout
         page2 = QWidget(); page2.setObjectName("DashboardPage")
-        layout2 = QVBoxLayout(page2); layout2.setAlignment(Qt.AlignTop) # Align content to top
-        header2 = QLabel("Top Rail - Parts Inventory"); header2.setObjectName("DashboardHeader"); header2.setAlignment(Qt.AlignCenter)
+        layout2 = QVBoxLayout(page2)
+        header2 = QLabel("Top Rail - Parts Inventory"); header2.setObjectName("DashboardHeader")
         layout2.addWidget(header2)
-        self.tr_dash_parts_layout = QFormLayout(); self.tr_dash_parts_layout.setSpacing(10) # Store layout to add parts dynamically
-        layout2.addLayout(self.tr_dash_parts_layout)
+
+        # Create a table instead of form layout
+        self.tr_parts_table = QTableWidget()
+        self.tr_parts_table.setColumnCount(4)
+        self.tr_parts_table.setHorizontalHeaderLabels(["Part Name", "In Stock", "Per Rail", "Rails Possible"])
+        self.tr_parts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tr_parts_table.setAlternatingRowColors(True)
+        layout2.addWidget(self.tr_parts_table)
+        
         layout2.addStretch()
         self.dashboard_stacked_widget.addWidget(page2)
 
