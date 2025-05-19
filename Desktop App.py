@@ -819,13 +819,21 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'tr_dash_current_time_label'):
             today = datetime.now().date()
             
-            # Get daily production count from the inventory data
-            daily_production = self.inventory_data.get("daily_production", {}).get("top_rails", 0)
-            self.tr_dash_daily_label.setText(str(daily_production))
-            
-            # Get monthly production from production summary
+            # Get today's production count from today's date in monthly data
             current_month = today.month
             current_year = today.year
+            daily_data = self.api_client.get_production_for_month(current_year, current_month)
+            
+            # Find today's entry and get top_rails count
+            today_str = today.strftime("%Y-%m-%d")
+            today_production = next(
+                (day.get("top_rails", 0) for day in daily_data 
+                 if day.get("date") == today_str), 
+                0
+            )
+            self.tr_dash_daily_label.setText(str(today_production))
+            
+            # Get monthly production from production summary
             monthly_data = self.api_client.get_production_summary(current_year, current_month)
             if monthly_data:
                 monthly_count = monthly_data.get("current_production", {}).get("total", {}).get("top_rails", 0)
