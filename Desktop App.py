@@ -942,19 +942,49 @@ class MainWindow(QMainWindow):
                     color_group_deficit = QGroupBox(config['color_display'])
                     form_layout_deficit = QFormLayout(color_group_deficit)
                     
-                    body_stock_val_label = QLabel("N/A"); body_stock_val_label.setObjectName("StockValue")
-                    rail_stock_val_label = QLabel("N/A"); rail_stock_val_label.setObjectName("StockValue")
-                    status_val_label = QLabel("N/A"); status_val_label.setWordWrap(True)
+                    # Apply color styling to the group box
+                    hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
+                    q_color = QColor(hex_color_code)
+                    color_group_deficit.setAutoFillBackground(True)
+                    palette = color_group_deficit.palette()
+                    palette.setColor(QPalette.Window, q_color)
+                    color_group_deficit.setPalette(palette)
 
-                    form_layout_deficit.addRow(QLabel(f"Body Stock:"), body_stock_val_label)
-                    form_layout_deficit.addRow(QLabel(f"Top Rail Stock:"), rail_stock_val_label)
-                    form_layout_deficit.addRow(QLabel("Status:"), status_val_label)
+                    # Set text color based on background brightness
+                    text_color_hex = 'white' if q_color.lightnessF() < 0.5 else 'black'
+                    form_layout_deficit.setSpacing(10)
+                    
+                    # Create and style labels using the determined text color
+                    body_stock_val_label = QLabel("N/A")
+                    body_stock_val_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    body_stock_val_label.setObjectName("StockValue")
+                    
+                    rail_stock_val_label = QLabel("N/A")
+                    rail_stock_val_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    rail_stock_val_label.setObjectName("StockValue")
+                    
+                    status_val_label = QLabel("N/A")
+                    status_val_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    status_val_label.setWordWrap(True)
+
+                    # Style the field labels too
+                    body_label = QLabel("Body Stock:")
+                    body_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    rail_label = QLabel("Top Rail Stock:")
+                    rail_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+                    status_label = QLabel("Status:")
+                    status_label.setStyleSheet(f"color: {text_color_hex}; font-size: 10pt;")
+
+                    form_layout_deficit.addRow(body_label, body_stock_val_label)
+                    form_layout_deficit.addRow(rail_label, rail_stock_val_label)
+                    form_layout_deficit.addRow(status_label, status_val_label)
 
                     self.top_rail_dashboard_widgets[size_layout_key][color_key] = {
                         "body_stock": body_stock_val_label,
                         "rail_stock": rail_stock_val_label,
                         "status": status_val_label,
-                        "group_box": color_group_deficit # Store group box to add to layout
+                        "group_box": color_group_deficit,
+                        "text_color": text_color_hex  # Store text color for later updates
                     }
                     if config['size'] == "7ft":
                         self.tr_dash_deficits_layout_7ft.addWidget(color_group_deficit)
