@@ -315,15 +315,13 @@ class APIClient:
 
 
 class MainWindow(QMainWindow):
-    # --- Configuration for Table Finishes and Colors ---
-    # This dictionary maps the 'color_display' string from table_configurations
-    # to a display color (hex codes).
+    # Update configuration to use image paths instead of colors
     TABLE_FINISH_COLORS = {
-        "Black": "#343a40",        # Dark Grey / Off-Black
-        "Rustic Oak": "#8B4513",   # Saddle Brown / Warm Brown
-        "Grey Oak": "#808080",     # Grey
-        "Stone": "#A9A9A9",        # DarkGray / Medium Grey with slight beige hint
-        "Default": "#E0E0E0"       # A default color if finish is not in the map
+        "Black": "images/black.jpg",        # Path to black wood image
+        "Rustic Oak": "images/rustic.jpg",  # Path to rustic oak image
+        "Grey Oak": "images/grey.jpg",      # Path to grey oak image
+        "Stone": "images/grey.jpg",         # Reuse grey for stone temporarily
+        "Default": "#E0E0E0"               # Keep a fallback color
     }
 
     def __init__(self, config=None):
@@ -949,10 +947,14 @@ class MainWindow(QMainWindow):
                     color_group_deficit.setAutoFillBackground(True)
                     color_group_deficit.setStyleSheet(f"""
                         QGroupBox {{
-                            background-color: {hex_color_code};
+                            background-image: url({hex_color_code});
+                            background-position: center;
+                            background-repeat: no-repeat;
+                            background-origin: content;
+                            background-clip: content;
                             border: 1px solid #d0d0d0;
                             border-radius: 8px;
-                            margin-top: 20px;  /* Increased margin for title */
+                            margin-top: 20px;
                             padding: 15px;
                         }}
                         QGroupBox::title {{
@@ -960,10 +962,10 @@ class MainWindow(QMainWindow):
                             subcontrol-origin: margin;
                             left: 7px;
                             padding: 0 5px 0 5px;
-                            background-color: {hex_color_code};  /* Match background */
+                            background-color: rgba(0, 0, 0, 0.5);
                             font-weight: bold;
                         }}
-                    """)
+                    """
 
                     # Always use white text for dark backgrounds and black for light ones
                     text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
