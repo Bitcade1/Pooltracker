@@ -1027,16 +1027,21 @@ class MainWindow(QMainWindow):
                 elif body_stock == rail_stock:
                     status_text = f"Balanced. Can make {body_stock} sets."
                     status_style = "font-size: 10pt; font-weight: bold; color: #2e7d32;"
+                    # Make both values green when balanced
+                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
+                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
                 elif body_stock > rail_stock:
                     needed = body_stock - rail_stock
                     status_text = f"{needed} more Top Rails needed."
                     status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
+                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
                     widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
                 else: # rail_stock > body_stock
                     needed = rail_stock - body_stock
                     status_text = f"{needed} more Bodies needed."
                     status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
                     widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
                 
                 widgets["status"].setText(status_text)
                 widgets["status"].setStyleSheet(status_style)
