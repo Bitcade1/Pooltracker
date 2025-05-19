@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (
     QTabWidget, QComboBox, QCheckBox, QProgressBar, QFrame,
     QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget # Added QStackedWidget
 )
-from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator  # Add QIntValidator
+from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap  # Added QPixmap
 from PyQt5.QtCore import Qt, QTimer
 
 # --- Modern UI Styling ---
@@ -315,13 +315,14 @@ class APIClient:
 
 
 class MainWindow(QMainWindow):
-    # Update configuration to use image paths instead of colors
+    # Get absolute path for images
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
-        "Black": "images/black.jpg",        # Path to black wood image
-        "Rustic Oak": "images/rustic.jpg",  # Path to rustic oak image
-        "Grey Oak": "images/grey.jpg",      # Path to grey oak image
-        "Stone": "images/grey.jpg",         # Reuse grey for stone temporarily
-        "Default": "#E0E0E0"               # Keep a fallback color
+        "Black": os.path.join(BASE_DIR, "images", "black.jpg"),
+        "Rustic Oak": os.path.join(BASE_DIR, "images", "rustic.jpg"),
+        "Grey Oak": os.path.join(BASE_DIR, "images", "grey.jpg"),
+        "Stone": os.path.join(BASE_DIR, "images", "grey.jpg"),
+        "Default": "#E0E0E0"
     }
 
     def __init__(self, config=None):
@@ -947,15 +948,15 @@ class MainWindow(QMainWindow):
                     color_group_deficit.setAutoFillBackground(True)
                     color_group_deficit.setStyleSheet(f"""
                         QGroupBox {{
-                            background-image: url({hex_color_code});
-                            background-position: center;
-                            background-repeat: no-repeat;
-                            background-origin: content;
-                            background-clip: content;
                             border: 1px solid #d0d0d0;
                             border-radius: 8px;
                             margin-top: 20px;
                             padding: 15px;
+                            background-image: url("{hex_color_code.replace('\\', '/')}");
+                            background-repeat: no-repeat;
+                            background-position: center center;
+                            background-origin: content;
+                            background-color: transparent;
                         }}
                         QGroupBox::title {{
                             color: {'white' if q_color.lightnessF() < 0.5 else 'black'};
