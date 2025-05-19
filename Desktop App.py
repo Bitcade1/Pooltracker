@@ -811,72 +811,95 @@ class MainWindow(QMainWindow):
 
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
-        if not self.inventory_data: # Needs inventory for pages 2 and 3
-            if hasattr(self, 'tr_dash_current_time_label'): 
-                self.tr_dash_current_time_label.setText("N/A (Data Unavailable)")
-                self.tr_dash_avg_time_label.setText("N/A")
-                self.tr_dash_predicted_label.setText("N/A")
-            
-            if hasattr(self, 'tr_dash_parts_layout'):
-                while self.tr_dash_parts_layout.count():
-                    child = self.tr_dash_parts_layout.takeAt(0)
-                    if child.widget():
-                        child.widget().deleteLater()
-                self.tr_dash_parts_layout.addRow(QLabel("Parts Data:"), QLabel("Inventory Unavailable"))
-
-            if hasattr(self, 'top_rail_dashboard_widgets') and "deficits_7ft" in self.top_rail_dashboard_widgets:
-                for size_layout_key in ["deficits_7ft", "deficits_6ft"]:
-                    layout_widgets = self.top_rail_dashboard_widgets[size_layout_key]
-                    for color_key in layout_widgets:
-                        widgets = layout_widgets[color_key]
-                        widgets["body_stock"].setText("N/A")
-                        widgets["rail_stock"].setText("N/A")
-                        widgets["status"].setText("Inventory Unavailable").setStyleSheet("color: #555; font-size: 10pt;")
+        if not self.inventory_data:
+            # ...existing code for handling no data...
             return
 
-        # --- Page 1: Performance (Placeholders) ---
+        # --- Page 1: Performance - Update with real production data ---
         if hasattr(self, 'tr_dash_current_time_label'):
-            self.tr_dash_current_time_label.setText("00:15:30 (Live Placeholder)") 
-            self.tr_dash_avg_time_label.setText("~45 mins (Placeholder)")
-            self.tr_dash_predicted_label.setText("~8 today (Placeholder)")
+            today = datetime.now().date()
+            
+            # Get daily production count from the inventory data
+            daily_production = self.inventory_data.get("daily_production", {}).get("top_rails", 0)
+            self.tr_dash_daily_label.setText(str(daily_production))
+            
+            # Get monthly production from production summary
+            current_month = today.month
+            current_year = today.year
+            monthly_data = self.api_client.get_production_summary(current_year, current_month)
+            if monthly_data:
+                monthly_count = monthly_data.get("current_production", {}).get("total", {}).get("top_rails", 0)
+                self.tr_dash_monthly_label.setText(str(monthly_count))
+                
+                # Calculate yearly production from all months
+                yearly_count = sum(
+                    self.api_client.get_production_summary(current_year, m)
+                    .get("current_production", {}).get("total", {}).get("top_rails", 0)
+                    for m in range(1, 13)
+                )
+                self.tr_dash_yearly_label.setText(str(yearly_count))
 
-        # --- Page 2: Parts Inventory ---
-        if hasattr(self, 'tr_dash_parts_layout'):
-            while self.tr_dash_parts_layout.count():
-                child = self.tr_dash_parts_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
-
+        # --- Page 2: Parts Inventory - Update table with real data ---
+        if hasattr(self, 'tr_parts_table'):
             top_rail_parts = {
-                # Standard parts
-                "Top rail trim long length": 2, 
+                "Top rail trim long length": 2,
                 "Top rail trim short length": 4,
                 "Chrome corner": 4,
                 "Center pockets": 2,
                 "Corner pockets": 4,
-                # Hardware parts - moved from table_parts to top_rail_parts
                 "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
                 "M5 x 20 Socket Cap Screw": 16,
                 "Catch Plate": 12,
                 "4.8x32mm Self Tapping Screw": 24
             }
-            # Get hardware counts from the inventory data's hardware_parts_current instead of table_parts_current
+            
             hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
             table_parts_stock = self.inventory_data.get("table_parts_current", {})
-            low_stock_threshold = 10 
-
-            for part_name, qty_per_set in top_rail_parts.items():
-                # Check hardware parts stock first, then fall back to table parts stock
+            
+            # Clear and set up table
+            self.tr_parts_table.setRowCount(len(top_rail_parts))
+            row = 0
+            
+            for part_name, qty_per_rail in top_rail_parts.items():
+                # Get stock count from either hardware or table parts
                 stock_count = hardware_parts_stock.get(part_name, table_parts_stock.get(part_name, 0))
                 
-                part_label = QLabel(f"{part_name} (x{qty_per_set}):", objectName="DashboardPartName")
-                stock_label = QLabel(str(stock_count))
-                if stock_count < low_stock_threshold:
-                    stock_label.setObjectName("DashboardPartStockLow")
+                # Calculate how many rails can be made with this part
+                rails_possible = stock_count // qty_per_rail if qty_per_rail > 0 else 0
+                
+                # Create table items
+                name_item = QTableWidgetItem(part_name)
+                stock_item = QTableWidgetItem(str(stock_count))
+                per_rail_item = QTableWidgetItem(str(qty_per_rail))
+                rails_item = QTableWidgetItem(str(rails_possible))
+                
+                # Center align numbers
+                stock_item.setTextAlignment(Qt.AlignCenter)
+                per_rail_item.setTextAlignment(Qt.AlignCenter)
+                rails_item.setTextAlignment(Qt.AlignCenter)
+                
+                # Color coding based on rails possible
+                if rails_possible < 5:
+                    color = QColor("#c62828")  # Red
+                elif rails_possible < 10:
+                    color = QColor("#f57c00")  # Orange
                 else:
-                    stock_label.setObjectName("DashboardPartStock")
-                self.tr_dash_parts_layout.addRow(part_label, stock_label)
-        
+                    color = QColor("#2e7d32")  # Green
+                
+                stock_item.setForeground(color)
+                rails_item.setForeground(color)
+                
+                # Set items in table
+                self.tr_parts_table.setItem(row, 0, name_item)
+                self.tr_parts_table.setItem(row, 1, stock_item)
+                self.tr_parts_table.setItem(row, 2, per_rail_item)
+                self.tr_parts_table.setItem(row, 3, rails_item)
+                
+                row += 1
+            
+            # Adjust column widths
+            self.tr_parts_table.resizeColumnsToContents()
+
         # --- Page 3: Top Rail Deficits (vs Bodies) ---
         if hasattr(self, 'top_rail_dashboard_widgets') and "deficits_7ft" in self.top_rail_dashboard_widgets:
             finished_stock = self.inventory_data.get("finished_components_stock", {})
