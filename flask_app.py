@@ -425,7 +425,8 @@ def inventory():
     parts = [
         "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
-        "6ft Cue Ball Separator", "6ft Large Ramp"
+        "6ft Cue Ball Separator", "6ft Large Ramp",
+        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
     ]
 
     inventory_counts = {}
@@ -855,6 +856,30 @@ def pods():
             date=date.today()
         )
         
+        # Add logic to deduct felt and carpet based on pod size
+        is_6ft = size_selector == '6ft' or ' - 6' in serial_number or '-6' in serial_number
+        
+        # Determine which felt and carpet to deduct
+        felt_part = "6ft Felt" if is_6ft else "7ft Felt"
+        carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
+        
+        # Check and deduct felt
+        felt_entry = PrintedPartsCount.query.filter_by(part_name=felt_part).order_by(
+            PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        if not felt_entry or felt_entry.count < 1:
+            flash(f"Not enough {felt_part} in stock!", "error")
+            return redirect(url_for('pods'))
+        felt_entry.count -= 1
+
+        # Check and deduct carpet
+        carpet_entry = PrintedPartsCount.query.filter_by(part_name=carpet_part).order_by(
+            PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        if not carpet_entry or carpet_entry.count < 1:
+            flash(f"Not enough {carpet_part} in stock!", "error")
+            return redirect(url_for('pods'))
+        carpet_entry.count -= 1
+
+        # Now add the new pod
         try:
             db.session.add(new_pod)
             db.session.commit()
@@ -1759,11 +1784,11 @@ class CushionJobRecord(db.Model):
     session_id = db.Column(db.Integer, db.ForeignKey('cushion_session.id'), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey('cushion_job.id'), nullable=False)
     goal_minutes = db.Column(db.Integer, default=0)  # Target time in minutes
-    start_time = db.Column(db.DateTime)
-    finish_time = db.Column(db.DateTime)
+    start_time = db.Column(db.DateTime, nullable=False)
+    finish_time = db.Column(db.DateTime, nullable=False)
     paused_time = db.Column(db.DateTime)  # New field for tracking when a job is paused
-    actual_minutes = db.Column(db.Integer)  # Actual working time in minutes
-    setup_minutes = db.Column(db.Integer)  # Setup time in minutes
+    actual_minutes = db.Column(db.Float, nullable=False)
+    setup_minutes = db.Column(db.Float)
     paused_minutes = db.Column(db.Integer, default=0)  # New field to store accumulated pause time
 	
     
@@ -1894,13 +1919,6 @@ def predicted_finish():
 
     return render_template('predicted_finish.html')
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-from sqlalchemy import func, extract
-from sqlalchemy.exc import IntegrityError
-from calendar import monthrange
-from datetime import date, datetime
-
-
 from flask import render_template, request, redirect, url_for, flash, session
 from sqlalchemy import func, extract
 from datetime import datetime, date, timedelta
@@ -1910,8 +1928,6 @@ from flask import render_template, request, redirect, url_for, flash, session
 from sqlalchemy import func, extract, desc
 from datetime import datetime, date, timedelta
 from calendar import monthrange
-
-import re  # Make sure this is at the top of the file
 
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
@@ -1970,10 +1986,8 @@ def bodies():
                 if suffix in clean_serial:
                     # If suffix is in the middle of the string, keep what comes after it
                     parts = clean_serial.split(suffix, 1)
-                    if len(parts) > 1 and parts[1]:
-                        clean_serial = parts[0] + parts[1]
-                    else:
-                        clean_serial = parts[0]
+                    base_serial = parts[0]
+                    clean_serial = f"{base_serial} - 6"
             
             # Add color suffix based on selection
             if color_selector == 'Grey Oak':
@@ -2179,20 +2193,20 @@ def bodies():
         last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
-        if total_bodies > 0:
-            avg_hours = cumulative_working_hours / total_bodies
-            hours = int(avg_hours)
-            minutes = int((avg_hours - hours) * 60)
-            seconds = int((((avg_hours - hours) * 60) - minutes) * 60)
-            avg_hours_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
+        avg_hours_per_body = (cumulative_working_hours / total_bodies if total_bodies > 0 else None)
+        if avg_hours_per_body is not None:
+            hours = int(avg_hours_per_body)
+            minutes = int((avg_hours_per_body - hours) * 60)
+            seconds = int((((avg_hours_per_body - hours) * 60) - minutes) * 60)
+            avg_hours_per_body_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
         else:
-            avg_hours_formatted = "N/A"
+            avg_hours_per_body_formatted = "N/A"
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
-            "average_hours_per_table": avg_hours_formatted
+            "average_hours_per_body": avg_hours_per_body_formatted
         })
-
+    
     # Retrieve production targets for the current month
     schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
     if schedule:
@@ -2345,7 +2359,7 @@ def top_rails():
         color = get_color(serial_number)
         
         # Create the stock key
-        stock_type = f"top_rail_{size.lower()}_{color}"
+        stock_type = f'top_rail_{size.lower()}_{color}'
         
         # Update the stock count
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
@@ -2904,7 +2918,8 @@ def counting_3d_printing_parts():
     parts = [
         "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
-        "6ft Cue Ball Separator", "6ft Large Ramp"
+        "6ft Cue Ball Separator", "6ft Large Ramp",
+        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
     ]
 
     parts_counts = {
@@ -3325,7 +3340,7 @@ def counting_cushions():
                     # Check if all jobs are completed
                     all_completed = CushionJobRecord.query.filter(
                         CushionJobRecord.session_id == active_session.id,
-                        CushionJobRecord.finish_time.is_(None)
+                        CushionJob.finish_time.is_(None)
                     ).count() == 0
                     
                     if all_completed:
@@ -3546,6 +3561,7 @@ def sales_extrapolation():
                 total_current += current_sales
                 
                 # Calculate extrapolated sales
+
                 extrapolated_sales = round(current_sales * extrapolation_ratio)
                 data['extrapolated_sales'][product] = extrapolated_sales
                 total_extrapolated += extrapolated_sales
