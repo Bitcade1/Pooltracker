@@ -832,10 +832,10 @@ class MainWindow(QMainWindow):
                 "Center pockets": 2,
                 "Corner pockets": 4,
                 # Hardware parts - moved from table_parts to top_rail_parts
-                "M5 x 18 x 1.25 Penny Mudguard Washer": 8,
-                "M5 x 20 Socket Cap Screw": 8,
-                "Catch Plate": 4,
-                "4.8x32mm Self Tapping Screw": 16
+                "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
+                "M5 x 20 Socket Cap Screw": 16,
+                "Catch Plate": 12,
+                "4.8x32mm Self Tapping Screw": 24
             }
             # Get hardware counts from the inventory data's hardware_parts_current instead of table_parts_current
             hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
