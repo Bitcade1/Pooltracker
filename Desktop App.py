@@ -199,7 +199,8 @@ QLabel.DashboardPartStockLow {
 DEFAULT_CONFIG = {
     "API_URL": "https://pooltabletracker.com",
     "API_PORT": None,
-    "API_TOKEN": "bitcade_api_key_1"
+    "API_TOKEN": "bitcade_api_key_1",
+    "SCROLL_TIMER": 10  # Default 10 seconds
 }
 
 def save_config(config):
@@ -358,7 +359,8 @@ class MainWindow(QMainWindow):
         # Timer for Top Rail Dashboard page scrolling
         self.dashboard_scroll_timer = QTimer(self)
         self.dashboard_scroll_timer.timeout.connect(self.scroll_dashboard_page)
-        self.dashboard_scroll_timer.start(10000) # Scroll every 10 seconds
+        scroll_time = self.config.get("SCROLL_TIMER", 10)
+        self.dashboard_scroll_timer.start(scroll_time * 1000)
 
     def setup_ui(self):
         self.setWindowTitle("Pool Table Factory Tracker")
@@ -669,7 +671,22 @@ class MainWindow(QMainWindow):
         self.test_connection_button.setStyleSheet("background-color: #f39c12; color:white;")
         self.test_connection_button.clicked.connect(self.check_api_connection); buttons_layout.addWidget(self.test_connection_button)
         buttons_layout.addStretch(); api_layout.addRow(buttons_layout); settings_layout.addWidget(api_group)
+        
+        # Add Timer Settings Group
+        timer_group = QGroupBox("Dashboard Settings")
+        timer_layout = QFormLayout()
+        
+        self.scroll_timer_input = QLineEdit(str(self.config.get("SCROLL_TIMER", 10)))
+        self.scroll_timer_input.setFixedWidth(80)
+        # Only allow integers
+        self.scroll_timer_input.setValidator(QtGui.QIntValidator(1, 60))
+        
+        timer_layout.addRow("Screen scroll interval (seconds):", self.scroll_timer_input)
+        timer_group.setLayout(timer_layout)
+        settings_layout.addWidget(timer_group)
+        
         settings_layout.addStretch()
+        
         about_group = QGroupBox("About"); about_layout = QVBoxLayout(about_group)
         self.about_text_label = QLabel(f"Pool Table Factory Tracker v1.6\n\nDisplays production and inventory data.\nConnects to: {self.api_client.base_url}") # Version bump
         self.about_text_label.setAlignment(Qt.AlignCenter); self.about_text_label.setWordWrap(True)
@@ -1035,6 +1052,19 @@ class MainWindow(QMainWindow):
                 if not (0 < port_val < 65536): raise ValueError("Port out of range")
                 self.config["API_PORT"] = port_val
             except ValueError: QMessageBox.warning(self, "Invalid Port", "Port must be between 1-65535."); return
+        
+        # Save timer setting
+        try:
+            scroll_time = int(self.scroll_timer_input.text().strip())
+            if not (1 <= scroll_time <= 60):
+                raise ValueError("Timer must be between 1-60 seconds")
+            self.config["SCROLL_TIMER"] = scroll_time
+            # Update the active timer
+            self.dashboard_scroll_timer.setInterval(scroll_time * 1000)
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Timer", "Scroll timer must be between 1-60 seconds.")
+            return
+            
         config_file = save_config(self.config)
         
         # Re-initialize APIClient with new settings
