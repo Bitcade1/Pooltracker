@@ -503,7 +503,11 @@ def inventory():
         "Cue Ball Separator": 1,
         "Bushing": 2,
         "6ft Cue Ball Separator": 1,
-        "6ft Large Ramp": 1
+        "6ft Large Ramp": 1,
+        "6ft Carpet": 1,    # Added new 6ft parts
+        "6ft Felt": 1,
+        "7ft Carpet": 1,    # Added new 7ft parts
+        "7ft Felt": 1
     }
 
     # Calculate how many of each part have been used this month.
@@ -519,14 +523,24 @@ def inventory():
     # Determine the required total for each part based on production targets.
     parts_status = {}
     for part, usage in parts_usage_per_body.items():
-        if part in ["Large Ramp", "Cue Ball Separator"]:
+        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
             required_total = target_7ft * usage
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+            completed_total = bodies_built_7ft * usage
+
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
             required_total = target_6ft * usage
+            completed_total = bodies_built_6ft * usage
+
         else:
             required_total = (target_7ft + target_6ft) * usage
+            completed_total = (bodies_built_7ft + bodies_built_6ft) * usage
 
-        available_total = inventory_counts.get(part, 0) + parts_used_this_month.get(part, 0)
+        # IMPORTANT: inventory is exactly what's in stock now
+        inventory_total = inventory_counts.get(part, 0)
+
+        # How many parts you have available in total
+        available_total = inventory_total + completed_total
+
         difference = available_total - required_total
         if difference >= 0:
             parts_status[part] = f"{difference} extras"
@@ -1985,7 +1999,7 @@ def bodies():
             for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B']:
                 if suffix in clean_serial:
                     # If suffix is in the middle of the string, keep what comes after it
-                    parts = clean_serial.split(suffix, 1)
+                    parts = re.split(r'(-| - )', clean_serial, 1)
                     base_serial = parts[0]
                     clean_serial = f"{base_serial} - 6"
             
@@ -2861,6 +2875,7 @@ def material_calculator():
         produced_short = (2 * boards_jobA) + (16 * boards_jobB)
         leftover_long = produced_long - long_needed
         leftover_short = produced_short - short_needed
+   
 
     return render_template(
         'material_calculator.html',
@@ -2960,16 +2975,20 @@ def counting_3d_printing_parts():
         "Cue Ball Separator": 1,
         "Bushing": 2,
         "6ft Cue Ball Separator": 1,
-        "6ft Large Ramp": 1
+        "6ft Large Ramp": 1,
+        "6ft Carpet": 1,    # Added new 6ft parts
+        "6ft Felt": 1,
+        "7ft Carpet": 1,    # Added new 7ft parts
+        "7ft Felt": 1
     }
 
     parts_status = {}
     for part, usage in parts_usage_per_body.items():
-        if part in ["Large Ramp", "Cue Ball Separator"]:
+        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
             required_total = target_7ft * usage
             completed_total = bodies_built_7ft * usage
 
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator"]:
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
             required_total = target_6ft * usage
             completed_total = bodies_built_6ft * usage
 
@@ -2978,7 +2997,7 @@ def counting_3d_printing_parts():
             completed_total = (bodies_built_7ft + bodies_built_6ft) * usage
 
         # IMPORTANT: inventory is exactly what's in stock now
-        inventory_total = parts_counts.get(part, 0)
+        inventory_total = inventory_counts.get(part, 0)
 
         # How many parts you have available in total
         available_total = inventory_total + completed_total
@@ -3529,7 +3548,7 @@ def sales_extrapolation():
         'total_current': 0,
         'total_extrapolated': 0,
         'current_period': 30,  # Default current period in days
-        'target_period': 365,  # Default target period in days
+        'target_period': 365,   # Default target period in days
     }
     
     if request.method == 'POST':
@@ -3561,7 +3580,6 @@ def sales_extrapolation():
                 total_current += current_sales
                 
                 # Calculate extrapolated sales
-
                 extrapolated_sales = round(current_sales * extrapolation_ratio)
                 data['extrapolated_sales'][product] = extrapolated_sales
                 total_extrapolated += extrapolated_sales
