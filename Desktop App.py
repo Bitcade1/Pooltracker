@@ -825,21 +825,27 @@ class MainWindow(QMainWindow):
                     child.widget().deleteLater()
 
             top_rail_parts = {
+                # Standard parts
                 "Top rail trim long length": 2, 
                 "Top rail trim short length": 4,
                 "Chrome corner": 4,
                 "Center pockets": 2,
                 "Corner pockets": 4,
-                "M5 x 18 x 1.25 Penny Mudguard Washer": 16,  # Added new hardware
-                "M5 x 20 Socket Cap Screw": 8,              # Added new hardware
-                "Catch Plate": 12,                           # Added new hardware
-                "4.8x32mm Self Tapping Screw": 24          # Added new hardware
+                # Hardware parts - moved from table_parts to top_rail_parts
+                "M5 x 18 x 1.25 Penny Mudguard Washer": 8,
+                "M5 x 20 Socket Cap Screw": 8,
+                "Catch Plate": 4,
+                "4.8x32mm Self Tapping Screw": 16
             }
+            # Get hardware counts from the inventory data's hardware_parts_current instead of table_parts_current
+            hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
             table_parts_stock = self.inventory_data.get("table_parts_current", {})
             low_stock_threshold = 10 
 
             for part_name, qty_per_set in top_rail_parts.items():
-                stock_count = table_parts_stock.get(part_name, 0)
+                # Check hardware parts stock first, then fall back to table parts stock
+                stock_count = hardware_parts_stock.get(part_name, table_parts_stock.get(part_name, 0))
+                
                 part_label = QLabel(f"{part_name} (x{qty_per_set}):", objectName="DashboardPartName")
                 stock_label = QLabel(str(stock_count))
                 if stock_count < low_stock_threshold:
