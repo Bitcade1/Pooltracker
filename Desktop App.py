@@ -318,10 +318,10 @@ class MainWindow(QMainWindow):
     # Get absolute path for images
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
-        "Black": os.path.join(BASE_DIR, "images", "black.jpg"),
-        "Rustic Oak": os.path.join(BASE_DIR, "images", "rustic.jpg"),
-        "Grey Oak": os.path.join(BASE_DIR, "images", "grey.jpg"),
-        "Stone": os.path.join(BASE_DIR, "images", "grey.jpg"),
+        "Black": os.path.join("images", "Black Oak.jpg"),
+        "Rustic Oak": os.path.join("images", "Rustic Oak.jpg"),
+        "Grey Oak": os.path.join("images", "Grey Oak.jpg"),
+        "Stone": os.path.join("images", "Stone.jpg"),
         "Default": "#E0E0E0"
     }
 
@@ -952,18 +952,19 @@ class MainWindow(QMainWindow):
                             border-radius: 8px;
                             margin-top: 20px;
                             padding: 15px;
-                            background-image: url("{hex_color_code.replace('\\', '/')}");
+                            background-image: url({hex_color_code.replace(os.sep, '/')});
                             background-repeat: no-repeat;
-                            background-position: center center;
+                            background-size: cover;
+                            background-position: center;
                             background-origin: content;
                             background-color: transparent;
                         }}
                         QGroupBox::title {{
-                            color: {'white' if q_color.lightnessF() < 0.5 else 'black'};
+                            color: black;
                             subcontrol-origin: margin;
                             left: 7px;
                             padding: 0 5px 0 5px;
-                            background-color: rgba(0, 0, 0, 0.5);
+                            background-color: rgba(255, 255, 255, 0.8);
                             font-weight: bold;
                         }}
                     """)  # Added closing parenthesis here
