@@ -941,36 +941,35 @@ class MainWindow(QMainWindow):
                 if color_key not in self.top_rail_dashboard_widgets[size_layout_key]:
                     color_group_deficit = QGroupBox(config['color_display'])
                     form_layout_deficit = QFormLayout(color_group_deficit)
+                    form_layout_deficit.setContentsMargins(15, 25, 15, 15)  # Add more padding
                     
-                    # Apply color styling to the group box, similar to assembly deficit tab
                     hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
                     q_color = QColor(hex_color_code)
                     
-                    # Set background color more strongly
                     color_group_deficit.setAutoFillBackground(True)
                     color_group_deficit.setStyleSheet(f"""
                         QGroupBox {{
                             background-color: {hex_color_code};
                             border: 1px solid #d0d0d0;
                             border-radius: 8px;
-                            margin-top: 10px;
-                            padding: 10px;
+                            margin-top: 20px;  /* Increased margin for title */
+                            padding: 15px;
                         }}
                         QGroupBox::title {{
                             color: {'white' if q_color.lightnessF() < 0.5 else 'black'};
                             subcontrol-origin: margin;
                             left: 7px;
                             padding: 0 5px 0 5px;
+                            background-color: {hex_color_code};  /* Match background */
+                            font-weight: bold;
                         }}
                     """)
 
-                    # Set text color based on background brightness for better contrast
+                    # Always use white text for dark backgrounds and black for light ones
                     text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
-                    form_layout_deficit.setSpacing(10)
+                    label_style = f"color: {text_color}; font-size: 11pt; margin: 2px;"  # Increased font size and margin
                     
-                    # Style all labels with appropriate contrast
-                    label_style = f"color: {text_color}; font-size: 10pt;"
-                    
+                    # --- Create and style labels ---
                     body_stock_val_label = QLabel("N/A")
                     body_stock_val_label.setStyleSheet(label_style)
                     body_stock_val_label.setObjectName("StockValue")
