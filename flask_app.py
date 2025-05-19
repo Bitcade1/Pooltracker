@@ -2944,6 +2944,9 @@ def counting_3d_printing_parts():
         for part in parts
     }
 
+    # Add this line to create inventory_counts from parts_counts
+    inventory_counts = parts_counts
+
     current_month = datetime.utcnow().month
     current_year = datetime.utcnow().year
 
