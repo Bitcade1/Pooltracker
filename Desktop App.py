@@ -576,10 +576,16 @@ class MainWindow(QMainWindow):
         prod_stats_layout.setSpacing(20)  # Increase spacing between items
         prod_stats_layout.setContentsMargins(20, 30, 20, 30)  # Add more padding
 
+        # Initialize labels first
+        self.tr_dash_daily_label = QLabel("0")
+        self.tr_dash_monthly_label = QLabel("0")
+        self.tr_dash_yearly_label = QLabel("0") 
+
         # Today's Production
         today_label = QLabel("Today's Production")
         today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
         today_label.setAlignment(Qt.AlignCenter)
+        
         self.tr_dash_daily_label.setStyleSheet("""
             font-size: 48pt;
             font-weight: bold; 
