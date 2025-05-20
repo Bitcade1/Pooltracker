@@ -984,6 +984,65 @@ class MainWindow(QMainWindow):
             widgets["status"].setText(status_text)
             widgets["status"].setStyleSheet(status_style)
 
+        # --- Update Top Rail Parts Inventory Data ---
+        # Define top rail parts and their requirements
+        top_rail_parts = {
+            "Top rail trim long length": {"per_rail": 2, "category": "table_parts"},
+            "Top rail trim short length": {"per_rail": 4, "category": "table_parts"},
+            "Chrome corner": {"per_rail": 4, "category": "table_parts"},
+            "Center pockets": {"per_rail": 2, "category": "table_parts"},
+            "Corner pockets": {"per_rail": 4, "category": "table_parts"},
+            "M5 x 18 x 1.25 Penny Mudguard Washer": {"per_rail": 16, "category": "hardware_parts"},
+            "M5 x 20 Socket Cap Screw": {"per_rail": 16, "category": "hardware_parts"},
+            "Catch Plate": {"per_rail": 12, "category": "hardware_parts"},
+            "4.8x32mm Self Tapping Screw": {"per_rail": 24, "category": "hardware_parts"}
+        }
+
+        # Update parts inventory table
+        self.tr_parts_table.setRowCount(len(top_rail_parts))
+        row = 0
+
+        for part_name, details in top_rail_parts.items():
+            # Get stock from appropriate category
+            category_data = self.inventory_data.get(f"{details['category']}_current", {})
+            stock_count = category_data.get(part_name, 0)
+            per_rail = details['per_rail']
+            rails_possible = stock_count // per_rail if per_rail > 0 else 0
+
+            # Create table items
+            name_item = QTableWidgetItem(part_name)
+            stock_item = QTableWidgetItem(str(stock_count))
+            per_rail_item = QTableWidgetItem(str(per_rail))
+            rails_possible_item = QTableWidgetItem(str(rails_possible))
+
+            # Center align numbers
+            for item in [stock_item, per_rail_item, rails_possible_item]:
+                item.setTextAlignment(Qt.AlignCenter)
+
+            # Color coding based on rails possible
+            if rails_possible < 5:
+                color = QColor("#c62828")  # Red
+            elif rails_possible < 10:
+                color = QColor("#f57c00")  # Orange
+            else:
+                color = QColor("#2e7d32")  # Green
+
+            stock_item.setForeground(color)
+            rails_possible_item.setForeground(color)
+
+            # Set items in table
+            self.tr_parts_table.setItem(row, 0, name_item)
+            self.tr_parts_table.setItem(row, 1, stock_item)
+            self.tr_parts_table.setItem(row, 2, per_rail_item)
+            self.tr_parts_table.setItem(row, 3, rails_possible_item)
+            row += 1
+
+        # Adjust table appearance
+        self.tr_parts_table.resizeColumnsToContents()
+        font = QFont()
+        font.setPointSize(14)
+        self.tr_parts_table.setFont(font)
+        self.tr_parts_table.verticalHeader().setDefaultSectionSize(40)
 
     def check_api_connection(self):
         self.connection_label.setText("API: Checking...")
