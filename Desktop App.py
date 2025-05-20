@@ -328,6 +328,10 @@ class MainWindow(QMainWindow):
 
     def __init__(self, config=None):
         super().__init__()
+        # Suppress specific warnings (adjust as needed)
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
+
         # Initialize timers first
         self.refresh_timer = QTimer(self)
         self.dashboard_scroll_timer = QTimer(self)
