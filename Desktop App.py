@@ -813,6 +813,60 @@ class MainWindow(QMainWindow):
         self.low_stock_label.setText(str(low_stock_count))
         self.last_update_label.setText(datetime.now().strftime('%d %b %Y, %H:%M:%S'))
 
+    def update_production_table(self, daily_data_list):
+        """Updates the production table with daily data."""
+        if not daily_data_list:
+            self.production_table.setRowCount(0)
+            return
+            
+        self.production_table.setRowCount(len(daily_data_list))
+        
+        # Larger font for table
+        table_font = QFont()
+        table_font.setPointSize(12)
+        
+        for row, day_data in enumerate(daily_data_list):
+            # Format date
+            try:
+                date_obj = datetime.strptime(day_data["date"], "%Y-%m-%d").date()
+                friendly_date = date_obj.strftime("%a, %d %b %Y")
+            except ValueError:
+                friendly_date = day_data["date"]
+                
+            # Create items
+            date_item = QTableWidgetItem(friendly_date)
+            bodies_item = QTableWidgetItem(str(day_data.get("bodies", 0)))
+            pods_item = QTableWidgetItem(str(day_data.get("pods", 0)))
+            rails_item = QTableWidgetItem(str(day_data.get("top_rails", 0)))
+            
+            # Center align numbers and set font
+            for item in [bodies_item, pods_item, rails_item]:
+                item.setTextAlignment(Qt.AlignCenter)
+                item.setFont(table_font)
+            
+            # Highlight today's row
+            if day_data["date"] == datetime.now().date().strftime("%Y-%m-%d"):
+                for item in [date_item, bodies_item, pods_item, rails_item]:
+                    item.setBackground(QColor("#e6f7ff"))
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                    
+            # Handle error states
+            if day_data.get("error_info"):
+                tooltip = day_data["error_info"]
+                for item in [date_item, bodies_item, pods_item, rails_item]:
+                    item.setForeground(QColor("#999999"))
+                    item.setToolTip(tooltip)
+            
+            # Set items in table
+            self.production_table.setItem(row, 0, date_item)
+            self.production_table.setItem(row, 1, bodies_item)
+            self.production_table.setItem(row, 2, pods_item)
+            self.production_table.setItem(row, 3, rails_item)
+            
+        self.production_table.resizeColumnsToContents()
+
     def update_summary_counts(self, daily_data_list):
         total_bodies = sum(day.get("bodies", 0) for day in daily_data_list) 
         total_pods = sum(day.get("pods", 0) for day in daily_data_list)
