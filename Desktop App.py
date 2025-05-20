@@ -1116,8 +1116,14 @@ class MainWindow(QMainWindow):
                 
                 if hasattr(self, 'tr_warning_text'):
                     warning_text = "Critical Top Rail Parts Low:\n\n"
-                    for part_name, tables in low_stock_items:
-                        warning_text += f"• {part_name}:\n  Only enough for {tables} tables!\n\n"
+                    for part_name, tables_possible in low_stock_items:
+                        # Modify the warning message here
+                        if tables_possible == 0:
+                            warning_text += f"• {part_name}:\n  Not enough for any top rails!\n\n"
+                        elif tables_possible == 1:
+                            warning_text += f"• {part_name}:\n  Only enough for 1 top rail!\n\n"
+                        else:
+                            warning_text += f"• {part_name}:\n  Only enough for {tables_possible} top rails!\n\n"
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
                     
