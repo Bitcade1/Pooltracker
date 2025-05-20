@@ -810,7 +810,7 @@ class MainWindow(QMainWindow):
         low_stock_items = []  # Track all low stock items
         
         for row, (part_name, count) in enumerate(sorted_parts):
-            actual_count = count if count is not None else 0
+            actual_count = count if count is not None : 0
             
             # Create items
             name_item = QTableWidgetItem(part_name)
@@ -1064,8 +1064,8 @@ class MainWindow(QMainWindow):
                 rails_possible = stock_count // qty_per_rail if qty_per_rail > 0 else 0
                 inventory_data.append((part_name, stock_count, qty_per_rail, rails_possible))
 
-            # Sort inventory by stock count (ascending)
-            inventory_data.sort(key=lambda x: x[1])
+            # Sort inventory by rails possible (ascending)
+            inventory_data.sort(key=lambda x: x[3])  # Sort by rails_possible (index 3)
 
             # Clear and set up table
             self.tr_parts_table.setRowCount(len(inventory_data))
