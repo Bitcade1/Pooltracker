@@ -10,3 +10,6 @@
 2025-05-20 12:43:29,516 - WARNING - No inventory data available for dashboard update
 2025-05-20 12:43:45,840 - INFO - Updating top rail dashboard
 2025-05-20 12:43:45,840 - WARNING - No inventory data available for dashboard update
+2025-05-20 12:47:26,756 - ERROR - Failed to get inventory data
+2025-05-20 12:47:27,921 - INFO - Updating top rail dashboard
+2025-05-20 12:47:27,921 - WARNING - No inventory data available for dashboard update
