@@ -15,11 +15,32 @@ import requests
 import logging
 from datetime import datetime, timedelta, date
 import json
-import calendar  # Fixed typo: removed 'f'
+import calendar
 import re 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.sip import voidptr  # For proper sip type handling
+
+# Default configuration and config functions at module level
+DEFAULT_CONFIG = {
+    "API_URL": "https://pooltabletracker.com",
+    "API_PORT": None,
+    "API_TOKEN": "bitcade_api_key_1",
+    "SCROLL_TIMER": 10
+}
+
+def load_config():
+    """Load config from file, return defaults if not found"""
+    config_file = os.path.join(os.path.expanduser("~"), ".pool_tracker_config.json")
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.warning(f"Could not load config file: {e}")
+            return DEFAULT_CONFIG.copy()
+    return DEFAULT_CONFIG.copy()
 
 class MainWindow(QMainWindow):
     """Main window class for the Pool Table Tracker application."""
