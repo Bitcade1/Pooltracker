@@ -15,18 +15,15 @@ import requests
 import logging
 from datetime import datetime, timedelta, date
 import json
-import calendar 
+import calendar f
 import re 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.sip import wrappertype  # Add this import
 
-class MainWindow(QMainWindow, metaclass=wrappertype):
+class MainWindow(QMainWindow):
     """Main window class for the Pool Table Tracker application."""
-    # Register class with Qt's meta-object system
-    __class__ = QMainWindow
-
+    
     # Class attributes
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
@@ -37,9 +34,8 @@ class MainWindow(QMainWindow, metaclass=wrappertype):
         "Default": "#E0E0E0"
     }
 
-    @QMetaObject.WrapperObject  # Use Qt's meta-object system directly
     def __init__(self, config=None):
-        super(MainWindow, self).__init__()  # Use super() for initialization
+        super().__init__()
         # Log startup information
         logging.info("Application starting")
         logging.info(f"Working directory: {self.BASE_DIR}")
