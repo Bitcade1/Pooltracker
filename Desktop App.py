@@ -855,18 +855,6 @@ class MainWindow(QMainWindow):
         self.low_stock_label.setText(str(low_stock_count))
         self.last_update_label.setText(datetime.now().strftime('%d %b %Y, %H:%M:%S'))
 
-        # After processing all items, show combined warning if needed
-        if low_stock_items:
-            warning_text = "WARNING!\nLow Stock Items:\n\n"
-            for part_name, tables in low_stock_items:
-                warning_text += f"• {part_name}: Only enough for {tables} tables!\n"
-            
-            self.low_stock_warning.setText(warning_text)
-            self.low_stock_warning.show()
-            self.low_stock_warning.raise_()
-            # Show warning longer when multiple items (2 seconds per item, minimum 5 seconds)
-            QTimer.singleShot(max(5000, len(low_stock_items) * 2000), self.low_stock_warning.hide)
-
     def update_production_table(self, daily_data_list):
         """Updates the production table with daily data."""
         if not daily_data_list:
