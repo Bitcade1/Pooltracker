@@ -12,6 +12,7 @@ Colors table finish boxes in Assembly Capacity tab.
 import sys
 import os
 import requests
+import logging
 from datetime import datetime, timedelta, date
 import json
 import calendar 
@@ -315,18 +316,29 @@ class APIClient:
 
 
 class MainWindow(QMainWindow):
-    # Get absolute path for images
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
-        "Black": os.path.join("images", "Black Oak.jpg"),
-        "Rustic Oak": os.path.join("images", "Rustic Oak.jpg"),
-        "Grey Oak": os.path.join("images", "Grey Oak.jpg"),
-        "Stone": os.path.join("images", "Stone.jpg"),
+        "Black": os.path.join(BASE_DIR, "images", "Black Oak.jpg"),
+        "Rustic Oak": os.path.join(BASE_DIR, "images", "Rustic Oak.jpg"),
+        "Grey Oak": os.path.join(BASE_DIR, "images", "Grey Oak.jpg"),
+        "Stone": os.path.join(BASE_DIR, "images", "Stone.jpg"),
         "Default": "#E0E0E0"
     }
 
     def __init__(self, config=None):
         super().__init__()
+        # Log startup information
+        logging.info("Application starting")
+        logging.info(f"Working directory: {self.BASE_DIR}")
+        
+        # Check image files exist
+        for color, path in self.TABLE_FINISH_COLORS.items():
+            if color != "Default":
+                if os.path.exists(path):
+                    logging.info(f"Found image for {color}: {path}")
+                else:
+                    logging.error(f"Missing image for {color}: {path}")
+        
         self.config = config if config else load_config()
         self.api_client = APIClient(
             self.config.get("API_URL", DEFAULT_CONFIG["API_URL"]),
@@ -834,228 +846,148 @@ class MainWindow(QMainWindow):
 
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
+        # Log dashboard update
+        logging.info("Updating top rail dashboard")
+        
         if not self.inventory_data:
-            # ...existing code for handling no data...
+            logging.warning("No inventory data available for dashboard update")
             return
 
-        # --- Page 1: Performance - Update with real production data ---
-        if hasattr(self, 'tr_dash_current_time_label'):
-            today = datetime.now().date()
+        # Cache production summary data to avoid multiple API calls
+        today = datetime.now().date()
+        current_year = today.year
+        
+        # Fetch all monthly data at once for the year
+        logging.info("Fetching production summaries for the year")
+        monthly_summaries = {}
+        try:
+            for month in range(1, 13):
+                monthly_summaries[month] = self.api_client.get_production_summary(current_year, month)
+            logging.info("Successfully fetched all monthly summaries")
+        except Exception as e:
+            logging.error(f"Error fetching monthly summaries: {e}")
             
-            # Get today's production count from today's date in monthly data
-            current_month = today.month
-            current_year = today.year
-            daily_data = self.api_client.get_production_for_month(current_year, current_month)
+        # Update color boxes with proper CSS
+        for config in self.table_configurations:
+            size_layout_key = f"deficits_{config['size']}"
+            color_key = config['color_display']
             
-            # Find today's entry and get top_rails count
-            today_str = today.strftime("%Y-%m-%d")
-            today_production = next(
-                (day.get("top_rails", 0) for day in daily_data 
-                 if day.get("date") == today_str), 
-                0
-            )
-            self.tr_dash_daily_label.setText(str(today_production))
-            
-            # Get monthly production from production summary
-            monthly_data = self.api_client.get_production_summary(current_year, current_month)
-            if monthly_data:
-                monthly_count = monthly_data.get("current_production", {}).get("total", {}).get("top_rails", 0)
-                self.tr_dash_monthly_label.setText(str(monthly_count))
+            if color_key not in self.top_rail_dashboard_widgets[size_layout_key]:
+                hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
                 
-                # Calculate yearly production from all months
-                yearly_count = sum(
-                    self.api_client.get_production_summary(current_year, m)
-                    .get("current_production", {}).get("total", {}).get("top_rails", 0)
-                    for m in range(1, 13)
-                )
-                self.tr_dash_yearly_label.setText(str(yearly_count))
+                try:
+                    if not hex_color_code.startswith('#'):  # If it's an image path
+                        if os.path.exists(hex_color_code):
+                            logging.info(f"Loading image for {color_key}: {hex_color_code}")
+                        else:
+                            logging.error(f"Image not found: {hex_color_code}")
+                except Exception as e:
+                    logging.error(f"Error checking image path: {e}")
 
-        # --- Page 2: Parts Inventory - Update table with real data ---
-        if hasattr(self, 'tr_parts_table'):
-            top_rail_parts = {
-                "Top rail trim long length": 2,
-                "Top rail trim short length": 4,
-                "Chrome corner": 4,
-                "Center pockets": 2,
-                "Corner pockets": 4,
-                "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
-                "M5 x 20 Socket Cap Screw": 16,
-                "Catch Plate": 12,
-                "4.8x32mm Self Tapping Screw": 24
-            }
-            
-            hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
-            table_parts_stock = self.inventory_data.get("table_parts_current", {})
-            
-            # Clear and set up table
-            self.tr_parts_table.setRowCount(len(top_rail_parts))
-            row = 0
-            
-            for part_name, qty_per_rail in top_rail_parts.items():
-                # Get stock count from either hardware or table parts
-                stock_count = hardware_parts_stock.get(part_name, table_parts_stock.get(part_name, 0))
+                # Fix background-size CSS issue by using scale instead
+                color_group_deficit.setStyleSheet(f"""
+                    QGroupBox {{
+                        border: 1px solid #d0d0d0;
+                        border-radius: 8px;
+                        margin-top: 20px;
+                        padding: 15px;
+                        background-image: url("{hex_color_code.replace(os.sep, '/')});
+                        background-repeat: no-repeat;
+                        background-position: center;
+                        background-origin: content;
+                        background-color: transparent;
+                        qproperty-scaledContents: true;
+                    }}
+                    QGroupBox::title {{
+                        color: black;
+                        subcontrol-origin: margin;
+                        left: 7px;
+                        padding: 0 5px 0 5px;
+                        background-color: rgba(255, 255, 255, 0.8);
+                        font-weight: bold;
+                    }}
+                """)  # Added closing parenthesis here
                 
-                # Calculate how many rails can be made with this part
-                rails_possible = stock_count // qty_per_rail if qty_per_rail > 0 else 0
+                # Always use white text for dark backgrounds and black for light ones
+                text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
+                label_style = f"color: {text_color}; font-size: 11pt; margin: 2px;"  # Increased font size and margin
                 
-                # Create table items
-                name_item = QTableWidgetItem(part_name)
-                stock_item = QTableWidgetItem(str(stock_count))
-                per_rail_item = QTableWidgetItem(str(qty_per_rail))
-                rails_item = QTableWidgetItem(str(rails_possible))
+                # --- Create and style labels ---
+                body_stock_val_label = QLabel("N/A")
+                body_stock_val_label.setStyleSheet(label_style)
+                body_stock_val_label.setObjectName("StockValue")
                 
-                # Center align numbers
-                stock_item.setTextAlignment(Qt.AlignCenter)
-                per_rail_item.setTextAlignment(Qt.AlignCenter)
-                rails_item.setTextAlignment(Qt.AlignCenter)
+                rail_stock_val_label = QLabel("N/A")
+                rail_stock_val_label.setStyleSheet(label_style)
+                rail_stock_val_label.setObjectName("StockValue")
                 
-                # Color coding based on rails possible
-                if rails_possible < 5:
-                    color = QColor("#c62828")  # Red
-                elif rails_possible < 10:
-                    color = QColor("#f57c00")  # Orange
+                status_val_label = QLabel("N/A")
+                status_val_label.setStyleSheet(label_style)
+                status_val_label.setWordWrap(True)
+
+                body_label = QLabel("Body Stock:")
+                body_label.setStyleSheet(label_style)
+                rail_label = QLabel("Top Rail Stock:")
+                rail_label.setStyleSheet(label_style)
+                status_label = QLabel("Status:")
+                status_label.setStyleSheet(label_style)
+
+                form_layout_deficit.addRow(body_label, body_stock_val_label)
+                form_layout_deficit.addRow(rail_label, rail_stock_val_label)
+                form_layout_deficit.addRow(status_label, status_val_label)
+
+                self.top_rail_dashboard_widgets[size_layout_key][color_key] = {
+                    "body_stock": body_stock_val_label,
+                    "rail_stock": rail_stock_val_label,
+                    "status": status_val_label,
+                    "group_box": color_group_deficit,
+                    "text_color": text_color
+                }
+                if config['size'] == "7ft":
+                    self.tr_dash_deficits_layout_7ft.addWidget(color_group_deficit)
                 else:
-                    color = QColor("#2e7d32")  # Green
-                
-                stock_item.setForeground(color)
-                rails_item.setForeground(color)
-                
-                # Set items in table
-                self.tr_parts_table.setItem(row, 0, name_item)
-                self.tr_parts_table.setItem(row, 1, stock_item)
-                self.tr_parts_table.setItem(row, 2, per_rail_item)
-                self.tr_parts_table.setItem(row, 3, rails_item)
-                
-                row += 1
+                    self.tr_dash_deficits_layout_6ft.addWidget(color_group_deficit)
             
-            # Adjust column widths
-            self.tr_parts_table.resizeColumnsToContents()
+            widgets = self.top_rail_dashboard_widgets[size_layout_key][color_key]
+            body_stock = finished_stock.get(config["body_key"], 0)
+            rail_stock = finished_stock.get(config["rail_key"], 0)
 
-        # --- Page 3: Top Rail Deficits (vs Bodies) ---
-        if hasattr(self, 'top_rail_dashboard_widgets') and "deficits_7ft" in self.top_rail_dashboard_widgets:
-            finished_stock = self.inventory_data.get("finished_components_stock", {})
+            widgets["body_stock"].setText(str(body_stock))
+            widgets["rail_stock"].setText(str(rail_stock))
             
-            # Ensure layouts are clear before repopulating (if dynamic creation per update)
-            # For this version, assuming widgets are created once in setup_top_rail_dashboard_tab
-            # and then updated. If they are recreated, clearing logic would go here.
+            # Base style for these labels (can be simple, specific styles below will override)
+            base_deficit_value_style = "font-size: 10pt;"
+            widgets["body_stock"].setStyleSheet(base_deficit_value_style) 
+            widgets["rail_stock"].setStyleSheet(base_deficit_value_style) 
 
-            for config in self.table_configurations:
-                size_layout_key = f"deficits_{config['size']}"
-                color_key = config['color_display']
-
-                # Ensure widget dictionary structure exists
-                if color_key not in self.top_rail_dashboard_widgets[size_layout_key]:
-                    color_group_deficit = QGroupBox(config['color_display'])
-                    form_layout_deficit = QFormLayout(color_group_deficit)
-                    form_layout_deficit.setContentsMargins(15, 25, 15, 15)  # Add more padding
-                    
-                    hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
-                    q_color = QColor(hex_color_code)
-                    
-                    color_group_deficit.setAutoFillBackground(True)
-                    color_group_deficit.setStyleSheet(f"""
-                        QGroupBox {{
-                            border: 1px solid #d0d0d0;
-                            border-radius: 8px;
-                            margin-top: 20px;
-                            padding: 15px;
-                            background-image: url({hex_color_code.replace(os.sep, '/')});
-                            background-repeat: no-repeat;
-                            background-size: cover;
-                            background-position: center;
-                            background-origin: content;
-                            background-color: transparent;
-                        }}
-                        QGroupBox::title {{
-                            color: black;
-                            subcontrol-origin: margin;
-                            left: 7px;
-                            padding: 0 5px 0 5px;
-                            background-color: rgba(255, 255, 255, 0.8);
-                            font-weight: bold;
-                        }}
-                    """)  # Added closing parenthesis here
-                    
-                    # Always use white text for dark backgrounds and black for light ones
-                    text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
-                    label_style = f"color: {text_color}; font-size: 11pt; margin: 2px;"  # Increased font size and margin
-                    
-                    # --- Create and style labels ---
-                    body_stock_val_label = QLabel("N/A")
-                    body_stock_val_label.setStyleSheet(label_style)
-                    body_stock_val_label.setObjectName("StockValue")
-                    
-                    rail_stock_val_label = QLabel("N/A")
-                    rail_stock_val_label.setStyleSheet(label_style)
-                    rail_stock_val_label.setObjectName("StockValue")
-                    
-                    status_val_label = QLabel("N/A")
-                    status_val_label.setStyleSheet(label_style)
-                    status_val_label.setWordWrap(True)
-
-                    body_label = QLabel("Body Stock:")
-                    body_label.setStyleSheet(label_style)
-                    rail_label = QLabel("Top Rail Stock:")
-                    rail_label.setStyleSheet(label_style)
-                    status_label = QLabel("Status:")
-                    status_label.setStyleSheet(label_style)
-
-                    form_layout_deficit.addRow(body_label, body_stock_val_label)
-                    form_layout_deficit.addRow(rail_label, rail_stock_val_label)
-                    form_layout_deficit.addRow(status_label, status_val_label)
-
-                    self.top_rail_dashboard_widgets[size_layout_key][color_key] = {
-                        "body_stock": body_stock_val_label,
-                        "rail_stock": rail_stock_val_label,
-                        "status": status_val_label,
-                        "group_box": color_group_deficit,
-                        "text_color": text_color
-                    }
-                    if config['size'] == "7ft":
-                        self.tr_dash_deficits_layout_7ft.addWidget(color_group_deficit)
-                    else:
-                        self.tr_dash_deficits_layout_6ft.addWidget(color_group_deficit)
-                
-                widgets = self.top_rail_dashboard_widgets[size_layout_key][color_key]
-                body_stock = finished_stock.get(config["body_key"], 0)
-                rail_stock = finished_stock.get(config["rail_key"], 0)
-
-                widgets["body_stock"].setText(str(body_stock))
-                widgets["rail_stock"].setText(str(rail_stock))
-                
-                # Base style for these labels (can be simple, specific styles below will override)
-                base_deficit_value_style = "font-size: 10pt;"
-                widgets["body_stock"].setStyleSheet(base_deficit_value_style) 
-                widgets["rail_stock"].setStyleSheet(base_deficit_value_style) 
-
-                status_text = ""
-                status_style = "font-size: 10pt; color: #555;" # Default neutral
-                
-                if body_stock == 0 and rail_stock == 0:
-                    status_text = "No bodies or rails."
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                elif body_stock == rail_stock:
-                    status_text = f"Balanced. Can make {body_stock} sets."
-                    status_style = "font-size: 10pt; font-weight: bold; color: #2e7d32;"
-                    # Make both values green when balanced
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
-                elif body_stock > rail_stock:
-                    needed = body_stock - rail_stock
-                    status_text = f"{needed} more Top Rails needed."
-                    status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                else: # rail_stock > body_stock
-                    needed = rail_stock - body_stock
-                    status_text = f"{needed} more Bodies needed."
-                    status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
-                
-                widgets["status"].setText(status_text)
-                widgets["status"].setStyleSheet(status_style)
+            status_text = ""
+            status_style = "font-size: 10pt; color: #555;" # Default neutral
+            
+            if body_stock == 0 and rail_stock == 0:
+                status_text = "No bodies or rails."
+                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+            elif body_stock == rail_stock:
+                status_text = f"Balanced. Can make {body_stock} sets."
+                status_style = "font-size: 10pt; font-weight: bold; color: #2e7d32;"
+                # Make both values green when balanced
+                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
+                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
+            elif body_stock > rail_stock:
+                needed = body_stock - rail_stock
+                status_text = f"{needed} more Top Rails needed."
+                status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
+                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
+                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+            else: # rail_stock > body_stock
+                needed = rail_stock - body_stock
+                status_text = f"{needed} more Bodies needed."
+                status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
+                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
+            
+            widgets["status"].setText(status_text)
+            widgets["status"].setStyleSheet(status_style)
 
 
     def check_api_connection(self):
