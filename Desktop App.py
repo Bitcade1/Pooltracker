@@ -961,7 +961,6 @@ class MainWindow(QMainWindow):
                             padding: 15px;
                             background-image: url({hex_color_code.replace(os.sep, '/')});
                             background-repeat: no-repeat;
-                            background-size: cover;
                             background-position: center;
                             background-origin: content;
                             background-color: transparent;
