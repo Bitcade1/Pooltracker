@@ -708,29 +708,25 @@ class MainWindow(QMainWindow):
 
     def setup_parts_inventory_tab(self):
         parts_layout = QVBoxLayout(self.parts_tab)
-        parts_layout.setSpacing(20)  # Increased spacing
+        parts_layout.setSpacing(20)
         
         # Make table much bigger
         self.parts_table = QTableWidget()
         self.parts_table.setColumnCount(4)
-        self.parts_table.setHorizontalHeaderLabels(["Part Name", "In Stock", "Per Rail", "Rails Possible"])
-        self.parts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.parts_table.setHorizontalHeaderLabels(["Part Name", "Current Stock", "Rails Per Part", "Tables Possible"])
+        self.parts_table.horizontalHeader().setFixedHeight(60)  # Make header taller
         self.parts_table.verticalHeader().setVisible(False)
-        self.parts_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.parts_table.setAlternatingRowColors(True)
         
-        # Increase font sizes
+        # Increase font sizes and row height
         header_font = QFont()
-        header_font.setPointSize(14)
+        header_font.setPointSize(16)
         header_font.setBold(True)
         self.parts_table.horizontalHeader().setFont(header_font)
+        self.parts_table.verticalHeader().setDefaultSectionSize(80)
         
-        # Set row height
-        self.parts_table.verticalHeader().setDefaultSectionSize(50)
-        
-        # Set minimum size
-        self.parts_table.setMinimumHeight(600)
-        parts_layout.addWidget(self.parts_table)
+        # Take up most of the screen
+        self.parts_table.setMinimumHeight(800)
+        parts_layout.addWidget(self.parts_table, stretch=1)
         
         info_group = QGroupBox("Inventory Summary")
         info_layout = QFormLayout()
@@ -752,49 +748,70 @@ class MainWindow(QMainWindow):
         parts_layout.addWidget(info_group)
 
     def update_parts_inventory_table(self, inventory_data):
-        if not inventory_data or 'printed_parts_current' not in inventory_data:
+        if not inventory_data:
             self.parts_table.setRowCount(0); self.total_parts_label.setText("N/A")
             self.low_stock_label.setText("N/A")
             if inventory_data is None: self.last_update_label.setText(f"Update Failed: {datetime.now().strftime('%H:%M:%S')}")
             return
-        printed_parts = inventory_data.get('printed_parts_current', {}); sorted_parts = sorted(printed_parts.items())
-        self.parts_table.setRowCount(len(sorted_parts)); total_parts = 0; low_stock_count = 0
+
+        sorted_parts = sorted(inventory_data.get('printed_parts_current', {}).items())
+        self.parts_table.setRowCount(len(sorted_parts))
+        total_parts = 0
+        low_stock_count = 0
+
+        table_font = QFont()
+        table_font.setPointSize(14)
+        table_font.setBold(True)
+
         for row, (part_name, count) in enumerate(sorted_parts):
-            name_item = QTableWidgetItem(part_name); actual_count = count if count is not None else 0
-            count_item = QTableWidgetItem(str(actual_count)); count_item.setTextAlignment(Qt.AlignCenter)
-            status = "Low" if actual_count < 5 else "OK" if actual_count < 20 else "Good"
-            status_item = QTableWidgetItem(status); status_item.setTextAlignment(Qt.AlignCenter)
-            if status == "Low": status_item.setForeground(QColor("#d32f2f")); low_stock_count +=1
-            elif status == "OK": status_item.setForeground(QColor("#f57c00"))
-            else: status_item.setForeground(QColor("#388e3c"))
-            self.parts_table.setItem(row, 0, name_item); self.parts_table.setItem(row, 1, count_item); self.parts_table.setItem(row, 2, status_item)
-            progress_widget = QWidget(); progress_layout = QHBoxLayout(progress_widget); progress_layout.setContentsMargins(5,2,5,2)
-            progress_bar = QProgressBar(); progress_bar.setMinimum(0); progress_bar.setMaximum(100)
-            percentage = min(100, int((actual_count / 30.0) * 100)) if actual_count else 0; progress_bar.setValue(percentage)
-            if percentage < 20: progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #ef5350; border-radius: 4px;}")
-            elif percentage < 60: progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #ffa726; border-radius: 4px;}")
-            else: progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #66bb6a; border-radius: 4px;}")
-            progress_layout.addWidget(progress_bar); self.parts_table.setCellWidget(row, 3, progress_widget); total_parts += actual_count
+            actual_count = count if count is not None else 0
             
-            # Calculate tables possible
-            tables_possible = rails_possible / 2 if qty_per_rail > 0 else 0
+            # Create items
+            name_item = QTableWidgetItem(part_name)
+            count_item = QTableWidgetItem(str(actual_count))
+            rails_per_part = QTableWidgetItem("2")  # Default to 2 per table
+            tables_possible = actual_count // 2  # Most parts need 2 per table
+            tables_item = QTableWidgetItem(str(tables_possible))
             
-            # Show full screen warning if below 5 tables worth of parts
+            # Center align and set fonts
+            for item in [name_item, count_item, rails_per_part, tables_item]:
+                item.setTextAlignment(Qt.AlignCenter)
+                item.setFont(table_font)
+            
+            # Color coding for low stock
             if tables_possible < 5:
-                self.low_stock_warning.setText(f"WARNING!\n{part_name}\nOnly enough for {int(tables_possible)} tables!")
+                color = QColor("#c62828")  # Red
+                for item in [name_item, count_item, rails_per_part, tables_item]:
+                    item.setBackground(QColor("#ffebee"))  # Light red background
+                
+                # Show full screen warning
+                self.low_stock_warning.setText(f"WARNING!\n{part_name}\nOnly enough for {tables_possible} tables!")
                 self.low_stock_warning.show()
                 self.low_stock_warning.raise_()
-                QTimer.singleShot(5000, self.low_stock_warning.hide)  # Hide after 5 seconds
+                QTimer.singleShot(5000, self.low_stock_warning.hide)
+            elif tables_possible < 10:
+                color = QColor("#f57c00")  # Orange
+            else:
+                color = QColor("#2e7d32")  # Green
             
-            # Make table text bigger
-            table_font = QFont()
-            table_font.setPointSize(12)
-            for item in [name_item, stock_item, per_rail_item, rails_item]:
-                item.setFont(table_font)
-                if tables_possible < 5:
-                    item.setBackground(QColor("#ffebee"))  # Light red background
-        self.total_parts_label.setText(str(total_parts)); self.low_stock_label.setText(str(low_stock_count))
-        self.last_update_label.setText(datetime.now().strftime('%d %b %Y, %H:%M:%S')); self.parts_table.resizeColumnsToContents()
+            count_item.setForeground(color)
+            tables_item.setForeground(color)
+            
+            # Set items in table
+            self.parts_table.setItem(row, 0, name_item)
+            self.parts_table.setItem(row, 1, count_item)
+            self.parts_table.setItem(row, 2, rails_per_part)
+            self.parts_table.setItem(row, 3, tables_item)
+            
+            # Update totals
+            total_parts += actual_count
+            if tables_possible < 5:
+                low_stock_count += 1
+
+        self.parts_table.resizeColumnsToContents()
+        self.total_parts_label.setText(str(total_parts))
+        self.low_stock_label.setText(str(low_stock_count))
+        self.last_update_label.setText(datetime.now().strftime('%d %b %Y, %H:%M:%S'))
 
     def update_summary_counts(self, daily_data_list):
         total_bodies = sum(day.get("bodies", 0) for day in daily_data_list) 
