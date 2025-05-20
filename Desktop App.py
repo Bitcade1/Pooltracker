@@ -1011,13 +1011,17 @@ class MainWindow(QMainWindow):
                     q_color = QColor(hex_color_code)
                     
                     color_group_deficit.setAutoFillBackground(True)
+                    
+                    # Convert Windows path to URL format for CSS
+                    image_path = hex_color_code.replace('\\', '/')
+                    
                     color_group_deficit.setStyleSheet(f"""
                         QGroupBox {{
                             border: 1px solid #d0d0d0;
                             border-radius: 8px;
                             margin-top: 20px;
                             padding: 15px;
-                            background-image: url("{hex_color_code.replace('\\', '/')}");
+                            background-image: url("{image_path}");
                             background-repeat: no-repeat;
                             background-position: center;
                             background-origin: content;
