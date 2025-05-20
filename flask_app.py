@@ -3654,5 +3654,62 @@ def api_documentation():
 from api_routes import api
 app.register_blueprint(api)
 
+@app.route('/api/top_rail/start', methods=['POST'])
+def start_top_rail():
+    """Start timing for a new top rail."""
+    data = request.json
+    if not data or 'user_id' not in data:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    # Record the start time
+    top_rail_timings.append({
+        "user_id": data['user_id'],
+        "start_time": datetime.now(),
+        "end_time": None
+    })
+    return jsonify({"message": "Top rail timing started"}), 200
+
+@app.route('/api/top_rail/end', methods=['POST'])
+def end_top_rail():
+    """End timing for the current top rail."""
+    data = request.json
+    if not data or 'user_id' not in data:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    # Find the last unfinished timing for the user
+    for timing in reversed(top_rail_timings):
+        if timing['user_id'] == data['user_id'] and timing['end_time'] is None:
+            timing['end_time'] = datetime.now()
+            return jsonify({"message": "Top rail timing ended"}), 200
+
+    return jsonify({"error": "No active timing found for user"}), 404
+
+@app.route('/api/top_rail/average_time', methods=['GET'])
+def get_average_time():
+    """Calculate the average time for top rails."""
+    completed_timings = [
+        (timing['end_time'] - timing['start_time']).total_seconds()
+        for timing in top_rail_timings if timing['end_time'] is not None
+    ]
+    if not completed_timings:
+        return jsonify({"average_time": None}), 200
+
+    average_time = sum(completed_timings) / len(completed_timings)
+    return jsonify({"average_time": average_time}), 200
+
+@app.route('/api/top_rail/current_time', methods=['GET'])
+def get_current_time():
+    """Get the current time for the ongoing top rail."""
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    for timing in reversed(top_rail_timings):
+        if timing['user_id'] == user_id and timing['end_time'] is None:
+            elapsed_time = (datetime.now() - timing['start_time']).total_seconds()
+            return jsonify({"current_time": elapsed_time}), 200
+
+    return jsonify({"current_time": None}), 200
+
 if __name__ == '__main__':
     app.run(debug=True)
