@@ -912,7 +912,8 @@ class MainWindow(QMainWindow):
         self.production_table.resizeColumnsToContents()
 
     def update_summary_counts(self, daily_data_list):
-        total_bodies = sum(day.get("bodies", 0) for day in daily_data_list) 
+        """Updates the summary counts for the entire year."""
+        total_bodies = sum(day.get("bodies", 0) for day in daily_data_list)
         total_pods = sum(day.get("pods", 0) for day in daily_data_list)
         total_rails = sum(day.get("top_rails", 0) for day in daily_data_list)
         self.bodies_count_label.setText(str(total_bodies))
@@ -1285,14 +1286,23 @@ class MainWindow(QMainWindow):
         self.style().polish(self.connection_label)
 
     def refresh_production_data(self):
+        """Fetches and updates production data for the entire year."""
         self.statusBar().showMessage("Refreshing production data...")
         self.refresh_button.setEnabled(False)
         selected_year = int(self.prod_year_combo.currentText())
-        selected_month = self.prod_month_combo.currentData()
-        daily_data = self.api_client.get_production_for_month(selected_year, selected_month)
-        self.update_production_table(daily_data)
-        self.update_summary_counts(daily_data)
-        self.statusBar().showMessage(f"Production data refreshed for {self.prod_month_combo.currentText()} {selected_year} at {datetime.now().strftime('%H:%M:%S')}")
+        yearly_data = []
+
+        # Fetch data for all months in the selected year
+        for month in range(1, 13):
+            monthly_data = self.api_client.get_production_for_month(selected_year, month)
+            if monthly_data:
+                yearly_data.extend(monthly_data)
+
+        # Update the production table and summary counts with the yearly data
+        self.update_production_table(yearly_data)
+        self.update_summary_counts(yearly_data)
+
+        self.statusBar().showMessage(f"Production data refreshed for {selected_year} at {datetime.now().strftime('%H:%M:%S')}")
         self.refresh_button.setEnabled(True)
 
     def refresh_all_data(self):
