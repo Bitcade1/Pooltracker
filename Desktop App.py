@@ -1111,26 +1111,24 @@ class MainWindow(QMainWindow):
 
             # Handle low stock by showing warning section
             if low_stock_items:
-                warning_text = "Critical Top Rail Parts Low:\n\n"
-                for part_name, tables in low_stock_items:
-                    warning_text += f"• {part_name}:\n  Only enough for {tables} tables!\n\n"
+                # Stop auto-scrolling immediately
+                self.dashboard_scroll_timer.stop()
                 
                 if hasattr(self, 'tr_warning_text'):
+                    warning_text = "Critical Top Rail Parts Low:\n\n"
+                    for part_name, tables in low_stock_items:
+                        warning_text += f"• {part_name}:\n  Only enough for {tables} tables!\n\n"
+                    
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
-                    # Switch to parts inventory page
+                    
+                    # Force switch to parts inventory page and stay there
                     self.dashboard_stacked_widget.setCurrentIndex(1)
-                    # Stop auto-scrolling when showing warning
-                    if hasattr(self, 'dashboard_scroll_timer'):
-                        self.dashboard_scroll_timer.stop()
-                        # Resume scrolling after 10 seconds
-                        QTimer.singleShot(10000, self.resume_dashboard)
             else:
-                # Hide warning section if no low stock
+                # No warnings - hide warning section and resume scrolling
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
-                # Ensure timer is running if no warnings
-                if hasattr(self, 'dashboard_scroll_timer') and not self.dashboard_scroll_timer.isActive():
+                if not self.dashboard_scroll_timer.isActive():
                     self.dashboard_scroll_timer.start()
 
         # --- Page 3: Top Rail Deficits (vs Bodies) ---
