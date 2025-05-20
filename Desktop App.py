@@ -1002,42 +1002,34 @@ class MainWindow(QMainWindow):
 
         # --- Page 1: Performance - Update with real production data ---
         if hasattr(self, 'tr_dash_current_time_label'):
-            today = datetime.now().date()
-            current_month = today.month
-            current_year = today.year
-            
             try:
-                # Get today's production count
-                daily_data = self.api_client.get_production_for_month(current_year, current_month)
-                today_str = today.strftime("%Y-%m-%d")
-                today_production = next(
-                    (day.get("top_rails", 0) for day in daily_data if day.get("date") == today_str), 
-                    0
-                ) if daily_data else 0
-                self.tr_dash_daily_label.setText(str(today_production))
-                
-                # Get monthly totals
-                monthly_data = self.api_client.get_production_summary(current_year, current_month)
-                if monthly_data and "current_production" in monthly_data:
-                    monthly_total = monthly_data["current_production"].get("total", {}).get("top_rails", 0)
-                    self.tr_dash_monthly_label.setText(str(monthly_total))
-                else:
-                    self.tr_dash_monthly_label.setText("0")
-                    
-                # Calculate yearly total safely
-                yearly_total = 0
-                for month in range(1, 13):
-                    month_data = self.api_client.get_production_summary(current_year, month)
-                    if month_data and "current_production" in month_data:
-                        month_total = month_data["current_production"].get("total", {}).get("top_rails", 0)
-                        yearly_total += month_total
-                self.tr_dash_yearly_label.setText(str(yearly_total))
-                    
+                # Fetch current time for the ongoing top rail
+                user_id = "user_123"  # Replace with actual user ID
+                current_time_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/current_time",
+                    params={"user_id": user_id},
+                    headers=self.api_client.headers
+                )
+                if current_time_response.status_code == 200:
+                    current_time = current_time_response.json().get("current_time")
+                    self.tr_dash_current_time_label.setText(
+                        f"{current_time:.2f} seconds" if current_time else "N/A"
+                    )
+
+                # Fetch average time for top rails
+                avg_time_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/average_time",
+                    headers=self.api_client.headers
+                )
+                if avg_time_response.status_code == 200:
+                    avg_time = avg_time_response.json().get("average_time")
+                    self.tr_dash_avg_time_label.setText(
+                        f"{avg_time:.2f} seconds" if avg_time else "N/A"
+                    )
             except Exception as e:
-                print(f"Error updating dashboard stats: {e}")
-                self.tr_dash_daily_label.setText("ERR")
-                self.tr_dash_monthly_label.setText("ERR") 
-                self.tr_dash_yearly_label.setText("ERR")
+                print(f"Error fetching performance data: {e}")
+                self.tr_dash_current_time_label.setText("ERR")
+                self.tr_dash_avg_time_label.setText("ERR")
 
         # --- Page 2: Parts Inventory - Update table with real data ---
         if hasattr(self, 'tr_parts_table'):
