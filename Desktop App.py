@@ -1056,68 +1056,62 @@ class MainWindow(QMainWindow):
             
             hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
             table_parts_stock = self.inventory_data.get("table_parts_current", {})
-            
-            low_stock_items = []  # Track low stock items
-            
-            # Clear and set up table
-            self.tr_parts_table.setRowCount(len(top_rail_parts))
-            row = 0
-            
+
+            # Combine stock data and calculate rails possible
+            inventory_data = []
             for part_name, qty_per_rail in top_rail_parts.items():
-                # Get stock count from either hardware or table parts
                 stock_count = hardware_parts_stock.get(part_name, table_parts_stock.get(part_name, 0))
-                
-                # Calculate how many rails can be made with this part
                 rails_possible = stock_count // qty_per_rail if qty_per_rail > 0 else 0
-                tables_possible = rails_possible // 2  # Two rails per table
-                
-                # Track low stock
-                if tables_possible < 5:
-                    low_stock_items.append((part_name, rails_possible)) # Store rails_possible
-                
+                inventory_data.append((part_name, stock_count, qty_per_rail, rails_possible))
+
+            # Sort inventory by stock count (ascending)
+            inventory_data.sort(key=lambda x: x[1])
+
+            # Clear and set up table
+            self.tr_parts_table.setRowCount(len(inventory_data))
+            low_stock_items = []  # Track low stock items
+
+            for row, (part_name, stock_count, qty_per_rail, rails_possible) in enumerate(inventory_data):
                 # Create table items
                 name_item = QTableWidgetItem(part_name)
                 stock_item = QTableWidgetItem(str(stock_count))
                 per_rail_item = QTableWidgetItem(str(qty_per_rail))
                 rails_item = QTableWidgetItem(str(rails_possible))
-                
+
                 # Center align numbers
                 stock_item.setTextAlignment(Qt.AlignCenter)
                 per_rail_item.setTextAlignment(Qt.AlignCenter)
                 rails_item.setTextAlignment(Qt.AlignCenter)
-                
+
                 # Color coding based on rails possible
                 if rails_possible < 5:
                     color = QColor("#c62828")  # Red
+                    low_stock_items.append((part_name, rails_possible))
                 elif rails_possible < 10:
                     color = QColor("#f57c00")  # Orange
                 else:
                     color = QColor("#2e7d32")  # Green
-                
+
                 stock_item.setForeground(color)
                 rails_item.setForeground(color)
-                
+
                 # Set items in table
                 self.tr_parts_table.setItem(row, 0, name_item)
                 self.tr_parts_table.setItem(row, 1, stock_item)
                 self.tr_parts_table.setItem(row, 2, per_rail_item)
                 self.tr_parts_table.setItem(row, 3, rails_item)
-                
-                row += 1
-            
+
             # Adjust column widths
             self.tr_parts_table.resizeColumnsToContents()
 
             # Handle low stock by showing warning section
             if low_stock_items:
-                # Stop auto-scrolling immediately
                 if self.dashboard_scroll_timer.isActive():
                     self.dashboard_scroll_timer.stop()
-                
+
                 if hasattr(self, 'tr_warning_text'):
                     warning_text = "Critical Top Rail Parts Low:\n\n"
-                    for part_name, rails_possible in low_stock_items: # Use rails_possible
-                        # Modify the warning message here
+                    for part_name, rails_possible in low_stock_items:
                         if rails_possible == 0:
                             warning_text += f"• {part_name}:\n  Not enough for any top rails!\n\n"
                         elif rails_possible == 1:
@@ -1126,15 +1120,12 @@ class MainWindow(QMainWindow):
                             warning_text += f"• {part_name}:\n  Only enough for {rails_possible} top rails!\n\n"
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
-                    
-                    # Force switch to parts inventory page and stay there
                     self.dashboard_stacked_widget.setCurrentIndex(1)
             else:
                 # No warnings - hide warning section and resume scrolling
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
-                # Ensure timer is running if no warnings
-                if not self.dashboard_scroll_timer.isActive() and self.dashboard_stacked_widget.currentIndex() != 1:
+                if not self.dashboard_scroll_timer.isActive():
                     self.dashboard_scroll_timer.start()
 
         # --- Page 3: Top Rail Deficits (vs Bodies) ---
