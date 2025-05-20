@@ -77,44 +77,83 @@ class APIClient:
             self.base_url = f"{self.base_url}:{port}"
         self.token = token
         self.session = requests.Session()
-        self.session.headers.update({"Authorization": f"Token {token}"})
+        self.session.headers.update({
+            "Authorization": f"Token {token}",
+            "User-Agent": "PoolTrackerDesktop/1.6",
+            "Accept": "application/json"
+        })
+        logging.info(f"Initialized API client for {self.base_url}")
 
     def test_connection(self):
         """Test API connection"""
         try:
-            response = self.session.get(f"{self.base_url}/api/test")
+            logging.info(f"Testing connection to {self.base_url}/api/test")
+            response = self.session.get(
+                f"{self.base_url}/api/test", 
+                timeout=10,
+                verify=True  # Enable SSL verification
+            )
+            logging.info(f"API test response: {response.status_code}")
+            if response.status_code != 200:
+                logging.error(f"API error: {response.text}")
             return response.status_code == 200
-        except:
+        except requests.exceptions.SSLError as e:
+            logging.error(f"SSL Error connecting to API: {e}")
+            return False
+        except requests.exceptions.ConnectionError as e:
+            logging.error(f"Connection error: {e}")
+            return False
+        except requests.exceptions.Timeout as e:
+            logging.error(f"Connection timeout: {e}")
+            return False
+        except Exception as e:
+            logging.error(f"Unexpected error testing API connection: {e}")
             return False
 
     def get_production_for_month(self, year, month):
         """Get daily production data for given month"""
         try:
-            response = self.session.get(f"{self.base_url}/api/production/{year}/{month}")
+            logging.info(f"Fetching production data for {year}-{month}")
+            response = self.session.get(
+                f"{self.base_url}/api/production/{year}/{month}",
+                timeout=30
+            )
             if response.status_code == 200:
                 return response.json()
+            logging.error(f"Error fetching production data: {response.status_code} - {response.text}")
             return []
-        except:
+        except Exception as e:
+            logging.error(f"Failed to get production data: {e}")
             return []
 
     def get_production_summary(self, year, month):
         """Get production summary for given month"""
         try:
-            response = self.session.get(f"{self.base_url}/api/summary/{year}/{month}")
+            response = self.session.get(
+                f"{self.base_url}/api/summary/{year}/{month}",
+                timeout=30
+            )
             if response.status_code == 200:
                 return response.json()
+            logging.error(f"Error fetching summary: {response.status_code} - {response.text}")
             return None
-        except:
+        except Exception as e:
+            logging.error(f"Failed to get summary: {e}")
             return None
 
     def get_inventory_summary(self):
         """Get current inventory status"""
         try:
-            response = self.session.get(f"{self.base_url}/api/inventory")
+            response = self.session.get(
+                f"{self.base_url}/api/inventory",
+                timeout=30
+            )
             if response.status_code == 200:
                 return response.json()
+            logging.error(f"Error fetching inventory: {response.status_code} - {response.text}")
             return None
-        except:
+        except Exception as e:
+            logging.error(f"Failed to get inventory: {e}")
             return None
 
 def _get_color_style(hex_code):
