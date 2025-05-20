@@ -349,6 +349,20 @@ class MainWindow(QMainWindow):
         self.assembly_deficit_widgets = {} 
         self.top_rail_dashboard_widgets = {} # For the new dashboard
 
+        # Add full screen warning widget
+        self.low_stock_warning = QLabel()
+        self.low_stock_warning.setStyleSheet("""
+            font-size: 72pt;
+            font-weight: bold;
+            color: white;
+            background-color: #c62828;
+            padding: 50px;
+            border-radius: 10px;
+        """)
+        self.low_stock_warning.setAlignment(Qt.AlignCenter)
+        self.low_stock_warning.setWordWrap(True)
+        self.low_stock_warning.hide()
+
         self.setup_ui()
         self.setStyleSheet(STYLESHEET) 
         self.check_api_connection() 
@@ -693,85 +707,49 @@ class MainWindow(QMainWindow):
         return group_box
 
     def setup_parts_inventory_tab(self):
-        parts_layout = QVBoxLayout(self.parts_tab); parts_layout.setSpacing(15)
-        parts_group = QGroupBox("3D Printed Parts Stock"); parts_group_layout = QVBoxLayout(parts_group)
-        self.parts_table = QTableWidget(); self.parts_table.setColumnCount(4)
-        self.parts_table.setHorizontalHeaderLabels(["Part Name", "Current Stock", "Status", "Stock Level"])
+        parts_layout = QVBoxLayout(self.parts_tab)
+        parts_layout.setSpacing(20)  # Increased spacing
+        
+        # Make table much bigger
+        self.parts_table = QTableWidget()
+        self.parts_table.setColumnCount(4)
+        self.parts_table.setHorizontalHeaderLabels(["Part Name", "In Stock", "Per Rail", "Rails Possible"])
         self.parts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.parts_table.verticalHeader().setVisible(False); self.parts_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.parts_table.setAlternatingRowColors(True); parts_group_layout.addWidget(self.parts_table)
-        parts_layout.addWidget(parts_group)
-        info_group = QGroupBox("Inventory Summary"); info_layout = QFormLayout(info_group)
-        self.total_parts_label = QLabel("0"); self.low_stock_label = QLabel("0")
-        self.low_stock_label.setStyleSheet("font-weight: bold; color: #c0392b;"); self.last_update_label = QLabel("Never")
+        self.parts_table.verticalHeader().setVisible(False)
+        self.parts_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.parts_table.setAlternatingRowColors(True)
+        
+        # Increase font sizes
+        header_font = QFont()
+        header_font.setPointSize(14)
+        header_font.setBold(True)
+        self.parts_table.horizontalHeader().setFont(header_font)
+        
+        # Set row height
+        self.parts_table.verticalHeader().setDefaultSectionSize(50)
+        
+        # Set minimum size
+        self.parts_table.setMinimumHeight(600)
+        parts_layout.addWidget(self.parts_table)
+        
+        info_group = QGroupBox("Inventory Summary")
+        info_layout = QFormLayout()
+        info_layout.setSpacing(15)  # Increased spacing
+        
+        # Bigger summary labels
+        self.total_parts_label = QLabel("0")
+        self.low_stock_label = QLabel("0")
+        self.last_update_label = QLabel("Never")
+        
+        for label in [self.total_parts_label, self.low_stock_label, self.last_update_label]:
+            label.setStyleSheet("font-size: 14pt;")
+        self.low_stock_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #c0392b;")
+        
         info_layout.addRow(QLabel("Total Parts in Stock:"), self.total_parts_label)
         info_layout.addRow(QLabel("Parts Low on Stock:"), self.low_stock_label)
-        info_layout.addRow(QLabel("Last Updated:"), self.last_update_label); parts_layout.addWidget(info_group)
-
-    def setup_settings_tab(self, settings_tab):
-        settings_layout = QVBoxLayout(settings_tab); settings_layout.setSpacing(20)
-        api_group = QGroupBox("API Configuration"); api_layout = QFormLayout(api_group) 
-        api_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
-        self.api_url_input = QLineEdit(str(self.config.get("API_URL", ""))); api_layout.addRow("API URL:", self.api_url_input)
-        port_widget = QWidget(); port_hbox_layout = QHBoxLayout(port_widget); port_hbox_layout.setContentsMargins(0,0,0,0)
-        self.use_standard_port = QCheckBox("Use standard HTTP/HTTPS port")
-        self.use_standard_port.setChecked(self.config.get("API_PORT") is None); port_hbox_layout.addWidget(self.use_standard_port)
-        self.api_port_input = QLineEdit(str(self.config.get("API_PORT", "5000")))
-        self.api_port_input.setEnabled(not self.use_standard_port.isChecked()); self.api_port_input.setFixedWidth(80)
-        port_hbox_layout.addWidget(QLabel("Custom Port:")); port_hbox_layout.addWidget(self.api_port_input)
-        port_hbox_layout.addStretch(); api_layout.addRow(port_widget)
-        self.api_token_input = QLineEdit(str(self.config.get("API_TOKEN", ""))); self.api_token_input.setEchoMode(QLineEdit.Password)
-        api_layout.addRow("API Token:", self.api_token_input)
-        self.use_standard_port.toggled.connect(lambda checked: self.api_port_input.setEnabled(not checked))
-        buttons_layout = QHBoxLayout(); self.save_settings_button = QPushButton("Save Settings")
-        self.save_settings_button.clicked.connect(self.save_settings); buttons_layout.addWidget(self.save_settings_button)
-        self.test_connection_button = QPushButton("Test API Connection") 
-        self.test_connection_button.setStyleSheet("background-color: #f39c12; color:white;")
-        self.test_connection_button.clicked.connect(self.check_api_connection); buttons_layout.addWidget(self.test_connection_button)
-        buttons_layout.addStretch(); api_layout.addRow(buttons_layout); settings_layout.addWidget(api_group)
-        
-        # Add Timer Settings Group
-        timer_group = QGroupBox("Dashboard Settings")
-        timer_layout = QFormLayout()
-        
-        self.scroll_timer_input = QLineEdit(str(self.config.get("SCROLL_TIMER", 10)))
-        self.scroll_timer_input.setFixedWidth(80)
-        # Only allow integers - use QIntValidator directly since we imported it
-        self.scroll_timer_input.setValidator(QIntValidator(1, 60))
-        
-        timer_layout.addRow("Screen scroll interval (seconds):", self.scroll_timer_input)
-        timer_group.setLayout(timer_layout)
-        settings_layout.addWidget(timer_group)
-        
-        settings_layout.addStretch()
-        
-        about_group = QGroupBox("About"); about_layout = QVBoxLayout(about_group)
-        self.about_text_label = QLabel(f"Pool Table Factory Tracker v1.6\n\nDisplays production and inventory data.\nConnects to: {self.api_client.base_url}") # Version bump
-        self.about_text_label.setAlignment(Qt.AlignCenter); self.about_text_label.setWordWrap(True)
-        about_layout.addWidget(self.about_text_label); settings_layout.addWidget(about_group)
-
-    def update_production_table(self, daily_data_list):
-        self.production_table.setRowCount(len(daily_data_list))
-        for row, day_data_item in enumerate(daily_data_list):
-            try: date_obj = datetime.strptime(day_data_item["date"], "%Y-%m-%d").date(); friendly_date = date_obj.strftime("%a, %d %b %Y") 
-            except ValueError: friendly_date = day_data_item["date"] 
-            date_item = QTableWidgetItem(friendly_date)
-            bodies_item = QTableWidgetItem(str(day_data_item.get("bodies",0))); pods_item = QTableWidgetItem(str(day_data_item.get("pods",0)))
-            rails_item = QTableWidgetItem(str(day_data_item.get("top_rails",0)))
-            for item in [bodies_item, pods_item, rails_item]: item.setTextAlignment(Qt.AlignCenter)
-            if day_data_item["date"] == datetime.now().date().strftime("%Y-%m-%d"):
-                for item_widget in [date_item, bodies_item, pods_item, rails_item]:
-                    font = item_widget.font(); font.setBold(True); item_widget.setFont(font); item_widget.setBackground(QColor("#e6f7ff")) 
-            if day_data_item.get("error_info"):
-                tooltip_text = day_data_item['error_info']
-                for item_widget in [date_item, bodies_item, pods_item, rails_item]:
-                    item_widget.setForeground(QColor("#999999")); item_widget.setToolTip(tooltip_text)
-            else: 
-                for item_widget in [date_item, bodies_item, pods_item, rails_item]:
-                    item_widget.setForeground(QColor("#333333")); item_widget.setToolTip("")
-            self.production_table.setItem(row, 0, date_item); self.production_table.setItem(row, 1, bodies_item)
-            self.production_table.setItem(row, 2, pods_item); self.production_table.setItem(row, 3, rails_item)
-        self.production_table.resizeColumnsToContents()
+        info_layout.addRow(QLabel("Last Updated:"), self.last_update_label)
+        info_group.setLayout(info_layout)
+        parts_layout.addWidget(info_group)
 
     def update_parts_inventory_table(self, inventory_data):
         if not inventory_data or 'printed_parts_current' not in inventory_data:
@@ -797,6 +775,24 @@ class MainWindow(QMainWindow):
             elif percentage < 60: progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #ffa726; border-radius: 4px;}")
             else: progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #66bb6a; border-radius: 4px;}")
             progress_layout.addWidget(progress_bar); self.parts_table.setCellWidget(row, 3, progress_widget); total_parts += actual_count
+            
+            # Calculate tables possible
+            tables_possible = rails_possible / 2 if qty_per_rail > 0 else 0
+            
+            # Show full screen warning if below 5 tables worth of parts
+            if tables_possible < 5:
+                self.low_stock_warning.setText(f"WARNING!\n{part_name}\nOnly enough for {int(tables_possible)} tables!")
+                self.low_stock_warning.show()
+                self.low_stock_warning.raise_()
+                QTimer.singleShot(5000, self.low_stock_warning.hide)  # Hide after 5 seconds
+            
+            # Make table text bigger
+            table_font = QFont()
+            table_font.setPointSize(12)
+            for item in [name_item, stock_item, per_rail_item, rails_item]:
+                item.setFont(table_font)
+                if tables_possible < 5:
+                    item.setBackground(QColor("#ffebee"))  # Light red background
         self.total_parts_label.setText(str(total_parts)); self.low_stock_label.setText(str(low_stock_count))
         self.last_update_label.setText(datetime.now().strftime('%d %b %Y, %H:%M:%S')); self.parts_table.resizeColumnsToContents()
 
