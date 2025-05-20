@@ -868,47 +868,72 @@ class MainWindow(QMainWindow):
                 form_layout_deficit.setContentsMargins(15, 25, 15, 15)
                 
                 hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
-                q_color = QColor(hex_color_code)
                 
                 try:
                     if not hex_color_code.startswith('#'):  # If it's an image path
                         if os.path.exists(hex_color_code):
                             logging.info(f"Loading image for {color_key}: {hex_color_code}")
+                            # Convert path to proper format for QSS
+                            hex_color_code = hex_color_code.replace('\\', '/')
+                            style = f"""
+                                QGroupBox {{
+                                    border: 1px solid #d0d0d0;
+                                    border-radius: 8px;
+                                    margin-top: 20px;
+                                    padding: 15px;
+                                    background-image: url("{hex_color_code}");
+                                    background-repeat: no-repeat;
+                                    background-position: center;
+                                    background-origin: content;
+                                }}
+                                QGroupBox::title {{
+                                    color: black;
+                                    subcontrol-origin: margin;
+                                    left: 7px;
+                                    padding: 0 5px 0 5px;
+                                    background-color: rgba(255, 255, 255, 0.8);
+                                    font-weight: bold;
+                                }}
+                            """
                         else:
                             logging.error(f"Image not found: {hex_color_code}")
-                            hex_color_code = self.TABLE_FINISH_COLORS["Default"]  # Fallback to default
+                            style = f"""
+                                QGroupBox {{
+                                    background-color: {self.TABLE_FINISH_COLORS["Default"]};
+                                    border: 1px solid #d0d0d0;
+                                    border-radius: 8px;
+                                    margin-top: 20px;
+                                    padding: 15px;
+                                }}
+                            """
+                    else:
+                        # Use solid color if hex code
+                        style = f"""
+                            QGroupBox {{
+                                background-color: {hex_color_code};
+                                border: 1px solid #d0d0d0;
+                                border-radius: 8px;
+                                margin-top: 20px;
+                                padding: 15px;
+                            }}
+                        """
+                    
+                    color_group_deficit.setStyleSheet(style)
+                    logging.info(f"Successfully set style for {color_key}")
+                    
                 except Exception as e:
-                    logging.error(f"Error checking image path: {e}")
-                    hex_color_code = self.TABLE_FINISH_COLORS["Default"]  # Fallback to default
+                    logging.error(f"Error setting style for {color_key}: {e}")
+                    # Fallback style
+                    color_group_deficit.setStyleSheet("""
+                        QGroupBox {
+                            background-color: #E0E0E0;
+                            border: 1px solid #d0d0d0;
+                            border-radius: 8px;
+                            margin-top: 20px;
+                            padding: 15px;
+                        }
+                    """)
 
-                # Fix background-size CSS issue by using scale instead
-                color_group_deficit.setStyleSheet(f"""
-                    QGroupBox {{
-                        border: 1px solid #d0d0d0;
-                        border-radius: 8px;
-                        margin-top: 20px;
-                        padding: 15px;
-                        background-image: url("{hex_color_code.replace(os.sep, '/')});
-                        background-repeat: no-repeat;
-                        background-position: center;
-                        background-origin: content;
-                        background-color: transparent;
-                        qproperty-scaledContents: true;
-                    }}
-                    QGroupBox::title {{
-                        color: black;
-                        subcontrol-origin: margin;
-                        left: 7px;
-                        padding: 0 5px 0 5px;
-                        background-color: rgba(255, 255, 255, 0.8);
-                        font-weight: bold;
-                    }}
-                """)  # Added closing parenthesis here
-                
-                # Always use white text for dark backgrounds and black for light ones
-                text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
-                label_style = f"color: {text_color}; font-size: 11pt; margin: 2px;"  # Increased font size and margin
-                
                 # --- Create and style labels ---
                 body_stock_val_label = QLabel("N/A")
                 body_stock_val_label.setStyleSheet(label_style)
