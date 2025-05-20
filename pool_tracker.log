@@ -50,3 +50,20 @@
 
 2025-05-20 12:50:17,293 - INFO - Updating top rail dashboard
 2025-05-20 12:50:17,293 - WARNING - No inventory data available for dashboard update
+2025-05-20 12:51:48,226 - INFO - Application starting
+2025-05-20 12:51:48,226 - INFO - Working directory: C:\Users\Sales\Pooltracker
+2025-05-20 12:51:48,227 - INFO - Found image for Black: C:\Users\Sales\Pooltracker\images\Black Oak.jpg
+2025-05-20 12:51:48,227 - INFO - Found image for Rustic Oak: C:\Users\Sales\Pooltracker\images\Rustic Oak.jpg
+2025-05-20 12:51:48,228 - INFO - Found image for Grey Oak: C:\Users\Sales\Pooltracker\images\Grey Oak.jpg
+2025-05-20 12:51:48,228 - INFO - Found image for Stone: C:\Users\Sales\Pooltracker\images\Stone.jpg
+2025-05-20 12:51:48,229 - INFO - Initialized API client for http://pooltabletracker.com
+2025-05-20 12:51:48,971 - INFO - Testing connection to http://pooltabletracker.com/test
+2025-05-20 12:51:49,336 - INFO - API test response: 404
+2025-05-20 12:51:49,336 - ERROR - API error: <!doctype html>
+<html lang=en>
+<title>404 Not Found</title>
+<h1>Not Found</h1>
+<p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>
+
+2025-05-20 12:51:49,337 - INFO - Updating top rail dashboard
+2025-05-20 12:51:49,337 - WARNING - No inventory data available for dashboard update
