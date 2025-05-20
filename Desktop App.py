@@ -15,7 +15,7 @@ import requests
 import logging
 from datetime import datetime, timedelta, date
 import json
-import calendar f
+import calendar  # Fixed typo: removed 'f'
 import re 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
