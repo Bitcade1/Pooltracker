@@ -315,10 +315,7 @@ class APIClient:
             return None
 
 
-class MainWindow(QMainWindow):
-    # Add metaclass to handle deprecation warning
-    __metaclass__ = type
-    
+class MainWindow(QMainWindow, object):  # Add object as secondary base class
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
         "Black": os.path.join(BASE_DIR, "images", "Black Oak.jpg"),
