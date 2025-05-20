@@ -87,11 +87,11 @@ class APIClient:
     def test_connection(self):
         """Test API connection"""
         try:
-            logging.info(f"Testing connection to {self.base_url}/api/test")
+            logging.info(f"Testing connection to {self.base_url}/v1/test")
             response = self.session.get(
-                f"{self.base_url}/api/test", 
+                f"{self.base_url}/v1/test", 
                 timeout=10,
-                verify=True  # Enable SSL verification
+                verify=True
             )
             logging.info(f"API test response: {response.status_code}")
             if response.status_code != 200:
@@ -115,7 +115,7 @@ class APIClient:
         try:
             logging.info(f"Fetching production data for {year}-{month}")
             response = self.session.get(
-                f"{self.base_url}/api/production/{year}/{month}",
+                f"{self.base_url}/v1/production/{year}/{month}",
                 timeout=30
             )
             if response.status_code == 200:
@@ -130,7 +130,7 @@ class APIClient:
         """Get production summary for given month"""
         try:
             response = self.session.get(
-                f"{self.base_url}/api/summary/{year}/{month}",
+                f"{self.base_url}/v1/summary/{year}/{month}",
                 timeout=30
             )
             if response.status_code == 200:
@@ -145,7 +145,7 @@ class APIClient:
         """Get current inventory status"""
         try:
             response = self.session.get(
-                f"{self.base_url}/api/inventory",
+                f"{self.base_url}/v1/inventory",
                 timeout=30
             )
             if response.status_code == 200:
