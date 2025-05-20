@@ -1010,6 +1010,7 @@ class MainWindow(QMainWindow):
 
         # --- Page 2: Parts Inventory - Update table with real data ---
         if hasattr(self, 'tr_parts_table'):
+            # Define top rail parts dictionary
             top_rail_parts = {
                 "Top rail trim long length": 2,
                 "Top rail trim short length": 4,
@@ -1025,6 +1026,8 @@ class MainWindow(QMainWindow):
             hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
             table_parts_stock = self.inventory_data.get("table_parts_current", {})
             
+            low_stock_items = []  # Track low stock items
+            
             # Clear and set up table
             self.tr_parts_table.setRowCount(len(top_rail_parts))
             row = 0
@@ -1035,6 +1038,11 @@ class MainWindow(QMainWindow):
                 
                 # Calculate how many rails can be made with this part
                 rails_possible = stock_count // qty_per_rail if qty_per_rail > 0 else 0
+                tables_possible = rails_possible // 2  # Two rails per table
+                
+                # Track low stock
+                if tables_possible < 5:
+                    low_stock_items.append((part_name, tables_possible))
                 
                 # Create table items
                 name_item = QTableWidgetItem(part_name)
@@ -1068,6 +1076,57 @@ class MainWindow(QMainWindow):
             
             # Adjust column widths
             self.tr_parts_table.resizeColumnsToContents()
+
+            # Handle low stock warning by switching to warning page
+            if low_stock_items:
+                # Stop the dashboard scrolling
+                self.dashboard_scroll_timer.stop()
+                
+                # Create warning page if not exists
+                if not hasattr(self, 'warning_page'):
+                    self.warning_page = QWidget()
+                    self.warning_page.setObjectName("DashboardPage")
+                    warning_layout = QVBoxLayout(self.warning_page)
+                    
+                    warning_header = QLabel("⚠️ LOW STOCK WARNING")
+                    warning_header.setObjectName("DashboardHeader")
+                    warning_header.setStyleSheet("""
+                        font-size: 36pt;
+                        color: #c62828;
+                        padding: 20px;
+                    """)
+                    warning_header.setAlignment(Qt.AlignCenter)
+                    warning_layout.addWidget(warning_header)
+                    
+                    self.warning_text = QLabel()
+                    self.warning_text.setStyleSheet("""
+                        font-size: 24pt;
+                        color: #c62828;
+                        padding: 20px;
+                        background-color: #ffebee;
+                        border-radius: 10px;
+                    """)
+                    self.warning_text.setAlignment(Qt.AlignCenter)
+                    self.warning_text.setWordWrap(True)
+                    warning_layout.addWidget(self.warning_text)
+                    
+                    self.dashboard_stacked_widget.addWidget(self.warning_page)
+                
+                # Update warning text
+                warning_text = "Critical Top Rail Parts Low:\n\n"
+                for part_name, tables in low_stock_items:
+                    warning_text += f"• {part_name}:\n  Only enough for {tables} tables!\n\n"
+                self.warning_text.setText(warning_text)
+                
+                # Switch to warning page
+                self.dashboard_stacked_widget.setCurrentWidget(self.warning_page)
+                
+                # Resume normal dashboard after 10 seconds
+                QTimer.singleShot(10000, self.resume_dashboard)
+            else:
+                # Ensure timer is running if no warnings
+                if not self.dashboard_scroll_timer.isActive():
+                    self.dashboard_scroll_timer.start()
 
         # --- Page 3: Top Rail Deficits (vs Bodies) ---
         if hasattr(self, 'top_rail_dashboard_widgets') and "deficits_7ft" in self.top_rail_dashboard_widgets:
