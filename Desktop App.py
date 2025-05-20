@@ -650,10 +650,43 @@ class MainWindow(QMainWindow):
         layout1.addStretch()
         self.dashboard_stacked_widget.addWidget(page1)
 
-        # Page 2: Parts Inventory - Updated layout
+        # Page 2: Parts Inventory - Updated layout with warning section
         page2 = QWidget(); page2.setObjectName("DashboardPage")
         layout2 = QVBoxLayout(page2)
-        header2 = QLabel("Top Rail - Parts Inventory"); header2.setObjectName("DashboardHeader")
+
+        # Add warning section at top that's hidden by default
+        self.tr_warning_section = QWidget()
+        warning_layout = QVBoxLayout(self.tr_warning_section)
+        warning_layout.setContentsMargins(20, 20, 20, 20)
+        
+        warning_header = QLabel("⚠️ LOW STOCK WARNING")
+        warning_header.setStyleSheet("""
+            font-size: 36pt;
+            color: #c62828;
+            padding: 20px;
+            background-color: #ffebee;
+            border-radius: 10px;
+            font-weight: bold;
+        """)
+        warning_header.setAlignment(Qt.AlignCenter)
+        warning_layout.addWidget(warning_header)
+        
+        self.tr_warning_text = QLabel()
+        self.tr_warning_text.setStyleSheet("""
+            font-size: 24pt;
+            color: #c62828;
+            padding: 20px;
+        """)
+        self.tr_warning_text.setAlignment(Qt.AlignCenter)
+        self.tr_warning_text.setWordWrap(True)
+        warning_layout.addWidget(self.tr_warning_text)
+        
+        layout2.addWidget(self.tr_warning_section)
+        self.tr_warning_section.hide()  # Hidden by default
+
+        # Regular header and table below warning
+        header2 = QLabel("Top Rail - Parts Inventory")
+        header2.setObjectName("DashboardHeader")
         layout2.addWidget(header2)
 
         # Create a table instead of form layout
@@ -823,8 +856,7 @@ class MainWindow(QMainWindow):
             self.low_stock_warning.show()
             self.low_stock_warning.raise_()
             # Show warning longer when multiple items (2 seconds per item, minimum 5 seconds)
-            show_time = max(5000, len(low_stock_items) * 2000)
-            QTimer.singleShot(show_time, self.low_stock_warning.hide)
+            QTimer.singleShot(max(5000, len(low_stock_items) * 2000), self.low_stock_warning.hide)
 
     def update_production_table(self, daily_data_list):
         """Updates the production table with daily data."""
@@ -1077,55 +1109,28 @@ class MainWindow(QMainWindow):
             # Adjust column widths
             self.tr_parts_table.resizeColumnsToContents()
 
-            # Handle low stock warning by switching to warning page
+            # Handle low stock by showing warning section
             if low_stock_items:
-                # Stop the dashboard scrolling
-                self.dashboard_scroll_timer.stop()
-                
-                # Create warning page if not exists
-                if not hasattr(self, 'warning_page'):
-                    self.warning_page = QWidget()
-                    self.warning_page.setObjectName("DashboardPage")
-                    warning_layout = QVBoxLayout(self.warning_page)
-                    
-                    warning_header = QLabel("⚠️ LOW STOCK WARNING")
-                    warning_header.setObjectName("DashboardHeader")
-                    warning_header.setStyleSheet("""
-                        font-size: 36pt;
-                        color: #c62828;
-                        padding: 20px;
-                    """)
-                    warning_header.setAlignment(Qt.AlignCenter)
-                    warning_layout.addWidget(warning_header)
-                    
-                    self.warning_text = QLabel()
-                    self.warning_text.setStyleSheet("""
-                        font-size: 24pt;
-                        color: #c62828;
-                        padding: 20px;
-                        background-color: #ffebee;
-                        border-radius: 10px;
-                    """)
-                    self.warning_text.setAlignment(Qt.AlignCenter)
-                    self.warning_text.setWordWrap(True)
-                    warning_layout.addWidget(self.warning_text)
-                    
-                    self.dashboard_stacked_widget.addWidget(self.warning_page)
-                
-                # Update warning text
                 warning_text = "Critical Top Rail Parts Low:\n\n"
                 for part_name, tables in low_stock_items:
                     warning_text += f"• {part_name}:\n  Only enough for {tables} tables!\n\n"
-                self.warning_text.setText(warning_text)
                 
-                # Switch to warning page
-                self.dashboard_stacked_widget.setCurrentWidget(self.warning_page)
-                
-                # Resume normal dashboard after 10 seconds
-                QTimer.singleShot(10000, self.resume_dashboard)
+                if hasattr(self, 'tr_warning_text'):
+                    self.tr_warning_text.setText(warning_text)
+                    self.tr_warning_section.show()
+                    # Switch to parts inventory page
+                    self.dashboard_stacked_widget.setCurrentIndex(1)
+                    # Stop auto-scrolling when showing warning
+                    if hasattr(self, 'dashboard_scroll_timer'):
+                        self.dashboard_scroll_timer.stop()
+                        # Resume scrolling after 10 seconds
+                        QTimer.singleShot(10000, self.resume_dashboard)
             else:
+                # Hide warning section if no low stock
+                if hasattr(self, 'tr_warning_section'):
+                    self.tr_warning_section.hide()
                 # Ensure timer is running if no warnings
-                if not self.dashboard_scroll_timer.isActive():
+                if hasattr(self, 'dashboard_scroll_timer') and not self.dashboard_scroll_timer.isActive():
                     self.dashboard_scroll_timer.start()
 
         # --- Page 3: Top Rail Deficits (vs Bodies) ---
