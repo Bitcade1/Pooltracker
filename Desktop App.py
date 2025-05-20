@@ -363,7 +363,9 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         self.setWindowTitle("Pool Table Factory Tracker")
-        self.setGeometry(100, 100, 1200, 900) # Increased size for dashboard
+        # Remove fixed geometry and add fullscreen
+        self.showMaximized()  # Makes window full screen while preserving taskbar
+        # Alternative: self.showFullScreen()  # Complete full screen (hides taskbar)
         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
