@@ -42,6 +42,95 @@ def load_config():
             return DEFAULT_CONFIG.copy()
     return DEFAULT_CONFIG.copy()
 
+# Default stylesheet for the application
+STYLESHEET = """
+    QMainWindow { background-color: #f5f6f7; }
+    QGroupBox { font-weight: bold; border: 1px solid #bdc3c7; border-radius: 5px; margin-top: 1ex; }
+    QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }
+    #ApiStatusLabel[status="connected"] { color: #27ae60; }
+    #ApiStatusLabel[status="disconnected"] { color: #c0392b; }
+    #ApiStatusLabel[status="checking"] { color: #f39c12; }
+"""
+
+def save_config(config):
+    """Save config to file, return filepath"""
+    config_file = os.path.join(os.path.expanduser("~"), ".pool_tracker_config.json")
+    with open(config_file, "w") as f:
+        json.dump(config, f, indent=4)
+    return config_file
+
+class APIClient:
+    """Client for interacting with the Pool Table Tracker API"""
+    def __init__(self, base_url, token, port=None):
+        self.base_url = base_url.rstrip('/')
+        if port:
+            self.base_url = f"{self.base_url}:{port}"
+        self.token = token
+        self.session = requests.Session()
+        self.session.headers.update({"Authorization": f"Token {token}"})
+
+    def test_connection(self):
+        """Test API connection"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/test")
+            return response.status_code == 200
+        except:
+            return False
+
+    def get_production_for_month(self, year, month):
+        """Get daily production data for given month"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/production/{year}/{month}")
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except:
+            return []
+
+    def get_production_summary(self, year, month):
+        """Get production summary for given month"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/summary/{year}/{month}")
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except:
+            return None
+
+    def get_inventory_summary(self):
+        """Get current inventory status"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/inventory")
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except:
+            return None
+
+def _get_color_style(hex_code):
+    """Helper function for QSS color styles"""
+    return f"""
+        QGroupBox {{
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: {hex_code};
+        }}
+    """
+
+def _get_fallback_style():
+    """Helper function for fallback QSS style"""
+    return """
+        QGroupBox {
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f0f0;
+        }
+    """
+
 class MainWindow(QMainWindow):
     """Main window class for the Pool Table Tracker application."""
     
