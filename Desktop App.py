@@ -34,7 +34,7 @@ logging.basicConfig(
 
 # Default configuration and config functions at module level
 DEFAULT_CONFIG = {
-    "API_URL": "https://pooltabletracker.com",
+    "API_URL": "http://pooltabletracker.com",  # Changed from https to http
     "API_PORT": None,
     "API_TOKEN": "bitcade_api_key_1",
     "SCROLL_TIMER": 10
@@ -87,11 +87,12 @@ class APIClient:
     def test_connection(self):
         """Test API connection"""
         try:
-            logging.info(f"Testing connection to {self.base_url}/test")
+            logging.info(f"Testing connection to {self.base_url}/api/test")  # Changed path to /api/test
             response = self.session.get(
-                f"{self.base_url}/test", 
+                f"{self.base_url}/api/test",  # Changed path to /api/test
                 timeout=10,
-                verify=True
+                verify=True,
+                allow_redirects=True  # Added to handle redirects
             )
             logging.info(f"API test response: {response.status_code}")
             if response.status_code != 200:
