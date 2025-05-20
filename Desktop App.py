@@ -87,9 +87,9 @@ class APIClient:
     def test_connection(self):
         """Test API connection"""
         try:
-            logging.info(f"Testing connection to {self.base_url}/v1/test")
+            logging.info(f"Testing connection to {self.base_url}/test")
             response = self.session.get(
-                f"{self.base_url}/v1/test", 
+                f"{self.base_url}/test", 
                 timeout=10,
                 verify=True
             )
@@ -115,7 +115,7 @@ class APIClient:
         try:
             logging.info(f"Fetching production data for {year}-{month}")
             response = self.session.get(
-                f"{self.base_url}/v1/production/{year}/{month}",
+                f"{self.base_url}/production/{year}/{month}",
                 timeout=30
             )
             if response.status_code == 200:
@@ -130,7 +130,7 @@ class APIClient:
         """Get production summary for given month"""
         try:
             response = self.session.get(
-                f"{self.base_url}/v1/summary/{year}/{month}",
+                f"{self.base_url}/summary/{year}/{month}",
                 timeout=30
             )
             if response.status_code == 200:
@@ -145,7 +145,7 @@ class APIClient:
         """Get current inventory status"""
         try:
             response = self.session.get(
-                f"{self.base_url}/v1/inventory",
+                f"{self.base_url}/inventory",
                 timeout=30
             )
             if response.status_code == 200:
