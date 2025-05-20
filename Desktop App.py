@@ -810,7 +810,7 @@ class MainWindow(QMainWindow):
         low_stock_items = []  # Track all low stock items
         
         for row, (part_name, count) in enumerate(sorted_parts):
-            actual_count = count if count is not None else 0  # Fixed syntax error
+            actual_count = count if count is not None : 0
             
             # Create items
             name_item = QTableWidgetItem(part_name)
