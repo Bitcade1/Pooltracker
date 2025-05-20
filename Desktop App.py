@@ -1073,7 +1073,7 @@ class MainWindow(QMainWindow):
                 
                 # Track low stock
                 if tables_possible < 5:
-                    low_stock_items.append((part_name, tables_possible))
+                    low_stock_items.append((part_name, rails_possible)) # Store rails_possible
                 
                 # Create table items
                 name_item = QTableWidgetItem(part_name)
@@ -1116,14 +1116,14 @@ class MainWindow(QMainWindow):
                 
                 if hasattr(self, 'tr_warning_text'):
                     warning_text = "Critical Top Rail Parts Low:\n\n"
-                    for part_name, tables_possible in low_stock_items:
+                    for part_name, rails_possible in low_stock_items: # Use rails_possible
                         # Modify the warning message here
-                        if tables_possible == 0:
+                        if rails_possible == 0:
                             warning_text += f"• {part_name}:\n  Not enough for any top rails!\n\n"
-                        elif tables_possible == 1:
+                        elif rails_possible == 1:
                             warning_text += f"• {part_name}:\n  Only enough for 1 top rail!\n\n"
                         else:
-                            warning_text += f"• {part_name}:\n  Only enough for {tables_possible} top rails!\n\n"
+                            warning_text += f"• {part_name}:\n  Only enough for {rails_possible} top rails!\n\n"
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
                     
