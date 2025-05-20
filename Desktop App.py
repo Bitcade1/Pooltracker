@@ -17,8 +17,9 @@ from datetime import datetime, timedelta, date
 import json
 import calendar 
 import re 
-from PyQt5 import sip  # Changed from direct sip import
-from PyQt5.QtWidgets import *  # Import all for type-checking support
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
+from PyQt5.QtCore import Qt, QTimer, QMetaObject
 
 class MainWindow(QMainWindow):
     """Main window class for the Pool Table Tracker application."""
@@ -35,11 +36,16 @@ class MainWindow(QMainWindow):
         "Default": "#E0E0E0"
     }
 
+    @QMetaObject.WrapperObject  # Use Qt's meta-object system directly
     def __init__(self, config=None):
-        QMainWindow.__init__(self)  # Explicit parent class initialization
+        super(MainWindow, self).__init__()  # Use super() for initialization
         # Log startup information
         logging.info("Application starting")
         logging.info(f"Working directory: {self.BASE_DIR}")
+        
+        # Get config before other initialization
+        from . import load_config  # Import within method to avoid circular import
+        self.config = config if config else load_config()
         
         # Check image files exist
         for color, path in self.TABLE_FINISH_COLORS.items():
@@ -49,7 +55,6 @@ class MainWindow(QMainWindow):
                 else:
                     logging.error(f"Missing image for {color}: {path}")
         
-        self.config = config if config else load_config()
         self.api_client = APIClient(
             self.config.get("API_URL", DEFAULT_CONFIG["API_URL"]),
             self.config.get("API_TOKEN", DEFAULT_CONFIG["API_TOKEN"]),
