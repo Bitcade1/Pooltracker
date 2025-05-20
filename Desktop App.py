@@ -316,6 +316,9 @@ class APIClient:
 
 
 class MainWindow(QMainWindow):
+    # Add metaclass to handle deprecation warning
+    __metaclass__ = type
+    
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
         "Black": os.path.join(BASE_DIR, "images", "Black Oak.jpg"),
@@ -868,7 +871,12 @@ class MainWindow(QMainWindow):
                 form_layout_deficit.setContentsMargins(15, 25, 15, 15)
                 
                 hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
+                q_color = QColor(hex_color_code) if hex_color_code.startswith('#') else QColor("#333333")
                 
+                # Define label style here before using it
+                text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
+                label_style = f"color: {text_color}; font-size: 16pt; margin: 2px;"  # Increased font size
+
                 try:
                     if not hex_color_code.startswith('#'):  # If it's an image path
                         if os.path.exists(hex_color_code):
@@ -884,57 +892,22 @@ class MainWindow(QMainWindow):
                                     background-image: url("{hex_color_code}");
                                     background-repeat: no-repeat;
                                     background-position: center;
-                                    background-origin: content;
-                                }}
-                                QGroupBox::title {{
-                                    color: black;
-                                    subcontrol-origin: margin;
-                                    left: 7px;
-                                    padding: 0 5px 0 5px;
-                                    background-color: rgba(255, 255, 255, 0.8);
-                                    font-weight: bold;
                                 }}
                             """
                         else:
                             logging.error(f"Image not found: {hex_color_code}")
-                            style = f"""
-                                QGroupBox {{
-                                    background-color: {self.TABLE_FINISH_COLORS["Default"]};
-                                    border: 1px solid #d0d0d0;
-                                    border-radius: 8px;
-                                    margin-top: 20px;
-                                    padding: 15px;
-                                }}
-                            """
+                            style = self._get_fallback_style()
                     else:
-                        # Use solid color if hex code
-                        style = f"""
-                            QGroupBox {{
-                                background-color: {hex_color_code};
-                                border: 1px solid #d0d0d0;
-                                border-radius: 8px;
-                                margin-top: 20px;
-                                padding: 15px;
-                            }}
-                        """
+                        style = self._get_color_style(hex_color_code)
                     
                     color_group_deficit.setStyleSheet(style)
                     logging.info(f"Successfully set style for {color_key}")
                     
                 except Exception as e:
                     logging.error(f"Error setting style for {color_key}: {e}")
-                    # Fallback style
-                    color_group_deficit.setStyleSheet("""
-                        QGroupBox {
-                            background-color: #E0E0E0;
-                            border: 1px solid #d0d0d0;
-                            border-radius: 8px;
-                            margin-top: 20px;
-                            padding: 15px;
-                        }
-                    """)
+                    color_group_deficit.setStyleSheet(self._get_fallback_style())
 
-                # --- Create and style labels ---
+                # Continue with label creation using defined label_style
                 body_stock_val_label = QLabel("N/A")
                 body_stock_val_label.setStyleSheet(label_style)
                 body_stock_val_label.setObjectName("StockValue")
@@ -1039,22 +1012,32 @@ class MainWindow(QMainWindow):
         self.refresh_button.setEnabled(True)
 
     def refresh_all_data(self):
+        """Refresh all data with better error handling."""
         self.statusBar().showMessage("Refreshing all data from API...")
-        self.refresh_button.setEnabled(False) 
-
-        selected_prod_year = int(self.prod_year_combo.currentText())
-        selected_prod_month = self.prod_month_combo.currentData() 
-        prod_daily_data = self.api_client.get_production_for_month(selected_prod_year, selected_prod_month)
-        self.update_production_table(prod_daily_data)
-        self.update_summary_counts(prod_daily_data)
-
-        self.inventory_data = self.api_client.get_inventory_summary()
-        self.update_parts_inventory_table(self.inventory_data)
-        self.update_assembly_deficit_display() 
-        self.update_top_rail_dashboard() # Refresh the new dashboard
-
-        self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
-        self.refresh_button.setEnabled(True)
+        self.refresh_button.setEnabled(False)
+        try:
+            selected_prod_year = int(self.prod_year_combo.currentText())
+            selected_prod_month = self.prod_month_combo.currentData()
+            prod_daily_data = self.api_client.get_production_for_month(selected_prod_year, selected_prod_month)
+            
+            self.inventory_data = self.api_client.get_inventory_summary()
+            if self.inventory_data is None:
+                logging.error("Failed to get inventory data")
+                QMessageBox.warning(self, "API Error", "Failed to fetch inventory data. Some features may be unavailable.")
+            
+            self.update_production_table(prod_daily_data)
+            self.update_summary_counts(prod_daily_data)
+            self.update_parts_inventory_table(self.inventory_data)
+            self.update_assembly_deficit_display()
+            self.update_top_rail_dashboard()
+            
+            self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
+        except Exception as e:
+            logging.error(f"Error refreshing data: {e}")
+            self.statusBar().showMessage("Error refreshing data")
+            QMessageBox.critical(self, "Error", f"Failed to refresh data: {str(e)}")
+        finally:
+            self.refresh_button.setEnabled(True)
 
     def save_settings(self):
         self.config["API_URL"] = self.api_url_input.text().strip()
