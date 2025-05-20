@@ -319,11 +319,11 @@ class MainWindow(QMainWindow):
     # Get absolute path for images
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
-        "Black": os.path.join("images", "Black Oak.jpg"),
-        "Rustic Oak": os.path.join("images", "Rustic Oak.jpg"),
-        "Grey Oak": os.path.join("images", "Grey Oak.jpg"),
-        "Stone": os.path.join("images", "Stone.jpg"),
-        "Default": "#E0E0E0"
+        "Black": os.path.abspath(os.path.join(BASE_DIR, "images", "Black Oak.jpg")),
+        "Rustic Oak": os.path.abspath(os.path.join(BASE_DIR, "images", "Rustic Oak.jpg")), 
+        "Grey Oak": os.path.abspath(os.path.join(BASE_DIR, "images", "Grey Oak.jpg")),
+        "Stone": os.path.abspath(os.path.join(BASE_DIR, "images", "Stone.jpg")),
+        "Default": "#E0E0E0"  # Fallback color if image not found
     }
 
     def __init__(self, config=None):
@@ -1017,7 +1017,7 @@ class MainWindow(QMainWindow):
                             border-radius: 8px;
                             margin-top: 20px;
                             padding: 15px;
-                            background-image: url({hex_color_code.replace(os.sep, '/')});
+                            background-image: url("{hex_color_code.replace('\\', '/')}");
                             background-repeat: no-repeat;
                             background-position: center;
                             background-origin: content;
