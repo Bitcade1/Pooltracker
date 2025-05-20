@@ -1235,6 +1235,84 @@ class MainWindow(QMainWindow):
         self.check_api_connection() # Test with new settings and refresh data if connected
         QMessageBox.information(self, "Settings Saved", f"Settings saved to {config_file}")
 
+    def setup_settings_tab(self, settings_tab):
+        settings_layout = QVBoxLayout(settings_tab)
+        settings_layout.setSpacing(20)
+
+        # API Configuration group
+        api_group = QGroupBox("API Configuration")
+        api_layout = QFormLayout()
+        
+        # API URL input
+        self.api_url_input = QLineEdit(str(self.config.get("API_URL", "")))
+        api_layout.addRow("API URL:", self.api_url_input)
+
+        # Port configuration
+        port_widget = QWidget()
+        port_layout = QHBoxLayout(port_widget)
+        port_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.use_standard_port = QCheckBox("Use standard HTTP/HTTPS port")
+        self.use_standard_port.setChecked(self.config.get("API_PORT") is None)
+        port_layout.addWidget(self.use_standard_port)
+        
+        self.api_port_input = QLineEdit(str(self.config.get("API_PORT", "5000")))
+        self.api_port_input.setEnabled(not self.use_standard_port.isChecked())
+        self.api_port_input.setFixedWidth(80)
+        port_layout.addWidget(QLabel("Custom Port:"))
+        port_layout.addWidget(self.api_port_input)
+        port_layout.addStretch()
+        api_layout.addRow(port_widget)
+        
+        # API Token input
+        self.api_token_input = QLineEdit(str(self.config.get("API_TOKEN", "")))
+        self.api_token_input.setEchoMode(QLineEdit.Password)
+        api_layout.addRow("API Token:", self.api_token_input)
+        
+        # Connect port checkbox to port input enable/disable
+        self.use_standard_port.toggled.connect(lambda checked: self.api_port_input.setEnabled(not checked))
+        
+        # Buttons
+        buttons_layout = QHBoxLayout()
+        self.save_settings_button = QPushButton("Save Settings")
+        self.save_settings_button.clicked.connect(self.save_settings)
+        buttons_layout.addWidget(self.save_settings_button)
+        
+        self.test_connection_button = QPushButton("Test API Connection")
+        self.test_connection_button.setStyleSheet("background-color: #f39c12; color: white;")
+        self.test_connection_button.clicked.connect(self.check_api_connection)
+        buttons_layout.addWidget(self.test_connection_button)
+        buttons_layout.addStretch()
+        api_layout.addRow(buttons_layout)
+        api_group.setLayout(api_layout)
+        settings_layout.addWidget(api_group)
+
+        # Timer Settings Group
+        timer_group = QGroupBox("Dashboard Settings")
+        timer_layout = QFormLayout()
+        self.scroll_timer_input = QLineEdit(str(self.config.get("SCROLL_TIMER", 10)))
+        self.scroll_timer_input.setFixedWidth(80)
+        self.scroll_timer_input.setValidator(QIntValidator(1, 60))
+        timer_layout.addRow("Screen scroll interval (seconds):", self.scroll_timer_input)
+        timer_group.setLayout(timer_layout)
+        settings_layout.addWidget(timer_group)
+        
+        settings_layout.addStretch()
+        
+        # About section
+        about_group = QGroupBox("About")
+        about_layout = QVBoxLayout()
+        self.about_text_label = QLabel(
+            f"Pool Table Factory Tracker v1.6\n\n"
+            f"Displays production and inventory data.\n"
+            f"Connects to: {self.api_client.base_url}"
+        )
+        self.about_text_label.setAlignment(Qt.AlignCenter)
+        self.about_text_label.setWordWrap(True)
+        about_layout.addWidget(self.about_text_label)
+        about_group.setLayout(about_layout)
+        settings_layout.addWidget(about_group)
+
 def main():
     app = QApplication(sys.argv)
     # Removed global QtGui as it's not best practice and QIcon/QColor/QPalette are imported directly
