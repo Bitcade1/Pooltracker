@@ -729,6 +729,8 @@ class MainWindow(QMainWindow):
     def scroll_dashboard_page(self):
         """Cycles through the pages of the Top Rail Dashboard."""
         if hasattr(self, 'dashboard_stacked_widget') and self.dashboard_stacked_widget.count() > 0:
+            if self.dashboard_stacked_widget.currentIndex() == 1 and self.tr_warning_section.isVisible():
+                return  # Do not scroll if warning is active
             current_index = self.dashboard_stacked_widget.currentIndex()
             next_index = (current_index + 1) % self.dashboard_stacked_widget.count()
             self.dashboard_stacked_widget.setCurrentIndex(next_index)
@@ -1132,7 +1134,7 @@ class MainWindow(QMainWindow):
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
                 # Ensure timer is running if no warnings
-                if not self.dashboard_scroll_timer.isActive():
+                if not self.dashboard_scroll_timer.isActive() and self.dashboard_stacked_widget.currentIndex() != 1:
                     self.dashboard_scroll_timer.start()
 
         # --- Page 3: Top Rail Deficits (vs Bodies) ---
