@@ -1114,8 +1114,9 @@ class MainWindow(QMainWindow):
 
             # Handle low stock by showing warning section
             if low_stock_items:
-                self.dashboard_scroll_timer.stop()
-                self.dashboard_stacked_widget.setCurrentIndex(1)  # Switch to inventory page
+                # Stop auto-scrolling immediately
+                if self.dashboard_scroll_timer.isActive():
+                    self.dashboard_scroll_timer.stop()
                 
                 if hasattr(self, 'tr_warning_text'):
                     warning_text = "Critical Top Rail Parts Low:\n\n"
@@ -1123,7 +1124,11 @@ class MainWindow(QMainWindow):
                         warning_text += f"• {part_name}:\n  Only enough for {tables} tables!\n\n"
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
+                    
+                    # Force switch to parts inventory page and stay there
+                    self.dashboard_stacked_widget.setCurrentIndex(1)
             else:
+                # No warnings - hide warning section and resume scrolling
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
                 if not self.dashboard_scroll_timer.isActive():
