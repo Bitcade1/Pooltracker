@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, date
 import json
 import calendar 
 import re 
-import sip  # Add this to imports at top
+from PyQt5 import sip  # Changed from direct sip import
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -316,7 +316,7 @@ class APIClient:
             return None
 
 
-class MainWindow(QMainWindow):  # Remove object inheritance
+class MainWindow(QMainWindow):  # Simplified class definition
     """Main window class for the Pool Table Tracker application."""
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
