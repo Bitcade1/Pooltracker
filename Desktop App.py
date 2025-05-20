@@ -570,15 +570,60 @@ class MainWindow(QMainWindow):
         current_perf_group.setLayout(current_perf_layout)
         layout1.addWidget(current_perf_group)
         
-        # Production Statistics
+        # Production Statistics - Make it bigger and bolder
         prod_stats_group = QGroupBox("Production Statistics")
-        prod_stats_layout = QFormLayout()
-        self.tr_dash_daily_label = QLabel("0"); self.tr_dash_daily_label.setObjectName("DashboardMetricValue")
-        prod_stats_layout.addRow(QLabel("Today's Production:", objectName="DashboardMetricLabel"), self.tr_dash_daily_label)
-        self.tr_dash_monthly_label = QLabel("0"); self.tr_dash_monthly_label.setObjectName("DashboardMetricValue")
-        prod_stats_layout.addRow(QLabel("This Month:", objectName="DashboardMetricLabel"), self.tr_dash_monthly_label)
-        self.tr_dash_yearly_label = QLabel("0"); self.tr_dash_yearly_label.setObjectName("DashboardMetricValue")
-        prod_stats_layout.addRow(QLabel("This Year:", objectName="DashboardMetricLabel"), self.tr_dash_yearly_label)
+        prod_stats_layout = QGridLayout()
+        prod_stats_layout.setSpacing(20)  # Increase spacing between items
+        prod_stats_layout.setContentsMargins(20, 30, 20, 30)  # Add more padding
+
+        # Today's Production
+        today_label = QLabel("Today's Production")
+        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
+        today_label.setAlignment(Qt.AlignCenter)
+        self.tr_dash_daily_label.setStyleSheet("""
+            font-size: 48pt;
+            font-weight: bold; 
+            color: #2980b9;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        """)
+        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
+        prod_stats_layout.addWidget(today_label, 0, 0)
+        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
+
+        # Monthly Production
+        month_label = QLabel("This Month")
+        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
+        month_label.setAlignment(Qt.AlignCenter)
+        self.tr_dash_monthly_label.setStyleSheet("""
+            font-size: 48pt;
+            font-weight: bold;
+            color: #27ae60;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        """)
+        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
+        prod_stats_layout.addWidget(month_label, 0, 1)
+        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
+
+        # Yearly Production
+        year_label = QLabel("This Year")
+        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
+        year_label.setAlignment(Qt.AlignCenter)
+        self.tr_dash_yearly_label.setStyleSheet("""
+            font-size: 48pt;
+            font-weight: bold;
+            color: #8e44ad;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        """)
+        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
+        prod_stats_layout.addWidget(year_label, 0, 2)
+        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
+
         prod_stats_group.setLayout(prod_stats_layout)
         layout1.addWidget(prod_stats_group)
         
