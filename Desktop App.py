@@ -1313,22 +1313,34 @@ class MainWindow(QMainWindow):
         self.refresh_button.setEnabled(True)
 
     def refresh_all_data(self):
+        """Refreshes all data from the API without resetting the UI."""
         self.statusBar().showMessage("Refreshing all data from API...")
-        self.refresh_button.setEnabled(False) 
+        self.refresh_button.setEnabled(False)
 
-        selected_prod_year = int(self.prod_year_combo.currentText())
-        selected_prod_month = self.prod_month_combo.currentData() 
-        prod_daily_data = self.api_client.get_production_for_month(selected_prod_year, selected_prod_month)
-        self.update_production_table(prod_daily_data)
-        self.update_summary_counts(prod_daily_data)
+        try:
+            # Fetch production data
+            selected_prod_year = int(self.prod_year_combo.currentText())
+            selected_prod_month = self.prod_month_combo.currentData()
+            prod_daily_data = self.api_client.get_production_for_month(selected_prod_year, selected_prod_month)
+            self.update_production_table(prod_daily_data)
+            self.update_summary_counts(prod_daily_data)
 
-        self.inventory_data = self.api_client.get_inventory_summary()
-        self.update_parts_inventory_table(self.inventory_data)
-        self.update_assembly_deficit_display() 
-        self.update_top_rail_dashboard() # Refresh the new dashboard
+            # Fetch inventory data
+            self.parts_table.setUpdatesEnabled(False)  # Temporarily disable updates for smoother UI
+            self.inventory_data = self.api_client.get_inventory_summary()
+            self.update_parts_inventory_table(self.inventory_data)
+            self.parts_table.setUpdatesEnabled(True)  # Re-enable updates
 
-        self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
-        self.refresh_button.setEnabled(True)
+            # Update other components
+            self.update_assembly_deficit_display()
+            self.update_top_rail_dashboard()
+
+            self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
+        except Exception as e:
+            self.statusBar().showMessage("Error refreshing data.")
+            QMessageBox.critical(self, "Error", f"An error occurred while refreshing data: {e}")
+        finally:
+            self.refresh_button.setEnabled(True)
 
     def save_settings(self):
         self.config["API_URL"] = self.api_url_input.text().strip()
