@@ -22,6 +22,16 @@ from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, Q
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.sip import wrapinstance  # Changed import for proper sip handling
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(os.path.join(os.path.dirname(__file__), 'pool_tracker.log'))
+    ]
+)
+
 # Default configuration and config functions at module level
 DEFAULT_CONFIG = {
     "API_URL": "https://pooltabletracker.com",
