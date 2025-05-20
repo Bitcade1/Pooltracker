@@ -836,40 +836,46 @@ class MainWindow(QMainWindow):
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
         if not self.inventory_data:
-            # ...existing code for handling no data...
             return
 
         # --- Page 1: Performance - Update with real production data ---
         if hasattr(self, 'tr_dash_current_time_label'):
             today = datetime.now().date()
-            
-            # Get today's production count from today's date in monthly data
             current_month = today.month
             current_year = today.year
-            daily_data = self.api_client.get_production_for_month(current_year, current_month)
             
-            # Find today's entry and get top_rails count
-            today_str = today.strftime("%Y-%m-%d")
-            today_production = next(
-                (day.get("top_rails", 0) for day in daily_data 
-                 if day.get("date") == today_str), 
-                0
-            )
-            self.tr_dash_daily_label.setText(str(today_production))
-            
-            # Get monthly production from production summary
-            monthly_data = self.api_client.get_production_summary(current_year, current_month)
-            if monthly_data:
-                monthly_count = monthly_data.get("current_production", {}).get("total", {}).get("top_rails", 0)
-                self.tr_dash_monthly_label.setText(str(monthly_count))
+            try:
+                # Get today's production count
+                daily_data = self.api_client.get_production_for_month(current_year, current_month)
+                today_str = today.strftime("%Y-%m-%d")
+                today_production = next(
+                    (day.get("top_rails", 0) for day in daily_data if day.get("date") == today_str), 
+                    0
+                ) if daily_data else 0
+                self.tr_dash_daily_label.setText(str(today_production))
                 
-                # Calculate yearly production from all months
-                yearly_count = sum(
-                    self.api_client.get_production_summary(current_year, m)
-                    .get("current_production", {}).get("total", {}).get("top_rails", 0)
-                    for m in range(1, 13)
-                )
-                self.tr_dash_yearly_label.setText(str(yearly_count))
+                # Get monthly totals
+                monthly_data = self.api_client.get_production_summary(current_year, current_month)
+                if monthly_data and "current_production" in monthly_data:
+                    monthly_total = monthly_data["current_production"].get("total", {}).get("top_rails", 0)
+                    self.tr_dash_monthly_label.setText(str(monthly_total))
+                else:
+                    self.tr_dash_monthly_label.setText("0")
+                    
+                # Calculate yearly total safely
+                yearly_total = 0
+                for month in range(1, 13):
+                    month_data = self.api_client.get_production_summary(current_year, month)
+                    if month_data and "current_production" in month_data:
+                        month_total = month_data["current_production"].get("total", {}).get("top_rails", 0)
+                        yearly_total += month_total
+                self.tr_dash_yearly_label.setText(str(yearly_total))
+                    
+            except Exception as e:
+                print(f"Error updating dashboard stats: {e}")
+                self.tr_dash_daily_label.setText("ERR")
+                self.tr_dash_monthly_label.setText("ERR") 
+                self.tr_dash_yearly_label.setText("ERR")
 
         # --- Page 2: Parts Inventory - Update table with real data ---
         if hasattr(self, 'tr_parts_table'):
