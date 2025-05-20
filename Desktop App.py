@@ -379,7 +379,7 @@ class MainWindow(QMainWindow):
 
         # Configure timers
         self.refresh_timer.timeout.connect(self.refresh_all_data)
-        self.refresh_timer.start(300000)  # 5 minutes
+        self.refresh_timer.start(60000)  # 1 minute
 
         self.dashboard_scroll_timer.timeout.connect(self.scroll_dashboard_page)
         scroll_time = self.config.get("SCROLL_TIMER", 10)
