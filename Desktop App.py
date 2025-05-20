@@ -846,34 +846,29 @@ class MainWindow(QMainWindow):
 
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
-        # Log dashboard update
         logging.info("Updating top rail dashboard")
         
         if not self.inventory_data:
             logging.warning("No inventory data available for dashboard update")
             return
 
-        # Cache production summary data to avoid multiple API calls
+        # Cache production summary data and setup 
         today = datetime.now().date()
         current_year = today.year
+        finished_stock = self.inventory_data.get("finished_components_stock", {})
         
-        # Fetch all monthly data at once for the year
-        logging.info("Fetching production summaries for the year")
-        monthly_summaries = {}
-        try:
-            for month in range(1, 13):
-                monthly_summaries[month] = self.api_client.get_production_summary(current_year, month)
-            logging.info("Successfully fetched all monthly summaries")
-        except Exception as e:
-            logging.error(f"Error fetching monthly summaries: {e}")
-            
         # Update color boxes with proper CSS
         for config in self.table_configurations:
             size_layout_key = f"deficits_{config['size']}"
             color_key = config['color_display']
             
             if color_key not in self.top_rail_dashboard_widgets[size_layout_key]:
+                color_group_deficit = QGroupBox(config['color_display'])
+                form_layout_deficit = QFormLayout(color_group_deficit)
+                form_layout_deficit.setContentsMargins(15, 25, 15, 15)
+                
                 hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
+                q_color = QColor(hex_color_code)
                 
                 try:
                     if not hex_color_code.startswith('#'):  # If it's an image path
@@ -881,8 +876,10 @@ class MainWindow(QMainWindow):
                             logging.info(f"Loading image for {color_key}: {hex_color_code}")
                         else:
                             logging.error(f"Image not found: {hex_color_code}")
+                            hex_color_code = self.TABLE_FINISH_COLORS["Default"]  # Fallback to default
                 except Exception as e:
                     logging.error(f"Error checking image path: {e}")
+                    hex_color_code = self.TABLE_FINISH_COLORS["Default"]  # Fallback to default
 
                 # Fix background-size CSS issue by using scale instead
                 color_group_deficit.setStyleSheet(f"""
