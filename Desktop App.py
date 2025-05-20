@@ -584,15 +584,47 @@ class MainWindow(QMainWindow):
         current_perf_group.setLayout(current_perf_layout)
         layout1.addWidget(current_perf_group)
         
-        # Production Statistics
+        # Production Statistics - Make it bigger and bolder
         prod_stats_group = QGroupBox("Production Statistics")
         prod_stats_layout = QFormLayout()
-        self.tr_dash_daily_label = QLabel("0"); self.tr_dash_daily_label.setObjectName("DashboardMetricValue")
-        prod_stats_layout.addRow(QLabel("Today's Production:", objectName="DashboardMetricLabel"), self.tr_dash_daily_label)
-        self.tr_dash_monthly_label = QLabel("0"); self.tr_dash_monthly_label.setObjectName("DashboardMetricValue")
-        prod_stats_layout.addRow(QLabel("This Month:", objectName="DashboardMetricLabel"), self.tr_dash_monthly_label)
-        self.tr_dash_yearly_label = QLabel("0"); self.tr_dash_yearly_label.setObjectName("DashboardMetricValue")
-        prod_stats_layout.addRow(QLabel("This Year:", objectName="DashboardMetricLabel"), self.tr_dash_yearly_label)
+        prod_stats_layout.setSpacing(20)  # Increase spacing between items
+        prod_stats_layout.setContentsMargins(20, 30, 20, 30)  # Add more padding
+
+        self.tr_dash_daily_label = QLabel("0")
+        self.tr_dash_monthly_label = QLabel("0")
+        self.tr_dash_yearly_label = QLabel("0")
+
+        # Style all production stats labels
+        for label in [self.tr_dash_daily_label, self.tr_dash_monthly_label, self.tr_dash_yearly_label]:
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 48pt;
+                    font-weight: bold;
+                    color: #2980b9;
+                    padding: 10px;
+                }
+            """)
+            label.setAlignment(Qt.AlignCenter)
+
+        # Create and style the metric labels
+        metric_style = """
+            QLabel {
+                font-size: 24pt;
+                color: #2c3e50;
+                padding: 5px;
+            }
+        """
+        today_label = QLabel("Today's Production:")
+        month_label = QLabel("This Month:")
+        year_label = QLabel("This Year:")
+        
+        for label in [today_label, month_label, year_label]:
+            label.setStyleSheet(metric_style)
+
+        prod_stats_layout.addRow(today_label, self.tr_dash_daily_label)
+        prod_stats_layout.addRow(month_label, self.tr_dash_monthly_label)
+        prod_stats_layout.addRow(year_label, self.tr_dash_yearly_label)
+        
         prod_stats_group.setLayout(prod_stats_layout)
         layout1.addWidget(prod_stats_group)
         
@@ -855,6 +887,31 @@ class MainWindow(QMainWindow):
             logging.warning("No inventory data available for dashboard update")
             return
 
+        # Update production statistics
+        today = datetime.now().date()
+        current_year = today.year
+        current_month = today.month
+
+        # Get today's production from API
+        daily_data = self.api_client.get_production_for_month(current_year, current_month)
+        if daily_data:
+            today_str = today.strftime("%Y-%m-%d")
+            today_prod = next((day["top_rails"] for day in daily_data if day["date"] == today_str), 0)
+            self.tr_dash_daily_label.setText(str(today_prod))
+            
+            # Calculate monthly total
+            monthly_total = sum(day["top_rails"] for day in daily_data)
+            self.tr_dash_monthly_label.setText(str(monthly_total))
+            
+            # Calculate yearly total
+            yearly_total = 0
+            for month in range(1, 13):
+                month_data = self.api_client.get_production_summary(current_year, month)
+                if month_data and "top_rails_total" in month_data:
+                    yearly_total += month_data["top_rails_total"]
+            self.tr_dash_yearly_label.setText(str(yearly_total))
+
+        # Continue with rest of dashboard update
         # Cache production summary data and setup 
         today = datetime.now().date()
         current_year = today.year
