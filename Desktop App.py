@@ -159,25 +159,25 @@ QLabel.StockValue { font-size: 10pt; }
 QLabel.StockValueShortage { font-size: 10pt; color: #c62828; font-weight: bold; } /* Red for stock value that is a bottleneck */
 
 /* Top Rail Dashboard Styling */
-QWidget#DashboardPage { /* Style for individual pages in QStackedWidget */
+QWidget#DashboardPage {
     background-color: #ffffff;
-    border: 1px solid #d0d0d0; /* Optional border for pages */
+    border: 1px solid #d0d0d0;
     border-radius: 5px;
 }
 QLabel.DashboardHeader {
-    font-size: 16pt;
+    font-size: 28pt;  /* Increased from 16pt */
     font-weight: bold;
-    color: #3498db; /* Blue */
-    padding-bottom: 10px;
-    border-bottom: 2px solid #3498db;
-    margin-bottom: 15px;
+    color: #3498db;
+    padding-bottom: 15px;
+    border-bottom: 3px solid #3498db;
+    margin-bottom: 20px;
 }
 QLabel.DashboardMetricLabel {
-    font-size: 12pt;
-    color: #2c3e50; /* Dark Grey Blue */
+    font-size: 18pt;  /* Increased from 12pt */
+    color: #2c3e50;
 }
 QLabel.DashboardMetricValue {
-    font-size: 18pt;
+    font-size: 32pt;  /* Increased from 18pt */
     font-weight: bold;
     color: #2980b9; /* Medium Blue */
 }
@@ -543,6 +543,11 @@ class MainWindow(QMainWindow):
     def setup_top_rail_dashboard_tab(self):
         """Sets up the UI for the Top Rail Dashboard tab."""
         main_layout = QVBoxLayout(self.top_rail_dashboard_tab)
+        
+        # Increase spacing between elements
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        
         self.dashboard_stacked_widget = QStackedWidget()
         main_layout.addWidget(self.dashboard_stacked_widget)
 
