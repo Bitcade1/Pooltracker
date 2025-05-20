@@ -11,6 +11,7 @@ Colors table finish boxes in Assembly Capacity tab.
 """
 import sys
 import os
+import warnings  # <-- Add this import
 import requests
 from datetime import datetime, timedelta, date
 import json
