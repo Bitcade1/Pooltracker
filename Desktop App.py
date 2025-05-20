@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, date
 import json
 import calendar 
 import re 
+import sip  # Add this to imports at top
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -315,7 +316,9 @@ class APIClient:
             return None
 
 
-class MainWindow(QMainWindow, object):  # Add object as secondary base class
+class MainWindow(QMainWindow):  # Remove object inheritance
+    """Main window class for the Pool Table Tracker application."""
+    
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
         "Black": os.path.join(BASE_DIR, "images", "Black Oak.jpg"),
@@ -884,29 +887,46 @@ class MainWindow(QMainWindow, object):  # Add object as secondary base class
             logging.warning("No inventory data available for dashboard update")
             return
 
-        # Update production statistics
+        # Update production statistics with better error handling
         today = datetime.now().date()
         current_year = today.year
         current_month = today.month
 
-        # Get today's production from API
-        daily_data = self.api_client.get_production_for_month(current_year, current_month)
-        if daily_data:
-            today_str = today.strftime("%Y-%m-%d")
-            today_prod = next((day["top_rails"] for day in daily_data if day["date"] == today_str), 0)
-            self.tr_dash_daily_label.setText(str(today_prod))
+        try:
+            # Get today's production from API
+            daily_data = self.api_client.get_production_for_month(current_year, current_month)
+            if daily_data:
+                today_str = today.strftime("%Y-%m-%d")
+                today_prod = next((day["top_rails"] for day in daily_data if day["date"] == today_str), 0)
+                self.tr_dash_daily_label.setText(str(today_prod))
+                
+                # Calculate monthly total
+                monthly_total = sum(day.get("top_rails", 0) for day in daily_data)
+                self.tr_dash_monthly_label.setText(str(monthly_total))
+            else:
+                self.tr_dash_daily_label.setText("0")
+                self.tr_dash_monthly_label.setText("0")
             
-            # Calculate monthly total
-            monthly_total = sum(day["top_rails"] for day in daily_data)
-            self.tr_dash_monthly_label.setText(str(monthly_total))
-            
-            # Calculate yearly total
+            # Calculate yearly total with error handling
             yearly_total = 0
+            yearly_data_available = False
             for month in range(1, 13):
-                month_data = self.api_client.get_production_summary(current_year, month)
-                if month_data and "top_rails_total" in month_data:
-                    yearly_total += month_data["top_rails_total"]
-            self.tr_dash_yearly_label.setText(str(yearly_total))
+                try:
+                    month_data = self.api_client.get_production_summary(current_year, month)
+                    if month_data and "top_rails_total" in month_data:
+                        yearly_total += month_data["top_rails_total"]
+                        yearly_data_available = True
+                except Exception as e:
+                    logging.error(f"Error fetching data for month {month}: {e}")
+                    continue
+            
+            self.tr_dash_yearly_label.setText(str(yearly_total) if yearly_data_available else "N/A")
+            
+        except Exception as e:
+            logging.error(f"Error updating dashboard stats: {e}")
+            self.tr_dash_daily_label.setText("ERR")
+            self.tr_dash_monthly_label.setText("ERR")
+            self.tr_dash_yearly_label.setText("ERR")
 
         # Continue with rest of dashboard update
         # Cache production summary data and setup 
