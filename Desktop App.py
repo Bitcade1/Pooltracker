@@ -20,7 +20,7 @@ import re
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.sip import voidptr  # For proper sip type handling
+from PyQt5.sip import wrapinstance  # Changed import for proper sip handling
 
 # Default configuration and config functions at module level
 DEFAULT_CONFIG = {
@@ -61,9 +61,7 @@ class MainWindow(QMainWindow):
         logging.info("Application starting")
         logging.info(f"Working directory: {self.BASE_DIR}")
         
-        # Get config before other initialization
-        from . import load_config  # Import within method to avoid circular import
-        self.config = config if config else load_config()
+        self.config = config if config else load_config()  # Use the function defined above
         
         # Check image files exist
         for color, path in self.TABLE_FINISH_COLORS.items():
