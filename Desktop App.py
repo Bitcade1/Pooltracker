@@ -763,6 +763,8 @@ class MainWindow(QMainWindow):
         table_font.setPointSize(14)
         table_font.setBold(True)
 
+        low_stock_items = []  # Track all low stock items
+        
         for row, (part_name, count) in enumerate(sorted_parts):
             actual_count = count if count is not None else 0
             
@@ -784,11 +786,9 @@ class MainWindow(QMainWindow):
                 for item in [name_item, count_item, rails_per_part, tables_item]:
                     item.setBackground(QColor("#ffebee"))  # Light red background
                 
-                # Show full screen warning
-                self.low_stock_warning.setText(f"WARNING!\n{part_name}\nOnly enough for {tables_possible} tables!")
-                self.low_stock_warning.show()
-                self.low_stock_warning.raise_()
-                QTimer.singleShot(5000, self.low_stock_warning.hide)
+                # Add to low stock list instead of showing warning immediately
+                low_stock_items.append((part_name, tables_possible))
+            
             elif tables_possible < 10:
                 color = QColor("#f57c00")  # Orange
             else:
@@ -812,6 +812,19 @@ class MainWindow(QMainWindow):
         self.total_parts_label.setText(str(total_parts))
         self.low_stock_label.setText(str(low_stock_count))
         self.last_update_label.setText(datetime.now().strftime('%d %b %Y, %H:%M:%S'))
+
+        # After processing all items, show combined warning if needed
+        if low_stock_items:
+            warning_text = "WARNING!\nLow Stock Items:\n\n"
+            for part_name, tables in low_stock_items:
+                warning_text += f"• {part_name}: Only enough for {tables} tables!\n"
+            
+            self.low_stock_warning.setText(warning_text)
+            self.low_stock_warning.show()
+            self.low_stock_warning.raise_()
+            # Show warning longer when multiple items (2 seconds per item, minimum 5 seconds)
+            show_time = max(5000, len(low_stock_items) * 2000)
+            QTimer.singleShot(show_time, self.low_stock_warning.hide)
 
     def update_production_table(self, daily_data_list):
         """Updates the production table with daily data."""
