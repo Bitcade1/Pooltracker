@@ -12,204 +12,322 @@ Colors table finish boxes in Assembly Capacity tab.
 import sys
 import os
 import requests
-import logging
 from datetime import datetime, timedelta, date
 import json
-import calendar
+import calendar 
 import re 
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.sip import wrapinstance  # Changed import for proper sip handling
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(os.path.join(os.path.dirname(__file__), 'pool_tracker.log'))
-    ]
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QLineEdit, QGroupBox, QFormLayout,
+    QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,
+    QTabWidget, QComboBox, QCheckBox, QProgressBar, QFrame,
+    QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget # Added QStackedWidget
 )
+from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap  # Added QPixmap
+from PyQt5.QtCore import Qt, QTimer
 
-# Default configuration and config functions at module level
-DEFAULT_CONFIG = {
-    "API_URL": "http://pooltabletracker.com",  # Changed from https to http
-    "API_PORT": None,
-    "API_TOKEN": "bitcade_api_key_1",
-    "SCROLL_TIMER": 10
-}
-
-def load_config():
-    """Load config from file, return defaults if not found"""
-    config_file = os.path.join(os.path.expanduser("~"), ".pool_tracker_config.json")
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            logging.warning(f"Could not load config file: {e}")
-            return DEFAULT_CONFIG.copy()
-    return DEFAULT_CONFIG.copy()
-
-# Default stylesheet for the application
+# --- Modern UI Styling ---
 STYLESHEET = """
-    QMainWindow { background-color: #f5f6f7; }
-    QGroupBox { font-weight: bold; border: 1px solid #bdc3c7; border-radius: 5px; margin-top: 1ex; }
-    QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }
-    #ApiStatusLabel[status="connected"] { color: #27ae60; }
-    #ApiStatusLabel[status="disconnected"] { color: #c0392b; }
-    #ApiStatusLabel[status="checking"] { color: #f39c12; }
+QMainWindow {
+    background-color: #f0f2f5; 
+}
+QGroupBox {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #333; /* Default title color, may need adjustment if background is too dark */
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    margin-top: 10px;
+    background-color: #ffffff; 
+    padding: 10px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px 0 5px;
+    left: 10px;
+    color: #2c3e50; 
+}
+QLabel {
+    font-size: 10pt;
+    color: #444;
+}
+QPushButton {
+    font-size: 10pt;
+    background-color: #3498db; 
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    min-height: 20px;
+}
+QPushButton:hover {
+    background-color: #2980b9; 
+}
+QPushButton:pressed {
+    background-color: #1f618d;
+}
+QLineEdit, QComboBox {
+    font-size: 10pt;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #fdfdfd;
+}
+QComboBox::drop-down {
+    border: none;
+}
+QComboBox::down-arrow {
+    image: url(noexist.png); 
+    width: 12px;
+    height: 12px;
+    margin-right: 5px;
+}
+QTableWidget {
+    font-size: 9pt;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    gridline-color: #e0e0e0;
+    background-color: #ffffff;
+    alternate-background-color: #f9f9f9;
+}
+QHeaderView::section {
+    background-color: #e9edf0; 
+    padding: 6px;
+    border: none;
+    border-bottom: 1px solid #d0d0d0;
+    font-size: 10pt;
+    font-weight: bold;
+    color: #333;
+}
+QTabWidget::pane {
+    border: 1px solid #d0d0d0;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    background-color: #ffffff;
+    padding: 10px;
+}
+QTabBar::tab {
+    background-color: #e9edf0;
+    color: #555;
+    padding: 10px 20px;
+    border: 1px solid #d0d0d0;
+    border-bottom: none; 
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    margin-right: 2px;
+}
+QTabBar::tab:selected {
+    background-color: #ffffff; 
+    color: #3498db; 
+    font-weight: bold;
+    border-bottom: 1px solid #ffffff; 
+}
+QTabBar::tab:hover {
+    background-color: #f5f7fa;
+}
+QStatusBar {
+    font-size: 9pt;
+    color: #555;
+}
+QProgressBar {
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    text-align: center;
+    font-size: 8pt;
+    color: #333;
+}
+QGroupBox#BodiesGroup { background-color: #e0f7fa; border-left: 5px solid #0288d1; }
+QGroupBox#PodsGroup { background-color: #e8f5e9; border-left: 5px solid #388e3c; }
+QGroupBox#RailsGroup { background-color: #fff3e0; border-left: 5px solid #f57c00; }
+
+QLabel#BodiesCountLabel { color: #01579b; }
+QLabel#PodsCountLabel { color: #1b5e20; }
+QLabel#RailsCountLabel { color: #e65100; }
+
+QLabel#ApiStatusLabel { font-weight: bold; padding: 5px; border-radius: 4px; }
+QLabel#ApiStatusLabel[status="connected"] { background-color: #c8e6c9; color: #2e7d32; }
+QLabel#ApiStatusLabel[status="disconnected"] { background-color: #ffcdd2; color: #c62828; }
+QLabel#ApiStatusLabel[status="checking"] { background-color: #fff9c4; color: #f57f17; }
+
+/* Assembly Deficit Tab Styling */
+QLabel.StatusNeeded { font-size: 10pt; font-weight: bold; color: #c62828; } /* Red for "needed" status */
+QLabel.StatusCanAssemble { font-size: 10pt; font-weight: bold; color: #2e7d32; } /* Green for "can assemble" */
+QLabel.StatusNeutral { font-size: 10pt; color: #555; } /* Neutral for no components */
+QLabel.StockValue { font-size: 10pt; }
+QLabel.StockValueShortage { font-size: 10pt; color: #c62828; font-weight: bold; } /* Red for stock value that is a bottleneck */
+
+/* Top Rail Dashboard Styling */
+QWidget#DashboardPage {
+    background-color: #ffffff;
+    border: 1px solid #d0d0d0;
+    border-radius: 5px;
+}
+QLabel.DashboardHeader {
+    font-size: 28pt;  /* Increased from 16pt */
+    font-weight: bold;
+    color: #3498db;
+    padding-bottom: 15px;
+    border-bottom: 3px solid #3498db;
+    margin-bottom: 20px;
+}
+QLabel.DashboardMetricLabel {
+    font-size: 18pt;  /* Increased from 12pt */
+    color: #2c3e50;
+}
+QLabel.DashboardMetricValue {
+    font-size: 32pt;  /* Increased from 18pt */
+    font-weight: bold;
+    color: #2980b9; /* Medium Blue */
+}
+QLabel.DashboardPartName {
+    font-size: 11pt;
+}
+QLabel.DashboardPartStock {
+    font-size: 11pt;
+    font-weight: bold;
+}
+QLabel.DashboardPartStockLow {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #c62828; /* Red for low stock */
+}
 """
 
+# Configuration
+DEFAULT_CONFIG = {
+    "API_URL": "https://pooltabletracker.com",
+    "API_PORT": None,
+    "API_TOKEN": "bitcade_api_key_1",
+    "SCROLL_TIMER": 10  # Default 10 seconds
+}
+
 def save_config(config):
-    """Save config to file, return filepath"""
     config_file = os.path.join(os.path.expanduser("~"), ".pool_tracker_config.json")
     with open(config_file, "w") as f:
         json.dump(config, f, indent=4)
     return config_file
 
+def load_config():
+    config_file = os.path.join(os.path.expanduser("~"), ".pool_tracker_config.json")
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                return json.load(f)
+        except Exception:
+            print(f"Warning: Could not load config file {config_file}. Using defaults.")
+            return DEFAULT_CONFIG.copy()
+    return DEFAULT_CONFIG.copy()
+
 class APIClient:
-    """Client for interacting with the Pool Table Tracker API"""
-    def __init__(self, base_url, token, port=None):
-        self.base_url = base_url.rstrip('/')
-        if port:
-            self.base_url = f"{self.base_url}:{port}"
-        self.token = token
-        self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Token {token}",
-            "User-Agent": "PoolTrackerDesktop/1.6",
-            "Accept": "application/json"
-        })
-        logging.info(f"Initialized API client for {self.base_url}")
+    def __init__(self, api_url, api_token, api_port=None):
+        self.api_url = api_url
+        self.api_port = api_port
+        self.headers = {"X-API-Token": api_token}
+        
+        if api_port:
+            base_url_str = str(self.api_url)
+            # Ensure protocol is present
+            if not base_url_str.startswith(("http://", "https://")):
+                base_url_str = "http://" + base_url_str # Default to http if not specified
+
+            # Split URL and safely add port
+            # Example: "http://domain.com/path" or "domain.com/path"
+            parts = base_url_str.split("/")
+            if len(parts) > 2: # Check if there's a host part (e.g. parts[2] for "http://host/...")
+                host_part = parts[2]
+                if ":" in host_part: # Already has a port
+                    host = host_part.split(":")[0]
+                    parts[2] = f"{host}:{api_port}"
+                else: # No port yet
+                    parts[2] = f"{host_part}:{api_port}"
+                self.base_url = "/".join(parts)
+            else: # Handle cases like "domain.com" (less likely for API but good to be robust)
+                 # This logic might need adjustment if URL format is very different
+                if ":" in base_url_str:
+                     host = base_url_str.split(":")[0]
+                     self.base_url = f"{host}:{api_port}"
+                else:
+                     self.base_url = f"{base_url_str}:{api_port}"
+
+        else: # No custom port, use URL as is
+            self.base_url = str(self.api_url)
+            if not self.base_url.startswith(("http://", "https://")):
+                 self.base_url = "http://" + self.base_url # Default to http
 
     def test_connection(self):
-        """Test API connection"""
         try:
-            logging.info(f"Testing connection to {self.base_url}/api/test")  # Changed path to /api/test
-            response = self.session.get(
-                f"{self.base_url}/api/test",  # Changed path to /api/test
-                timeout=10,
-                verify=True,
-                allow_redirects=True  # Added to handle redirects
-            )
-            logging.info(f"API test response: {response.status_code}")
-            if response.status_code != 200:
-                logging.error(f"API error: {response.text}")
+            response = requests.get(f"{self.base_url}/api/status", headers=self.headers, timeout=5)
             return response.status_code == 200
-        except requests.exceptions.SSLError as e:
-            logging.error(f"SSL Error connecting to API: {e}")
-            return False
-        except requests.exceptions.ConnectionError as e:
-            logging.error(f"Connection error: {e}")
-            return False
-        except requests.exceptions.Timeout as e:
-            logging.error(f"Connection timeout: {e}")
-            return False
         except Exception as e:
-            logging.error(f"Unexpected error testing API connection: {e}")
+            print(f"Connection error: {e}")
             return False
-
+            
     def get_production_for_month(self, year, month):
-        """Get daily production data for given month"""
+        endpoint_url = f"{self.base_url}/api/work/monthly/{year}/{month}"
+        print(f"Fetching monthly production data for {year}-{month:02d} from: {endpoint_url}")
         try:
-            logging.info(f"Fetching production data for {year}-{month}")
-            response = self.session.get(
-                f"{self.base_url}/production/{year}/{month}",
-                timeout=30
-            )
+            response = requests.get(endpoint_url, headers=self.headers, timeout=15)
             if response.status_code == 200:
-                return response.json()
-            logging.error(f"Error fetching production data: {response.status_code} - {response.text}")
-            return []
-        except Exception as e:
-            logging.error(f"Failed to get production data: {e}")
-            return []
-
-    def get_production_summary(self, year, month):
-        """Get production summary for given month"""
-        try:
-            response = self.session.get(
-                f"{self.base_url}/summary/{year}/{month}",
-                timeout=30
-            )
-            if response.status_code == 200:
-                return response.json()
-            logging.error(f"Error fetching summary: {response.status_code} - {response.text}")
-            return None
-        except Exception as e:
-            logging.error(f"Failed to get summary: {e}")
-            return None
+                return response.json() 
+            else:
+                error_msg = f"API Error {response.status_code} for {year}-{month:02d}: {response.text[:100]}"
+                print(error_msg)
+                num_days_in_month = calendar.monthrange(year, month)[1]
+                return [{
+                    "date": date(year, month, day_num).strftime("%Y-%m-%d"),
+                    "bodies": 0, "pods": 0, "top_rails": 0, "error_info": error_msg 
+                } for day_num in range(1, num_days_in_month + 1)]
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Request Exception for {year}-{month:02d}: {e}"
+            print(error_msg)
+            num_days_in_month = calendar.monthrange(year, month)[1]
+            return [{
+                "date": date(year, month, day_num).strftime("%Y-%m-%d"),
+                "bodies": 0, "pods": 0, "top_rails": 0, "error_info": error_msg
+            } for day_num in range(1, num_days_in_month + 1)]
 
     def get_inventory_summary(self):
-        """Get current inventory status"""
         try:
-            response = self.session.get(
-                f"{self.base_url}/inventory",
-                timeout=30
-            )
+            response = requests.get(f"{self.base_url}/api/inventory/summary", headers=self.headers, timeout=10)
             if response.status_code == 200:
                 return response.json()
-            logging.error(f"Error fetching inventory: {response.status_code} - {response.text}")
+            print(f"Inventory API error: {response.status_code} - {response.text}")
             return None
         except Exception as e:
-            logging.error(f"Failed to get inventory: {e}")
+            print(f"Error getting inventory data: {e}")
             return None
 
-def _get_color_style(hex_code):
-    """Helper function for QSS color styles"""
-    return f"""
-        QGroupBox {{
-            border: 1px solid #d0d0d0;
-            border-radius: 8px;
-            margin-top: 20px;
-            padding: 15px;
-            background-color: {hex_code};
-        }}
-    """
+    def get_production_summary(self, year, month): 
+        endpoint_url = f"{self.base_url}/api/production/summary/{year}/{month}"
+        print(f"Fetching production summary for {year}-{month:02d} from: {endpoint_url}")
+        try:
+            response = requests.get(endpoint_url, headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Production Summary API Error {response.status_code} for {year}-{month:02d}: {response.text[:100]}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"Request Exception for Production Summary ({year}-{month:02d}): {e}")
+            return None
 
-def _get_fallback_style():
-    """Helper function for fallback QSS style"""
-    return """
-        QGroupBox {
-            border: 1px solid #d0d0d0;
-            border-radius: 8px;
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f0f0f0;
-        }
-    """
 
 class MainWindow(QMainWindow):
-    """Main window class for the Pool Table Tracker application."""
-    
-    # Class attributes
+    # Get absolute path for images
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
-        "Black": os.path.join(BASE_DIR, "images", "Black Oak.jpg"),
-        "Rustic Oak": os.path.join(BASE_DIR, "images", "Rustic Oak.jpg"),
-        "Grey Oak": os.path.join(BASE_DIR, "images", "Grey Oak.jpg"),
-        "Stone": os.path.join(BASE_DIR, "images", "Stone.jpg"),
+        "Black": os.path.join("images", "Black Oak.jpg"),
+        "Rustic Oak": os.path.join("images", "Rustic Oak.jpg"),
+        "Grey Oak": os.path.join("images", "Grey Oak.jpg"),
+        "Stone": os.path.join("images", "Stone.jpg"),
         "Default": "#E0E0E0"
     }
 
     def __init__(self, config=None):
         super().__init__()
-        # Log startup information
-        logging.info("Application starting")
-        logging.info(f"Working directory: {self.BASE_DIR}")
-        
-        self.config = config if config else load_config()  # Use the function defined above
-        
-        # Check image files exist
-        for color, path in self.TABLE_FINISH_COLORS.items():
-            if color != "Default":
-                if os.path.exists(path):
-                    logging.info(f"Found image for {color}: {path}")
-                else:
-                    logging.error(f"Missing image for {color}: {path}")
-        
+        self.config = config if config else load_config()
         self.api_client = APIClient(
             self.config.get("API_URL", DEFAULT_CONFIG["API_URL"]),
             self.config.get("API_TOKEN", DEFAULT_CONFIG["API_TOKEN"]),
@@ -451,47 +569,15 @@ class MainWindow(QMainWindow):
         current_perf_group.setLayout(current_perf_layout)
         layout1.addWidget(current_perf_group)
         
-        # Production Statistics - Make it bigger and bolder
+        # Production Statistics
         prod_stats_group = QGroupBox("Production Statistics")
         prod_stats_layout = QFormLayout()
-        prod_stats_layout.setSpacing(20)  # Increase spacing between items
-        prod_stats_layout.setContentsMargins(20, 30, 20, 30)  # Add more padding
-
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0")
-
-        # Style all production stats labels
-        for label in [self.tr_dash_daily_label, self.tr_dash_monthly_label, self.tr_dash_yearly_label]:
-            label.setStyleSheet("""
-                QLabel {
-                    font-size: 48pt;
-                    font-weight: bold;
-                    color: #2980b9;
-                    padding: 10px;
-                }
-            """)
-            label.setAlignment(Qt.AlignCenter)
-
-        # Create and style the metric labels
-        metric_style = """
-            QLabel {
-                font-size: 24pt;
-                color: #2c3e50;
-                padding: 5px;
-            }
-        """
-        today_label = QLabel("Today's Production:")
-        month_label = QLabel("This Month:")
-        year_label = QLabel("This Year:")
-        
-        for label in [today_label, month_label, year_label]:
-            label.setStyleSheet(metric_style)
-
-        prod_stats_layout.addRow(today_label, self.tr_dash_daily_label)
-        prod_stats_layout.addRow(month_label, self.tr_dash_monthly_label)
-        prod_stats_layout.addRow(year_label, self.tr_dash_yearly_label)
-        
+        self.tr_dash_daily_label = QLabel("0"); self.tr_dash_daily_label.setObjectName("DashboardMetricValue")
+        prod_stats_layout.addRow(QLabel("Today's Production:", objectName="DashboardMetricLabel"), self.tr_dash_daily_label)
+        self.tr_dash_monthly_label = QLabel("0"); self.tr_dash_monthly_label.setObjectName("DashboardMetricValue")
+        prod_stats_layout.addRow(QLabel("This Month:", objectName="DashboardMetricLabel"), self.tr_dash_monthly_label)
+        self.tr_dash_yearly_label = QLabel("0"); self.tr_dash_yearly_label.setObjectName("DashboardMetricValue")
+        prod_stats_layout.addRow(QLabel("This Year:", objectName="DashboardMetricLabel"), self.tr_dash_yearly_label)
         prod_stats_group.setLayout(prod_stats_layout)
         layout1.addWidget(prod_stats_group)
         
@@ -748,242 +834,229 @@ class MainWindow(QMainWindow):
 
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
-        logging.info("Updating top rail dashboard")
-        
         if not self.inventory_data:
-            logging.warning("No inventory data available for dashboard update")
+            # ...existing code for handling no data...
             return
 
-        # Update production statistics with better error handling
-        today = datetime.now().date()
-        current_year = today.year
-        current_month = today.month
-
-        try:
-            # Get today's production from API
+        # --- Page 1: Performance - Update with real production data ---
+        if hasattr(self, 'tr_dash_current_time_label'):
+            today = datetime.now().date()
+            
+            # Get today's production count from today's date in monthly data
+            current_month = today.month
+            current_year = today.year
             daily_data = self.api_client.get_production_for_month(current_year, current_month)
-            if daily_data:
-                today_str = today.strftime("%Y-%m-%d")
-                today_prod = next((day["top_rails"] for day in daily_data if day["date"] == today_str), 0)
-                self.tr_dash_daily_label.setText(str(today_prod))
-                
-                # Calculate monthly total
-                monthly_total = sum(day.get("top_rails", 0) for day in daily_data)
-                self.tr_dash_monthly_label.setText(str(monthly_total))
-            else:
-                self.tr_dash_daily_label.setText("0")
-                self.tr_dash_monthly_label.setText("0")
             
-            # Calculate yearly total with error handling
-            yearly_total = 0
-            yearly_data_available = False
-            for month in range(1, 13):
-                try:
-                    month_data = self.api_client.get_production_summary(current_year, month)
-                    if month_data and "top_rails_total" in month_data:
-                        yearly_total += month_data["top_rails_total"]
-                        yearly_data_available = True
-                except Exception as e:
-                    logging.error(f"Error fetching data for month {month}: {e}")
-                    continue
+            # Find today's entry and get top_rails count
+            today_str = today.strftime("%Y-%m-%d")
+            today_production = next(
+                (day.get("top_rails", 0) for day in daily_data 
+                 if day.get("date") == today_str), 
+                0
+            )
+            self.tr_dash_daily_label.setText(str(today_production))
             
-            self.tr_dash_yearly_label.setText(str(yearly_total) if yearly_data_available else "N/A")
+            # Get monthly production from production summary
+            monthly_data = self.api_client.get_production_summary(current_year, current_month)
+            if monthly_data:
+                monthly_count = monthly_data.get("current_production", {}).get("total", {}).get("top_rails", 0)
+                self.tr_dash_monthly_label.setText(str(monthly_count))
+                
+                # Calculate yearly production from all months
+                yearly_count = sum(
+                    self.api_client.get_production_summary(current_year, m)
+                    .get("current_production", {}).get("total", {}).get("top_rails", 0)
+                    for m in range(1, 13)
+                )
+                self.tr_dash_yearly_label.setText(str(yearly_count))
+
+        # --- Page 2: Parts Inventory - Update table with real data ---
+        if hasattr(self, 'tr_parts_table'):
+            top_rail_parts = {
+                "Top rail trim long length": 2,
+                "Top rail trim short length": 4,
+                "Chrome corner": 4,
+                "Center pockets": 2,
+                "Corner pockets": 4,
+                "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
+                "M5 x 20 Socket Cap Screw": 16,
+                "Catch Plate": 12,
+                "4.8x32mm Self Tapping Screw": 24
+            }
             
-        except Exception as e:
-            logging.error(f"Error updating dashboard stats: {e}")
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR")
-            self.tr_dash_yearly_label.setText("ERR")
-
-        # Continue with rest of dashboard update
-        # Cache production summary data and setup 
-        today = datetime.now().date()
-        current_year = today.year
-        finished_stock = self.inventory_data.get("finished_components_stock", {})
-        
-        # Update color boxes with proper CSS
-        for config in self.table_configurations:
-            size_layout_key = f"deficits_{config['size']}"
-            color_key = config['color_display']
+            hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
+            table_parts_stock = self.inventory_data.get("table_parts_current", {})
             
-            if color_key not in self.top_rail_dashboard_widgets[size_layout_key]:
-                color_group_deficit = QGroupBox(config['color_display'])
-                form_layout_deficit = QFormLayout(color_group_deficit)
-                form_layout_deficit.setContentsMargins(15, 25, 15, 15)
+            # Clear and set up table
+            self.tr_parts_table.setRowCount(len(top_rail_parts))
+            row = 0
+            
+            for part_name, qty_per_rail in top_rail_parts.items():
+                # Get stock count from either hardware or table parts
+                stock_count = hardware_parts_stock.get(part_name, table_parts_stock.get(part_name, 0))
                 
-                hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
-                q_color = QColor(hex_color_code) if hex_color_code.startswith('#') else QColor("#333333")
+                # Calculate how many rails can be made with this part
+                rails_possible = stock_count // qty_per_rail if qty_per_rail > 0 else 0
                 
-                # Define label style here before using it
-                text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
-                label_style = f"color: {text_color}; font-size: 16pt; margin: 2px;"  # Increased font size
-
-                try:
-                    if not hex_color_code.startswith('#'):  # If it's an image path
-                        if os.path.exists(hex_color_code):
-                            logging.info(f"Loading image for {color_key}: {hex_color_code}")
-                            # Convert path to proper format for QSS
-                            hex_color_code = hex_color_code.replace('\\', '/')
-                            style = f"""
-                                QGroupBox {{
-                                    border: 1px solid #d0d0d0;
-                                    border-radius: 8px;
-                                    margin-top: 20px;
-                                    padding: 15px;
-                                    background-image: url("{hex_color_code}");
-                                    background-repeat: no-repeat;
-                                    background-position: center;
-                                }}
-                            """
-                        else:
-                            logging.error(f"Image not found: {hex_color_code}")
-                            style = self._get_fallback_style()
-                    else:
-                        style = self._get_color_style(hex_color_code)
-                    
-                    color_group_deficit.setStyleSheet(style)
-                    logging.info(f"Successfully set style for {color_key}")
-                    
-                except Exception as e:
-                    logging.error(f"Error setting style for {color_key}: {e}")
-                    color_group_deficit.setStyleSheet(self._get_fallback_style())
-
-                # Continue with label creation using defined label_style
-                body_stock_val_label = QLabel("N/A")
-                body_stock_val_label.setStyleSheet(label_style)
-                body_stock_val_label.setObjectName("StockValue")
+                # Create table items
+                name_item = QTableWidgetItem(part_name)
+                stock_item = QTableWidgetItem(str(stock_count))
+                per_rail_item = QTableWidgetItem(str(qty_per_rail))
+                rails_item = QTableWidgetItem(str(rails_possible))
                 
-                rail_stock_val_label = QLabel("N/A")
-                rail_stock_val_label.setStyleSheet(label_style)
-                rail_stock_val_label.setObjectName("StockValue")
+                # Center align numbers
+                stock_item.setTextAlignment(Qt.AlignCenter)
+                per_rail_item.setTextAlignment(Qt.AlignCenter)
+                rails_item.setTextAlignment(Qt.AlignCenter)
                 
-                status_val_label = QLabel("N/A")
-                status_val_label.setStyleSheet(label_style)
-                status_val_label.setWordWrap(True)
-
-                body_label = QLabel("Body Stock:")
-                body_label.setStyleSheet(label_style)
-                rail_label = QLabel("Top Rail Stock:")
-                rail_label.setStyleSheet(label_style)
-                status_label = QLabel("Status:")
-                status_label.setStyleSheet(label_style)
-
-                form_layout_deficit.addRow(body_label, body_stock_val_label)
-                form_layout_deficit.addRow(rail_label, rail_stock_val_label)
-                form_layout_deficit.addRow(status_label, status_val_label)
-
-                self.top_rail_dashboard_widgets[size_layout_key][color_key] = {
-                    "body_stock": body_stock_val_label,
-                    "rail_stock": rail_stock_val_label,
-                    "status": status_val_label,
-                    "group_box": color_group_deficit,
-                    "text_color": text_color
-                }
-                if config['size'] == "7ft":
-                    self.tr_dash_deficits_layout_7ft.addWidget(color_group_deficit)
+                # Color coding based on rails possible
+                if rails_possible < 5:
+                    color = QColor("#c62828")  # Red
+                elif rails_possible < 10:
+                    color = QColor("#f57c00")  # Orange
                 else:
-                    self.tr_dash_deficits_layout_6ft.addWidget(color_group_deficit)
+                    color = QColor("#2e7d32")  # Green
+                
+                stock_item.setForeground(color)
+                rails_item.setForeground(color)
+                
+                # Set items in table
+                self.tr_parts_table.setItem(row, 0, name_item)
+                self.tr_parts_table.setItem(row, 1, stock_item)
+                self.tr_parts_table.setItem(row, 2, per_rail_item)
+                self.tr_parts_table.setItem(row, 3, rails_item)
+                
+                row += 1
             
-            widgets = self.top_rail_dashboard_widgets[size_layout_key][color_key]
-            body_stock = finished_stock.get(config["body_key"], 0)
-            rail_stock = finished_stock.get(config["rail_key"], 0)
+            # Adjust column widths
+            self.tr_parts_table.resizeColumnsToContents()
 
-            widgets["body_stock"].setText(str(body_stock))
-            widgets["rail_stock"].setText(str(rail_stock))
+        # --- Page 3: Top Rail Deficits (vs Bodies) ---
+        if hasattr(self, 'top_rail_dashboard_widgets') and "deficits_7ft" in self.top_rail_dashboard_widgets:
+            finished_stock = self.inventory_data.get("finished_components_stock", {})
             
-            # Base style for these labels (can be simple, specific styles below will override)
-            base_deficit_value_style = "font-size: 10pt;"
-            widgets["body_stock"].setStyleSheet(base_deficit_value_style) 
-            widgets["rail_stock"].setStyleSheet(base_deficit_value_style) 
+            # Ensure layouts are clear before repopulating (if dynamic creation per update)
+            # For this version, assuming widgets are created once in setup_top_rail_dashboard_tab
+            # and then updated. If they are recreated, clearing logic would go here.
 
-            status_text = ""
-            status_style = "font-size: 10pt; color: #555;" # Default neutral
-            
-            if body_stock == 0 and rail_stock == 0:
-                status_text = "No bodies or rails."
-                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-            elif body_stock == rail_stock:
-                status_text = f"Balanced. Can make {body_stock} sets."
-                status_style = "font-size: 10pt; font-weight: bold; color: #2e7d32;"
-                # Make both values green when balanced
-                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
-                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
-            elif body_stock > rail_stock:
-                needed = body_stock - rail_stock
-                status_text = f"{needed} more Top Rails needed."
-                status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
-                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
-                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-            else: # rail_stock > body_stock
-                needed = rail_stock - body_stock
-                status_text = f"{needed} more Bodies needed."
-                status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
-                widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
-            
-            widgets["status"].setText(status_text)
-            widgets["status"].setStyleSheet(status_style)
+            for config in self.table_configurations:
+                size_layout_key = f"deficits_{config['size']}"
+                color_key = config['color_display']
 
-        # --- Update Top Rail Parts Inventory Data ---
-        # Define top rail parts and their requirements
-        top_rail_parts = {
-            "Top rail trim long length": {"per_rail": 2, "category": "table_parts"},
-            "Top rail trim short length": {"per_rail": 4, "category": "table_parts"},
-            "Chrome corner": {"per_rail": 4, "category": "table_parts"},
-            "Center pockets": {"per_rail": 2, "category": "table_parts"},
-            "Corner pockets": {"per_rail": 4, "category": "table_parts"},
-            "M5 x 18 x 1.25 Penny Mudguard Washer": {"per_rail": 16, "category": "hardware_parts"},
-            "M5 x 20 Socket Cap Screw": {"per_rail": 16, "category": "hardware_parts"},
-            "Catch Plate": {"per_rail": 12, "category": "hardware_parts"},
-            "4.8x32mm Self Tapping Screw": {"per_rail": 24, "category": "hardware_parts"}
-        }
+                # Ensure widget dictionary structure exists
+                if color_key not in self.top_rail_dashboard_widgets[size_layout_key]:
+                    color_group_deficit = QGroupBox(config['color_display'])
+                    form_layout_deficit = QFormLayout(color_group_deficit)
+                    form_layout_deficit.setContentsMargins(15, 25, 15, 15)  # Add more padding
+                    
+                    hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
+                    q_color = QColor(hex_color_code)
+                    
+                    color_group_deficit.setAutoFillBackground(True)
+                    color_group_deficit.setStyleSheet(f"""
+                        QGroupBox {{
+                            border: 1px solid #d0d0d0;
+                            border-radius: 8px;
+                            margin-top: 20px;
+                            padding: 15px;
+                            background-image: url({hex_color_code.replace(os.sep, '/')});
+                            background-repeat: no-repeat;
+                            background-size: cover;
+                            background-position: center;
+                            background-origin: content;
+                            background-color: transparent;
+                        }}
+                        QGroupBox::title {{
+                            color: black;
+                            subcontrol-origin: margin;
+                            left: 7px;
+                            padding: 0 5px 0 5px;
+                            background-color: rgba(255, 255, 255, 0.8);
+                            font-weight: bold;
+                        }}
+                    """)  # Added closing parenthesis here
+                    
+                    # Always use white text for dark backgrounds and black for light ones
+                    text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
+                    label_style = f"color: {text_color}; font-size: 11pt; margin: 2px;"  # Increased font size and margin
+                    
+                    # --- Create and style labels ---
+                    body_stock_val_label = QLabel("N/A")
+                    body_stock_val_label.setStyleSheet(label_style)
+                    body_stock_val_label.setObjectName("StockValue")
+                    
+                    rail_stock_val_label = QLabel("N/A")
+                    rail_stock_val_label.setStyleSheet(label_style)
+                    rail_stock_val_label.setObjectName("StockValue")
+                    
+                    status_val_label = QLabel("N/A")
+                    status_val_label.setStyleSheet(label_style)
+                    status_val_label.setWordWrap(True)
 
-        # Update parts inventory table
-        self.tr_parts_table.setRowCount(len(top_rail_parts))
-        row = 0
+                    body_label = QLabel("Body Stock:")
+                    body_label.setStyleSheet(label_style)
+                    rail_label = QLabel("Top Rail Stock:")
+                    rail_label.setStyleSheet(label_style)
+                    status_label = QLabel("Status:")
+                    status_label.setStyleSheet(label_style)
 
-        for part_name, details in top_rail_parts.items():
-            # Get stock from appropriate category
-            category_data = self.inventory_data.get(f"{details['category']}_current", {})
-            stock_count = category_data.get(part_name, 0)
-            per_rail = details['per_rail']
-            rails_possible = stock_count // per_rail if per_rail > 0 else 0
+                    form_layout_deficit.addRow(body_label, body_stock_val_label)
+                    form_layout_deficit.addRow(rail_label, rail_stock_val_label)
+                    form_layout_deficit.addRow(status_label, status_val_label)
 
-            # Create table items
-            name_item = QTableWidgetItem(part_name)
-            stock_item = QTableWidgetItem(str(stock_count))
-            per_rail_item = QTableWidgetItem(str(per_rail))
-            rails_possible_item = QTableWidgetItem(str(rails_possible))
+                    self.top_rail_dashboard_widgets[size_layout_key][color_key] = {
+                        "body_stock": body_stock_val_label,
+                        "rail_stock": rail_stock_val_label,
+                        "status": status_val_label,
+                        "group_box": color_group_deficit,
+                        "text_color": text_color
+                    }
+                    if config['size'] == "7ft":
+                        self.tr_dash_deficits_layout_7ft.addWidget(color_group_deficit)
+                    else:
+                        self.tr_dash_deficits_layout_6ft.addWidget(color_group_deficit)
+                
+                widgets = self.top_rail_dashboard_widgets[size_layout_key][color_key]
+                body_stock = finished_stock.get(config["body_key"], 0)
+                rail_stock = finished_stock.get(config["rail_key"], 0)
 
-            # Center align numbers
-            for item in [stock_item, per_rail_item, rails_possible_item]:
-                item.setTextAlignment(Qt.AlignCenter)
+                widgets["body_stock"].setText(str(body_stock))
+                widgets["rail_stock"].setText(str(rail_stock))
+                
+                # Base style for these labels (can be simple, specific styles below will override)
+                base_deficit_value_style = "font-size: 10pt;"
+                widgets["body_stock"].setStyleSheet(base_deficit_value_style) 
+                widgets["rail_stock"].setStyleSheet(base_deficit_value_style) 
 
-            # Color coding based on rails possible
-            if rails_possible < 5:
-                color = QColor("#c62828")  # Red
-            elif rails_possible < 10:
-                color = QColor("#f57c00")  # Orange
-            else:
-                color = QColor("#2e7d32")  # Green
+                status_text = ""
+                status_style = "font-size: 10pt; color: #555;" # Default neutral
+                
+                if body_stock == 0 and rail_stock == 0:
+                    status_text = "No bodies or rails."
+                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                elif body_stock == rail_stock:
+                    status_text = f"Balanced. Can make {body_stock} sets."
+                    status_style = "font-size: 10pt; font-weight: bold; color: #2e7d32;"
+                    # Make both values green when balanced
+                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
+                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
+                elif body_stock > rail_stock:
+                    needed = body_stock - rail_stock
+                    status_text = f"{needed} more Top Rails needed."
+                    status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
+                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
+                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                else: # rail_stock > body_stock
+                    needed = rail_stock - body_stock
+                    status_text = f"{needed} more Bodies needed."
+                    status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
+                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
+                
+                widgets["status"].setText(status_text)
+                widgets["status"].setStyleSheet(status_style)
 
-            stock_item.setForeground(color)
-            rails_possible_item.setForeground(color)
-
-            # Set items in table
-            self.tr_parts_table.setItem(row, 0, name_item)
-            self.tr_parts_table.setItem(row, 1, stock_item)
-            self.tr_parts_table.setItem(row, 2, per_rail_item)
-            self.tr_parts_table.setItem(row, 3, rails_possible_item)
-            row += 1
-
-        # Adjust table appearance
-        self.tr_parts_table.resizeColumnsToContents()
-        font = QFont()
-        font.setPointSize(14)
-        self.tr_parts_table.setFont(font)
-        self.tr_parts_table.verticalHeader().setDefaultSectionSize(40)
 
     def check_api_connection(self):
         self.connection_label.setText("API: Checking...")
@@ -1012,32 +1085,22 @@ class MainWindow(QMainWindow):
         self.refresh_button.setEnabled(True)
 
     def refresh_all_data(self):
-        """Refresh all data with better error handling."""
         self.statusBar().showMessage("Refreshing all data from API...")
-        self.refresh_button.setEnabled(False)
-        try:
-            selected_prod_year = int(self.prod_year_combo.currentText())
-            selected_prod_month = self.prod_month_combo.currentData()
-            prod_daily_data = self.api_client.get_production_for_month(selected_prod_year, selected_prod_month)
-            
-            self.inventory_data = self.api_client.get_inventory_summary()
-            if self.inventory_data is None:
-                logging.error("Failed to get inventory data")
-                QMessageBox.warning(self, "API Error", "Failed to fetch inventory data. Some features may be unavailable.")
-            
-            self.update_production_table(prod_daily_data)
-            self.update_summary_counts(prod_daily_data)
-            self.update_parts_inventory_table(self.inventory_data)
-            self.update_assembly_deficit_display()
-            self.update_top_rail_dashboard()
-            
-            self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
-        except Exception as e:
-            logging.error(f"Error refreshing data: {e}")
-            self.statusBar().showMessage("Error refreshing data")
-            QMessageBox.critical(self, "Error", f"Failed to refresh data: {str(e)}")
-        finally:
-            self.refresh_button.setEnabled(True)
+        self.refresh_button.setEnabled(False) 
+
+        selected_prod_year = int(self.prod_year_combo.currentText())
+        selected_prod_month = self.prod_month_combo.currentData() 
+        prod_daily_data = self.api_client.get_production_for_month(selected_prod_year, selected_prod_month)
+        self.update_production_table(prod_daily_data)
+        self.update_summary_counts(prod_daily_data)
+
+        self.inventory_data = self.api_client.get_inventory_summary()
+        self.update_parts_inventory_table(self.inventory_data)
+        self.update_assembly_deficit_display() 
+        self.update_top_rail_dashboard() # Refresh the new dashboard
+
+        self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
+        self.refresh_button.setEnabled(True)
 
     def save_settings(self):
         self.config["API_URL"] = self.api_url_input.text().strip()
