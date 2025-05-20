@@ -328,6 +328,10 @@ class MainWindow(QMainWindow):
 
     def __init__(self, config=None):
         super().__init__()
+        # Initialize timers first
+        self.refresh_timer = QTimer(self)
+        self.dashboard_scroll_timer = QTimer(self)
+
         self.config = config if config else load_config()
         self.api_client = APIClient(
             self.config.get("API_URL", DEFAULT_CONFIG["API_URL"]),
@@ -366,12 +370,11 @@ class MainWindow(QMainWindow):
         self.setup_ui()
         self.setStyleSheet(STYLESHEET) 
         self.check_api_connection() 
-        self.refresh_timer = QTimer(self)
-        self.refresh_timer.timeout.connect(self.refresh_all_data)
-        self.refresh_timer.start(300000) 
 
-        # Timer for Top Rail Dashboard page scrolling
-        self.dashboard_scroll_timer = QTimer(self)
+        # Configure timers
+        self.refresh_timer.timeout.connect(self.refresh_all_data)
+        self.refresh_timer.start(300000)  # 5 minutes
+
         self.dashboard_scroll_timer.timeout.connect(self.scroll_dashboard_page)
         scroll_time = self.config.get("SCROLL_TIMER", 10)
         self.dashboard_scroll_timer.start(scroll_time * 1000)
@@ -1111,21 +1114,16 @@ class MainWindow(QMainWindow):
 
             # Handle low stock by showing warning section
             if low_stock_items:
-                # Stop auto-scrolling immediately
                 self.dashboard_scroll_timer.stop()
+                self.dashboard_stacked_widget.setCurrentIndex(1)  # Switch to inventory page
                 
                 if hasattr(self, 'tr_warning_text'):
                     warning_text = "Critical Top Rail Parts Low:\n\n"
                     for part_name, tables in low_stock_items:
                         warning_text += f"• {part_name}:\n  Only enough for {tables} tables!\n\n"
-                    
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
-                    
-                    # Force switch to parts inventory page and stay there
-                    self.dashboard_stacked_widget.setCurrentIndex(1)
             else:
-                # No warnings - hide warning section and resume scrolling
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
                 if not self.dashboard_scroll_timer.isActive():
