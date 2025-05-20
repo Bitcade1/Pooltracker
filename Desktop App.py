@@ -1012,8 +1012,31 @@ class MainWindow(QMainWindow):
                     
                     color_group_deficit.setAutoFillBackground(True)
                     
-                    # Convert Windows path to URL format for CSS
-                    image_path = hex_color_code.replace('\\', '/')
+                    # Check if image path exists and is a file
+                    if isinstance(hex_color_code, str) and hex_color_code.startswith('#'):
+                        # It's a color hex code
+                        bg_style = f"background-color: {hex_color_code};"
+                    else:
+                        # It's supposed to be an image path
+                        if os.path.isfile(hex_color_code):
+                            image_path = hex_color_code.replace('\\', '/')
+                            bg_style = f"background-image: url('{image_path}');"
+                            bg_style += """
+                                background-repeat: no-repeat;
+                                background-position: center;
+                                background-origin: content;
+                            """
+                        else:
+                            # Fallback colors for each finish type
+                            colors = {
+                                "Black": "#2d3436",
+                                "Rustic Oak": "#cc8e35",
+                                "Grey Oak": "#636e72",
+                                "Stone": "#b2bec3",
+                                "Default": "#E0E0E0"
+                            }
+                            bg_color = colors.get(color_key, colors["Default"])
+                            bg_style = f"background-color: {bg_color};"
                     
                     color_group_deficit.setStyleSheet(f"""
                         QGroupBox {{
@@ -1021,11 +1044,7 @@ class MainWindow(QMainWindow):
                             border-radius: 8px;
                             margin-top: 20px;
                             padding: 15px;
-                            background-image: url("{image_path}");
-                            background-repeat: no-repeat;
-                            background-position: center;
-                            background-origin: content;
-                            background-color: transparent;
+                            {bg_style}
                         }}
                         QGroupBox::title {{
                             color: black;
