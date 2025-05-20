@@ -19,9 +19,10 @@ import calendar
 import re 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
-from PyQt5.QtCore import Qt, QTimer, QMetaObject
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.sip import wrappertype  # Add this import
 
-class MainWindow(QMainWindow):
+class MainWindow(QMainWindow, metaclass=wrappertype):
     """Main window class for the Pool Table Tracker application."""
     # Register class with Qt's meta-object system
     __class__ = QMainWindow
