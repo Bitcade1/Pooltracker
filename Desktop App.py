@@ -11,22 +11,24 @@ Colors table finish boxes in Assembly Capacity tab.
 """
 import sys
 import os
-import warnings  # <-- Add this import
+import warnings
 import requests
 from datetime import datetime, timedelta, date
 import json
-import calendar 
-import re 
+import calendar
+import re
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QLineEdit, QGroupBox, QFormLayout,
     QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QTabWidget, QComboBox, QCheckBox, QProgressBar, QFrame,
-    QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget # Added QStackedWidget
+    QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget
 )
-from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap  # Added QPixmap
+from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QTimer
+
+from LoadingScreen import LoadingScreen  # Import the LoadingScreen class
 
 # --- Modern UI Styling ---
 STYLESHEET = """
@@ -1442,11 +1444,17 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    # Removed global QtGui as it's not best practice and QIcon/QColor/QPalette are imported directly
-    # from PyQt5 import QtGui 
+
+    # --- Loading Screen ---
+    splash_pix = QPixmap(os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "splash.png"))  # Replace with your splash image
+    splash = LoadingScreen(splash_pix)
+    splash.show()
+    splash.showMessage("Loading application...", alignment=Qt.AlignBottom | Qt.AlignCenter, color=QColor("black"))
+    app.processEvents()  # Ensure the splash screen is displayed
 
     window = MainWindow()
     window.show()
+    splash.finish(window)  # Close splash screen when main window is ready
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
