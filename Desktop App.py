@@ -1131,6 +1131,7 @@ class MainWindow(QMainWindow):
                 # No warnings - hide warning section and resume scrolling
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
+                # Ensure timer is running if no warnings
                 if not self.dashboard_scroll_timer.isActive():
                     self.dashboard_scroll_timer.start()
 
