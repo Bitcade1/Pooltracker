@@ -60,6 +60,38 @@ def api_status():
         "timestamp": dt.datetime.now(dt.timezone.utc).isoformat() 
     })
 
+@api.route('/top_rail/next_serial', methods=['GET'])
+@require_api_token
+def get_next_top_rail_serial():
+    """Get the next serial number for top rails"""
+    try:
+        # Get the most recent top rail
+        last_rail = TopRail.query.order_by(TopRail.id.desc()).first()
+        
+        if not last_rail or not last_rail.serial_number:
+            return jsonify({"next_serial": "1000"})  # Default starting number
+            
+        # Check if it's a 6ft or 7ft rail
+        current_serial = last_rail.serial_number
+        is_6ft = " - 6" in current_serial or "-6" in current_serial
+
+        # Extract the base number
+        if is_6ft:
+            base_serial = current_serial.split('-')[0].strip()
+        else:
+            base_serial = current_serial
+
+        try:
+            # Increment the number
+            next_num = str(int(base_serial) + 1)
+        except ValueError:
+            next_num = "1000"  # Fallback if conversion fails
+
+        return jsonify({"next_serial": next_num})
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate next serial number: {str(e)}"}), 500
+
 # --- New Endpoints for Performance Timer ---
 @api.route('/performance/task_completed', methods=['POST'])
 @require_api_token

@@ -584,8 +584,18 @@ class MainWindow(QMainWindow):
         # Current Performance
         current_perf_group = QGroupBox("Current Performance")
         current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A"); self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"), self.tr_dash_current_time_label)
+        
+        # Add Next Serial Number field
+        self.tr_dash_next_serial_label = QLabel("N/A")
+        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
+        current_perf_layout.addRow(QLabel("Next Serial Number:", objectName="DashboardMetricLabel"), 
+                                 self.tr_dash_next_serial_label)
+        
+        # Rest of the current performance metrics
+        self.tr_dash_current_time_label = QLabel("N/A")
+        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
+        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
+                                 self.tr_dash_current_time_label)
         self.tr_dash_avg_time_label = QLabel("N/A"); self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
         current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), self.tr_dash_avg_time_label)
         self.tr_dash_predicted_label = QLabel("N/A"); self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
@@ -1004,6 +1014,17 @@ class MainWindow(QMainWindow):
         # --- Page 1: Performance - Update with real production data ---
         if hasattr(self, 'tr_dash_current_time_label'):
             try:
+                # Get next serial number
+                next_serial_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/next_serial",
+                    headers=self.api_client.headers
+                )
+                if next_serial_response.status_code == 200:
+                    next_serial = next_serial_response.json().get("next_serial", "N/A")
+                    self.tr_dash_next_serial_label.setText(next_serial)
+                else:
+                    self.tr_dash_next_serial_label.setText("ERR")
+
                 # Fetch current time for the ongoing top rail
                 user_id = "user_123"  # Replace with actual user ID
                 current_time_response = requests.get(
@@ -1029,6 +1050,7 @@ class MainWindow(QMainWindow):
                     )
             except Exception as e:
                 print(f"Error fetching performance data: {e}")
+                self.tr_dash_next_serial_label.setText("ERR")
                 self.tr_dash_current_time_label.setText("ERR")
                 self.tr_dash_avg_time_label.setText("ERR")
 
