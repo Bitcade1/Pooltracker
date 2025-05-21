@@ -3684,18 +3684,6 @@ def end_top_rail():
 
     return jsonify({"error": "No active timing found for user"}), 404
 
-@app.route('/api/top_rail/average_time', methods=['GET'])
-def get_average_time():
-    """Calculate the average time for top rails."""
-    completed_timings = [
-        (timing['end_time'] - timing['start_time']).total_seconds()
-        for timing in top_rail_timings if timing['end_time'] is not None
-    ]
-    if not completed_timings:
-        return jsonify({"average_time": None}), 200
-
-    average_time = sum(completed_timings) / len(completed_timings)
-    return jsonify({"average_time": average_time}), 200
 
 @app.route('/api/top_rail/current_time', methods=['GET'])
 def get_current_time():
@@ -3710,6 +3698,33 @@ def get_current_time():
             return jsonify({"current_time": elapsed_time}), 200
 
     return jsonify({"current_time": None}), 200
+
+@app.route('/api/top_rail/average_time', methods=['GET'])
+def get_average_time():
+    """Calculate the average time for top rails."""
+    completed_timings = [
+        (timing['end_time'] - timing['start_time']).total_seconds()
+        for timing in top_rail_timings if timing['end_time'] is not None
+    ]
+    if not completed_timings:
+        return jsonify({"average_time": None}), 200
+
+    # Calculate today's average only
+    today = datetime.now().date()
+    today_timings = [
+        (timing['end_time'] - timing['start_time']).total_seconds()
+        for timing in top_rail_timings 
+        if timing['end_time'] is not None and timing['end_time'].date() == today
+    ]
+
+    average_time = sum(today_timings) / len(today_timings) if today_timings else None
+    predicted_daily = (8 * 60 * 60) / average_time if average_time else None
+
+    return jsonify({
+        "average_time": average_time,
+        "predicted_daily": round(predicted_daily) if predicted_daily else None
+    }), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
