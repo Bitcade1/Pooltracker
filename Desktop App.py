@@ -585,12 +585,6 @@ class MainWindow(QMainWindow):
         current_perf_group = QGroupBox("Current Performance")
         current_perf_layout = QFormLayout()
         
-        # Add Next Serial Number field
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Next Serial Number:", objectName="DashboardMetricLabel"), 
-                                 self.tr_dash_next_serial_label)
-        
         # Rest of the current performance metrics
         self.tr_dash_current_time_label = QLabel("N/A")
         self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
@@ -663,10 +657,39 @@ class MainWindow(QMainWindow):
         prod_stats_layout.addWidget(year_label, 0, 2)
         prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
 
+        # Add Next Serial Number section below production stats
+        next_serial_label = QLabel("Next Serial Number")
+        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
+        next_serial_label.setAlignment(Qt.AlignCenter)
+        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
+
+        self.tr_dash_next_serial_label = QLabel("N/A")
+        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
+        self.tr_dash_next_serial_label.setStyleSheet("""
+            font-size: 48pt;
+            font-weight: bold;
+            color: #e74c3c;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 10px;
+        """)
+        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
+        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
+
         prod_stats_group.setLayout(prod_stats_layout)
         layout1.addWidget(prod_stats_group)
         
-        layout1.addStretch()
+        # Remove the next serial number from the current performance group
+        current_perf_group = QGroupBox("Current Performance")
+        current_perf_layout = QFormLayout()
+        self.tr_dash_current_time_label = QLabel("N/A")
+        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
+        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
+                                 self.tr_dash_current_time_label)
+        
+        # ...rest of existing code...
+
         self.dashboard_stacked_widget.addWidget(page1)
 
         # Page 2: Parts Inventory - Updated layout with warning section
