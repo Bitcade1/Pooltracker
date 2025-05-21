@@ -1046,45 +1046,61 @@ class MainWindow(QMainWindow):
         # --- Page 1: Performance - Update with real production data ---
         if hasattr(self, 'tr_dash_current_time_label'):
             try:
-                # Get next serial number
-                next_serial_response = requests.get(
-                    f"{self.api_client.base_url}/api/top_rail/next_serial",
-                    headers=self.api_client.headers
-                )
-                if next_serial_response.status_code == 200:
-                    next_serial = next_serial_response.json().get("next_serial", "N/A")
-                    self.tr_dash_next_serial_label.setText(next_serial)
-                else:
-                    self.tr_dash_next_serial_label.setText("ERR")
-
-                # Fetch current time for the ongoing top rail
-                user_id = "user_123"  # Replace with actual user ID
+                # Get current time
                 current_time_response = requests.get(
                     f"{self.api_client.base_url}/api/top_rail/current_time",
-                    params={"user_id": user_id},
+                    params={"user_id": "default_user"},
                     headers=self.api_client.headers
                 )
                 if current_time_response.status_code == 200:
                     current_time = current_time_response.json().get("current_time")
-                    self.tr_dash_current_time_label.setText(
-                        f"{current_time:.2f} seconds" if current_time else "N/A"
-                    )
+                    if current_time is not None:
+                        minutes = int(current_time // 60)
+                        seconds = int(current_time % 60)
+                        self.tr_dash_current_time_label.setText(f"{minutes:02d}:{seconds:02d}")
+                    else:
+                        self.tr_dash_current_time_label.setText("00:00")
+                else:
+                    self.tr_dash_current_time_label.setText("ERR")
 
-                # Fetch average time for top rails
+                # Get average time and predicted daily
                 avg_time_response = requests.get(
                     f"{self.api_client.base_url}/api/top_rail/average_time",
                     headers=self.api_client.headers
                 )
                 if avg_time_response.status_code == 200:
-                    avg_time = avg_time_response.json().get("average_time")
-                    self.tr_dash_avg_time_label.setText(
-                        f"{avg_time:.2f} seconds" if avg_time else "N/A"
-                    )
+                    data = avg_time_response.json()
+                    avg_time = data.get("average_time")
+                    predicted = data.get("predicted_daily")
+                    
+                    if avg_time is not None:
+                        minutes = int(avg_time // 60)
+                        seconds = int(avg_time % 60)
+                        self.tr_dash_avg_time_label.setText(f"{minutes:02d}:{seconds:02d}")
+                    else:
+                        self.tr_dash_avg_time_label.setText("00:00")
+                        
+                    if predicted is not None:
+                        self.tr_dash_predicted_label.setText(str(predicted))
+                    else:
+                        self.tr_dash_predicted_label.setText("0")
+                else:
+                    self.tr_dash_avg_time_label.setText("ERR")
+                    self.tr_dash_predicted_label.setText("ERR")
+
+                # Get next serial number - existing code...
+                next_serial_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/next_serial",
+                    headers=self.api_client.headers
+                )
+                # ...existing code...
+
             except Exception as e:
                 print(f"Error fetching performance data: {e}")
-                self.tr_dash_next_serial_label.setText("ERR")
                 self.tr_dash_current_time_label.setText("ERR")
                 self.tr_dash_avg_time_label.setText("ERR")
+                self.tr_dash_predicted_label.setText("ERR")
+                self.tr_dash_next_serial_label.setText("ERR")
 
         # --- Page 2: Parts Inventory - Update table with real data ---
         if hasattr(self, 'tr_parts_table'):
