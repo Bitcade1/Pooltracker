@@ -1311,18 +1311,25 @@ class MainWindow(QMainWindow):
         self.refresh_button.setEnabled(False)
 
         try:
-            # Fetch production data
+            # Fetch production data for the entire year
             selected_prod_year = int(self.prod_year_combo.currentText())
-            selected_prod_month = self.prod_month_combo.currentData()
-            prod_daily_data = self.api_client.get_production_for_month(selected_prod_year, selected_prod_month)
-            self.update_production_table(prod_daily_data)
-            self.update_summary_counts(prod_daily_data)
+            yearly_data = []
+            
+            # Fetch data for all months in the selected year
+            for month in range(1, 13):
+                monthly_data = self.api_client.get_production_for_month(selected_prod_year, month)
+                if monthly_data:
+                    yearly_data.extend(monthly_data)
+
+            # Update production table and summary with yearly data
+            self.update_production_table(yearly_data)
+            self.update_summary_counts(yearly_data)
 
             # Fetch inventory data
-            self.parts_table.setUpdatesEnabled(False)  # Temporarily disable updates for smoother UI
+            self.parts_table.setUpdatesEnabled(False)
             self.inventory_data = self.api_client.get_inventory_summary()
             self.update_parts_inventory_table(self.inventory_data)
-            self.parts_table.setUpdatesEnabled(True)  # Re-enable updates
+            self.parts_table.setUpdatesEnabled(True)
 
             # Update other components
             self.update_assembly_deficit_display()
