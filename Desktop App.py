@@ -891,25 +891,31 @@ class MainWindow(QMainWindow):
         self.last_update_label.setText(datetime.now().strftime('%d %b %Y, %H:%M:%S'))
 
     def update_production_table(self, daily_data_list):
-        """Updates the production table with daily data."""
+        """Updates the production table with daily data, excluding weekends."""
         if not daily_data_list:
             self.production_table.setRowCount(0)
             return
-            
-        self.production_table.setRowCount(len(daily_data_list))
+        
+        # Filter out weekends (Saturday and Sunday)
+        weekday_data = [
+            day for day in daily_data_list 
+            if datetime.strptime(day["date"], "%Y-%m-%d").weekday() < 5
+        ]
+        
+        self.production_table.setRowCount(len(weekday_data))
         
         # Larger font for table
         table_font = QFont()
         table_font.setPointSize(12)
         
-        for row, day_data in enumerate(daily_data_list):
+        for row, day_data in enumerate(weekday_data):
             # Format date
             try:
                 date_obj = datetime.strptime(day_data["date"], "%Y-%m-%d").date()
                 friendly_date = date_obj.strftime("%a, %d %b %Y")
             except ValueError:
                 friendly_date = day_data["date"]
-                
+            
             # Create items
             date_item = QTableWidgetItem(friendly_date)
             bodies_item = QTableWidgetItem(str(day_data.get("bodies", 0)))
@@ -928,7 +934,7 @@ class MainWindow(QMainWindow):
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                    
+            
             # Handle error states
             if day_data.get("error_info"):
                 tooltip = day_data["error_info"]
@@ -945,10 +951,13 @@ class MainWindow(QMainWindow):
         self.production_table.resizeColumnsToContents()
 
     def update_summary_counts(self, daily_data_list):
-        """Updates the summary counts for the entire year."""
-        total_bodies = sum(day.get("bodies", 0) for day in daily_data_list)
-        total_pods = sum(day.get("pods", 0) for day in daily_data_list)
-        total_rails = sum(day.get("top_rails", 0) for day in daily_data_list)
+        """Updates the summary counts for the selected month only."""
+        # Filter out weekends (Saturday and Sunday)
+        weekday_data = [day for day in daily_data_list if datetime.strptime(day["date"], "%Y-%m-%d").weekday() < 5]
+        
+        total_bodies = sum(day.get("bodies", 0) for day in weekday_data)
+        total_pods = sum(day.get("pods", 0) for day in weekday_data)
+        total_rails = sum(day.get("top_rails", 0) for day in weekday_data)
         self.bodies_count_label.setText(str(total_bodies))
         self.pods_count_label.setText(str(total_pods))
         self.rails_count_label.setText(str(total_rails))
