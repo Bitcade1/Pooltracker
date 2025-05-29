@@ -881,25 +881,33 @@ def pods():
             flash(f"Not enough {carpet_part} in stock!", "error")
             return redirect(url_for('pods'))
         
-        # Deduct one felt and one carpet
-        felt_entry.count -= 1
-        carpet_entry.count -= 1
-        
-        # Create and save the new pod
-        new_pod = CompletedPods(
-            worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
-            serial_number=serial_number,
-            lunch=lunch,
-            issue=issue_text,
-            date=date.today()
-        )
+        # Check and deduct Tee Nuts
+        tee_nuts_entry = PrintedPartsCount.query.filter_by(part_name="M10x13mm Tee Nut").order_by(
+            PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        if not tee_nuts_entry or tee_nuts_entry.count < 16:
+            flash("Not enough M10x13mm Tee Nuts in stock! Need 16 per pod.", "error")
+            return redirect(url_for('pods'))
         
         try:
+            # Create and save the new pod
+            new_pod = CompletedPods(
+                worker=worker,
+                start_time=start_time,
+                finish_time=finish_time,
+                serial_number=serial_number,
+                lunch=lunch,
+                issue=issue_text,
+                date=date.today()
+            )
+            
+            # Deduct felt, carpet and tee nuts
+            felt_entry.count -= 1
+            carpet_entry.count -= 1
+            tee_nuts_entry.count -= 16
+
             db.session.add(new_pod)
             db.session.commit()
-            flash(f"Pod entry added successfully! Deducted 1 {felt_part} and 1 {carpet_part}", "success")
+            flash(f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, and 16 M10x13mm Tee Nuts", "success")
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
@@ -3532,6 +3540,8 @@ def sales_extrapolation():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
+    
+
     
     # Define the product list (in the exact order requested)
     products = [
