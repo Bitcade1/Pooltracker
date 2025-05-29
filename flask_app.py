@@ -860,17 +860,7 @@ def pods():
         except ValueError:
             finish_time = datetime.strptime(request.form['finish_time'], "%H:%M:%S").time()
         
-        new_pod = CompletedPods(
-            worker=worker,
-            start_time=start_time,
-            finish_time=finish_time,
-            serial_number=serial_number,
-            lunch=lunch,
-            issue=issue_text,
-            date=date.today()
-        )
-        
-        # Add logic to deduct felt and carpet based on pod size
+        # Determine if it's a 6ft pod based on serial number or size selector
         is_6ft = size_selector == '6ft' or ' - 6' in serial_number or '-6' in serial_number
         
         # Determine which felt and carpet to deduct
@@ -883,28 +873,40 @@ def pods():
         if not felt_entry or felt_entry.count < 1:
             flash(f"Not enough {felt_part} in stock!", "error")
             return redirect(url_for('pods'))
-        felt_entry.count -= 1
-
+        
         # Check and deduct carpet
         carpet_entry = PrintedPartsCount.query.filter_by(part_name=carpet_part).order_by(
             PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         if not carpet_entry or carpet_entry.count < 1:
             flash(f"Not enough {carpet_part} in stock!", "error")
             return redirect(url_for('pods'))
+        
+        # Deduct one felt and one carpet
+        felt_entry.count -= 1
         carpet_entry.count -= 1
-
-        # Now add the new pod
+        
+        # Create and save the new pod
+        new_pod = CompletedPods(
+            worker=worker,
+            start_time=start_time,
+            finish_time=finish_time,
+            serial_number=serial_number,
+            lunch=lunch,
+            issue=issue_text,
+            date=date.today()
+        )
+        
         try:
             db.session.add(new_pod)
             db.session.commit()
-            flash("Pods entry added successfully!", "success")
+            flash(f"Pod entry added successfully! Deducted 1 {felt_part} and 1 {carpet_part}", "success")
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('pods'))
-        
+
         return redirect(url_for('pods'))
-    
+
     today = date.today()
     # Retrieve today's pods.
     completed_pods = CompletedPods.query.filter_by(date=today).all()
