@@ -266,6 +266,51 @@ def admin():
         model = None
         if table == 'pods':
             model = CompletedPods
+            # When deleting a pod, restore felt, carpet and tee nuts
+            if 'delete' in request.form:
+                pod = CompletedPods.query.get(entry_id)
+                if pod:
+                    # Determine if it's a 6ft pod
+                    is_6ft = ' - 6' in pod.serial_number or '-6' in pod.serial_number
+                    
+                    # Determine which felt and carpet to restore
+                    felt_part = "6ft Felt" if is_6ft else "7ft Felt"
+                    carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
+                    
+                    # Restore felt
+                    felt_entry = PrintedPartsCount.query.filter_by(part_name=felt_part).order_by(
+                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+                    if felt_entry:
+                        felt_entry.count += 1
+                    else:
+                        new_felt = PrintedPartsCount(part_name=felt_part, count=1, 
+                                                   date=datetime.utcnow().date(), 
+                                                   time=datetime.utcnow().time())
+                        db.session.add(new_felt)
+                    
+                    # Restore carpet
+                    carpet_entry = PrintedPartsCount.query.filter_by(part_name=carpet_part).order_by(
+                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+                    if carpet_entry:
+                        carpet_entry.count += 1
+                    else:
+                        new_carpet = PrintedPartsCount(part_name=carpet_part, count=1,
+                                                     date=datetime.utcnow().date(),
+                                                     time=datetime.utcnow().time())
+                        db.session.add(new_carpet)
+                    
+                    # Restore tee nuts
+                    tee_nuts_entry = PrintedPartsCount.query.filter_by(part_name="M10x13mm Tee Nut").order_by(
+                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+                    if tee_nuts_entry:
+                        tee_nuts_entry.count += 16
+                    else:
+                        new_tee_nuts = PrintedPartsCount(part_name="M10x13mm Tee Nut", count=16,
+                                                       date=datetime.utcnow().date(),
+                                                       time=datetime.utcnow().time())
+                        db.session.add(new_tee_nuts)
+                    
+                    flash(f"Stock restored: +1 {felt_part}, +1 {carpet_part}, +16 Tee Nuts", "success")
         elif table == 'top rails':
             model = TopRail
         elif table == 'bodies':
