@@ -2109,7 +2109,7 @@ def bodies():
 
         # Helper function to determine if it's a 6ft table
         def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+            return serial.replace(" ", "").endswith("-6")
 
         # Adjust parts for 6ft tables
         if is_6ft(serial_number):
@@ -2333,12 +2333,7 @@ def top_rails():
         has_size_suffix = ' - 6' in clean_serial or '-6' in clean_serial
         if not has_size_suffix and size_selector == '6ft':
             # Add size suffix if not present
-            if '-' in clean_serial or ' - ' in clean_serial:
-                parts = re.split(r'(-| - )', clean_serial, 1)
-                base_serial = parts[0]
-                clean_serial = f"{base_serial} - 6"
-            else:
-                clean_serial = f"{clean_serial} - 6"
+            clean_serial = f"{clean_serial} - 6"
                 
         # Set the corrected serial number with appropriate suffixes
         serial_number = clean_serial
@@ -2367,10 +2362,11 @@ def top_rails():
             "Top rail trim short length": 4,
             "Chrome corner": 4,
             "Center pockets": 2,
-            "Corner pockets": 4
+            "Corner pockets": 4,
+            "Catch Plate": 12  # Added Catch Plates requirement
         }
 
-        # Deduct inventory for each part needed to complete the top rail
+        # Check inventory and deduct all required parts
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
             total_stock = sum(entry.count for entry in part_entries)
