@@ -1854,7 +1854,7 @@ class CushionJobRecord(db.Model):
     job_id = db.Column(db.Integer, db.ForeignKey('cushion_job.id'), nullable=False)
     goal_minutes = db.Column(db.Integer, default=0)  # Target time in minutes
     start_time = db.Column(db.DateTime, nullable=False)
-    finish_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
     paused_time = db.Column(db.DateTime)  # New field for tracking when a job is paused
     actual_minutes = db.Column(db.Float, nullable=False)
     setup_minutes = db.Column(db.Float)
@@ -2363,7 +2363,8 @@ def top_rails():
             "Chrome corner": 4,
             "Center pockets": 2,
             "Corner pockets": 4,
-            "Catch Plate": 12  # Added Catch Plates requirement
+            "Catch Plate": 12,  # Added new part
+            "4.8x32mm Self Tapping Screw": 24  # Added new part
         }
 
         # Check inventory and deduct all required parts
