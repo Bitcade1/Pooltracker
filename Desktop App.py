@@ -1041,15 +1041,26 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            # Get current timer status with auth headers
+            # Get current timer status
+            print("Requesting current timer from:", f"{self.api_client.base_url}/api/top_rail/current_timer")
             current_timer_response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/current_timer",
                 headers=self.api_client.headers,
                 timeout=5
             )
             
+            print(f"Timer Response Status: {current_timer_response.status_code}")
+            print(f"Timer Response Headers: {current_timer_response.headers}")
+            print(f"Timer Response Body: {current_timer_response.text}")
+            
+            if current_timer_response.status_code == 401:
+                print("Authentication failed for timer endpoint")
+                self.tr_dash_current_time_label.setText("AUTH ERR")
+                return
+
             if current_timer_response.status_code == 200:
                 timer_data = current_timer_response.json()
+                # Expected format from Flask: {"active": true/false, "elapsed_minutes": float}
                 if timer_data.get("active"):
                     elapsed_minutes = timer_data.get("elapsed_minutes", 0)
                     self.tr_dash_current_time_label.setText(f"{elapsed_minutes:.1f} min")
@@ -1059,20 +1070,32 @@ class MainWindow(QMainWindow):
                 print(f"Error getting current timer: {current_timer_response.status_code}")
                 self.tr_dash_current_time_label.setText("ERR")
 
-            # Get timing statistics with auth headers 
+            # Get timing statistics
+            print("Requesting timing stats from:", f"{self.api_client.base_url}/api/top_rail/timing_stats")
             timing_stats_response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/timing_stats",
                 headers=self.api_client.headers,
                 timeout=5
             )
             
+            print(f"Stats Response Status: {timing_stats_response.status_code}")
+            print(f"Stats Response Headers: {timing_stats_response.headers}")
+            print(f"Stats Response Body: {timing_stats_response.text}")
+            
+            if timing_stats_response.status_code == 401:
+                print("Authentication failed for stats endpoint")
+                self.tr_dash_avg_time_label.setText("AUTH ERR")
+                self.tr_dash_predicted_label.setText("AUTH ERR")
+                return
+
             if timing_stats_response.status_code == 200:
                 stats = timing_stats_response.json()
+                # Expected format from Flask: {"average_time": float, "recent_times": [...]}
                 avg_time = stats.get("average_time")
                 if avg_time:
                     self.tr_dash_avg_time_label.setText(f"{avg_time:.1f} min")
-                    # Calculate predicted daily output
-                    work_hours = 7.5 * 60
+                    # Calculate predicted output based on average time
+                    work_hours = 7.5 * 60  # 7.5 hours in minutes
                     predicted = int(work_hours / avg_time) if avg_time > 0 else 0
                     self.tr_dash_predicted_label.setText(str(predicted))
                 else:
