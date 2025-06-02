@@ -3582,9 +3582,7 @@ def sales_extrapolation():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
-    
 
-    
     # Define the product list (in the exact order requested)
     products = [
         "7ft - Black",
