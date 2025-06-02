@@ -630,9 +630,9 @@ VALID_PARTS = [
     "4.8x32mm Self Tapping Screw"            # Added new hardware
 ]
 
-# Add these routes to your api_routes.py or main flask_app.py
 
-@app.route('/api/top_rail/start_timer', methods=['POST'])
+
+@api.route('/api/top_rail/start_timer', methods=['POST'])
 def start_top_rail_timer():
     """Start timing for a new top rail build."""
     if 'worker' not in session:
@@ -669,7 +669,7 @@ def start_top_rail_timer():
         db.session.rollback()
         return jsonify({"error": f"Failed to start timer: {str(e)}"}), 500
 
-@app.route('/api/top_rail/stop_timer', methods=['POST'])
+@api.route('/api/top_rail/stop_timer', methods=['POST'])
 def stop_top_rail_timer():
     """Stop timing for the current top rail build."""
     if 'worker' not in session:
@@ -710,7 +710,7 @@ def stop_top_rail_timer():
         db.session.rollback()
         return jsonify({"error": f"Failed to stop timer: {str(e)}"}), 500
 
-@app.route('/api/top_rail/current_timer', methods=['GET'])
+@api.route('/api/top_rail/current_timer', methods=['GET'])
 def get_current_timer():
     """Get the current timer status for the logged-in worker."""
     if 'worker' not in session:
@@ -738,7 +738,7 @@ def get_current_timer():
         "elapsed_minutes": round(elapsed_minutes, 2)
     }), 200
 
-@app.route('/api/top_rail/timing_stats', methods=['GET'])
+@api.route('/api/top_rail/timing_stats', methods=['GET'])
 def get_timing_stats():
     """Get timing statistics for top rails."""
     if 'worker' not in session:
