@@ -373,6 +373,15 @@ class MainWindow(QMainWindow):
         self.low_stock_warning.setWordWrap(True)
         self.low_stock_warning.hide()
 
+        # Dashboard labels for timing and stats
+        self.tr_dash_current_time_label = QLabel("N/A")
+        self.tr_dash_avg_time_label = QLabel("N/A")
+        self.tr_dash_predicted_label = QLabel("N/A")
+        self.tr_dash_daily_label = QLabel("0")
+        self.tr_dash_monthly_label = QLabel("0")
+        self.tr_dash_yearly_label = QLabel("0")
+        self.tr_dash_next_serial_label = QLabel("N/A")
+
         self.setup_ui()
         self.setStyleSheet(STYLESHEET) 
         self.check_api_connection() 
@@ -567,8 +576,6 @@ class MainWindow(QMainWindow):
     def setup_top_rail_dashboard_tab(self):
         """Sets up the UI for the Top Rail Dashboard tab."""
         main_layout = QVBoxLayout(self.top_rail_dashboard_tab)
-        
-        # Increase spacing between elements
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(20, 20, 20, 20)
         
@@ -576,24 +583,32 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.dashboard_stacked_widget)
 
         # Page 1: Performance
-        page1 = QWidget(); page1.setObjectName("DashboardPage")
-        layout1 = QVBoxLayout(page1); layout1.setAlignment(Qt.AlignTop)  # Changed to AlignTop
-        header1 = QLabel("Top Rail Performance"); header1.setObjectName("DashboardHeader"); header1.setAlignment(Qt.AlignCenter)
+        page1 = QWidget()
+        page1.setObjectName("DashboardPage")
+        layout1 = QVBoxLayout(page1)
+        layout1.setAlignment(Qt.AlignTop)
+        
+        header1 = QLabel("Top Rail Performance")
+        header1.setObjectName("DashboardHeader")
+        header1.setAlignment(Qt.AlignCenter)
         layout1.addWidget(header1)
         
         # Current Performance
         current_perf_group = QGroupBox("Current Performance")
         current_perf_layout = QFormLayout()
         
-        # Rest of the current performance metrics
-        self.tr_dash_current_time_label = QLabel("N/A")
+        # Configure existing labels
         self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
+        self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
+        self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
+        
         current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
                                  self.tr_dash_current_time_label)
-        self.tr_dash_avg_time_label = QLabel("N/A"); self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), self.tr_dash_avg_time_label)
-        self.tr_dash_predicted_label = QLabel("N/A"); self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"), self.tr_dash_predicted_label)
+        current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"),
+                                 self.tr_dash_avg_time_label)
+        current_perf_layout.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"),
+                                 self.tr_dash_predicted_label)
+        
         current_perf_group.setLayout(current_perf_layout)
         layout1.addWidget(current_perf_group)
         
@@ -1556,6 +1571,7 @@ class MainWindow(QMainWindow):
                     status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
                     widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
                     widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
+                
                 
                 widgets["status"].setText(status_text)
                 widgets["status"].setStyleSheet(status_style)
