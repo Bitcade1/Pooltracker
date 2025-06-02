@@ -334,6 +334,15 @@ class MainWindow(QMainWindow):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
 
+        # Initialize timing-related labels first
+        self.tr_dash_current_time_label = QLabel("N/A")
+        self.tr_dash_avg_time_label = QLabel("N/A") 
+        self.tr_dash_predicted_label = QLabel("N/A")
+        self.tr_dash_daily_label = QLabel("0")
+        self.tr_dash_monthly_label = QLabel("0")
+        self.tr_dash_yearly_label = QLabel("0")
+        self.tr_dash_next_serial_label = QLabel("N/A")
+
         # Initialize timers first
         self.refresh_timer = QTimer(self)
         self.dashboard_scroll_timer = QTimer(self)
@@ -576,24 +585,32 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.dashboard_stacked_widget)
 
         # Page 1: Performance
-        page1 = QWidget(); page1.setObjectName("DashboardPage")
-        layout1 = QVBoxLayout(page1); layout1.setAlignment(Qt.AlignTop)  # Changed to AlignTop
-        header1 = QLabel("Top Rail Performance"); header1.setObjectName("DashboardHeader"); header1.setAlignment(Qt.AlignCenter)
+        page1 = QWidget()
+        page1.setObjectName("DashboardPage")
+        layout1 = QVBoxLayout(page1)
+        layout1.setAlignment(Qt.AlignTop)
+        
+        header1 = QLabel("Top Rail Performance")
+        header1.setObjectName("DashboardHeader")
+        header1.setAlignment(Qt.AlignCenter)
         layout1.addWidget(header1)
         
-        # Current Performance
+        # Current Performance Group
         current_perf_group = QGroupBox("Current Performance")
         current_perf_layout = QFormLayout()
         
-        # Rest of the current performance metrics
-        self.tr_dash_current_time_label = QLabel("N/A")
+        # Configure labels created in __init__
         self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
+        self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
+        self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
+        
+        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"), 
                                  self.tr_dash_current_time_label)
-        self.tr_dash_avg_time_label = QLabel("N/A"); self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), self.tr_dash_avg_time_label)
-        self.tr_dash_predicted_label = QLabel("N/A"); self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"), self.tr_dash_predicted_label)
+        current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), 
+                                 self.tr_dash_avg_time_label)
+        current_perf_layout.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"), 
+                                 self.tr_dash_predicted_label)
+        
         current_perf_group.setLayout(current_perf_layout)
         layout1.addWidget(current_perf_group)
         
@@ -1043,48 +1060,53 @@ class MainWindow(QMainWindow):
         if not self.inventory_data:
             return
 
-        # --- Page 1: Performance - Update with real production data ---
-        if hasattr(self, 'tr_dash_current_time_label'):
-            try:
-                # Get next serial number
-                next_serial_response = requests.get(
-                    f"{self.api_client.base_url}/api/top_rail/next_serial",
-                    headers=self.api_client.headers
-                )
-                if next_serial_response.status_code == 200:
-                    next_serial = next_serial_response.json().get("next_serial", "N/A")
-                    self.tr_dash_next_serial_label.setText(next_serial)
+        try:
+            # Get current timer status
+            current_timer_response = requests.get(
+                f"{self.api_client.base_url}/api/top_rail/current_timer",
+                headers=self.api_client.headers
+            )
+            
+            if current_timer_response.status_code == 200:
+                current_timer_data = current_timer_response.json()
+                if current_timer_data.get("active"):
+                    elapsed_minutes = current_timer_data.get("elapsed_minutes", 0)
+                    self.tr_dash_current_time_label.setText(f"{elapsed_minutes:.1f} min")
                 else:
-                    self.tr_dash_next_serial_label.setText("ERR")
-
-                # Fetch current time for the ongoing top rail
-                user_id = "user_123"  # Replace with actual user ID
-                current_time_response = requests.get(
-                    f"{self.api_client.base_url}/api/top_rail/current_time",
-                    params={"user_id": user_id},
-                    headers=self.api_client.headers
-                )
-                if current_time_response.status_code == 200:
-                    current_time = current_time_response.json().get("current_time")
-                    self.tr_dash_current_time_label.setText(
-                        f"{current_time:.2f} seconds" if current_time else "N/A"
-                    )
-
-                # Fetch average time for top rails
-                avg_time_response = requests.get(
-                    f"{self.api_client.base_url}/api/top_rail/average_time",
-                    headers=self.api_client.headers
-                )
-                if avg_time_response.status_code == 200:
-                    avg_time = avg_time_response.json().get("average_time")
-                    self.tr_dash_avg_time_label.setText(
-                        f"{avg_time:.2f} seconds" if avg_time else "N/A"
-                    )
-            except Exception as e:
-                print(f"Error fetching performance data: {e}")
-                self.tr_dash_next_serial_label.setText("ERR")
+                    self.tr_dash_current_time_label.setText("Not active")
+            else:
                 self.tr_dash_current_time_label.setText("ERR")
+
+            # Get timing statistics
+            timing_stats_response = requests.get(
+                f"{self.api_client.base_url}/api/top_rail/timing_stats",
+                headers=self.api_client.headers
+            )
+            
+            if timing_stats_response.status_code == 200:
+                timing_stats = timing_stats_response.json()
+                avg_time = timing_stats.get("average_time")
+                if avg_time is not None:
+                    self.tr_dash_avg_time_label.setText(f"{avg_time:.1f} min")
+                    # Calculate predicted daily output based on average time
+                    work_hours = 7.5 * 60  # 7.5 hours in minutes
+                    if avg_time > 0:
+                        predicted = int(work_hours / avg_time)
+                        self.tr_dash_predicted_label.setText(str(predicted))
+                    else:
+                        self.tr_dash_predicted_label.setText("N/A")
+                else:
+                    self.tr_dash_avg_time_label.setText("No data")
+                    self.tr_dash_predicted_label.setText("N/A")
+            else:
                 self.tr_dash_avg_time_label.setText("ERR")
+                self.tr_dash_predicted_label.setText("ERR")
+
+        except Exception as e:
+            print(f"Error updating top rail timing data: {e}")
+            self.tr_dash_current_time_label.setText("ERR")
+            self.tr_dash_avg_time_label.setText("ERR")
+            self.tr_dash_predicted_label.setText("ERR")
 
         # --- Page 2: Parts Inventory - Update table with real data ---
         if hasattr(self, 'tr_parts_table'):
