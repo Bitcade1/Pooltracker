@@ -2304,7 +2304,6 @@ def bodies():
         current_production_6ft=current_production_6ft,
         default_color=default_color
     )
-
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     if 'worker' not in session:
@@ -2369,21 +2368,17 @@ def top_rails():
 
         # Check inventory and deduct all required parts
         for part_name, quantity_needed in parts_to_deduct.items():
-            part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
-            total_stock = sum(entry.count for entry in part_entries)
-            if total_stock < quantity_needed:
-                flash(f"Not enough inventory for {part_name} to complete the top rail! (Available: {total_stock})", "error")
+            # Get the most recent entry for this part (like other parts in the system)
+            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
+                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+            
+            if not part_entry or part_entry.count < quantity_needed:
+                available_count = part_entry.count if part_entry else 0
+                flash(f"Not enough inventory for {part_name} to complete the top rail! (Need: {quantity_needed}, Available: {available_count})", "error")
                 return redirect(url_for('top_rails'))
-            remaining_to_deduct = quantity_needed
-            for entry in part_entries:
-                if remaining_to_deduct <= 0:
-                    break
-                if entry.count >= remaining_to_deduct:
-                    entry.count -= remaining_to_deduct
-                    remaining_to_deduct = 0
-                else:
-                    remaining_to_deduct -= entry.count
-                    entry.count = 0
+            
+            # Deduct the required quantity
+            part_entry.count -= quantity_needed
 
         # Create the new TopRail record
         new_top_rail = TopRail(
@@ -2599,6 +2594,7 @@ def top_rails():
         default_size=default_size,
         default_color=default_color
     )
+
 
 
 
