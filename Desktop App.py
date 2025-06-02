@@ -227,17 +227,37 @@ class APIClient:
     def __init__(self, api_url, api_token, api_port=None):
         self.api_url = api_url
         self.api_port = api_port
-        self.api_token = api_token
-        self.headers = {
-            "X-API-Token": api_token,
-            "Authorization": f"Bearer {api_token}",
-            "Accept": "application/json"
-        }
+        self.headers = {"X-API-Token": api_token}
         
         if api_port:
-            self.base_url = f"{api_url}:{api_port}"
-        else:            
-            self.base_url = api_url
+            base_url_str = str(self.api_url)
+            # Ensure protocol is present
+            if not base_url_str.startswith(("http://", "https://")):
+                base_url_str = "http://" + base_url_str # Default to http if not specified
+
+            # Split URL and safely add port
+            # Example: "http://domain.com/path" or "domain.com/path"
+            parts = base_url_str.split("/")
+            if len(parts) > 2: # Check if there's a host part (e.g. parts[2] for "http://host/...")
+                host_part = parts[2]
+                if ":" in host_part: # Already has a port
+                    host = host_part.split(":")[0]
+                    parts[2] = f"{host}:{api_port}"
+                else: # No port yet
+                    parts[2] = f"{host_part}:{api_port}"
+                self.base_url = "/".join(parts)
+            else: # Handle cases like "domain.com" (less likely for API but good to be robust)
+                 # This logic might need adjustment if URL format is very different
+                if ":" in base_url_str:
+                     host = base_url_str.split(":")[0]
+                     self.base_url = f"{host}:{api_port}"
+                else:
+                     self.base_url = f"{base_url_str}:{api_port}"
+
+        else: # No custom port, use URL as is
+            self.base_url = str(self.api_url)
+            if not self.base_url.startswith(("http://", "https://")):
+                 self.base_url = "http://" + self.base_url # Default to http
 
     def test_connection(self):
         try:
@@ -313,15 +333,6 @@ class MainWindow(QMainWindow):
         # Suppress specific warnings (adjust as needed)
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
-
-        # Initialize timing-related labels first
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_avg_time_label = QLabel("N/A") 
-        self.tr_dash_predicted_label = QLabel("N/A")
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0")
-        self.tr_dash_next_serial_label = QLabel("N/A")
 
         # Initialize timers first
         self.refresh_timer = QTimer(self)
@@ -565,32 +576,24 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.dashboard_stacked_widget)
 
         # Page 1: Performance
-        page1 = QWidget()
-        page1.setObjectName("DashboardPage")
-        layout1 = QVBoxLayout(page1)
-        layout1.setAlignment(Qt.AlignTop)
-        
-        header1 = QLabel("Top Rail Performance")
-        header1.setObjectName("DashboardHeader")
-        header1.setAlignment(Qt.AlignCenter)
+        page1 = QWidget(); page1.setObjectName("DashboardPage")
+        layout1 = QVBoxLayout(page1); layout1.setAlignment(Qt.AlignTop)  # Changed to AlignTop
+        header1 = QLabel("Top Rail Performance"); header1.setObjectName("DashboardHeader"); header1.setAlignment(Qt.AlignCenter)
         layout1.addWidget(header1)
         
-        # Current Performance Group
+        # Current Performance
         current_perf_group = QGroupBox("Current Performance")
         current_perf_layout = QFormLayout()
         
-        # Configure labels created in __init__
+        # Rest of the current performance metrics
+        self.tr_dash_current_time_label = QLabel("N/A")
         self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
-        
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"), 
+        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
                                  self.tr_dash_current_time_label)
-        current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), 
-                                 self.tr_dash_avg_time_label)
-        current_perf_layout.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"), 
-                                 self.tr_dash_predicted_label)
-        
+        self.tr_dash_avg_time_label = QLabel("N/A"); self.tr_dash_avg_time_label.setObjectName("DashboardMetricValue")
+        current_perf_layout.addRow(QLabel("Average Rail Time:", objectName="DashboardMetricLabel"), self.tr_dash_avg_time_label)
+        self.tr_dash_predicted_label = QLabel("N/A"); self.tr_dash_predicted_label.setObjectName("DashboardMetricValue")
+        current_perf_layout.addRow(QLabel("Predicted Today:", objectName="DashboardMetricLabel"), self.tr_dash_predicted_label)
         current_perf_group.setLayout(current_perf_layout)
         layout1.addWidget(current_perf_group)
         
@@ -1037,68 +1040,51 @@ class MainWindow(QMainWindow):
 
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
-        if not hasattr(self, 'tr_dash_current_time_label'):
+        if not self.inventory_data:
             return
 
-        headers = {
-            "X-API-Token": self.api_client.api_token,
-            "Accept": "application/json"
-        }
-
-        try:
-            # Get current timer status with auth header
-            response = requests.get(
-                f"{self.api_client.base_url}/api/top_rail/current_timer",
-                headers=headers,
-                timeout=5
-            )
-            
-            if response.status_code == 401:
-                print("Authentication failed for timer endpoint")
-                self.tr_dash_current_time_label.setText("AUTH ERR")
-                self.tr_dash_avg_time_label.setText("AUTH ERR")
-                self.tr_dash_predicted_label.setText("AUTH ERR")
-                return
-
-            if response.status_code == 200:
-                timer_data = response.json()
-                if timer_data.get("active"):
-                    elapsed_minutes = timer_data.get("elapsed_minutes", 0)
-                    self.tr_dash_current_time_label.setText(f"{elapsed_minutes:.1f} min")
+        # --- Page 1: Performance - Update with real production data ---
+        if hasattr(self, 'tr_dash_current_time_label'):
+            try:
+                # Get next serial number
+                next_serial_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/next_serial",
+                    headers=self.api_client.headers
+                )
+                if next_serial_response.status_code == 200:
+                    next_serial = next_serial_response.json().get("next_serial", "N/A")
+                    self.tr_dash_next_serial_label.setText(next_serial)
                 else:
-                    self.tr_dash_current_time_label.setText("N/A")
-            else:
-                print(f"Error getting current timer: {response.status_code}")
+                    self.tr_dash_next_serial_label.setText("ERR")
+
+                # Fetch current time for the ongoing top rail
+                user_id = "user_123"  # Replace with actual user ID
+                current_time_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/current_time",
+                    params={"user_id": user_id},
+                    headers=self.api_client.headers
+                )
+                if current_time_response.status_code == 200:
+                    current_time = current_time_response.json().get("current_time")
+                    self.tr_dash_current_time_label.setText(
+                        f"{current_time:.2f} seconds" if current_time else "N/A"
+                    )
+
+                # Fetch average time for top rails
+                avg_time_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/average_time",
+                    headers=self.api_client.headers
+                )
+                if avg_time_response.status_code == 200:
+                    avg_time = avg_time_response.json().get("average_time")
+                    self.tr_dash_avg_time_label.setText(
+                        f"{avg_time:.2f} seconds" if avg_time else "N/A"
+                    )
+            except Exception as e:
+                print(f"Error fetching performance data: {e}")
+                self.tr_dash_next_serial_label.setText("ERR")
                 self.tr_dash_current_time_label.setText("ERR")
-
-            # Get timing statistics with same auth headers
-            response = requests.get(
-                f"{self.api_client.base_url}/api/top_rail/timing_stats",
-                headers=headers,
-                timeout=5
-            )
-            
-            if response.status_code == 200:
-                stats = response.json()
-                avg_time = stats.get("average_time")
-                if avg_time:
-                    self.tr_dash_avg_time_label.setText(f"{avg_time:.1f} min")
-                    work_hours = 7.5 * 60
-                    predicted = int(work_hours / avg_time) if avg_time > 0 else 0
-                    self.tr_dash_predicted_label.setText(str(predicted))
-                else:
-                    self.tr_dash_avg_time_label.setText("N/A")
-                    self.tr_dash_predicted_label.setText("N/A")
-            else:
-                print(f"Error getting timing stats: {response.status_code}")
                 self.tr_dash_avg_time_label.setText("ERR")
-                self.tr_dash_predicted_label.setText("ERR")
-
-        except requests.exceptions.RequestException as e:
-            print(f"Network error updating timing data: {e}")
-            self.tr_dash_current_time_label.setText("ERR")
-            self.tr_dash_avg_time_label.setText("ERR") 
-            self.tr_dash_predicted_label.setText("ERR")
 
         # --- Page 2: Parts Inventory - Update table with real data ---
         if hasattr(self, 'tr_parts_table'):
