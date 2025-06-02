@@ -15,9 +15,6 @@
         .timer-inactive {
             color: #6c757d;
         }
-        .btn-timer {
-            min-width: 120px;
-        }
     </style>
 </head>
 <body>
@@ -27,23 +24,20 @@
         <!-- Timer Section -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5>Top Rail Build Timer</h5>
+                <h5>Time Since Last Top Rail Completion</h5>
             </div>
             <div class="card-body">
                 <div class="row align-items-center">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <div id="timer-display" class="timer-display timer-inactive">
                             00:00:00
                         </div>
-                        <small class="text-muted">Build Time</small>
+                        <small class="text-muted" id="timer-status">No active timer</small>
                     </div>
-                    <div class="col-md-8">
-                        <button id="start-timer-btn" class="btn btn-success btn-timer me-2" onclick="startTimer()">
-                            Start Timer
-                        </button>
-                        <button id="stop-timer-btn" class="btn btn-danger btn-timer" onclick="stopTimer()" disabled>
-                            Stop Timer
-                        </button>
+                    <div class="col-md-6">
+                        <div id="timer-info" class="text-muted">
+                            Timer will start automatically when you complete a top rail
+                        </div>
                     </div>
                 </div>
             </div>
@@ -120,7 +114,7 @@
                     
                     <div class="row mt-3">
                         <div class="col-12">
-                            <button type="submit" class="btn btn-primary">Add Top Rail Entry</button>
+                            <button type="submit" class="btn btn-primary">Complete Top Rail</button>
                         </div>
                     </div>
                 </form>
@@ -160,6 +154,35 @@
                         <h5 class="card-title">6ft This Month</h5>
                         <h3 class="text-warning">{{ current_top_rails_6ft }}</h3>
                         <small class="text-muted">Target: {{ target_6ft }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Timing Stats -->
+        <div class="card mb-4" id="timing-stats" style="display: none;">
+            <div class="card-header">
+                <h5>Recent Build Times</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 id="average-time" class="text-primary">--</h4>
+                            <small class="text-muted">Average Time</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 id="best-time" class="text-success">--</h4>
+                            <small class="text-muted">Best Time</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 id="total-builds" class="text-info">--</h4>
+                            <small class="text-muted">Total Builds</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -273,6 +296,7 @@
         // Initialize timer state on page load
         document.addEventListener('DOMContentLoaded', function() {
             checkTimerStatus();
+            loadTimingStats();
             setCurrentTime();
         });
 
@@ -291,75 +315,43 @@
                     startTime = new Date(data.start_time);
                     isTimerActive = true;
                     startTimerDisplay();
-                    updateButtonStates(true);
+                    document.getElementById('timer-status').textContent = 'Timer active since last completion';
+                    document.getElementById('timer-info').textContent = 'Complete this top rail to record the build time';
                 } else {
                     isTimerActive = false;
-                    updateButtonStates(false);
+                    document.getElementById('timer-status').textContent = 'No active timer';
+                    document.getElementById('timer-info').textContent = 'Timer will start when you complete a top rail';
                 }
             } catch (error) {
                 console.error('Error checking timer status:', error);
             }
         }
 
-        async function startTimer() {
+        async function loadTimingStats() {
             try {
-                const response = await fetch('/api/top_rail/start_timer', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
+                const response = await fetch('/api/top_rail/timing_stats');
+                const data = await response.json();
+                
+                if (data.total_completed > 0) {
+                    document.getElementById('timing-stats').style.display = 'block';
+                    
+                    if (data.average_time) {
+                        const avgMinutes = Math.floor(data.average_time);
+                        const avgSeconds = Math.floor((data.average_time - avgMinutes) * 60);
+                        document.getElementById('average-time').textContent = `${avgMinutes}m ${avgSeconds}s`;
                     }
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    startTime = new Date(data.start_time);
-                    isTimerActive = true;
-                    startTimerDisplay();
-                    updateButtonStates(true);
                     
-                    // Show success message
-                    showAlert('Timer started successfully!', 'success');
-                } else {
-                    showAlert(data.error || 'Failed to start timer', 'danger');
+                    if (data.recent_times && data.recent_times.length > 0) {
+                        const bestTime = Math.min(...data.recent_times.map(t => t.duration_minutes));
+                        const bestMinutes = Math.floor(bestTime);
+                        const bestSeconds = Math.floor((bestTime - bestMinutes) * 60);
+                        document.getElementById('best-time').textContent = `${bestMinutes}m ${bestSeconds}s`;
+                    }
+                    
+                    document.getElementById('total-builds').textContent = data.total_completed;
                 }
             } catch (error) {
-                console.error('Error starting timer:', error);
-                showAlert('Error starting timer', 'danger');
-            }
-        }
-
-        async function stopTimer() {
-            const serialNumber = document.getElementById('serial_number').value;
-            
-            try {
-                const response = await fetch('/api/top_rail/stop_timer', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        serial_number: serialNumber
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    isTimerActive = false;
-                    stopTimerDisplay();
-                    updateButtonStates(false);
-                    
-                    // Show success message with timing info
-                    const minutes = Math.floor(data.duration_minutes);
-                    const seconds = Math.floor((data.duration_minutes - minutes) * 60);
-                    showAlert(`Timer stopped! Build time: ${minutes}m ${seconds}s`, 'success');
-                } else {
-                    showAlert(data.error || 'Failed to stop timer', 'danger');
-                }
-            } catch (error) {
-                console.error('Error stopping timer:', error);
-                showAlert('Error stopping timer', 'danger');
+                console.error('Error loading timing stats:', error);
             }
         }
 
@@ -373,8 +365,6 @@
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
-            document.getElementById('timer-display').classList.add('timer-inactive');
-            document.getElementById('timer-display').textContent = '00:00:00';
         }
 
         function updateTimerDisplay() {
@@ -389,14 +379,6 @@
             
             const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             document.getElementById('timer-display').textContent = timeString;
-        }
-
-        function updateButtonStates(timerActive) {
-            const startBtn = document.getElementById('start-timer-btn');
-            const stopBtn = document.getElementById('stop-timer-btn');
-            
-            startBtn.disabled = timerActive;
-            stopBtn.disabled = !timerActive;
         }
 
         function showAlert(message, type) {
@@ -419,21 +401,64 @@
             }, 5000);
         }
 
-        // Integrate with form submission
+        // Handle form submission - this is where the magic happens
         document.getElementById('top-rail-form').addEventListener('submit', async function(e) {
-            // If timer is active, stop it before submitting the form
+            e.preventDefault(); // Always prevent default submission first
+            
+            const serialNumber = document.getElementById('serial_number').value;
+            
+            // If timer is active, stop it and record the time
             if (isTimerActive) {
-                e.preventDefault(); // Prevent immediate form submission
-                
-                // Stop the timer first
-                await stopTimer();
-                
-                // Small delay to ensure timer stop request completes
-                setTimeout(() => {
-                    // Now submit the form
-                    this.submit();
-                }, 500);
+                try {
+                    const response = await fetch('/api/top_rail/stop_timer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            serial_number: serialNumber
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        isTimerActive = false;
+                        stopTimerDisplay();
+                        
+                        // Show the build time
+                        const minutes = Math.floor(data.duration_minutes);
+                        const seconds = Math.floor((data.duration_minutes - minutes) * 60);
+                        showAlert(`Build time recorded: ${minutes}m ${seconds}s`, 'success');
+                    }
+                } catch (error) {
+                    console.error('Error stopping timer:', error);
+                }
             }
+            
+            // Submit the form normally
+            this.submit();
+            
+            // After form submission, start a new timer for the next build
+            // We'll do this with a small delay to allow the form to process
+            setTimeout(async () => {
+                try {
+                    const response = await fetch('/api/top_rail/start_timer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        // The page will reload after form submission, so this code
+                        // might not execute, but it's here as a backup
+                        console.log('New timer started for next build');
+                    }
+                } catch (error) {
+                    console.error('Error starting new timer:', error);
+                }
+            }, 1000);
         });
 
         // Auto-update finish time every minute
