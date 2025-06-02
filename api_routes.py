@@ -48,6 +48,19 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+def require_token(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('X-API-Token')
+        if not token:
+            return jsonify({"error": "No API token provided"}), 401
+            
+        if token != "bitcade_api_key_1":  # Match the Desktop App's token
+            return jsonify({"error": "Invalid API token"}), 401
+            
+        return f(*args, **kwargs)
+    return decorated
+
 # --- SQLAlchemy Model for System State (e.g., last task completion time) ---
 # Ideally, this model should be in your flask_app.models (or equivalent) and imported.
 # Defining it here for completeness, assuming 'db' is the SQLAlchemy instance from flask_app.
@@ -629,4 +642,36 @@ VALID_PARTS = [
     "Catch Plate",                           # Added new hardware
     "4.8x32mm Self Tapping Screw"            # Added new hardware
 ]
+
+@app.route('/api/top_rail/current_timer', methods=['GET'])
+@require_token
+def get_current_timer():
+    """Get the current timer status."""
+    # Find any active timer
+    active_timer = TopRailTiming.query.filter_by(completed=False).first()
+    
+    if not active_timer:
+        return jsonify({"active": False}), 200
+    
+    # Calculate elapsed time
+    current_time = datetime.now()
+    elapsed_minutes = (current_time - active_timer.start_time).total_seconds() / 60
+    
+    return jsonify({
+        "active": True,
+        "timer_id": active_timer.id,
+        "start_time": active_timer.start_time.isoformat(),
+        "elapsed_minutes": round(elapsed_minutes, 2)
+    }), 200
+
+@app.route('/api/top_rail/timing_stats', methods=['GET'])
+@require_token 
+def get_timing_stats():
+    """Get timing statistics."""
+    # Get completed timings
+    completed_timings = TopRailTiming.query.filter_by(
+        completed=True
+    ).order_by(TopRailTiming.date.desc()).limit(10).all()
+    
+    # ...rest of existing code...
 

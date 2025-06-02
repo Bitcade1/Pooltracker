@@ -1040,69 +1040,57 @@ class MainWindow(QMainWindow):
         if not hasattr(self, 'tr_dash_current_time_label'):
             return
 
+        headers = {
+            "X-API-Token": self.api_client.api_token,
+            "Accept": "application/json"
+        }
+
         try:
-            # Get current timer status
-            print("Requesting current timer from:", f"{self.api_client.base_url}/api/top_rail/current_timer")
-            current_timer_response = requests.get(
+            # Get current timer status with auth header
+            response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/current_timer",
-                headers=self.api_client.headers,
+                headers=headers,
                 timeout=5
             )
             
-            print(f"Timer Response Status: {current_timer_response.status_code}")
-            print(f"Timer Response Headers: {current_timer_response.headers}")
-            print(f"Timer Response Body: {current_timer_response.text}")
-            
-            if current_timer_response.status_code == 401:
+            if response.status_code == 401:
                 print("Authentication failed for timer endpoint")
                 self.tr_dash_current_time_label.setText("AUTH ERR")
+                self.tr_dash_avg_time_label.setText("AUTH ERR")
+                self.tr_dash_predicted_label.setText("AUTH ERR")
                 return
 
-            if current_timer_response.status_code == 200:
-                timer_data = current_timer_response.json()
-                # Expected format from Flask: {"active": true/false, "elapsed_minutes": float}
+            if response.status_code == 200:
+                timer_data = response.json()
                 if timer_data.get("active"):
                     elapsed_minutes = timer_data.get("elapsed_minutes", 0)
                     self.tr_dash_current_time_label.setText(f"{elapsed_minutes:.1f} min")
                 else:
                     self.tr_dash_current_time_label.setText("N/A")
             else:
-                print(f"Error getting current timer: {current_timer_response.status_code}")
+                print(f"Error getting current timer: {response.status_code}")
                 self.tr_dash_current_time_label.setText("ERR")
 
-            # Get timing statistics
-            print("Requesting timing stats from:", f"{self.api_client.base_url}/api/top_rail/timing_stats")
-            timing_stats_response = requests.get(
+            # Get timing statistics with same auth headers
+            response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/timing_stats",
-                headers=self.api_client.headers,
+                headers=headers,
                 timeout=5
             )
             
-            print(f"Stats Response Status: {timing_stats_response.status_code}")
-            print(f"Stats Response Headers: {timing_stats_response.headers}")
-            print(f"Stats Response Body: {timing_stats_response.text}")
-            
-            if timing_stats_response.status_code == 401:
-                print("Authentication failed for stats endpoint")
-                self.tr_dash_avg_time_label.setText("AUTH ERR")
-                self.tr_dash_predicted_label.setText("AUTH ERR")
-                return
-
-            if timing_stats_response.status_code == 200:
-                stats = timing_stats_response.json()
-                # Expected format from Flask: {"average_time": float, "recent_times": [...]}
+            if response.status_code == 200:
+                stats = response.json()
                 avg_time = stats.get("average_time")
                 if avg_time:
                     self.tr_dash_avg_time_label.setText(f"{avg_time:.1f} min")
-                    # Calculate predicted output based on average time
-                    work_hours = 7.5 * 60  # 7.5 hours in minutes
+                    work_hours = 7.5 * 60
                     predicted = int(work_hours / avg_time) if avg_time > 0 else 0
                     self.tr_dash_predicted_label.setText(str(predicted))
                 else:
                     self.tr_dash_avg_time_label.setText("N/A")
                     self.tr_dash_predicted_label.setText("N/A")
             else:
-                print(f"Error getting timing stats: {timing_stats_response.status_code}")
+                print(f"Error getting timing stats: {response.status_code}")
                 self.tr_dash_avg_time_label.setText("ERR")
                 self.tr_dash_predicted_label.setText("ERR")
 
