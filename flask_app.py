@@ -3711,62 +3711,199 @@ def api_documentation():
 from api_routes import api
 app.register_blueprint(api)
 
-@app.route('/api/top_rail/start', methods=['POST'])
-def start_top_rail():
-    """Start timing for a new top rail."""
-    data = request.json
-    if not data or 'user_id' not in data:
-        return jsonify({"error": "Missing user_id"}), 400
+# Add this new model to your existing models section in flask_app.py
 
-    # Record the start time
-    top_rail_timings.append({
-        "user_id": data['user_id'],
-        "start_time": datetime.now(),
-        "end_time": None
-    })
-    return jsonify({"message": "Top rail timing started"}), 200
+class TopRailTiming(db.Model):
+    __tablename__ = 'top_rail_timing'
+    id = db.Column(db.Integer, primary_key=True)
+    worker = db.Column(db.String(50), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=True)
+    duration_minutes = db.Column(db.Float, nullable=True)  # Duration in minutes
+    serial_number = db.Column(db.String(20), nullable=True)  # Optional serial number
+    date = db.Column(db.Date, default=date.today, nullable=False)
+    completed = db.Column(db.Boolean, default=False)
 
-@app.route('/api/top_rail/end', methods=['POST'])
-def end_top_rail():
-    """End timing for the current top rail."""
-    data = request.json
-    if not data or 'user_id' not in data:
-        return jsonify({"error": "Missing user_id"}), 400
+    def __repr__(self):
+        return f"<TopRailTiming {self.worker} - {self.duration_minutes}min>"
 
-    # Find the last unfinished timing for the user
-    for timing in reversed(top_rail_timings):
-        if timing['user_id'] == data['user_id'] and timing['end_time'] is None:
-            timing['end_time'] = datetime.now()
-            return jsonify({"message": "Top rail timing ended"}), 200
+# Add these routes to your flask_app.py
 
-    return jsonify({"error": "No active timing found for user"}), 404
+@app.route('/api/top_rail/start_timer', methods=['POST'])
+def start_top_rail_timer():
+    """Start timing for a new top rail build."""
+    if 'worker' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    worker = session['worker']
+    
+    # Check if there's already an active timer for this worker
+    active_timer = TopRailTiming.query.filter_by(
+        worker=worker, 
+        completed=False
+    ).first()
+    
+    if active_timer:
+        return jsonify({"error": "Timer already active"}), 400
+    
+    # Create new timing record
+    new_timing = TopRailTiming(
+        worker=worker,
+        start_time=datetime.now(),
+        date=date.today()
+    )
+    
+    try:
+        db.session.add(new_timing)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Top rail timer started",
+            "timer_id": new_timing.id,
+            "start_time": new_timing.start_time.isoformat()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to start timer: {str(e)}"}), 500
 
-@app.route('/api/top_rail/average_time', methods=['GET'])
-def get_average_time():
-    """Calculate the average time for top rails."""
-    completed_timings = [
-        (timing['end_time'] - timing['start_time']).total_seconds()
-        for timing in top_rail_timings if timing['end_time'] is not None
-    ]
+@app.route('/api/top_rail/stop_timer', methods=['POST'])
+def stop_top_rail_timer():
+    """Stop timing for the current top rail build."""
+    if 'worker' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    worker = session['worker']
+    data = request.get_json() or {}
+    serial_number = data.get('serial_number', '')
+    
+    # Find the active timer for this worker
+    active_timer = TopRailTiming.query.filter_by(
+        worker=worker, 
+        completed=False
+    ).first()
+    
+    if not active_timer:
+        return jsonify({"error": "No active timer found"}), 404
+    
+    # Complete the timing record
+    end_time = datetime.now()
+    duration = (end_time - active_timer.start_time).total_seconds() / 60  # Convert to minutes
+    
+    active_timer.end_time = end_time
+    active_timer.duration_minutes = round(duration, 2)
+    active_timer.serial_number = serial_number
+    active_timer.completed = True
+    
+    try:
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Top rail timer stopped",
+            "duration_minutes": active_timer.duration_minutes,
+            "start_time": active_timer.start_time.isoformat(),
+            "end_time": active_timer.end_time.isoformat()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to stop timer: {str(e)}"}), 500
+
+@app.route('/api/top_rail/current_timer', methods=['GET'])
+def get_current_timer():
+    """Get the current timer status for the logged-in worker."""
+    if 'worker' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    worker = session['worker']
+    
+    # Find active timer
+    active_timer = TopRailTiming.query.filter_by(
+        worker=worker, 
+        completed=False
+    ).first()
+    
+    if not active_timer:
+        return jsonify({"active": False}), 200
+    
+    # Calculate current elapsed time
+    current_time = datetime.now()
+    elapsed_minutes = (current_time - active_timer.start_time).total_seconds() / 60
+    
+    return jsonify({
+        "active": True,
+        "timer_id": active_timer.id,
+        "start_time": active_timer.start_time.isoformat(),
+        "elapsed_minutes": round(elapsed_minutes, 2)
+    }), 200
+
+@app.route('/api/top_rail/timing_stats', methods=['GET'])
+def get_timing_stats():
+    """Get timing statistics for top rails."""
+    if 'worker' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    worker = session.get('worker')
+    
+    # Get completed timings for this worker
+    completed_timings = TopRailTiming.query.filter_by(
+        worker=worker, 
+        completed=True
+    ).order_by(TopRailTiming.date.desc()).limit(10).all()
+    
     if not completed_timings:
-        return jsonify({"average_time": None}), 200
+        return jsonify({
+            "average_time": None,
+            "recent_times": [],
+            "total_completed": 0
+        }), 200
+    
+    # Calculate average
+    durations = [t.duration_minutes for t in completed_timings if t.duration_minutes]
+    average_time = sum(durations) / len(durations) if durations else None
+    
+    # Format recent times
+    recent_times = [{
+        "date": timing.date.isoformat(),
+        "duration_minutes": timing.duration_minutes,
+        "serial_number": timing.serial_number,
+        "start_time": timing.start_time.strftime("%H:%M"),
+        "end_time": timing.end_time.strftime("%H:%M") if timing.end_time else None
+    } for timing in completed_timings]
+    
+    return jsonify({
+        "average_time": round(average_time, 2) if average_time else None,
+        "recent_times": recent_times,
+        "total_completed": len(completed_timings)
+    }), 200
 
-    average_time = sum(completed_timings) / len(completed_timings)
-    return jsonify({"average_time": average_time}), 200
-
-@app.route('/api/top_rail/current_time', methods=['GET'])
-def get_current_time():
-    """Get the current time for the ongoing top rail."""
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
-
-    for timing in reversed(top_rail_timings):
-        if timing['user_id'] == user_id and timing['end_time'] is None:
-            elapsed_time = (datetime.now() - timing['start_time']).total_seconds()
-            return jsonify({"current_time": elapsed_time}), 200
-
-    return jsonify({"current_time": None}), 200
+@app.route('/top_rail_timing')
+def top_rail_timing_page():
+    """Render the top rail timing page."""
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+    
+    worker = session['worker']
+    
+    # Get recent timing data for display
+    recent_timings = TopRailTiming.query.filter_by(
+        worker=worker, 
+        completed=True
+    ).order_by(TopRailTiming.date.desc()).limit(20).all()
+    
+    # Calculate statistics
+    if recent_timings:
+        durations = [t.duration_minutes for t in recent_timings if t.duration_minutes]
+        average_time = sum(durations) / len(durations) if durations else 0
+        best_time = min(durations) if durations else 0
+        total_completed = len(recent_timings)
+    else:
+        average_time = best_time = total_completed = 0
+    
+    return render_template('top_rail_timing.html', 
+                         recent_timings=recent_timings,
+                         average_time=round(average_time, 2),
+                         best_time=round(best_time, 2),
+                         total_completed=total_completed)
 
 if __name__ == '__main__':
     app.run(debug=True)

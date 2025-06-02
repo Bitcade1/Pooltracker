@@ -92,6 +92,12 @@
             <a href="{{ url_for('counting_cushions') }}">Counting Cushions</a>
         </div>
 
+        <!-- Timing Dropdown (NEW) -->
+        <button class="dropdown-button" data-target="timingDropdown" onclick="toggleDropdown('timingDropdown')">Performance Timing</button>
+        <div id="timingDropdown" class="dropdown-content">
+            <a href="{{ url_for('top_rail_timing_page') }}">Top Rail Timing</a>
+        </div>
+
         <!-- Counting Dropdown -->
         <button class="dropdown-button" data-target="countingDropdown" onclick="toggleDropdown('countingDropdown')">Counting</button>
         <div id="countingDropdown" class="dropdown-content">
@@ -101,7 +107,7 @@
             <a href="{{ url_for('counting_chinese_parts') }}">Counting Chinese Parts</a>
         </div>
 
-        <!-- Planning and Forecasting Dropdown (New) -->
+        <!-- Planning and Forecasting Dropdown -->
         <button class="dropdown-button" data-target="planningDropdown" onclick="toggleDropdown('planningDropdown')">Planning & Forecasting</button>
         <div id="planningDropdown" class="dropdown-content">
             <a href="{{ url_for('material_calculator') }}">Material Calculator</a>
