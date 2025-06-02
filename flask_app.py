@@ -2368,17 +2368,21 @@ def top_rails():
 
         # Check inventory and deduct all required parts
         for part_name, quantity_needed in parts_to_deduct.items():
-            # Get the most recent entry for this part (like other parts in the system)
-            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
-                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-            
-            if not part_entry or part_entry.count < quantity_needed:
-                available_count = part_entry.count if part_entry else 0
-                flash(f"Not enough inventory for {part_name} to complete the top rail! (Need: {quantity_needed}, Available: {available_count})", "error")
+            part_entries = db.session.query(PrintedPartsCount).filter_by(part_name=part_name).all()
+            total_stock = sum(entry.count for entry in part_entries)
+            if total_stock < quantity_needed:
+                flash(f"Not enough inventory for {part_name} to complete the top rail! (Available: {total_stock})", "error")
                 return redirect(url_for('top_rails'))
-            
-            # Deduct the required quantity
-            part_entry.count -= quantity_needed
+            remaining_to_deduct = quantity_needed
+            for entry in part_entries:
+                if remaining_to_deduct <= 0:
+                    break
+                if entry.count >= remaining_to_deduct:
+                    entry.count -= remaining_to_deduct
+                    remaining_to_deduct = 0
+                else:
+                    remaining_to_deduct -= entry.count
+                    entry.count = 0
 
         # Create the new TopRail record
         new_top_rail = TopRail(
@@ -2390,46 +2394,95 @@ def top_rails():
             issue=issue_text,
             date=date.today()
         )
+        
         try:
             db.session.add(new_top_rail)
             db.session.commit()
-            flash("Top rail entry added successfully and inventory updated!", "success")
+            
+            # --- Timer Logic: Stop previous timer and start new one ---
+            try:
+                # 1. Stop any active timer for this worker (this completion ends the previous timer)
+                active_timer = TopRailTiming.query.filter_by(
+                    worker=worker, 
+                    completed=False
+                ).first()
+                
+                if active_timer:
+                    # Complete the previous timer
+                    end_time = datetime.now()
+                    duration = (end_time - active_timer.start_time).total_seconds() / 60
+                    
+                    active_timer.end_time = end_time
+                    active_timer.duration_minutes = round(duration, 2)
+                    active_timer.serial_number = serial_number  # Record which top rail completed the timer
+                    active_timer.completed = True
+                    
+                    # Show the build time in a friendly format
+                    minutes = int(duration)
+                    seconds = int((duration % 1) * 60)
+                    flash(f"Build time recorded: {minutes}m {seconds}s for top rail {serial_number}", "info")
+                
+                # 2. Start a new timer for the next top rail
+                new_timer = TopRailTiming(
+                    worker=worker,
+                    start_time=datetime.now(),
+                    date=date.today()
+                )
+                db.session.add(new_timer)
+                db.session.commit()
+                
+            except Exception as timer_error:
+                # Don't let timer errors break the main functionality
+                print(f"Timer error: {str(timer_error)}")
+                db.session.rollback()
+                # Re-commit the main top rail record
+                db.session.add(new_top_rail)
+                db.session.commit()
+                flash("Top rail entry added successfully (timer had an issue but main record saved)!", "warning")
+            
+            # --- Update Table Stock for Top Rails ---
+            # Determine size and color from serial number
+            def is_6ft(serial):
+                return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+            
+            def get_color(serial):
+                norm_serial = serial.replace(" ", "")
+                if "-GO" in norm_serial or "-go" in norm_serial:
+                    return "grey_oak"
+                elif "-O" in norm_serial and not "-GO" in norm_serial:
+                    return "rustic_oak"
+                elif "-C" in norm_serial or "-c" in norm_serial:
+                    return "stone"
+                else:
+                    return "black"  # Default if no color suffix or has -B
+            
+            # Determine size and color
+            size = "6ft" if is_6ft(serial_number) else "7ft"
+            color = get_color(serial_number)
+            
+            # Create the stock key
+            stock_type = f'top_rail_{size.lower()}_{color}'
+            
+            # Update the stock count
+            stock_entry = TableStock.query.filter_by(type=stock_type).first()
+            if not stock_entry:
+                stock_entry = TableStock(type=stock_type, count=0)
+                db.session.add(stock_entry)
+            stock_entry.count += 1
+            db.session.commit()
+            
+            if 'timer had an issue' not in str(flash):  # Only show success if no timer warning
+                flash("Top rail entry added successfully and inventory updated!", "success")
+            
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('top_rails'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error creating top rail entry: {str(e)}", "error")
+            return redirect(url_for('top_rails'))
         
-        # --- Update Table Stock for Top Rails ---
-        # Determine size and color from serial number
-        def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
-        
-        def get_color(serial):
-            norm_serial = serial.replace(" ", "")
-            if "-GO" in norm_serial or "-go" in norm_serial:
-                return "grey_oak"
-            elif "-O" in norm_serial and not "-GO" in norm_serial:
-                return "rustic_oak"
-            elif "-C" in norm_serial or "-c" in norm_serial:
-                return "stone"
-            else:
-                return "black"  # Default if no color suffix or has -B
-        
-        # Determine size and color
-        size = "6ft" if is_6ft(serial_number) else "7ft"
-        color = get_color(serial_number)
-        
-        # Create the stock key
-        stock_type = f'top_rail_{size.lower()}_{color}'
-        
-        # Update the stock count
-        stock_entry = TableStock.query.filter_by(type=stock_type).first()
-        if not stock_entry:
-            stock_entry = TableStock(type=stock_type, count=0)
-            db.session.add(stock_entry)
-        stock_entry.count += 1
-        db.session.commit()
-        # -----------------------------------------
         return redirect(url_for('top_rails'))
 
     # GET request handling
