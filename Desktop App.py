@@ -688,798 +688,77 @@ class MainWindow(QMainWindow):
         current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
                                  self.tr_dash_current_time_label)
         
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
+        # ...rest of existing code...
 
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
+        self.dashboard_stacked_widget.addWidget(page1)
 
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
+        # Page 2: Parts Inventory - Updated layout with warning section
+        page2 = QWidget(); page2.setObjectName("DashboardPage")
+        layout2 = QVBoxLayout(page2)
+
+        # Add warning section at top that's hidden by default
+        self.tr_warning_section = QWidget()
+        warning_layout = QVBoxLayout(self.tr_warning_section)
+        warning_layout.setContentsMargins(20, 20, 20, 20)
         
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
-
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
+        warning_header = QLabel("⚠️ LOW STOCK WARNING")
+        warning_header.setStyleSheet("""
+            font-size: 36pt;
+            color: #c62828;
+            padding: 20px;
+            background-color: #ffebee;
+            border-radius: 10px;
             font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
         """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
+        warning_header.setAlignment(Qt.AlignCenter)
+        warning_layout.addWidget(warning_header)
         
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
+        self.tr_warning_text = QLabel()
+        self.tr_warning_text.setStyleSheet("""
+            font-size: 24pt;
+            color: #c62828;
+            padding: 20px;
+        """)
+        self.tr_warning_text.setAlignment(Qt.AlignCenter)
+        self.tr_warning_text.setWordWrap(True)
+        warning_layout.addWidget(self.tr_warning_text)
         
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
+        layout2.addWidget(self.tr_warning_section)
+        self.tr_warning_section.hide()  # Hidden by default
 
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
+        # Regular header and table below warning
+        header2 = QLabel("Top Rail - Parts Inventory")
+        header2.setObjectName("DashboardHeader")
+        layout2.addWidget(header2)
 
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
+        # Create a table instead of form layout
+        self.tr_parts_table = QTableWidget()
+        self.tr_parts_table.setColumnCount(4)
+        self.tr_parts_table.setHorizontalHeaderLabels(["Part Name", "In Stock", "Per Rail", "Rails Possible"])
+        self.tr_parts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tr_parts_table.setAlternatingRowColors(True)
+        layout2.addWidget(self.tr_parts_table)
         
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
+        layout2.addStretch()
+        self.dashboard_stacked_widget.addWidget(page2)
 
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
+        # Page 3: Deficits (Top Rails vs Bodies)
+        page3 = QWidget(); page3.setObjectName("DashboardPage")
+        layout3 = QVBoxLayout(page3); layout3.setAlignment(Qt.AlignTop)
+        header3 = QLabel("Top Rail - Assembly Needs"); header3.setObjectName("DashboardHeader"); header3.setAlignment(Qt.AlignCenter)
+        layout3.addWidget(header3)
+        self.tr_dash_deficits_layout_7ft = QVBoxLayout() # For 7ft tables
+        self.tr_dash_deficits_layout_6ft = QVBoxLayout() # For 6ft tables
         
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
-        
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
+        deficit_content_layout = QHBoxLayout()
+        group_7ft_deficit = QGroupBox("7ft Tables"); group_7ft_deficit.setLayout(self.tr_dash_deficits_layout_7ft)
+        group_6ft_deficit = QGroupBox("6ft Tables"); group_6ft_deficit.setLayout(self.tr_dash_deficits_layout_6ft)
+        deficit_content_layout.addWidget(group_7ft_deficit)
+        deficit_content_layout.addWidget(group_6ft_deficit)
+        layout3.addLayout(deficit_content_layout)
+        layout3.addStretch()
+        self.dashboard_stacked_widget.addWidget(page3)
 
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
-
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
-        
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
-
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
-        
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
-        
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
-
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
-
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
-        
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
-
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
-        
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
-        
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
-
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
-
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
-        
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
-
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
-        
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
-        
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
-
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
-
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
-        
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
-
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
-        
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
-        
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
-
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
-
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
-        
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
-
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
-        
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
-        
-        # --- Get production stats from new API endpoint --- 
-        stats_response = requests.get(
-            f"{self.api_client.base_url}/api/top_rail/production_stats",
-            headers=self.api_client.headers
-        )
-        if stats_response.status_code == 200:
-            stats = stats_response.json()
-            self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-            self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-            self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
-        else:
-            self.tr_dash_daily_label.setText("ERR")
-            self.tr_dash_monthly_label.setText("ERR") 
-            self.tr_dash_yearly_label.setText("ERR")
-
-        # Production statistics labels
-        self.tr_dash_daily_label = QLabel("0")
-        self.tr_dash_monthly_label = QLabel("0")
-        self.tr_dash_yearly_label = QLabel("0") 
-
-        # Today's Production
-        today_label = QLabel("Today's Production")
-        today_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        today_label.setAlignment(Qt.AlignCenter)
-        
-        self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold; 
-            color: #2980b9;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_daily_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(today_label, 0, 0)
-        prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
-
-        # Monthly Production
-        month_label = QLabel("This Month")
-        month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        month_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #27ae60;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
-
-        # Yearly Production
-        year_label = QLabel("This Year")
-        year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        year_label.setAlignment(Qt.AlignCenter)
-        self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #8e44ad;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        """)
-        self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
-
-        # Add Next Serial Number section below production stats
-        next_serial_label = QLabel("Next Serial Number")
-        next_serial_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
-        next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(next_serial_label, 2, 0, 1, 3)  # Span all columns
-
-        self.tr_dash_next_serial_label = QLabel("N/A")
-        self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
-        self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
-            font-weight: bold;
-            color: #e74c3c;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 10px;
-        """)
-        self.tr_dash_next_serial_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
-
-        prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
-        
         # Initialize dashboard widgets dictionary (for parts and deficits)
         self.top_rail_dashboard_widgets["parts"] = {}
         self.top_rail_dashboard_widgets["deficits_7ft"] = {}
@@ -1767,20 +1046,16 @@ class MainWindow(QMainWindow):
         # --- Page 1: Performance - Update with real production data ---
         if hasattr(self, 'tr_dash_current_time_label'):
             try:
-                # --- Get production stats from new API endpoint --- 
-                stats_response = requests.get(
-                    f"{self.api_client.base_url}/api/top_rail/production_stats",
+                # Get next serial number
+                next_serial_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/next_serial",
                     headers=self.api_client.headers
                 )
-                if stats_response.status_code == 200:
-                    stats = stats_response.json()
-                    self.tr_dash_daily_label.setText(str(stats.get("daily", 0)))
-                    self.tr_dash_monthly_label.setText(str(stats.get("monthly", 0)))
-                    self.tr_dash_yearly_label.setText(str(stats.get("yearly", 0)))
+                if next_serial_response.status_code == 200:
+                    next_serial = next_serial_response.json().get("next_serial", "N/A")
+                    self.tr_dash_next_serial_label.setText(next_serial)
                 else:
-                    self.tr_dash_daily_label.setText("ERR")
-                    self.tr_dash_monthly_label.setText("ERR") 
-                    self.tr_dash_yearly_label.setText("ERR")
+                    self.tr_dash_next_serial_label.setText("ERR")
 
                 # Fetch current time for the ongoing top rail
                 user_id = "user_123"  # Replace with actual user ID
