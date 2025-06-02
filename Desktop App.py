@@ -1057,55 +1057,56 @@ class MainWindow(QMainWindow):
 
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
-        if not self.inventory_data:
+        if not hasattr(self, 'tr_dash_current_time_label'):
             return
 
         try:
             # Get current timer status
             current_timer_response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/current_timer",
-                headers=self.api_client.headers
+                headers=self.api_client.headers,
+                timeout=5
             )
             
             if current_timer_response.status_code == 200:
-                current_timer_data = current_timer_response.json()
-                if current_timer_data.get("active"):
-                    elapsed_minutes = current_timer_data.get("elapsed_minutes", 0)
+                timer_data = current_timer_response.json()
+                if timer_data.get("active"):
+                    elapsed_minutes = timer_data.get("elapsed_minutes", 0)
                     self.tr_dash_current_time_label.setText(f"{elapsed_minutes:.1f} min")
                 else:
-                    self.tr_dash_current_time_label.setText("Not active")
+                    self.tr_dash_current_time_label.setText("N/A")
             else:
+                print(f"Error getting current timer: {current_timer_response.status_code}")
                 self.tr_dash_current_time_label.setText("ERR")
 
             # Get timing statistics
             timing_stats_response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/timing_stats",
-                headers=self.api_client.headers
+                headers=self.api_client.headers,
+                timeout=5
             )
             
             if timing_stats_response.status_code == 200:
-                timing_stats = timing_stats_response.json()
-                avg_time = timing_stats.get("average_time")
-                if avg_time is not None:
+                stats = timing_stats_response.json()
+                avg_time = stats.get("average_time")
+                if avg_time:
                     self.tr_dash_avg_time_label.setText(f"{avg_time:.1f} min")
-                    # Calculate predicted daily output based on average time
+                    # Calculate predicted output based on average time
                     work_hours = 7.5 * 60  # 7.5 hours in minutes
-                    if avg_time > 0:
-                        predicted = int(work_hours / avg_time)
-                        self.tr_dash_predicted_label.setText(str(predicted))
-                    else:
-                        self.tr_dash_predicted_label.setText("N/A")
+                    predicted = int(work_hours / avg_time) if avg_time > 0 else 0
+                    self.tr_dash_predicted_label.setText(str(predicted))
                 else:
-                    self.tr_dash_avg_time_label.setText("No data")
+                    self.tr_dash_avg_time_label.setText("N/A")
                     self.tr_dash_predicted_label.setText("N/A")
             else:
+                print(f"Error getting timing stats: {timing_stats_response.status_code}")
                 self.tr_dash_avg_time_label.setText("ERR")
                 self.tr_dash_predicted_label.setText("ERR")
 
-        except Exception as e:
-            print(f"Error updating top rail timing data: {e}")
+        except requests.exceptions.RequestException as e:
+            print(f"Network error updating timing data: {e}")
             self.tr_dash_current_time_label.setText("ERR")
-            self.tr_dash_avg_time_label.setText("ERR")
+            self.tr_dash_avg_time_label.setText("ERR") 
             self.tr_dash_predicted_label.setText("ERR")
 
         # --- Page 2: Parts Inventory - Update table with real data ---
