@@ -25,6 +25,29 @@ def require_api_token(view_function):
         return jsonify({"error": "Unauthorized access. Valid API token required."}), 401
     return decorated
 
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_token = request.headers.get('Authorization')
+        api_token = request.headers.get('X-API-Token')
+        
+        if not auth_token and not api_token:
+            return jsonify({"error": "No auth token provided"}), 401
+            
+        expected_token = "bitcade_api_key_1"  # Should match Desktop App config
+        
+        # Check either Authorization or X-API-Token
+        if auth_token:
+            token = auth_token.split("Bearer ")[-1]
+        else:
+            token = api_token
+            
+        if token != expected_token:
+            return jsonify({"error": "Invalid auth token"}), 401
+            
+        return f(*args, **kwargs)
+    return decorated
+
 # --- SQLAlchemy Model for System State (e.g., last task completion time) ---
 # Ideally, this model should be in your flask_app.models (or equivalent) and imported.
 # Defining it here for completeness, assuming 'db' is the SQLAlchemy instance from flask_app.

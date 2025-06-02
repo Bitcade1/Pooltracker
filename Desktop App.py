@@ -227,37 +227,17 @@ class APIClient:
     def __init__(self, api_url, api_token, api_port=None):
         self.api_url = api_url
         self.api_port = api_port
-        self.headers = {"X-API-Token": api_token}
+        self.api_token = api_token
+        self.headers = {
+            "X-API-Token": api_token,
+            "Authorization": f"Bearer {api_token}",
+            "Accept": "application/json"
+        }
         
         if api_port:
-            base_url_str = str(self.api_url)
-            # Ensure protocol is present
-            if not base_url_str.startswith(("http://", "https://")):
-                base_url_str = "http://" + base_url_str # Default to http if not specified
-
-            # Split URL and safely add port
-            # Example: "http://domain.com/path" or "domain.com/path"
-            parts = base_url_str.split("/")
-            if len(parts) > 2: # Check if there's a host part (e.g. parts[2] for "http://host/...")
-                host_part = parts[2]
-                if ":" in host_part: # Already has a port
-                    host = host_part.split(":")[0]
-                    parts[2] = f"{host}:{api_port}"
-                else: # No port yet
-                    parts[2] = f"{host_part}:{api_port}"
-                self.base_url = "/".join(parts)
-            else: # Handle cases like "domain.com" (less likely for API but good to be robust)
-                 # This logic might need adjustment if URL format is very different
-                if ":" in base_url_str:
-                     host = base_url_str.split(":")[0]
-                     self.base_url = f"{host}:{api_port}"
-                else:
-                     self.base_url = f"{base_url_str}:{api_port}"
-
-        else: # No custom port, use URL as is
-            self.base_url = str(self.api_url)
-            if not self.base_url.startswith(("http://", "https://")):
-                 self.base_url = "http://" + self.base_url # Default to http
+            self.base_url = f"{api_url}:{api_port}"
+        else:            
+            self.base_url = api_url
 
     def test_connection(self):
         try:
@@ -1061,7 +1041,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            # Get current timer status
+            # Get current timer status with auth headers
             current_timer_response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/current_timer",
                 headers=self.api_client.headers,
@@ -1079,7 +1059,7 @@ class MainWindow(QMainWindow):
                 print(f"Error getting current timer: {current_timer_response.status_code}")
                 self.tr_dash_current_time_label.setText("ERR")
 
-            # Get timing statistics
+            # Get timing statistics with auth headers 
             timing_stats_response = requests.get(
                 f"{self.api_client.base_url}/api/top_rail/timing_stats",
                 headers=self.api_client.headers,
@@ -1091,8 +1071,8 @@ class MainWindow(QMainWindow):
                 avg_time = stats.get("average_time")
                 if avg_time:
                     self.tr_dash_avg_time_label.setText(f"{avg_time:.1f} min")
-                    # Calculate predicted output based on average time
-                    work_hours = 7.5 * 60  # 7.5 hours in minutes
+                    # Calculate predicted daily output
+                    work_hours = 7.5 * 60
                     predicted = int(work_hours / avg_time) if avg_time > 0 else 0
                     self.tr_dash_predicted_label.setText(str(predicted))
                 else:
