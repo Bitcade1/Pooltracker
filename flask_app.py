@@ -2124,12 +2124,27 @@ def bodies():
 
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
-            part_entry = PrintedPartsCount.query.filter_by(part_name=part_name) \
-                                                 .order_by(PrintedPartsCount.date.desc()).first()
-            if part_entry and part_entry.count >= quantity_needed:
+            part_entry = (PrintedPartsCount.query
+                            .filter_by(part_name=part_name)
+                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                            .first())
+            
+            if not part_entry:
+                # Create a new entry if none exists
+                part_entry = PrintedPartsCount(
+                    part_name=part_name,
+                    count=0,
+                    date=date.today(),
+                    time=datetime.utcnow().time()
+                )
+                db.session.add(part_entry)
+                db.session.commit()
+            
+            if part_entry.count >= quantity_needed:
                 part_entry.count -= quantity_needed
             else:
-                flash(f"Not enough inventory for {part_name} to complete the body!", "error")
+                flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {part_entry.count}) to complete the body!", "error")
+                db.session.rollback()
                 return redirect(url_for('bodies'))
         db.session.commit()
 
@@ -2647,8 +2662,6 @@ def top_rails():
         default_size=default_size,
         default_color=default_color
     )
-
-
 
 
 def fetch_uk_bank_holidays():
@@ -3533,7 +3546,7 @@ def counting_cushions():
             'total_setup_minutes': total_setup_minutes,
             'total_setup_formatted': f"{total_setup_minutes // 60}h {total_setup_minutes % 60}m",
             'total_paused_minutes': total_paused_minutes,
-            'total_paused_formatted': f"{total_paused_minutes // 60}h {total_paused_minutes % 60}m",
+            'total_paused_formatted': f"{total_paused_minutes //  60}h {total_paused_minutes % 60}m",
             'efficiency': efficiency
         }
     
