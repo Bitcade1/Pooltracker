@@ -945,10 +945,10 @@ def pods():
                 date=date.today()
             )
             
-            # Deduct felt, carpet and tee nuts
+            # Actually deduct the parts now
             felt_entry.count -= 1
             carpet_entry.count -= 1
-            tee_nuts_entry.count -= 16
+            tee_nuts_entry.count -= 16  # Added this line to deduct the Tee Nuts
 
             db.session.add(new_pod)
             db.session.commit()
@@ -1488,7 +1488,7 @@ def counting_wood():
                             short_count = 3
                         else:  # 7ft section
                             short_count = 2
-                            
+                        
                         short_entry.count += bulk_amount * short_count
                         new_short = WoodCount(section=corresponding_section, count=bulk_amount * short_count, date=today, time=current_time)
                         db.session.add(new_short)
@@ -3824,7 +3824,6 @@ def start_top_rail_timer():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Failed to start timer: {str(e)}"}), 500
-
 @app.route('/api/top_rail/stop_timer', methods=['POST'])
 def stop_top_rail_timer():
     """Stop timing for the current top rail build."""
@@ -3963,6 +3962,3 @@ def top_rail_timing_page():
                          average_time=round(average_time, 2),
                          best_time=round(best_time, 2),
                          total_completed=total_completed)
-
-if __name__ == '__main__':
-    app.run(debug=True)
