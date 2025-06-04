@@ -2103,7 +2103,8 @@ def bodies():
             "Ramp 376mm": 1,
             "Chrome handles": 1,
             "Sticker Set": 1,
-            "4.8x16mm Self Tapping Screw": 37
+            "4.8x16mm Self Tapping Screw": 37,
+            "Latch": 12
         }
 
         # Helper function to determine if it's a 6ft table
