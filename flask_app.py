@@ -1029,8 +1029,8 @@ def pods():
         last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
         cumulative_working_hours = work_days * 7.5
-        if total_pods > 0:
-            avg_hours_per_pod = cumulative_working_hours / total_pods
+        avg_hours_per_pod = (cumulative_working_hours / total_pods if total_pods > 0 else None)
+        if avg_hours_per_pod is not None:
             hours = int(avg_hours_per_pod)
             minutes = int((avg_hours_per_pod - hours) * 60)
             seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
@@ -2097,6 +2097,9 @@ def bodies():
             "Color ball trim": 1,
             "Ball window trim": 1,
             "Aluminum corner": 4,
+            "Chrome corner": 4,
+            "Top rail trim short length": 1,
+            "Top rail trim long length": 1,
             "Ramp 170mm": 1,
             "Ramp 158mm": 1,
             "Ramp 918mm": 1,
@@ -2258,7 +2261,6 @@ def bodies():
         for row in daily_history
     ]
 
-    # Monthly totals summary
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -3546,7 +3548,7 @@ def counting_cushions():
             'total_setup_minutes': total_setup_minutes,
             'total_setup_formatted': f"{total_setup_minutes // 60}h {total_setup_minutes % 60}m",
             'total_paused_minutes': total_paused_minutes,
-            'total_paused_formatted': f"{total_paused_minutes //  60}h {total_paused_minutes % 60}m",
+            'total_paused_formatted': f"{total_paused_minutes // 60}h {total_paused_minutes % 60}m",
             'efficiency': efficiency
         }
     
