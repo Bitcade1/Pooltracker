@@ -568,12 +568,16 @@ class MainWindow(QMainWindow):
         """Sets up the UI for the Top Rail Dashboard tab."""
         main_layout = QVBoxLayout(self.top_rail_dashboard_tab)
         
-        # Increase spacing between elements
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        # Add navigation controls at the top
+        nav_layout = QHBoxLayout()
+        nav_layout.addStretch()
         
-        self.dashboard_stacked_widget = QStackedWidget()
-        main_layout.addWidget(self.dashboard_stacked_widget)
+        self.next_page_button = QPushButton("Next →")
+        self.next_page_button.setFixedWidth(100)
+        self.next_page_button.clicked.connect(self.manual_dashboard_scroll)
+        nav_layout.addWidget(self.next_page_button)
+        
+        main_layout.addLayout(nav_layout)
 
         # Page 1: Performance
         page1 = QWidget(); page1.setObjectName("DashboardPage")
@@ -765,15 +769,29 @@ class MainWindow(QMainWindow):
         self.top_rail_dashboard_widgets["deficits_6ft"] = {}
 
 
-    def scroll_dashboard_page(self):
-        """Cycles through the pages of the Top Rail Dashboard."""
-        if hasattr(self, 'dashboard_stacked_widget') and self.dashboard_stacked_widget.count() > 0:
-            if self.dashboard_stacked_widget.currentIndex() == 1 and self.tr_warning_section.isVisible():
-                return  # Do not scroll if warning is active
+    def manual_dashboard_scroll(self):
+        """Manually cycle to next dashboard page and reset timer."""
+        if hasattr(self, 'dashboard_stacked_widget'):
+            # Stop the auto-scroll timer temporarily
+            if self.dashboard_scroll_timer.isActive():
+                self.dashboard_scroll_timer.stop()
+            
+            # Perform the page change
             current_index = self.dashboard_stacked_widget.currentIndex()
             next_index = (current_index + 1) % self.dashboard_stacked_widget.count()
             self.dashboard_stacked_widget.setCurrentIndex(next_index)
+            
+            # Restart the timer
+            scroll_time = self.config.get("SCROLL_TIMER", 10)
+            self.dashboard_scroll_timer.start(scroll_time * 1000)
 
+    def scroll_dashboard_page(self):
+        """Auto-cycles through the pages of the Top Rail Dashboard."""
+        if hasattr(self, 'dashboard_stacked_widget') and self.dashboard_stacked_widget.count() > 0:
+            # Don't auto-scroll if warning is visible
+            if self.dashboard_stacked_widget.currentIndex() == 1 and self.tr_warning_section.isVisible():
+                return
+            self.manual_dashboard_scroll()  # Reuse the manual scroll logic
 
     def create_summary_group(self, title, count_label, object_name):
         group_box = QGroupBox(title)
