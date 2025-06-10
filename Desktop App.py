@@ -568,6 +568,10 @@ class MainWindow(QMainWindow):
         """Sets up the UI for the Top Rail Dashboard tab."""
         main_layout = QVBoxLayout(self.top_rail_dashboard_tab)
         
+        # Initialize stacked widget first
+        self.dashboard_stacked_widget = QStackedWidget()
+        main_layout.addWidget(self.dashboard_stacked_widget)
+        
         # Add navigation controls at the top
         nav_layout = QHBoxLayout()
         nav_layout.addStretch()
