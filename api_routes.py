@@ -119,12 +119,9 @@ def get_next_top_rail_serial():
             current_serial = current_serial.replace(" - 6", "").replace("-6", "")
 
         try:
-            # Extract and increment base number
-            base_number = int(current_serial.strip())
-            next_number = str(base_number + 1)
-            
-            # Reconstruct the serial number with suffixes
-            next_serial = next_number + size_suffix + color_suffix
+            # Extract the base number and return exactly one more than current
+            base_number = int(''.join(filter(str.isdigit, current_serial)))
+            next_serial = str(base_number + 1) + size_suffix + color_suffix
             
         except ValueError:
             next_serial = "1000"  # Fallback if conversion fails
