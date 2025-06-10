@@ -792,10 +792,8 @@ class MainWindow(QMainWindow):
     def scroll_dashboard_page(self):
         """Auto-cycles through the pages of the Top Rail Dashboard."""
         if hasattr(self, 'dashboard_stacked_widget') and self.dashboard_stacked_widget.count() > 0:
-            # Don't auto-scroll if warning is visible
-            if self.dashboard_stacked_widget.currentIndex() == 1 and self.tr_warning_section.isVisible():
-                return
-            self.manual_dashboard_scroll()  # Reuse the manual scroll logic
+            # Always scroll regardless of warning status
+            self.manual_dashboard_scroll()
 
     def create_summary_group(self, title, count_label, object_name):
         group_box = QGroupBox(title)
@@ -1190,9 +1188,6 @@ class MainWindow(QMainWindow):
 
             # Handle low stock by showing warning section
             if low_stock_items:
-                if self.dashboard_scroll_timer.isActive():
-                    self.dashboard_scroll_timer.stop()
-
                 if hasattr(self, 'tr_warning_text'):
                     warning_text = "Critical Top Rail Parts Low:\n\n"
                     for part_name, rails_possible in low_stock_items:
@@ -1204,13 +1199,11 @@ class MainWindow(QMainWindow):
                             warning_text += f"• {part_name}:\n  Only enough for {rails_possible} top rails!\n\n"
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
-                    self.dashboard_stacked_widget.setCurrentIndex(1)
+                    # Remove stopping auto-scroll and forcing page 1
             else:
-                # No warnings - hide warning section and resume scrolling
+                # No warnings - just hide warning section
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
-                if not self.dashboard_scroll_timer.isActive():
-                    self.dashboard_scroll_timer.start()
 
         # --- Page 3: Top Rail Deficits (vs Bodies) ---
         if hasattr(self, 'top_rail_dashboard_widgets') and "deficits_7ft" in self.top_rail_dashboard_widgets:
