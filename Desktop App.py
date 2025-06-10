@@ -580,8 +580,36 @@ class MainWindow(QMainWindow):
         self.next_page_button.setFixedWidth(100)
         self.next_page_button.clicked.connect(self.manual_dashboard_scroll)
         nav_layout.addWidget(self.next_page_button)
-        
         main_layout.addLayout(nav_layout)
+
+        # Create warning section that will be shared across all pages
+        self.tr_warning_section = QWidget()
+        warning_layout = QVBoxLayout(self.tr_warning_section)
+        warning_layout.setContentsMargins(20, 20, 20, 20)
+        
+        warning_header = QLabel("⚠️ LOW STOCK WARNING")
+        warning_header.setStyleSheet("""
+            font-size: 36pt;
+            color: #c62828;
+            padding: 20px;
+            background-color: #ffebee;
+            border-radius: 10px;
+            font-weight: bold;
+        """)
+        warning_header.setAlignment(Qt.AlignCenter)
+        warning_layout.addWidget(warning_header)
+        
+        self.tr_warning_text = QLabel()
+        self.tr_warning_text.setStyleSheet("""
+            font-size: 24pt;
+            color: #c62828;
+            padding: 20px;
+        """)
+        self.tr_warning_text.setAlignment(Qt.AlignCenter)
+        self.tr_warning_text.setWordWrap(True)
+        warning_layout.addWidget(self.tr_warning_text)
+        
+        self.tr_warning_section.hide()  # Hidden by default
 
         # Page 1: Performance
         page1 = QWidget(); page1.setObjectName("DashboardPage")
@@ -705,34 +733,7 @@ class MainWindow(QMainWindow):
         layout2 = QVBoxLayout(page2)
 
         # Add warning section at top that's hidden by default
-        self.tr_warning_section = QWidget()
-        warning_layout = QVBoxLayout(self.tr_warning_section)
-        warning_layout.setContentsMargins(20, 20, 20, 20)
-        
-        warning_header = QLabel("⚠️ LOW STOCK WARNING")
-        warning_header.setStyleSheet("""
-            font-size: 36pt;
-            color: #c62828;
-            padding: 20px;
-            background-color: #ffebee;
-            border-radius: 10px;
-            font-weight: bold;
-        """)
-        warning_header.setAlignment(Qt.AlignCenter)
-        warning_layout.addWidget(warning_header)
-        
-        self.tr_warning_text = QLabel()
-        self.tr_warning_text.setStyleSheet("""
-            font-size: 24pt;
-            color: #c62828;
-            padding: 20px;
-        """)
-        self.tr_warning_text.setAlignment(Qt.AlignCenter)
-        self.tr_warning_text.setWordWrap(True)
-        warning_layout.addWidget(self.tr_warning_text)
-        
-        layout2.addWidget(self.tr_warning_section)
-        self.tr_warning_section.hide()  # Hidden by default
+        layout2.addWidget(self.tr_warning_section)  # Add warning section to top
 
         # Regular header and table below warning
         header2 = QLabel("Top Rail - Parts Inventory")
