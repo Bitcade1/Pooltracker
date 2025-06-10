@@ -1053,6 +1053,21 @@ class MainWindow(QMainWindow):
                 )
                 if next_serial_response.status_code == 200:
                     next_serial = next_serial_response.json().get("next_serial", "N/A")
+                    # Clean up the serial number if it has a suffix
+                    if next_serial != "N/A":
+                        # Extract base number using regex
+                        # This will match numbers at the start of the string
+                        # and ignore any suffixes like -O, -GO, etc.
+                        match = re.match(r'^(\d+)', next_serial)
+                        if match:
+                            base_number = int(match.group(1))
+                            next_number = str(base_number + 1)
+                            # If there was a suffix in the original, preserve it
+                            suffix_match = re.search(r'([-\s]+[A-Za-z]+)$', next_serial)
+                            if suffix_match:
+                                next_serial = next_number + suffix_match.group(1)
+                            else:
+                                next_serial = next_number
                     self.tr_dash_next_serial_label.setText(next_serial)
                 else:
                     self.tr_dash_next_serial_label.setText("ERR")
