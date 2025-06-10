@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
     QLabel, QPushButton, QLineEdit, QGroupBox, QFormLayout,
     QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QTabWidget, QComboBox, QCheckBox, QProgressBar, QFrame,
-    QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget
+    QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget, QScrollArea
 )
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QTimer
@@ -397,6 +397,17 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(15, 15, 15, 15)
 
+        # Wrap entire content in a scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setSpacing(15)
+        content_layout.setContentsMargins(15, 15, 15, 15)
+
+        # Header frame
         header_frame = QFrame()
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(0,0,0,0)
@@ -410,14 +421,16 @@ class MainWindow(QMainWindow):
         self.connection_label.setObjectName("ApiStatusLabel")
         self.connection_label.setProperty("status", "checking")
         header_layout.addWidget(self.connection_label)
-        main_layout.addWidget(header_frame)
+        content_layout.addWidget(header_frame)
         
         self.server_info_label = QLabel(f"Server: {self.api_client.base_url}")
         self.server_info_label.setStyleSheet("font-size: 8pt; color: #7f8c8d;")
-        main_layout.addWidget(self.server_info_label, alignment=Qt.AlignRight)
+        content_layout.addWidget(self.server_info_label, alignment=Qt.AlignRight)
 
+        # Add tabs with proper sizing
         self.tabs = QTabWidget()
-        main_layout.addWidget(self.tabs)
+        self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        content_layout.addWidget(self.tabs, 1)  # Give tabs more stretch
         
         self.prod_tab = QWidget()
         self.tabs.addTab(self.prod_tab, "Monthly Production")
@@ -441,13 +454,17 @@ class MainWindow(QMainWindow):
         
         self.statusBar().showMessage("Ready")
         
+        # Refresh button layout
         refresh_button_layout = QHBoxLayout()
         refresh_button_layout.addStretch()
         self.refresh_button = QPushButton("Refresh All Data") 
         self.refresh_button.setIcon(QIcon.fromTheme("view-refresh")) 
         self.refresh_button.clicked.connect(self.refresh_all_data)
         refresh_button_layout.addWidget(self.refresh_button)
-        main_layout.addLayout(refresh_button_layout)
+        content_layout.addLayout(refresh_button_layout)
+
+        scroll_area.setWidget(content_widget)
+        main_layout.addWidget(scroll_area)
 
     def setup_production_tab(self):
         prod_layout = QVBoxLayout(self.prod_tab)
@@ -491,6 +508,9 @@ class MainWindow(QMainWindow):
         note_label = QLabel("Data for the selected month is fetched from the server. Days with no production or API errors will show 0.")
         note_label.setStyleSheet("color: #666; font-style: italic; font-size: 9pt;"); note_label.setAlignment(Qt.AlignCenter)
         note_label.setWordWrap(True); prod_layout.addWidget(note_label)
+
+        # Add size policies to make tables stretch
+        self.production_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def setup_assembly_deficit_tab(self):
         main_tab_layout = QVBoxLayout(self.assembly_deficit_tab)
@@ -823,7 +843,7 @@ class MainWindow(QMainWindow):
         self.parts_table.verticalHeader().setDefaultSectionSize(80)
         
         # Take up most of the screen
-        self.parts_table.setMinimumHeight(800)
+        self.parts_table.setMinimumHeight(400)
         parts_layout.addWidget(self.parts_table, stretch=1)
         
         info_group = QGroupBox("Inventory Summary")
