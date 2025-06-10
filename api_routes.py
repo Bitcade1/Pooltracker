@@ -94,23 +94,42 @@ def get_next_top_rail_serial():
         if not last_rail or not last_rail.serial_number:
             return jsonify({"next_serial": "1000"})  # Default starting number
             
-        # Check if it's a 6ft or 7ft rail
+        # Extract the base number and any suffixes
         current_serial = last_rail.serial_number
-        is_6ft = " - 6" in current_serial or "-6" in current_serial
-
-        # Extract the base number
-        if is_6ft:
-            base_serial = current_serial.split('-')[0].strip()
-        else:
-            base_serial = current_serial
+        
+        # Check for color suffixes first
+        color_suffix = ""
+        if " - GO" in current_serial or "-GO" in current_serial:
+            color_suffix = " - GO"
+            current_serial = current_serial.replace(" - GO", "").replace("-GO", "")
+        elif " - O" in current_serial or "-O" in current_serial:
+            color_suffix = " - O"
+            current_serial = current_serial.replace(" - O", "").replace("-O", "")
+        elif " - C" in current_serial or "-C" in current_serial:
+            color_suffix = " - C"
+            current_serial = current_serial.replace(" - C", "").replace("-C", "")
+        elif " - B" in current_serial or "-B" in current_serial:
+            color_suffix = " - B"
+            current_serial = current_serial.replace(" - B", "").replace("-B", "")
+            
+        # Now check for size suffix
+        size_suffix = ""
+        if " - 6" in current_serial or "-6" in current_serial:
+            size_suffix = " - 6"
+            current_serial = current_serial.replace(" - 6", "").replace("-6", "")
 
         try:
-            # Increment the number
-            next_num = str(int(base_serial) + 1)
+            # Extract and increment base number
+            base_number = int(current_serial.strip())
+            next_number = str(base_number + 1)
+            
+            # Reconstruct the serial number with suffixes
+            next_serial = next_number + size_suffix + color_suffix
+            
         except ValueError:
-            next_num = "1000"  # Fallback if conversion fails
+            next_serial = "1000"  # Fallback if conversion fails
 
-        return jsonify({"next_serial": next_num})
+        return jsonify({"next_serial": next_serial})
         
     except Exception as e:
         return jsonify({"error": f"Failed to generate next serial number: {str(e)}"}), 500
