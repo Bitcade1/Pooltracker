@@ -9,8 +9,14 @@ Modern UI with monthly data selection for production.
 Optimized to fetch monthly production data in a single API call.
 Colors table finish boxes in Assembly Capacity tab.
 """
-from datetime import datetime, timedelta, date
+import sys
+import os
 import warnings
+import requests
+from datetime import datetime, timedelta, date
+import json
+import calendar
+import re
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
