@@ -661,6 +661,7 @@ class MainWindow(QMainWindow):
 
         # Initialize labels first
         self.tr_dash_daily_label = QLabel("0")
+        self.tr_dash_weekly_label = QLabel("0")  # New weekly label
         self.tr_dash_monthly_label = QLabel("0")
         self.tr_dash_yearly_label = QLabel("0") 
 
@@ -681,6 +682,23 @@ class MainWindow(QMainWindow):
         prod_stats_layout.addWidget(today_label, 0, 0)
         prod_stats_layout.addWidget(self.tr_dash_daily_label, 1, 0)
 
+        # This Week's Production - New Section
+        this_week_label = QLabel("This Week's Production")
+        this_week_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
+        this_week_label.setAlignment(Qt.AlignCenter)
+        
+        self.tr_dash_weekly_label.setStyleSheet("""
+            font-size: 48pt;
+            font-weight: bold; 
+            color: #27ae60;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        """)
+        self.tr_dash_weekly_label.setAlignment(Qt.AlignCenter)
+        prod_stats_layout.addWidget(this_week_label, 0, 1)
+        prod_stats_layout.addWidget(self.tr_dash_weekly_label, 1, 1)
+
         # Monthly Production
         month_label = QLabel("This Month")
         month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
@@ -694,8 +712,8 @@ class MainWindow(QMainWindow):
             border-radius: 8px;
         """)
         self.tr_dash_monthly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(month_label, 0, 1)
-        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 1)
+        prod_stats_layout.addWidget(month_label, 0, 2)
+        prod_stats_layout.addWidget(self.tr_dash_monthly_label, 1, 2)
 
         # Yearly Production
         year_label = QLabel("This Year")
@@ -710,8 +728,8 @@ class MainWindow(QMainWindow):
             border-radius: 8px;
         """)
         self.tr_dash_yearly_label.setAlignment(Qt.AlignCenter)
-        prod_stats_layout.addWidget(year_label, 0, 2)
-        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 2)
+        prod_stats_layout.addWidget(year_label, 0, 3)
+        prod_stats_layout.addWidget(self.tr_dash_yearly_label, 1, 3)
 
         # Add Next Serial Number section below production stats
         next_serial_label = QLabel("Next Serial Number")
@@ -1095,10 +1113,12 @@ class MainWindow(QMainWindow):
                 if production_stats_response.status_code == 200:
                     stats = production_stats_response.json()
                     self.tr_dash_daily_label.setText(str(stats['daily']))
+                    self.tr_dash_weekly_label.setText(str(stats['weekly']))  # Update weekly
                     self.tr_dash_monthly_label.setText(str(stats['monthly']))
                     self.tr_dash_yearly_label.setText(str(stats['yearly']))
                 else:
                     self.tr_dash_daily_label.setText("ERR")
+                    self.tr_dash_weekly_label.setText("ERR")  # Error handling for weekly
                     self.tr_dash_monthly_label.setText("ERR")
                     self.tr_dash_yearly_label.setText("ERR")
 
@@ -1580,20 +1600,59 @@ class MainWindow(QMainWindow):
         about_group.setLayout(about_layout)
         settings_layout.addWidget(about_group)
 
-def main():
-    app = QApplication(sys.argv)
+class TopRailDashboard(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
 
-    # --- Loading Screen ---
-    splash_pix = QPixmap(os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "splash.png"))  # Replace with your splash image
-    splash = LoadingScreen(splash_pix)
-    splash.show()
-    splash.showMessage("Loading application...", alignment=Qt.AlignBottom | Qt.AlignCenter, color=QColor("black"))
-    app.processEvents()  # Ensure the splash screen is displayed
+        # Production Statistics Group
+        stats_group = QGroupBox("Production Statistics")
+        stats_layout = QGridLayout()
 
-    window = MainWindow()
-    window.show()
-    splash.finish(window)  # Close splash screen when main window is ready
-    sys.exit(app.exec_())
+        # Daily Production
+        self.daily_label = QLabel("Today's Production:")
+        self.daily_count = QLabel("0")
+        stats_layout.addWidget(self.daily_label, 0, 0)
+        stats_layout.addWidget(self.daily_count, 0, 1)
 
-if __name__ == "__main__":
-    main()
+        # Weekly Production (new)
+        self.weekly_label = QLabel("This Week's Production:")
+        self.weekly_count = QLabel("0")
+        stats_layout.addWidget(self.weekly_label, 1, 0)
+        stats_layout.addWidget(self.weekly_count, 1, 1)
+
+        # Monthly Production
+        self.monthly_label = QLabel("Monthly Production:")
+        self.monthly_count = QLabel("0")
+        stats_layout.addWidget(self.monthly_label, 2, 0)
+        stats_layout.addWidget(self.monthly_count, 2, 1)
+
+        # Yearly Production
+        self.yearly_label = QLabel("Yearly Production:")
+        self.yearly_count = QLabel("0")
+        stats_layout.addWidget(self.yearly_label, 3, 0)
+        stats_layout.addWidget(self.yearly_count, 3, 1)
+
+        stats_group.setLayout(stats_layout)
+        layout.addWidget(stats_group)
+
+        self.setLayout(layout)
+        self.update_stats()
+
+        # Set up timer for auto-refresh
+        self.refresh_timer = QTimer()
+        self.refresh_timer.timeout.connect(self.update_stats)
+        self.refresh_timer.start(60000)  # Refresh every minute
+
+    def update_stats(self):
+        try:
+            response = requests.get(f"{API_BASE_URL}/api/top_rail/production_stats",
+                                  headers={"Authorization": API_KEY})
+            if response.status_code == 200:
+                data = response.json()
+                self.daily_count.setText(str(data['daily']))
+                self.weekly_count.setText(str(data['weekly']))
+                self.monthly_count.setText(str(data['monthly']))
+                self.yearly_count.setText(str(data['yearly']))
+        except Exception as e:
+            print(f"Error updating top rail stats: {e}")
