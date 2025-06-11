@@ -9,14 +9,8 @@ Modern UI with monthly data selection for production.
 Optimized to fetch monthly production data in a single API call.
 Colors table finish boxes in Assembly Capacity tab.
 """
-import sys
-import os
-import warnings
-import requests
 from datetime import datetime, timedelta, date
-import json
-import calendar
-import re
+import warnings
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -26,9 +20,12 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget, QScrollArea
 )
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
-from PyQt5.QtCore import Qt, QTimer, pyqtWrapperType
+from PyQt5.QtCore import Qt, QTimer, QObject
 
 from LoadingScreen import LoadingScreen  # Import the LoadingScreen class
+
+# Suppress deprecation warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # --- Modern UI Styling ---
 STYLESHEET = """
@@ -317,7 +314,7 @@ class APIClient:
             return None
 
 
-class MainWindow(QMainWindow, metaclass=pyqtWrapperType):
+class MainWindow(QMainWindow, QObject):
     # Get absolute path for images
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
@@ -1601,7 +1598,7 @@ class MainWindow(QMainWindow, metaclass=pyqtWrapperType):
         about_group.setLayout(about_layout)
         settings_layout.addWidget(about_group)
 
-class TopRailDashboard(QWidget, metaclass=pyqtWrapperType):
+class TopRailDashboard(QWidget, QObject):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
