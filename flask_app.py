@@ -1852,9 +1852,11 @@ class CushionJobRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('cushion_session.id'), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey('cushion_job.id'), nullable=False)
-    goal_minutes = db.Column(db.Integer, default=0)  # Target time in minutes
+    goal_time_hours = db.Column(db.Float, nullable=False)
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
+    actual_hours = db.Column(db.Float, nullable=False)
+    setup_hours = db.Column(db.Float)
     paused_time = db.Column(db.DateTime)  # New field for tracking when a job is paused
     actual_minutes = db.Column(db.Float, nullable=False)
     setup_minutes = db.Column(db.Float)
@@ -3941,6 +3943,30 @@ def get_timing_stats():
         "recent_times": recent_times,
         "total_completed": len(completed_timings)
     }), 200
+
+@app.route('/api/top_rail/production_stats', methods=['GET'])
+def get_top_rail_production_stats():
+    today = date.today()
+    
+    # Get today's count
+    daily_count = TopRail.query.filter(TopRail.date == today).count()
+    
+    # Get month count
+    month_count = TopRail.query.filter(
+        extract('year', TopRail.date) == today.year,
+        extract('month', TopRail.date) == today.month
+    ).count()
+    
+    # Get year count
+    year_count = TopRail.query.filter(
+        extract('year', TopRail.date) == today.year
+    ).count()
+    
+    return jsonify({
+        'daily': daily_count,
+        'monthly': month_count,
+        'yearly': year_count
+    })
 
 @app.route('/top_rail_timing')
 def top_rail_timing_page():

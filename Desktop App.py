@@ -1087,6 +1087,21 @@ class MainWindow(QMainWindow):
         # --- Page 1: Performance - Update with real production data ---
         if hasattr(self, 'tr_dash_current_time_label'):
             try:
+                # Get production stats
+                production_stats_response = requests.get(
+                    f"{self.api_client.base_url}/api/top_rail/production_stats",
+                    headers=self.api_client.headers
+                )
+                if production_stats_response.status_code == 200:
+                    stats = production_stats_response.json()
+                    self.tr_dash_daily_label.setText(str(stats['daily']))
+                    self.tr_dash_monthly_label.setText(str(stats['monthly']))
+                    self.tr_dash_yearly_label.setText(str(stats['yearly']))
+                else:
+                    self.tr_dash_daily_label.setText("ERR")
+                    self.tr_dash_monthly_label.setText("ERR")
+                    self.tr_dash_yearly_label.setText("ERR")
+
                 # Get next serial number
                 next_serial_response = requests.get(
                     f"{self.api_client.base_url}/api/top_rail/next_serial",
