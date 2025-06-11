@@ -3951,6 +3951,13 @@ def get_top_rail_production_stats():
     # Get today's count
     daily_count = TopRail.query.filter(TopRail.date == today).count()
     
+    # Get this week's count (starting from Monday)
+    start_of_week = today - timedelta(days=today.weekday())
+    week_count = TopRail.query.filter(
+        TopRail.date >= start_of_week,
+        TopRail.date <= today
+    ).count()
+    
     # Get month count
     month_count = TopRail.query.filter(
         extract('year', TopRail.date) == today.year,
@@ -3964,6 +3971,7 @@ def get_top_rail_production_stats():
     
     return jsonify({
         'daily': daily_count,
+        'weekly': week_count,
         'monthly': month_count,
         'yearly': year_count
     })
@@ -3997,3 +4005,4 @@ def top_rail_timing_page():
                          average_time=round(average_time, 2),
                          best_time=round(best_time, 2),
                          total_completed=total_completed)
+
