@@ -2111,6 +2111,7 @@ def bodies():
             "Sticker Set": 1,
             "4.8x16mm Self Tapping Screw": 37,
             "4.0 x 50mm Wood Screw": 4,
+            "Plastic Window": 1,
             "Latch": 12
         }
 
