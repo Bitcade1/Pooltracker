@@ -553,6 +553,7 @@ def inventory():
         "6ft Felt": 1,
         "7ft Carpet": 1,    # Added new 7ft parts
         "7ft Felt": 1
+        
     }
 
     # Calculate how many of each part have been used this month.
@@ -2109,6 +2110,7 @@ def bodies():
             "Chrome handles": 1,
             "Sticker Set": 1,
             "4.8x16mm Self Tapping Screw": 37,
+            "4.0 x 50mm Wood Screw": 4,
             "Latch": 12
         }
 
