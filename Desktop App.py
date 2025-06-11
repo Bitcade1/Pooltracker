@@ -21,12 +21,12 @@ import re
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QLineEdit, QGroupBox, QFormLayout,
-    QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,
+    QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,  
     QTabWidget, QComboBox, QCheckBox, QProgressBar, QFrame,
     QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget, QScrollArea
 )
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtWrapperType
 
 from LoadingScreen import LoadingScreen  # Import the LoadingScreen class
 
@@ -317,7 +317,7 @@ class APIClient:
             return None
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QMainWindow, metaclass=pyqtWrapperType):
     # Get absolute path for images
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     TABLE_FINISH_COLORS = {
@@ -1576,6 +1576,7 @@ class MainWindow(QMainWindow):
 
         # Timer Settings Group
         timer_group = QGroupBox("Dashboard Settings")
+       
         timer_layout = QFormLayout()
         self.scroll_timer_input = QLineEdit(str(self.config.get("SCROLL_TIMER", 10)))
         self.scroll_timer_input.setFixedWidth(80)
@@ -1600,7 +1601,7 @@ class MainWindow(QMainWindow):
         about_group.setLayout(about_layout)
         settings_layout.addWidget(about_group)
 
-class TopRailDashboard(QWidget):
+class TopRailDashboard(QWidget, metaclass=pyqtWrapperType):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
