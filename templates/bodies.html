@@ -116,6 +116,9 @@
       .black-swatch {
           background-color: #333;
       }
+      .rustic-black-swatch {
+          background-color: #1a1a1a;
+      }
       .rustic-oak-swatch {
           background-color: #b67c3d;
       }
@@ -218,6 +221,9 @@
               case 'Stone':
                   colorSuffix = ' - C';
                   break;
+              case 'Rustic Black':
+                  colorSuffix = ' - RB';
+                  break;
               case 'Black':
                   // Black is the default so we don't need a suffix
                   break;
@@ -308,6 +314,7 @@
         <label for="color_selector">Table Color:</label>
         <select id="color_selector" name="color_selector">
           <option value="Black" {% if default_color == 'Black' %}selected{% endif %}>Black</option>
+          <option value="Rustic Black" {% if default_color == 'Rustic Black' %}selected{% endif %}>Rustic Black</option>
           <option value="Rustic Oak" {% if default_color == 'Rustic Oak' %}selected{% endif %}>Rustic Oak</option>
           <option value="Grey Oak" {% if default_color == 'Grey Oak' %}selected{% endif %}>Grey Oak</option>
           <option value="Stone" {% if default_color == 'Stone' %}selected{% endif %}>Stone</option>

@@ -165,6 +165,9 @@
     .stone-swatch {
       background-color: #c2b8a3;
     }
+    .rustic-black-swatch {
+      background-color: #1a1a1a;
+    }
   </style>
   <script>
     function toggleCollapsible(id) {
@@ -226,9 +229,11 @@
         case 'Stone':
           colorSuffix = ' - C';
           break;
+        case 'Rustic Black':
+          colorSuffix = ' - RB';
+          break;
         case 'Black':
-          // Black is the default so we don't need a suffix, but we could add one for consistency
-          // colorSuffix = ' - B';
+          // Black is default, no suffix
           break;
       }
       
@@ -311,6 +316,9 @@
         <select id="color_selector" name="color_selector">
           <option value="Black" {% if default_color == 'Black' %}selected{% endif %}>
             <span class="color-option black-swatch"></span> Black
+          </option>
+          <option value="Rustic Black" {% if default_color == 'Rustic Black' %}selected{% endif %}>
+            <span class="color-option rustic-black-swatch"></span> Rustic Black
           </option>
           <option value="Rustic Oak" {% if default_color == 'Rustic Oak' %}selected{% endif %}>
             <span class="color-option rustic-oak-swatch"></span> Rustic Oak
