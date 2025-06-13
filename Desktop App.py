@@ -1363,28 +1363,36 @@ class MainWindow(QMainWindow):
                 status_text = ""
                 status_style = "font-size: 10pt; color: #555;" # Default neutral
                 
+                # Add styling for text boxes with light background
+                value_box_style = """
+                    background-color: rgba(255, 255, 255, 0.9);
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    margin: 2px;
+                """
+                
                 if body_stock == 0 and rail_stock == 0:
                     status_text = "No bodies or rails."
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
+                    widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
+                    widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
                 elif body_stock == rail_stock:
                     status_text = f"Balanced. Can make {body_stock} sets."
-                    status_style = "font-size: 10pt; font-weight: bold; color: #2e7d32;"
-                    # Make both values green when balanced
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;")
+                    widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
+                    widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
                 elif body_stock > rail_stock:
                     needed = body_stock - rail_stock
                     status_text = f"{needed} more Top Rails needed."
-                    status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                else: # rail_stock > body_stock
+                    widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")  # Blue for higher stock
+                    widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")  # Red for lower stock
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
+                else:  # rail_stock > body_stock
                     needed = rail_stock - body_stock
                     status_text = f"{needed} more Bodies needed."
-                    status_style = "font-size: 10pt; font-weight: bold; color: #c62828;"
-                    widgets["body_stock"].setStyleSheet("font-size: 10pt; color: #c62828; font-weight: bold;")
-                    widgets["rail_stock"].setStyleSheet("font-size: 10pt; color: #2e7d32; font-weight: bold;") # Green for higher stock
+                    widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")  # Red for lower stock
+                    widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")  # Blue for higher stock
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
                 
                 widgets["status"].setText(status_text)
                 widgets["status"].setStyleSheet(status_style)
