@@ -429,6 +429,10 @@ class MainWindow(QMainWindow):
 
         # Add tabs with proper sizing
         self.tabs = QTabWidget()
+        # Set larger font for all tabs
+        tab_font = QFont()
+        tab_font.setPointSize(12)  # Increase tab font size
+        self.tabs.setFont(tab_font)  # Apply the larger font to tabs
         self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         content_layout.addWidget(self.tabs, 1)  # Give tabs more stretch
         
@@ -884,7 +888,7 @@ class MainWindow(QMainWindow):
         low_stock_items = []  # Track all low stock items
         
         for row, (part_name, count) in enumerate(sorted_parts):
-            actual_count = count if count is not None else 0  # Fixed syntax error
+            actual_count = count if count is not None else 0  # Fixed ternary operator syntax
             
             # Create items
             name_item = QTableWidgetItem(part_name)
