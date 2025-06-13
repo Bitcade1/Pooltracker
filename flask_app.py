@@ -2385,6 +2385,8 @@ def top_rails():
             "Center pockets": 2,
             "Corner pockets": 4,
             "Catch Plate": 12,
+            "M5 x 20 Socket Cap Screw": 16,
+            "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
             "4.8x32mm Self Tapping Screw": 24
         }
 
