@@ -1593,6 +1593,22 @@ class MainWindow(QMainWindow):
         about_group.setLayout(about_layout)
         settings_layout.addWidget(about_group)
 
+    def resizeEvent(self, event):
+        """Handle window resize events to maintain proper scaling"""
+        super().resizeEvent(event)
+        # Adjust font sizes based on window size
+        base_size = min(self.width() / 100, self.height() / 50)
+        font = self.font()
+        font.setPointSize(int(base_size))
+        self.setFont(font)
+        
+        # Update tab contents scaling
+        for i in range(self.tabs.count()):
+            scroll = self.tabs.widget(i)
+            if isinstance(scroll, QScrollArea):
+                content = scroll.widget()
+                content.updateGeometry()
+
 def main():
     app = QApplication(sys.argv)
 
