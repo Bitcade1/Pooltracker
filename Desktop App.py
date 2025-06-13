@@ -1367,7 +1367,7 @@ class MainWindow(QMainWindow):
                 status_text = ""
                 status_style = "font-size: 10pt; color: #555;" # Default neutral
                 
-                # Add styling for text boxes with light background
+# Add styling for text boxes with light background
                 value_box_style = """
                     background-color: rgba(255, 255, 255, 0.9);
                     border-radius: 4px;
@@ -1375,35 +1375,36 @@ class MainWindow(QMainWindow):
                     margin: 2px;
                 """
                 
-                # Apply the box style to status label first
+                # Apply the box style to all labels first
+                widgets["body_stock"].setStyleSheet(f"{value_box_style} color: black;")
+                widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: black;")
                 widgets["status"].setStyleSheet(f"{value_box_style} color: black; margin-top: 8px;")
                 
-                # Then handle the specific status cases
+                # Then handle the specific status cases with color overrides
                 if body_stock == 0 and rail_stock == 0:
                     status_text = "No bodies or rails."
                     widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
                     widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
-                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold; margin-top: 8px;")
                 elif body_stock == rail_stock:
                     status_text = f"Balanced. Can make {body_stock} sets."
                     widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
                     widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
-                    widgets["status"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold; margin-top: 8px;")
                 elif body_stock > rail_stock:
                     needed = body_stock - rail_stock
                     status_text = f"{needed} more Top Rails needed."
                     widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
                     widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
-                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold; margin-top: 8px;")
                 else:  # rail_stock > body_stock
                     needed = rail_stock - body_stock
                     status_text = f"{needed} more Bodies needed."
                     widgets["body_stock"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
                     widgets["rail_stock"].setStyleSheet(f"{value_box_style} color: #1a237e; font-weight: bold;")
-                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold;")
+                    widgets["status"].setStyleSheet(f"{value_box_style} color: #b71c1c; font-weight: bold; margin-top: 8px;")
                 
                 widgets["status"].setText(status_text)
-                widgets["status"].setStyleSheet(status_style)
 
 
     def check_api_connection(self):
