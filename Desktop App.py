@@ -1603,11 +1603,13 @@ class MainWindow(QMainWindow):
         self.setFont(font)
         
         # Update tab contents scaling
-        for i in range(self.tabs.count()):
-            scroll = self.tabs.widget(i)
-            if isinstance(scroll, QScrollArea):
-                content = scroll.widget()
-                content.updateGeometry()
+        if hasattr(self, 'tab_widget'):  # Add safety check
+            for i in range(self.tab_widget.count()):
+                scroll = self.tab_widget.widget(i)
+                if isinstance(scroll, QScrollArea):
+                    content = scroll.widget()
+                    if content:
+                        content.updateGeometry()
 
 def main():
     app = QApplication(sys.argv)
