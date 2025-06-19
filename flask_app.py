@@ -2100,8 +2100,6 @@ def bodies():
             "Color ball trim": 1,
             "Ball window trim": 1,
             "Aluminum corner": 4,
-            "Top rail trim short length": 1,
-            "Top rail trim long length": 1,
             "Ramp 170mm": 1,
             "Ramp 158mm": 1,
             "Ramp 918mm": 1,
