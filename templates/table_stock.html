@@ -123,6 +123,12 @@
           padding: 10px;
           border-spacing: 10px;
       }
+      .color-rustic-black {
+          background-color: #2c2c2c;
+          color: white;
+          padding: 10px;
+          border-spacing: 10px;
+      }
       .section-indicator {
           font-size: 1.2em;
           font-weight: bold;
@@ -428,7 +434,7 @@
                 <td>{{ color }}</td>
                 <td>{{ table_data[stock_key] }}</td>
                 <td>
-                  {% if color|lower == 'black' %}
+                  {% if color|lower == 'black' or color|lower == 'rustic black' %}
                     £993.60
                   {% else %}
                     £1089.60
