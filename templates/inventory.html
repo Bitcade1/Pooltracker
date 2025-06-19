@@ -34,6 +34,17 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
         th { background-color: #f2f2f2; }
+        .sort-toggle {
+            background-color: #28a745;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .sort-toggle:hover { background-color: #218838; }
     </style>
     <script>
         function toggleCollapsible(id) {
@@ -41,27 +52,53 @@
             content.style.display = content.style.display === "block" ? "none" : "block";
         }
 
+        let isTablePartsSorted = false;
+        let originalTablePartsOrder = [];
+
         function sortTableParts() {
             const tableBody = document.getElementById('tablePartsBody');
             if (!tableBody) return;
             
             const rows = Array.from(tableBody.querySelectorAll('tr'));
             
-            // Sort rows by the "Tables Possible" column (3rd column, index 2)
-            rows.sort((a, b) => {
-                const tablesA = parseInt(a.cells[2].textContent);
-                const tablesB = parseInt(b.cells[2].textContent);
-                return tablesA - tablesB; // Ascending order (lowest first)
-            });
+            if (!isTablePartsSorted) {
+                // Store original order before first sort
+                originalTablePartsOrder = rows.map(row => row.cloneNode(true));
+                
+                // Sort rows by the "Tables Possible" column (3rd column, index 2)
+                rows.sort((a, b) => {
+                    const tablesA = parseInt(a.cells[2].textContent);
+                    const tablesB = parseInt(b.cells[2].textContent);
+                    return tablesA - tablesB; // Ascending order (lowest first)
+                });
+                
+                isTablePartsSorted = true;
+            } else {
+                // Restore original order
+                rows.length = 0;
+                rows.push(...originalTablePartsOrder.map(row => row.cloneNode(true)));
+                isTablePartsSorted = false;
+            }
             
-            // Clear existing rows and append sorted rows
+            // Clear existing rows and append rows in current order
             tableBody.innerHTML = '';
             rows.forEach(row => tableBody.appendChild(row));
+            
+            // Update toggle button text
+            updateToggleButtonText();
         }
 
-        // Sort table parts when page loads
+        function updateToggleButtonText() {
+            const toggleButton = document.getElementById('tableSortToggle');
+            if (toggleButton) {
+                toggleButton.textContent = isTablePartsSorted ? 
+                    'Switch to Original Order' : 'Sort by Tables Possible (Lowest First)';
+            }
+        }
+
+        // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            sortTableParts();
+            updateToggleButtonText();
         });
     </script>
 </head>
@@ -118,8 +155,11 @@
         </div>
 
         <!-- Collapsible Section for Table Parts -->
-        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts (Sorted by Tables Possible)</button>
+        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts</button>
         <div id="collapsibleContentTableParts" class="collapsible-content">
+            <button id="tableSortToggle" class="sort-toggle" onclick="sortTableParts()">
+                Sort by Tables Possible (Lowest First)
+            </button>
             <table>
                 <thead>
                     <tr>
