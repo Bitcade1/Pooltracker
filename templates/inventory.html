@@ -40,6 +40,29 @@
             var content = document.getElementById(id);
             content.style.display = content.style.display === "block" ? "none" : "block";
         }
+
+        function sortTableParts() {
+            const tableBody = document.getElementById('tablePartsBody');
+            if (!tableBody) return;
+            
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            
+            // Sort rows by the "Tables Possible" column (3rd column, index 2)
+            rows.sort((a, b) => {
+                const tablesA = parseInt(a.cells[2].textContent);
+                const tablesB = parseInt(b.cells[2].textContent);
+                return tablesA - tablesB; // Ascending order (lowest first)
+            });
+            
+            // Clear existing rows and append sorted rows
+            tableBody.innerHTML = '';
+            rows.forEach(row => tableBody.appendChild(row));
+        }
+
+        // Sort table parts when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            sortTableParts();
+        });
     </script>
 </head>
 <body>
@@ -95,7 +118,7 @@
         </div>
 
         <!-- Collapsible Section for Table Parts -->
-        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts</button>
+        <button class="collapsible" onclick="toggleCollapsible('collapsibleContentTableParts')">Table Parts (Sorted by Tables Possible)</button>
         <div id="collapsibleContentTableParts" class="collapsible-content">
             <table>
                 <thead>
@@ -105,7 +128,7 @@
                         <th>Tables Possible</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tablePartsBody">
                     {% for part, count in table_parts_counts.items() %}
                     <tr>
                         <td><strong>{{ part }}</strong></td>
