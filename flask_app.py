@@ -2854,7 +2854,7 @@ def table_stock():
 
     # Define the dimensions (sizes and colors)
     sizes = ['6ft', '7ft']
-    colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone']
+    colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black']
 
     # Initialize dictionaries for each stock category.
     table_data = {}
