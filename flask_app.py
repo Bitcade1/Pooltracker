@@ -2181,6 +2181,8 @@ def bodies():
                 return "rustic_oak"
             elif "-C" in norm_serial or "-c" in norm_serial:
                 return "stone"
+            elif "-RB" in norm_serial or "-rb" in norm_serial:
+                return "rustic_black"
             else:
                 return "black"  # Default if no color suffix or has -B
 
