@@ -1173,7 +1173,7 @@ class MainWindow(QMainWindow):
             "Catch Plate": 12,
             "M5 x 20 Socket Cap Screw": 16,
             "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
-            "LAMELLO CLAMEX P-14 CONNECTOR": 12,
+            "LAMELLO CLAMEX P-14 CONNECTOR": 18,
             "4.8x32mm Self Tapping Screw": 24
             }
             
