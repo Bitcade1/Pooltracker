@@ -1165,15 +1165,16 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'tr_parts_table'):
             # Define top rail parts dictionary
             top_rail_parts = {
-                "Top rail trim long length": 2,
-                "Top rail trim short length": 4,
-                "Chrome corner": 4,
-                "Center pockets": 2,
-                "Corner pockets": 4,
-                "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
-                "M5 x 20 Socket Cap Screw": 16,
-                "Catch Plate": 12,
-                "4.8x32mm Self Tapping Screw": 24
+            "Top rail trim long length": 2,
+            "Top rail trim short length": 4,
+            "Chrome corner": 4,
+            "Center pockets": 2,
+            "Corner pockets": 4,
+            "Catch Plate": 12,
+            "M5 x 20 Socket Cap Screw": 16,
+            "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
+            "LAMELLO CLAMEX P-14 CONNECTOR": 12,
+            "4.8x32mm Self Tapping Screw": 24
             }
             
             hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
