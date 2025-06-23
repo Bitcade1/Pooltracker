@@ -4,10 +4,10 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
 from collections import defaultdict  # Ensure defaultdict is imported
 import os
-import re
 import requests
 from calendar import monthrange
-from sqlalchemy import func, extract, desc, distinct
+from sqlalchemy import func, extract
+import re  # Add this import at the top of the file
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -133,50 +133,6 @@ class HardwarePart(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     initial_count = db.Column(db.Integer, default=0)
     used_per_table = db.Column(db.Float, default=0.0000)
-
-# --- Notification Function ---
-NTFY_TOPIC = "PoolTableTracker"  # CHANGE THIS to your ntfy.sh topic
-
-def send_ntfy_notification(item_type, serial_number):
-    """Sends a notification to a ntfy topic about a completed item."""
-    
-    def is_6ft(serial):
-        # Consistent size check across the app
-        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
-
-    def get_color(serial):
-        # Consistent color check across the app
-        norm_serial = serial.replace(" ", "")
-        if "-GO" in norm_serial or "-go" in norm_serial:
-            return "Grey Oak"
-        elif "-O" in norm_serial and not "-GO" in norm_serial:
-            return "Rustic Oak"
-        elif "-C" in norm_serial or "-c" in norm_serial:
-            return "Stone"
-        elif "-RB" in norm_serial or "-rb" in norm_serial:
-            return "Rustic Black"
-        else:
-            return "Black"
-
-    size = "6ft" if is_6ft(serial_number) else "7ft"
-    color = get_color(serial_number)
-    
-    title = f"{item_type} Completed: {serial_number}"
-    message = f"A new {size} {color} {item_type.lower()} has been completed."
-    
-    try:
-        requests.post(
-            f"https://ntfy.sh/{NTFY_TOPIC}",
-            data=message.encode(encoding='utf-8'),
-            headers={
-                "Title": title,
-                "Priority": "default",
-                "Tags": "building,white_check_mark"
-            }
-        )
-        print(f"Sent ntfy notification for {item_type} {serial_number}")
-    except requests.RequestException as e:
-        print(f"Error sending ntfy notification: {e}")
 
 @app.route('/logout')
 def logout():
@@ -998,10 +954,10 @@ def pods():
             db.session.add(new_pod)
             db.session.commit()
             flash(f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, and 16 M10x13mm Tee Nuts", "success")
-            send_ntfy_notification("Pod", serial_number)
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
+            return redirect(url_for('pods'))
 
         return redirect(url_for('pods'))
 
@@ -2144,7 +2100,7 @@ def bodies():
 
         # Helper function to determine if it's a 6ft table
         def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+            return serial.replace(" ", "").endswith("-6")
 
         # Adjust parts for 6ft tables
         if is_6ft(serial_number):
@@ -2196,50 +2152,38 @@ def bodies():
         try:
             db.session.add(new_table)
             db.session.commit()
-            
-            # --- Update Table Stock for Top Rails ---
-            # Determine size and color from serial number
-            def is_6ft(serial):
-                return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
-            
-            def get_color(serial):
-                norm_serial = serial.replace(" ", "")
-                if "-GO" in norm_serial or "-go" in norm_serial:
-                    return "grey_oak"
-                elif "-O" in norm_serial and not "-GO" in norm_serial:
-                    return "rustic_oak"
-                elif "-C" in norm_serial or "-c" in norm_serial:
-                    return "stone"
-                else:
-                    return "black"  # Default if no color suffix or has -B
-            
-            # Determine size and color
-            size = "6ft" if is_6ft(serial_number) else "7ft"
-            color = get_color(serial_number)
-            
-            # Create the stock key
-            stock_type = f'body_{size.lower()}_{color}'
-            
-            # Update the stock count
-            stock_entry = TableStock.query.filter_by(type=stock_type).first()
-            if not stock_entry:
-                stock_entry = TableStock(type=stock_type, count=0)
-                db.session.add(stock_entry)
-            stock_entry.count += 1
-            db.session.commit()
-            
             flash("Body entry added successfully and inventory updated!", "success")
-            
-            send_ntfy_notification("Body", serial_number)
-        except IntegrityError:
-            db.session.rollback()
-            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('bodies'))
         except Exception as e:
             db.session.rollback()
-            flash(f"Error creating body entry: {str(e)}", "error")
+            flash(f"Error: {str(e)}", "error")
             return redirect(url_for('bodies'))
+
+        # Helper function to determine color from serial number
+        def get_color(serial):
+            norm_serial = serial.replace(" ", "")
+            if "-GO" in norm_serial or "-go" in norm_serial:
+                return "grey_oak"
+            elif "-O" in norm_serial and not "-GO" in norm_serial:
+                return "rustic_oak"
+            elif "-C" in norm_serial or "-c" in norm_serial:
+                return "stone"
+            elif "-RB" in norm_serial or "-rb" in norm_serial:
+                return "rustic_black"
+            else:
+                return "black"  # Default if no color suffix or has -B
+
+        # Update table stock based on size and color
+        size = "6ft" if is_6ft(serial_number) else "7ft"
+        color = get_color(serial_number)
+        stock_type = f'body_{size.lower()}_{color}'
         
+        stock_entry = TableStock.query.filter_by(type=stock_type).first()
+        if not stock_entry:
+            stock_entry = TableStock(type=stock_type, count=0)
+            db.session.add(stock_entry)
+        stock_entry.count += 1
+        db.session.commit()
+
         return redirect(url_for('bodies'))
 
     # ---------------------------
@@ -2347,6 +2291,10 @@ def bodies():
     else:
         target_7ft = 60
         target_6ft = 60
+
+    # Get the current finish time to pre-populate the form
+    last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
+    current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
 
     return render_template(
         'bodies.html',
@@ -2468,6 +2416,47 @@ def top_rails():
             db.session.add(new_top_rail)
             db.session.commit()
             
+            # --- Timer Logic: Stop previous timer and start new one ---
+            try:
+                # 1. Stop any active timer for this worker (this completion ends the previous timer)
+                active_timer = TopRailTiming.query.filter_by(
+                    worker=worker, 
+                    completed=False
+                ).first()
+                
+                if active_timer:
+                    # Complete the previous timer
+                    end_time = datetime.now()
+                    duration = (end_time - active_timer.start_time).total_seconds() / 60
+                    
+                    active_timer.end_time = end_time
+                    active_timer.duration_minutes = round(duration, 2)
+                    active_timer.serial_number = serial_number  # Record which top rail completed the timer
+                    active_timer.completed = True
+                    
+                    # Show the build time in a friendly format
+                    minutes = int(duration)
+                    seconds = int((duration % 1) * 60)
+                    flash(f"Build time recorded: {minutes}m {seconds}s for top rail {serial_number}", "info")
+                
+                # 2. Start a new timer for the next top rail
+                new_timer = TopRailTiming(
+                    worker=worker,
+                    start_time=datetime.now(),
+                    date=date.today()
+                )
+                db.session.add(new_timer)
+                db.session.commit()
+                
+            except Exception as timer_error:
+                # Don't let timer errors break the main functionality
+                print(f"Timer error: {str(timer_error)}")
+                db.session.rollback()
+                # Re-commit the main top rail record
+                db.session.add(new_top_rail)
+                db.session.commit()
+                flash("Top rail entry added successfully (timer had an issue but main record saved)!", "warning")
+            
             # --- Update Table Stock for Top Rails ---
             # Determine size and color from serial number
             def is_6ft(serial):
@@ -2499,9 +2488,9 @@ def top_rails():
             stock_entry.count += 1
             db.session.commit()
             
-            flash("Top rail entry added successfully and inventory updated!", "success")
+            if 'timer had an issue' not in str(flash):  # Only show success if no timer warning
+                flash("Top rail entry added successfully and inventory updated!", "success")
             
-            send_ntfy_notification("Top Rail", serial_number)
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
@@ -2636,6 +2625,28 @@ def top_rails():
             "count": total_top_rails,
             "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
         })
+
+    # --- Calculate Current Production for Top Rails by Size ---
+    all_top_rails_this_month = TopRail.query.filter(
+        extract('year', TopRail.date) == today.year,
+        extract('month', TopRail.date) == today.month
+    ).all()
+
+    # Helper function for classification:
+    def is_6ft(serial):
+        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+    
+    current_top_rails_6ft = sum(1 for rail in all_top_rails_this_month if is_6ft(rail.serial_number))
+    current_top_rails_7ft = sum(1 for rail in all_top_rails_this_month if not is_6ft(rail.serial_number))
+
+    # Get production targets
+    schedule = ProductionSchedule.query.filter_by(year=today.year, month=today.month).first()
+    if schedule:
+        target_7ft = schedule.target_7ft
+        target_6ft = schedule.target_6ft
+    else:
+        target_7ft = 60
+        target_6ft = 60
 
     return render_template(
         'top_rails.html',
@@ -3974,17 +3985,6 @@ def top_rail_timing_page():
     # Calculate statistics
     if recent_timings:
         durations = [t.duration_minutes for t in recent_timings if t.duration_minutes]
-        average_time = sum(durations) / len(durations) if durations else 0
-        best_time = min(durations) if durations else 0
-        total_completed = len(recent_timings)
-    else:
-        average_time = best_time = total_completed = 0
-    
-    return render_template('top_rail_timing.html', 
-                         recent_timings=recent_timings,
-                         average_time=round(average_time, 2),
-                         best_time=round(best_time, 2),
-                         total_completed=total_completed)
         average_time = sum(durations) / len(durations) if durations else 0
         best_time = min(durations) if durations else 0
         total_completed = len(recent_timings)
