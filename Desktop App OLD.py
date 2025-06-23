@@ -328,20 +328,6 @@ class MainWindow(QMainWindow):
         "Default": "#E0E0E0"  # Fallback color if image not found
     }
 
-    BODY_PARTS_COMMON = {
-        "Paddle": 1, "Laminate": 4, "Spring Mount": 1, "Spring Holder": 1,
-        "Small Ramp": 1, "Bushing": 2, "Table legs": 4,
-        "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1, "Ball Gullies 3": 1,
-        "Ball Gullies 4": 1, "Ball Gullies 5": 1, "Feet": 4, "Triangle trim": 1,
-        "White ball return trim": 1, "Color ball trim": 1, "Ball window trim": 1,
-        "Aluminum corner": 4, "Ramp 170mm": 1, "Ramp 158mm": 1, "Ramp 918mm": 1,
-        "Ramp 376mm": 1, "Chrome handles": 1, "Sticker Set": 1,
-        "4.8x16mm Self Tapping Screw": 37, "4.0 x 50mm Wood Screw": 4,
-        "Plastic Window": 1, "Latch": 12
-    }
-    BODY_PARTS_7FT = {**BODY_PARTS_COMMON, "Large Ramp": 1, "Cue Ball Separator": 1}
-    BODY_PARTS_6FT = {**BODY_PARTS_COMMON, "6ft Large Ramp": 1, "6ft Cue Ball Separator": 1}
-
     def __init__(self, config=None):
         super().__init__()
         # Suppress specific warnings (adjust as needed)
@@ -419,8 +405,27 @@ class MainWindow(QMainWindow):
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
         content_layout.setSpacing(15)
-        # Reduce top margin to reclaim space from header
-        content_layout.setContentsMargins(15, 0, 15, 15)
+        content_layout.setContentsMargins(15, 15, 15, 15)
+
+        # Header frame
+        header_frame = QFrame()
+        header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(0,0,0,0)
+        title_label = QLabel("Pool Table Factory Tracker")
+        title_font = QFont("Arial", 18, QFont.Bold)
+        title_label.setFont(title_font)
+        title_label.setStyleSheet("color: #2c3e50;")
+        header_layout.addWidget(title_label)
+        header_layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        self.connection_label = QLabel("API: Checking...")
+        self.connection_label.setObjectName("ApiStatusLabel")
+        self.connection_label.setProperty("status", "checking")
+        header_layout.addWidget(self.connection_label)
+        content_layout.addWidget(header_frame)
+        
+        self.server_info_label = QLabel(f"Server: {self.api_client.base_url}")
+        self.server_info_label.setStyleSheet("font-size: 8pt; color: #7f8c8d;")
+        content_layout.addWidget(self.server_info_label, alignment=Qt.AlignRight)
 
         # Add tabs with proper sizing
         self.tabs = QTabWidget()
@@ -443,10 +448,6 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.top_rail_dashboard_tab, "Top Rail Dashboard")
         self.setup_top_rail_dashboard_tab()
         
-        self.body_build_dashboard_tab = QWidget()
-        self.tabs.addTab(self.body_build_dashboard_tab, "Body Build Dashboard")
-        self.setup_body_build_dashboard_tab()
-
         self.parts_tab = QWidget()
         self.tabs.addTab(self.parts_tab, "Inventory Parts")
         self.setup_parts_inventory_tab()
@@ -454,6 +455,8 @@ class MainWindow(QMainWindow):
         settings_tab = QWidget()
         self.tabs.addTab(settings_tab, "Settings")
         self.setup_settings_tab(settings_tab)
+        
+        self.statusBar().showMessage("Ready")
         
         # Refresh button layout
         refresh_button_layout = QHBoxLayout()
@@ -466,18 +469,6 @@ class MainWindow(QMainWindow):
 
         scroll_area.setWidget(content_widget)
         main_layout.addWidget(scroll_area)
-
-        # --- Setup Status Bar ---
-        self.connection_label = QLabel("API: Checking...")
-        self.connection_label.setObjectName("ApiStatusLabel")
-        self.connection_label.setProperty("status", "checking")
-        self.statusBar().addPermanentWidget(self.connection_label)
-
-        self.server_info_label = QLabel(f"Server: {self.api_client.base_url}")
-        self.server_info_label.setStyleSheet("font-size: 8pt; color: #7f8c8d; padding: 0 10px;")
-        self.statusBar().addPermanentWidget(self.server_info_label)
-        
-        self.statusBar().showMessage("Ready")
 
     def setup_production_tab(self):
         prod_layout = QVBoxLayout(self.prod_tab)
@@ -761,27 +752,26 @@ class MainWindow(QMainWindow):
 
         self.dashboard_stacked_widget.addWidget(page1)
 
-        # Page 2: Parts Inventory - Now as a grid of bubbles
+        # Page 2: Parts Inventory - Updated layout with warning section
         page2 = QWidget(); page2.setObjectName("DashboardPage")
         layout2 = QVBoxLayout(page2)
 
         # Add warning section at top that's hidden by default
         layout2.addWidget(self.tr_warning_section)  # Add warning section to top
 
+        # Regular header and table below warning
         header2 = QLabel("Top Rail - Parts Inventory")
         header2.setObjectName("DashboardHeader")
         layout2.addWidget(header2)
 
-        # Bubble grid for parts
-        self.tr_parts_grid_scroll = QScrollArea()
-        self.tr_parts_grid_scroll.setWidgetResizable(True)
-        self.tr_parts_grid_scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
-        self.tr_parts_grid_widget = QWidget()
-        self.tr_parts_grid_layout = QGridLayout(self.tr_parts_grid_widget)
-        self.tr_parts_grid_layout.setSpacing(15)
-        self.tr_parts_grid_scroll.setWidget(self.tr_parts_grid_widget)
-        layout2.addWidget(self.tr_parts_grid_scroll)
-
+        # Create a table instead of form layout
+        self.tr_parts_table = QTableWidget()
+        self.tr_parts_table.setColumnCount(4)
+        self.tr_parts_table.setHorizontalHeaderLabels(["Part Name", "In Stock", "Per Rail", "Rails Possible"])
+        self.tr_parts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tr_parts_table.setAlternatingRowColors(True)
+        layout2.addWidget(self.tr_parts_table)
+        
         layout2.addStretch()
         self.dashboard_stacked_widget.addWidget(page2)
 
@@ -807,50 +797,6 @@ class MainWindow(QMainWindow):
         self.top_rail_dashboard_widgets["deficits_7ft"] = {}
         self.top_rail_dashboard_widgets["deficits_6ft"] = {}
 
-
-    def setup_body_build_dashboard_tab(self):
-        """Sets up the UI for the Body Build Dashboard tab using a grid of bubbles."""
-        main_layout = QVBoxLayout(self.body_build_dashboard_tab)
-        main_layout.setSpacing(15)
-
-        header = QLabel("Body Build - Parts Inventory")
-        header.setObjectName("DashboardHeader")
-        main_layout.addWidget(header)
-
-        # Low stock warning section
-        self.body_low_stock_warning_section = QWidget()
-        warning_layout = QVBoxLayout(self.body_low_stock_warning_section)
-        warning_layout.setContentsMargins(10, 10, 10, 10)
-        
-        warning_header = QLabel("⚠️ BODY PARTS LOW STOCK WARNING")
-        warning_header.setStyleSheet("""
-            font-size: 28pt; color: #c62828; padding: 15px;
-            background-color: #ffebee; border-radius: 8px; font-weight: bold;
-        """)
-        warning_header.setAlignment(Qt.AlignCenter)
-        warning_layout.addWidget(warning_header)
-        
-        self.body_low_stock_warning_text = QLabel()
-        self.body_low_stock_warning_text.setStyleSheet("font-size: 18pt; color: #c62828; padding: 15px;")
-        self.body_low_stock_warning_text.setAlignment(Qt.AlignCenter)
-        self.body_low_stock_warning_text.setWordWrap(True)
-        warning_layout.addWidget(self.body_low_stock_warning_text)
-        
-        main_layout.addWidget(self.body_low_stock_warning_section)
-        self.body_low_stock_warning_section.hide()
-
-        # Scroll area for the grid of bubbles
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
-        
-        # Container widget and grid layout for the bubbles
-        self.body_parts_grid_widget = QWidget()
-        self.body_parts_grid_layout = QGridLayout(self.body_parts_grid_widget)
-        self.body_parts_grid_layout.setSpacing(15)
-        
-        scroll_area.setWidget(self.body_parts_grid_widget)
-        main_layout.addWidget(scroll_area)
 
     def manual_dashboard_scroll(self):
         """Manually cycle to next dashboard page and reset timer."""
@@ -1140,12 +1086,6 @@ class MainWindow(QMainWindow):
     def update_top_rail_dashboard(self):
         """Updates all pages of the Top Rail Dashboard."""
         if not self.inventory_data:
-            # Clear grid if present
-            if hasattr(self, 'tr_parts_grid_layout'):
-                while self.tr_parts_grid_layout.count():
-                    child = self.tr_parts_grid_layout.takeAt(0)
-                    if child.widget():
-                        child.widget().deleteLater()
             return
 
         # --- Page 1: Performance - Update with real production data ---
@@ -1221,120 +1161,88 @@ class MainWindow(QMainWindow):
                 self.tr_dash_current_time_label.setText("ERR")
                 self.tr_dash_avg_time_label.setText("ERR")
 
-        # --- Page 2: Parts Inventory - Update grid of bubbles ---
-        if hasattr(self, 'tr_parts_grid_layout'):
-            # Clear existing grid
-            while self.tr_parts_grid_layout.count():
-                child = self.tr_parts_grid_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
-
+        # --- Page 2: Parts Inventory - Update table with real data ---
+        if hasattr(self, 'tr_parts_table'):
             # Define top rail parts dictionary
             top_rail_parts = {
-                "Top rail trim long length": 2,
-                "Top rail trim short length": 4,
-                "Chrome corner": 4,
-                "Center pockets": 2,
-                "Corner pockets": 4,
-                "Catch Plate": 12,
-                "M5 x 20 Socket Cap Screw": 16,
-                "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
-                "LAMELLO CLAMEX P-14 CONNECTOR": 18,
-                "4.8x32mm Self Tapping Screw": 24
+            "Top rail trim long length": 2,
+            "Top rail trim short length": 4,
+            "Chrome corner": 4,
+            "Center pockets": 2,
+            "Corner pockets": 4,
+            "Catch Plate": 12,
+            "M5 x 20 Socket Cap Screw": 16,
+            "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
+            "LAMELLO CLAMEX P-14 CONNECTOR": 18,
+            "4.8x32mm Self Tapping Screw": 24
             }
             
             hardware_parts_stock = self.inventory_data.get("hardware_parts_current", {})
             table_parts_stock = self.inventory_data.get("table_parts_current", {})
 
             # Combine stock data and calculate rails possible
-            parts_data = []
-            min_rails_possible = float('inf')
+            inventory_data = []
             for part_name, qty_per_rail in top_rail_parts.items():
                 stock_count = hardware_parts_stock.get(part_name, table_parts_stock.get(part_name, 0))
                 rails_possible = stock_count // qty_per_rail if qty_per_rail > 0 else 0
-                parts_data.append({
-                    "name": part_name,
-                    "stock": stock_count,
-                    "per_rail": qty_per_rail,
-                    "rails_possible": rails_possible
-                })
-                min_rails_possible = min(min_rails_possible, rails_possible)
+                inventory_data.append((part_name, stock_count, qty_per_rail, rails_possible))
 
-            # Sort by rails_possible (bottleneck first)
-            parts_data.sort(key=lambda x: x['rails_possible'])
+            # Sort inventory by rails possible (ascending)
+            inventory_data.sort(key=lambda x: x[3])  # Sort by rails_possible (index 3)
 
-            # Populate grid
-            num_columns = 5
-            for i, data in enumerate(parts_data):
-                bubble = QGroupBox(data['name'])
-                # Use QVBoxLayout to allow for centering
-                bubble_layout = QVBoxLayout(bubble)
-                bubble_layout.setContentsMargins(10, 25, 10, 10)
-                bubble_layout.setSpacing(5)
-                bubble_layout.setAlignment(Qt.AlignCenter)
+            # Clear and set up table
+            self.tr_parts_table.setRowCount(len(inventory_data))
+            low_stock_items = []  # Track low stock items
 
-                # Container for text with a solid background
-                text_widget = QWidget()
-                text_layout = QVBoxLayout(text_widget)
-                text_layout.setContentsMargins(8, 8, 8, 8)
-                text_widget.setStyleSheet("background-color: rgba(255, 255, 255, 0.8); border-radius: 8px;")
+            for row, (part_name, stock_count, qty_per_rail, rails_possible) in enumerate(inventory_data):
+                # Create table items
+                name_item = QTableWidgetItem(part_name)
+                stock_item = QTableWidgetItem(str(stock_count))
+                per_rail_item = QTableWidgetItem(str(qty_per_rail))
+                rails_item = QTableWidgetItem(str(rails_possible))
 
-                stock_label = QLabel(f"In Stock: <b>{data['stock']}</b>")
-                stock_label.setAlignment(Qt.AlignCenter)
-                per_rail_label = QLabel(f"Per Rail: <b>{data['per_rail']}</b>")
-                per_rail_label.setAlignment(Qt.AlignCenter)
-                rails_label = QLabel(f"Rails Possible: <b>{data['rails_possible']}</b>")
-                rails_label.setAlignment(Qt.AlignCenter)
+                # Center align numbers
+                stock_item.setTextAlignment(Qt.AlignCenter)
+                per_rail_item.setTextAlignment(Qt.AlignCenter)
+                rails_item.setTextAlignment(Qt.AlignCenter)
 
-                text_layout.addWidget(stock_label)
-                text_layout.addWidget(per_rail_label)
-                text_layout.addWidget(rails_label)
-                
-                bubble_layout.addWidget(text_widget)
+                # Color coding based on rails possible
+                if rails_possible < 5:
+                    color = QColor("#c62828")  # Red
+                    low_stock_items.append((part_name, rails_possible))
+                elif rails_possible < 10:
+                    color = QColor("#f57c00")  # Orange
+                else:
+                    color = QColor("#2e7d32")  # Green
 
-                # Color coding
-                color = "#e8f5e9" # Green
-                border = "#388e3c"
-                if data['rails_possible'] < 5:
-                    color = "#ffebee"
-                    border = "#c62828"
-                elif data['rails_possible'] < 10:
-                    color = "#fff3e0"
-                    border = "#f57c00"
+                stock_item.setForeground(color)
+                rails_item.setForeground(color)
 
-                bubble.setStyleSheet(f"""
-                    QGroupBox {{
-                        background-color: {color};
-                        border: 2px solid {border};
-                        border-radius: 15px;
-                        margin-top: 10px;
-                        font-weight: bold;
-                    }}
-                    QGroupBox::title {{
-                        subcontrol-origin: margin;
-                        subcontrol-position: top center;
-                        padding: 2px 8px;
-                        background-color: rgba(255, 255, 255, 0.7);
-                        border-radius: 4px;
-                    }}
-                    QLabel {{ 
-                        font-size: 10pt; 
-                        font-weight: normal; 
-                        color: black; /* Ensure text is readable on light background */
-                    }}
-                """)
+                # Set items in table
+                self.tr_parts_table.setItem(row, 0, name_item)
+                self.tr_parts_table.setItem(row, 1, stock_item)
+                self.tr_parts_table.setItem(row, 2, per_rail_item)
+                self.tr_parts_table.setItem(row, 3, rails_item)
 
-                row = i // num_columns
-                col = i % num_columns
-                self.tr_parts_grid_layout.addWidget(bubble, row, col)
+            # Adjust column widths
+            self.tr_parts_table.resizeColumnsToContents()
 
             # Handle low stock by showing warning section
-            if min_rails_possible < 5:
+            if low_stock_items:
                 if hasattr(self, 'tr_warning_text'):
-                    warning_text = f"Critical Top Rail Parts Low:\n\nCan only build {min_rails_possible} more top rails (bottleneck part)."
+                    warning_text = "Critical Top Rail Parts Low:\n\n"
+                    for part_name, rails_possible in low_stock_items:
+                        if rails_possible == 0:
+                            warning_text += f"• {part_name}:\n  Not enough for any top rails!\n\n"
+                        elif rails_possible == 1:
+                            warning_text += f"• {part_name}:\n  Only enough for 1 top rail!\n\n"
+                        else:
+                            warning_text += f"• {part_name}:\n  Only enough for {rails_possible} top rails!\n\n"
                     self.tr_warning_text.setText(warning_text)
                     self.tr_warning_section.show()
+                    # Remove stopping auto-scroll and forcing page 1
             else:
+                # No warnings - just hide warning section
                 if hasattr(self, 'tr_warning_section'):
                     self.tr_warning_section.hide()
 
@@ -1500,137 +1408,6 @@ class MainWindow(QMainWindow):
                 widgets["status"].setText(status_text)
 
 
-    def update_body_build_dashboard(self):
-        """Updates the Body Build Dashboard with a grid of part 'bubbles'."""
-        # Clear existing grid before repopulating
-        if hasattr(self, 'body_parts_grid_layout'):
-            while self.body_parts_grid_layout.count():
-                child = self.body_parts_grid_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
-        
-        if not self.inventory_data:
-            if hasattr(self, 'body_low_stock_warning_section'): self.body_low_stock_warning_section.hide()
-            return
-
-        hardware_stock = self.inventory_data.get("hardware_parts_current", {})
-        table_parts_stock = self.inventory_data.get("table_parts_current", {})
-        printed_parts_stock = self.inventory_data.get("printed_parts_current", {})
-        
-        all_parts_stock = {**hardware_stock, **table_parts_stock, **printed_parts_stock}
-
-        all_required_parts = set(self.BODY_PARTS_7FT.keys()) | set(self.BODY_PARTS_6FT.keys())
-
-        min_7ft_possible = float('inf')
-        min_6ft_possible = float('inf')
-        
-        # Calculate all data first
-        parts_data = []
-        for part_name in sorted(list(all_required_parts)):
-            stock_count = all_parts_stock.get(part_name, 0)
-            req_7ft = self.BODY_PARTS_7FT.get(part_name, 0)
-            req_6ft = self.BODY_PARTS_6FT.get(part_name, 0)
-            possible_7ft = stock_count // req_7ft if req_7ft > 0 else float('inf')
-            possible_6ft = stock_count // req_6ft if req_6ft > 0 else float('inf')
-            
-            parts_data.append({
-                "name": part_name, "stock": stock_count,
-                "possible_7ft": possible_7ft, "possible_6ft": possible_6ft,
-                "req_7ft": req_7ft, "req_6ft": req_6ft
-            })
-            
-            if req_7ft > 0: min_7ft_possible = min(min_7ft_possible, possible_7ft)
-            if req_6ft > 0: min_6ft_possible = min(min_6ft_possible, possible_6ft)
-
-        # Sort by bottleneck
-        parts_data.sort(key=lambda x: min(x['possible_7ft'], x['possible_6ft']))
-
-        # Populate grid
-        num_columns = 5 # Adjust as needed for screen size
-        for i, data in enumerate(parts_data):
-            bubble = QGroupBox()
-            bubble_layout = QVBoxLayout(bubble)
-            bubble_layout.setContentsMargins(10, 20, 10, 10)
-            bubble_layout.setSpacing(5)
-            bubble_layout.setAlignment(Qt.AlignCenter)
-
-            # Container for text with a solid background
-            text_widget = QWidget()
-            text_layout = QVBoxLayout(text_widget)
-            text_layout.setContentsMargins(8, 8, 8, 8)
-            text_layout.setSpacing(2)
-            text_widget.setStyleSheet("background-color: rgba(255,255,255,0.92); border-radius: 12px;")
-
-            # Large in-stock number
-            stock_label = QLabel(f"{data['stock']}")
-            stock_label.setAlignment(Qt.AlignCenter)
-            stock_label.setStyleSheet("font-size: 38pt; font-weight: bold; color: #222; padding: 0; margin: 0;")
-
-            # Part name
-            name_label = QLabel(data['name'])
-            name_label.setAlignment(Qt.AlignCenter)
-            name_label.setStyleSheet("font-size: 11pt; font-weight: 600; color: #444; padding: 0; margin: 0;")
-
-            # Can Build: Only show 7ft for most, 6ft for 6ft-only parts
-            if data['req_6ft'] > 0 and data['req_7ft'] == 0:
-                # 6ft-only part
-                can_build_val = str(data['possible_6ft']) if data['possible_6ft'] != float('inf') else "N/A"
-                can_build_label = QLabel(f"Can Build: <b>{can_build_val}</b> (6ft)")
-            else:
-                can_build_val = str(data['possible_7ft']) if data['possible_7ft'] != float('inf') else "N/A"
-                can_build_label = QLabel(f"Can Build: <b>{can_build_val}</b> (7ft)")
-            can_build_label.setAlignment(Qt.AlignCenter)
-            can_build_label.setStyleSheet("font-size: 12pt; color: #1976d2; padding: 0; margin: 0;")
-
-            text_layout.addWidget(stock_label)
-            text_layout.addWidget(name_label)
-            text_layout.addWidget(can_build_label)
-            text_layout.addStretch(1)
-            bubble_layout.addWidget(text_widget)
-
-            # Color coding
-            min_possible = min(data['possible_7ft'], data['possible_6ft'])
-            bg_color = "#e8f5e9" # Green
-            border_color = "#388e3c"
-            if min_possible < 5:
-                bg_color = "#ffebee" # Red
-                border_color = "#c62828"
-            elif min_possible < 10:
-                bg_color = "#fff3e0" # Orange
-                border_color = "#f57c00"
-                
-            bubble.setStyleSheet(f"""
-                QGroupBox {{
-                    background-color: {bg_color};
-                    border: 2px solid {border_color};
-                    border-radius: 18px;
-                    margin-top: 10px;
-                    font-weight: bold;
-                }}
-                QGroupBox::title {{
-                    subcontrol-origin: margin;
-                    subcontrol-position: top center;
-                    padding: 0;
-                    background-color: transparent;
-                }}
-            """)
-            
-            row = i // num_columns
-            col = i % num_columns
-            self.body_parts_grid_layout.addWidget(bubble, row, col)
-
-        # Update warning text
-        if min_7ft_possible < 5 or min_6ft_possible < 5:
-            warning_text = "Overall build capacity is low:\n\n"
-            if min_7ft_possible < 5:
-                warning_text += f"• Can only build {min_7ft_possible} more 7ft bodies.\n"
-            if min_6ft_possible < 5:
-                warning_text += f"• Can only build {min_6ft_possible} more 6ft bodies.\n"
-            self.body_low_stock_warning_text.setText(warning_text)
-            self.body_low_stock_warning_section.show()
-        else:
-            self.body_low_stock_warning_section.hide()
-
     def check_api_connection(self):
         self.connection_label.setText("API: Checking...")
         self.connection_label.setProperty("status", "checking"); self.style().polish(self.connection_label)
@@ -1643,7 +1420,6 @@ class MainWindow(QMainWindow):
             self.update_production_table([]); self.update_summary_counts([])
             self.update_parts_inventory_table(None); self.update_assembly_deficit_display() 
             self.update_top_rail_dashboard() # Clear dashboard on disconnect
-            self.update_body_build_dashboard()
             QMessageBox.warning(self, "Connection Error", f"Unable to connect to the API at {self.api_client.base_url}.")
         self.style().polish(self.connection_label)
 
@@ -1696,7 +1472,6 @@ class MainWindow(QMainWindow):
             # Update other components
             self.update_assembly_deficit_display()
             self.update_top_rail_dashboard()
-            self.update_body_build_dashboard()
 
             self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
