@@ -937,12 +937,12 @@ def pods():
         try:
             # Create and save the new pod
             new_pod = CompletedPods(
-                worker=worker,
+                worker=session['worker'],
                 start_time=start_time,
                 finish_time=finish_time,
                 serial_number=serial_number,
-                lunch=lunch,
                 issue=issue_text,
+                lunch=lunch,
                 date=date.today()
             )
             
@@ -1794,6 +1794,7 @@ def counting_wood():
             'section': entry.section,
             'count': entry.count
         }
+       
         daily_wood_data_with_local_time.append(entry_copy)
 
     return render_template(
@@ -2153,6 +2154,20 @@ def bodies():
             db.session.add(new_table)
             db.session.commit()
             flash("Body entry added successfully and inventory updated!", "success")
+
+            # --- NTFY Notification ---
+            size = "6ft" if is_6ft(serial_number) else "7ft"
+            color = get_color(serial_number).replace('_', ' ').title()
+            message = f"Serial: {serial_number}"
+            title = f"Body Completed: {size} {color}"
+            try:
+                requests.post("https://ntfy.sh/PoolTableTracker",
+                              data=message.encode('utf-8'),
+                              headers={"Title": title})
+            except requests.RequestException as e:
+                print(f"Ntfy notification failed: {e}")
+            # --- End NTFY Notification ---
+
         except Exception as e:
             db.session.rollback()
             flash(f"Error: {str(e)}", "error")
@@ -3952,6 +3967,50 @@ def get_top_rail_production_stats():
     # Get month count
     month_count = TopRail.query.filter(
         extract('year', TopRail.date) == today.year,
+        extract('month', TopRail.date) == today.month
+    ).count()
+    
+    # Get year count
+    year_count = TopRail.query.filter(
+        extract('year', TopRail.date) == today.year
+    ).count()
+    
+    return jsonify({
+        'daily': daily_count,
+        'weekly': week_count,
+        'monthly': month_count,
+        'yearly': year_count
+    })
+
+@app.route('/top_rail_timing')
+def top_rail_timing_page():
+    """Render the top rail timing page."""
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+    
+    worker = session['worker']
+    
+    # Get recent timing data for display
+    recent_timings = TopRailTiming.query.filter_by(
+        worker=worker, 
+        completed=True
+    ).order_by(TopRailTiming.date.desc()).limit(20).all()
+    
+    # Calculate statistics
+    if recent_timings:
+        durations = [t.duration_minutes for t in recent_timings if t.duration_minutes]
+        average_time = sum(durations) / len(durations) if durations else 0
+        best_time = min(durations) if durations else 0
+        total_completed = len(recent_timings)
+    else:
+        average_time = best_time = total_completed = 0
+    
+    return render_template('top_rail_timing.html', 
+                         recent_timings=recent_timings,
+                         average_time=round(average_time, 2),
+                         best_time=round(best_time, 2),
+                         total_completed=total_completed)
         extract('month', TopRail.date) == today.month
     ).count()
     
