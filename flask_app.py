@@ -3,10 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
 from collections import defaultdict  # Ensure defaultdict is imported
-import os
-import requests
 from calendar import monthrange
 from sqlalchemy import func, extract
+import requests
+import os
 import re  # Add this import at the top of the file
 
 app = Flask(__name__)
@@ -954,6 +954,18 @@ def pods():
             db.session.add(new_pod)
             db.session.commit()
             flash(f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, and 16 M10x13mm Tee Nuts", "success")
+
+            # --- NTFY Notification ---
+            size = "6ft" if is_6ft else "7ft"
+            message = f"Serial: {serial_number}"
+            title = f"Pod Completed: {size}"
+            try:
+                requests.post("https://ntfy.sh/PoolTableTracker",
+                              data=message,
+                              headers={"Title": title})
+            except requests.RequestException as e:
+                print(f"Ntfy notification failed: {e}")
+            # --- End NTFY Notification ---
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
@@ -2162,7 +2174,7 @@ def bodies():
             title = f"Body Completed: {size} {color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
-                              data=message.encode('utf-8'),
+                              data=message,
                               headers={"Title": title})
             except requests.RequestException as e:
                 print(f"Ntfy notification failed: {e}")
@@ -2503,6 +2515,18 @@ def top_rails():
             stock_entry.count += 1
             db.session.commit()
             
+            # --- NTFY Notification ---
+            display_color = color.replace('_', ' ').title()
+            message = f"Serial: {serial_number}"
+            title = f"Top Rail Completed: {size} {display_color}"
+            try:
+                requests.post("https://ntfy.sh/PoolTableTracker",
+                              data=message,
+                              headers={"Title": title})
+            except requests.RequestException as e:
+                print(f"Ntfy notification failed: {e}")
+            # --- End NTFY Notification ---
+
             if 'timer had an issue' not in str(flash):  # Only show success if no timer warning
                 flash("Top rail entry added successfully and inventory updated!", "success")
             
