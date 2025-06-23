@@ -135,7 +135,7 @@ class HardwarePart(db.Model):
     used_per_table = db.Column(db.Float, default=0.0000)
 
 # --- Notification Function ---
-NTFY_TOPIC = "pool-table-production"  # CHANGE THIS to your ntfy.sh topic
+NTFY_TOPIC = "PoolTableTracker"  # CHANGE THIS to your ntfy.sh topic
 
 def send_ntfy_notification(item_type, serial_number):
     """Sends a notification to a ntfy topic about a completed item."""
