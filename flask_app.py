@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, date
 from collections import defaultdict  # Ensure defaultdict is imported
 import os
 import requests
+import re
 from calendar import monthrange
-from sqlalchemy import func, extract
-import re  # Add this import at the top of the file
+from sqlalchemy import func, extract, desc, distinct
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -133,6 +133,50 @@ class HardwarePart(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     initial_count = db.Column(db.Integer, default=0)
     used_per_table = db.Column(db.Float, default=0.0000)
+
+# --- Notification Function ---
+NTFY_TOPIC = "pool-table-production"  # CHANGE THIS to your ntfy.sh topic
+
+def send_ntfy_notification(item_type, serial_number):
+    """Sends a notification to a ntfy topic about a completed item."""
+    
+    def is_6ft(serial):
+        # Consistent size check across the app
+        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+
+    def get_color(serial):
+        # Consistent color check across the app
+        norm_serial = serial.replace(" ", "")
+        if "-GO" in norm_serial or "-go" in norm_serial:
+            return "Grey Oak"
+        elif "-O" in norm_serial and not "-GO" in norm_serial:
+            return "Rustic Oak"
+        elif "-C" in norm_serial or "-c" in norm_serial:
+            return "Stone"
+        elif "-RB" in norm_serial or "-rb" in norm_serial:
+            return "Rustic Black"
+        else:
+            return "Black"
+
+    size = "6ft" if is_6ft(serial_number) else "7ft"
+    color = get_color(serial_number)
+    
+    title = f"{item_type} Completed: {serial_number}"
+    message = f"A new {size} {color} {item_type.lower()} has been completed."
+    
+    try:
+        requests.post(
+            f"https://ntfy.sh/{NTFY_TOPIC}",
+            data=message.encode(encoding='utf-8'),
+            headers={
+                "Title": title,
+                "Priority": "default",
+                "Tags": "building,white_check_mark"
+            }
+        )
+        print(f"Sent ntfy notification for {item_type} {serial_number}")
+    except requests.RequestException as e:
+        print(f"Error sending ntfy notification: {e}")
 
 @app.route('/logout')
 def logout():
@@ -954,10 +998,10 @@ def pods():
             db.session.add(new_pod)
             db.session.commit()
             flash(f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, and 16 M10x13mm Tee Nuts", "success")
+            send_ntfy_notification("Pod", serial_number)
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('pods'))
 
         return redirect(url_for('pods'))
 
@@ -2100,7 +2144,7 @@ def bodies():
 
         # Helper function to determine if it's a 6ft table
         def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6")
+            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
 
         # Adjust parts for 6ft tables
         if is_6ft(serial_number):
@@ -2153,10 +2197,10 @@ def bodies():
             db.session.add(new_table)
             db.session.commit()
             flash("Body entry added successfully and inventory updated!", "success")
+            send_ntfy_notification("Body", serial_number)
         except Exception as e:
             db.session.rollback()
             flash(f"Error: {str(e)}", "error")
-            return redirect(url_for('bodies'))
 
         # Helper function to determine color from serial number
         def get_color(serial):
@@ -2491,14 +2535,13 @@ def top_rails():
             if 'timer had an issue' not in str(flash):  # Only show success if no timer warning
                 flash("Top rail entry added successfully and inventory updated!", "success")
             
+            send_ntfy_notification("Top Rail", serial_number)
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('top_rails'))
         except Exception as e:
             db.session.rollback()
             flash(f"Error creating top rail entry: {str(e)}", "error")
-            return redirect(url_for('top_rails'))
         
         return redirect(url_for('top_rails'))
 
@@ -2562,75 +2605,6 @@ def top_rails():
         )
         .scalar()
     )
-
-    # Helper: Get last 5 working days (Monday-Friday)
-    def get_last_n_working_days(n, reference_date):
-        working_days = []
-        d = reference_date
-        while len(working_days) < n:
-            if d.weekday() < 5:
-                working_days.append(d)
-            d -= timedelta(days=1)
-        return working_days
-
-    last_working_days = get_last_n_working_days(5, today)
-    daily_history = (
-        db.session.query(
-            TopRail.date,
-            func.count(TopRail.id).label('count'),
-            func.group_concat(TopRail.serial_number, ', ').label('serial_numbers')
-        )
-        .filter(TopRail.date.in_(last_working_days))
-        .group_by(TopRail.date)
-        .order_by(TopRail.date.desc())
-        .all()
-    )
-    daily_history_formatted = [
-        {
-            "date": row.date.strftime("%A %d/%m/%y"),
-            "count": row.count,
-            "serial_numbers": row.serial_numbers
-        }
-        for row in daily_history
-    ]
-
-    monthly_totals = (
-        db.session.query(
-            extract('year', TopRail.date).label('year'),
-            extract('month', TopRail.date).label('month'),
-            func.count(TopRail.id).label('total')
-        )
-        .group_by('year', 'month')
-        .order_by(desc(extract('year', TopRail.date)), desc(extract('month', TopRail.date)))
-        .all()
-    )
-    monthly_totals_formatted = []
-    for row in monthly_totals:
-        yr = int(row.year)
-        mo = int(row.month)
-        total_top_rails = row.total
-        last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
-        cumulative_working_hours = work_days * 7.5
-        avg_hours_per_top_rail = (cumulative_working_hours / total_top_rails if total_top_rails > 0 else None)
-        if avg_hours_per_top_rail is not None:
-            hours = int(avg_hours_per_top_rail)
-            minutes = int((avg_hours_per_top_rail - hours) * 60)
-            seconds = int((((avg_hours_per_top_rail - hours) * 60) - minutes) * 60)
-            avg_hours_per_top_rail_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
-        else:
-            avg_hours_per_top_rail_formatted = "N/A"
-        monthly_totals_formatted.append({
-            "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
-            "count": total_top_rails,
-            "average_hours_per_top_rail": avg_hours_per_top_rail_formatted
-        })
-
-    # --- Calculate Current Production for Top Rails by Size ---
-    all_top_rails_this_month = TopRail.query.filter(
-        extract('year', TopRail.date) == today.year,
-        extract('month', TopRail.date) == today.month
-    ).all()
 
     # Helper function for classification:
     def is_6ft(serial):
@@ -3970,6 +3944,32 @@ def get_top_rail_production_stats():
 @app.route('/top_rail_timing')
 def top_rail_timing_page():
     """Render the top rail timing page."""
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+    
+    worker = session['worker']
+    
+    # Get recent timing data for display
+    recent_timings = TopRailTiming.query.filter_by(
+        worker=worker, 
+        completed=True
+    ).order_by(TopRailTiming.date.desc()).limit(20).all()
+    
+    # Calculate statistics
+    if recent_timings:
+        durations = [t.duration_minutes for t in recent_timings if t.duration_minutes]
+        average_time = sum(durations) / len(durations) if durations else 0
+        best_time = min(durations) if durations else 0
+        total_completed = len(recent_timings)
+    else:
+        average_time = best_time = total_completed = 0
+    
+    return render_template('top_rail_timing.html', 
+                         recent_timings=recent_timings,
+                         average_time=round(average_time, 2),
+                         best_time=round(best_time, 2),
+                         total_completed=total_completed)
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
