@@ -36,7 +36,7 @@ QMainWindow {
     background-color: #f0f2f5; 
 }
 QGroupBox {
-    font-size: 11pt;
+    font-size: 10pt;
     font-weight: bold;
     color: #333; /* Default title color, may need adjustment if background is too dark */
     border: 1px solid #d0d0d0;
@@ -53,15 +53,15 @@ QGroupBox::title {
     color: #2c3e50; 
 }
 QLabel {
-    font-size: 10pt;
+    font-size: 9pt;
     color: #444;
 }
 QPushButton {
-    font-size: 10pt;
+    font-size: 9pt;
     background-color: #3498db; 
     color: white;
     border: none;
-    padding: 8px 16px;
+    padding: 6px 12px;
     border-radius: 5px;
     min-height: 20px;
 }
@@ -72,8 +72,8 @@ QPushButton:pressed {
     background-color: #1f618d;
 }
 QLineEdit, QComboBox {
-    font-size: 10pt;
-    padding: 6px;
+    font-size: 9pt;
+    padding: 5px;
     border: 1px solid #ccc;
     border-radius: 5px;
     background-color: #fdfdfd;
@@ -88,7 +88,7 @@ QComboBox::down-arrow {
     margin-right: 5px;
 }
 QTableWidget {
-    font-size: 9pt;
+    font-size: 8pt;
     border: 1px solid #e0e0e0;
     border-radius: 5px;
     gridline-color: #e0e0e0;
@@ -97,10 +97,10 @@ QTableWidget {
 }
 QHeaderView::section {
     background-color: #e9edf0; 
-    padding: 6px;
+    padding: 4px;
     border: none;
     border-bottom: 1px solid #d0d0d0;
-    font-size: 10pt;
+    font-size: 9pt;
     font-weight: bold;
     color: #333;
 }
@@ -114,7 +114,7 @@ QTabWidget::pane {
 QTabBar::tab {
     background-color: #e9edf0;
     color: #555;
-    padding: 10px 20px;
+    padding: 8px 15px;
     border: 1px solid #d0d0d0;
     border-bottom: none; 
     border-top-left-radius: 6px;
@@ -155,11 +155,11 @@ QLabel#ApiStatusLabel[status="disconnected"] { background-color: #ffcdd2; color:
 QLabel#ApiStatusLabel[status="checking"] { background-color: #fff9c4; color: #f57f17; }
 
 /* Assembly Deficit Tab Styling */
-QLabel.StatusNeeded { font-size: 10pt; font-weight: bold; color: #c62828; } /* Red for "needed" status */
-QLabel.StatusCanAssemble { font-size: 10pt; font-weight: bold; color: #2e7d32; } /* Green for "can assemble" */
-QLabel.StatusNeutral { font-size: 10pt; color: #555; } /* Neutral for no components */
-QLabel.StockValue { font-size: 10pt; }
-QLabel.StockValueShortage { font-size: 10pt; color: #c62828; font-weight: bold; } /* Red for stock value that is a bottleneck */
+QLabel.StatusNeeded { font-size: 9pt; font-weight: bold; color: #c62828; } /* Red for "needed" status */
+QLabel.StatusCanAssemble { font-size: 9pt; font-weight: bold; color: #2e7d32; } /* Green for "can assemble" */
+QLabel.StatusNeutral { font-size: 9pt; color: #555; } /* Neutral for no components */
+QLabel.StockValue { font-size: 9pt; }
+QLabel.StockValueShortage { font-size: 9pt; color: #c62828; font-weight: bold; } /* Red for stock value that is a bottleneck */
 
 /* Top Rail Dashboard Styling */
 QWidget#DashboardPage {
@@ -168,19 +168,19 @@ QWidget#DashboardPage {
     border-radius: 5px;
 }
 QLabel.DashboardHeader {
-    font-size: 28pt;  /* Increased from 16pt */
+    font-size: 22pt;  /* Increased from 16pt */
     font-weight: bold;
     color: #3498db;
-    padding-bottom: 15px;
-    border-bottom: 3px solid #3498db;
-    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+    margin-bottom: 15px;
 }
 QLabel.DashboardMetricLabel {
-    font-size: 18pt;  /* Increased from 12pt */
+    font-size: 14pt;  /* Increased from 12pt */
     color: #2c3e50;
 }
 QLabel.DashboardMetricValue {
-    font-size: 32pt;  /* Increased from 18pt */
+    font-size: 26pt;  /* Increased from 18pt */
     font-weight: bold;
     color: #2980b9; /* Medium Blue */
 }
@@ -408,8 +408,8 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(10, 10, 10, 10)
 
         # Wrap entire content in a scroll area
         scroll_area = QScrollArea()
@@ -418,15 +418,15 @@ class MainWindow(QMainWindow):
         
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(15)
+        content_layout.setSpacing(10)
         # Reduce top margin to reclaim space from header
-        content_layout.setContentsMargins(15, 0, 15, 15)
+        content_layout.setContentsMargins(10, 0, 10, 10)
 
         # Add tabs with proper sizing
         self.tabs = QTabWidget()
         # Set larger font for all tabs
         tab_font = QFont()
-        tab_font.setPointSize(12)  # Increase tab font size
+        tab_font.setPointSize(10)  # Increase tab font size
         self.tabs.setFont(tab_font)  # Apply the larger font to tabs
         self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         content_layout.addWidget(self.tabs, 1)  # Give tabs more stretch
@@ -481,7 +481,7 @@ class MainWindow(QMainWindow):
 
     def setup_production_tab(self):
         prod_layout = QVBoxLayout(self.prod_tab)
-        prod_layout.setSpacing(15)
+        prod_layout.setSpacing(10)
         date_picker_group = QGroupBox("Select Month and Year")
         date_picker_layout = QHBoxLayout(date_picker_group)
         date_picker_layout.addWidget(QLabel("Year:"))
@@ -501,17 +501,17 @@ class MainWindow(QMainWindow):
         date_picker_layout.addWidget(self.prod_month_combo)
         date_picker_layout.addStretch()
         prod_layout.addWidget(date_picker_group)
-        summary_layout = QHBoxLayout(); summary_layout.setSpacing(15)
+        summary_layout = QHBoxLayout(); summary_layout.setSpacing(10)
         self.bodies_count_label = QLabel("0"); self.bodies_count_label.setObjectName("BodiesCountLabel")
-        self.bodies_count_label.setAlignment(Qt.AlignCenter); self.bodies_count_label.setStyleSheet("font-size: 28pt; font-weight: bold;")
+        self.bodies_count_label.setAlignment(Qt.AlignCenter); self.bodies_count_label.setStyleSheet("font-size: 24pt; font-weight: bold;")
         bodies_group = self.create_summary_group("Bodies (Selected Month)", self.bodies_count_label, "BodiesGroup")
         summary_layout.addWidget(bodies_group)
         self.pods_count_label = QLabel("0"); self.pods_count_label.setObjectName("PodsCountLabel")
-        self.pods_count_label.setAlignment(Qt.AlignCenter); self.pods_count_label.setStyleSheet("font-size: 28pt; font-weight: bold;")
+        self.pods_count_label.setAlignment(Qt.AlignCenter); self.pods_count_label.setStyleSheet("font-size: 24pt; font-weight: bold;")
         pods_group = self.create_summary_group("Pods (Selected Month)", self.pods_count_label, "PodsGroup")
         summary_layout.addWidget(pods_group)
         self.rails_count_label = QLabel("0"); self.rails_count_label.setObjectName("RailsCountLabel")
-        self.rails_count_label.setAlignment(Qt.AlignCenter); self.rails_count_label.setStyleSheet("font-size: 28pt; font-weight: bold;")
+        self.rails_count_label.setAlignment(Qt.AlignCenter); self.rails_count_label.setStyleSheet("font-size: 24pt; font-weight: bold;")
         rails_group = self.create_summary_group("Top Rails (Selected Month)", self.rails_count_label, "RailsGroup")
         summary_layout.addWidget(rails_group); prod_layout.addLayout(summary_layout)
         self.production_table = QTableWidget(); self.production_table.setColumnCount(4)
@@ -519,7 +519,7 @@ class MainWindow(QMainWindow):
         self.production_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.production_table.setAlternatingRowColors(True); prod_layout.addWidget(self.production_table)
         note_label = QLabel("Data for the selected month is fetched from the server. Days with no production or API errors will show 0.")
-        note_label.setStyleSheet("color: #666; font-style: italic; font-size: 9pt;"); note_label.setAlignment(Qt.AlignCenter)
+        note_label.setStyleSheet("color: #666; font-style: italic; font-size: 8pt;"); note_label.setAlignment(Qt.AlignCenter)
         note_label.setWordWrap(True); prod_layout.addWidget(note_label)
 
         # Add size policies to make tables stretch
@@ -533,7 +533,7 @@ class MainWindow(QMainWindow):
             "and indicates what is needed to assemble more tables based on the component with the highest stock."
         )
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("font-size: 9pt; color: #555; margin-bottom: 10px; padding: 5px; background-color: #e9edf0; border-radius: 5px;")
+        info_label.setStyleSheet("font-size: 8pt; color: #555; margin-bottom: 5px; padding: 5px; background-color: #e9edf0; border-radius: 5px;")
         main_tab_layout.addWidget(info_label)
         
         content_layout = QHBoxLayout()
@@ -565,7 +565,7 @@ class MainWindow(QMainWindow):
 
             # --- Determine text color for contrast ---
             text_color_hex = 'black' if q_color.lightnessF() > 0.5 else 'white'
-            label_stylesheet = f"color: {text_color_hex}; font-size: 10pt;" # Base style for labels in this box
+            label_stylesheet = f"color: {text_color_hex}; font-size: 9pt;" # Base style for labels in this box
 
             # --- Create and style labels ---
             body_field_label = QLabel("Body Stock:")
@@ -622,9 +622,9 @@ class MainWindow(QMainWindow):
         
         warning_header = QLabel("⚠️ LOW STOCK WARNING")
         warning_header.setStyleSheet("""
-            font-size: 36pt;
+            font-size: 30pt;
             color: #c62828;
-            padding: 20px;
+            padding: 15px;
             background-color: #ffebee;
             border-radius: 10px;
             font-weight: bold;
@@ -634,9 +634,9 @@ class MainWindow(QMainWindow):
         
         self.tr_warning_text = QLabel()
         self.tr_warning_text.setStyleSheet("""
-            font-size: 24pt;
+            font-size: 20pt;
             color: #c62828;
-            padding: 20px;
+            padding: 15px;
         """)
         self.tr_warning_text.setAlignment(Qt.AlignCenter)
         self.tr_warning_text.setWordWrap(True)
@@ -683,7 +683,7 @@ class MainWindow(QMainWindow):
         today_label.setAlignment(Qt.AlignCenter)
         
         self.tr_dash_daily_label.setStyleSheet("""
-            font-size: 48pt;
+            font-size: 40pt;
             font-weight: bold; 
             color: #2980b9;
             padding: 10px;
@@ -699,7 +699,7 @@ class MainWindow(QMainWindow):
         month_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
         month_label.setAlignment(Qt.AlignCenter)
         self.tr_dash_monthly_label.setStyleSheet("""
-            font-size: 48pt;
+            font-size: 40pt;
             font-weight: bold;
             color: #27ae60;
             padding: 10px;
@@ -715,7 +715,7 @@ class MainWindow(QMainWindow):
         year_label.setStyleSheet("font-size: 14pt; color: #2c3e50; font-weight: bold;")
         year_label.setAlignment(Qt.AlignCenter)
         self.tr_dash_yearly_label.setStyleSheet("""
-            font-size: 48pt;
+            font-size: 40pt;
             font-weight: bold;
             color: #8e44ad;
             padding: 10px;
@@ -735,7 +735,7 @@ class MainWindow(QMainWindow):
         self.tr_dash_next_serial_label = QLabel("N/A")
         self.tr_dash_next_serial_label.setObjectName("DashboardMetricValue")
         self.tr_dash_next_serial_label.setStyleSheet("""
-            font-size: 48pt;
+            font-size: 40pt;
             font-weight: bold;
             color: #e74c3c;
             padding: 10px;
@@ -780,9 +780,8 @@ class MainWindow(QMainWindow):
         self.tr_parts_grid_layout = QGridLayout(self.tr_parts_grid_widget)
         self.tr_parts_grid_layout.setSpacing(15)
         self.tr_parts_grid_scroll.setWidget(self.tr_parts_grid_widget)
-        layout2.addWidget(self.tr_parts_grid_scroll)
+        layout2.addWidget(self.tr_parts_grid_scroll, 1)
 
-        layout2.addStretch()
         self.dashboard_stacked_widget.addWidget(page2)
 
         # Page 3: Deficits (Top Rails vs Bodies)
@@ -811,7 +810,7 @@ class MainWindow(QMainWindow):
     def setup_body_build_dashboard_tab(self):
         """Sets up the UI for the Body Build Dashboard tab using a grid of bubbles."""
         main_layout = QVBoxLayout(self.body_build_dashboard_tab)
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(10)
 
         header = QLabel("Body Build - Parts Inventory")
         header.setObjectName("DashboardHeader")
@@ -824,14 +823,14 @@ class MainWindow(QMainWindow):
         
         warning_header = QLabel("⚠️ BODY PARTS LOW STOCK WARNING")
         warning_header.setStyleSheet("""
-            font-size: 28pt; color: #c62828; padding: 15px;
+            font-size: 22pt; color: #c62828; padding: 10px;
             background-color: #ffebee; border-radius: 8px; font-weight: bold;
         """)
         warning_header.setAlignment(Qt.AlignCenter)
         warning_layout.addWidget(warning_header)
         
         self.body_low_stock_warning_text = QLabel()
-        self.body_low_stock_warning_text.setStyleSheet("font-size: 18pt; color: #c62828; padding: 15px;")
+        self.body_low_stock_warning_text.setStyleSheet("font-size: 14pt; color: #c62828; padding: 10px;")
         self.body_low_stock_warning_text.setAlignment(Qt.AlignCenter)
         self.body_low_stock_warning_text.setWordWrap(True)
         warning_layout.addWidget(self.body_low_stock_warning_text)
@@ -850,7 +849,7 @@ class MainWindow(QMainWindow):
         self.body_parts_grid_layout.setSpacing(15)
         
         scroll_area.setWidget(self.body_parts_grid_widget)
-        main_layout.addWidget(scroll_area)
+        main_layout.addWidget(scroll_area, 1)
 
     def manual_dashboard_scroll(self):
         """Manually cycle to next dashboard page and reset timer."""
@@ -884,21 +883,21 @@ class MainWindow(QMainWindow):
 
     def setup_parts_inventory_tab(self):
         parts_layout = QVBoxLayout(self.parts_tab)
-        parts_layout.setSpacing(20)
+        parts_layout.setSpacing(10)
         
         # Make table much bigger
         self.parts_table = QTableWidget()
         self.parts_table.setColumnCount(4)
         self.parts_table.setHorizontalHeaderLabels(["Part Name", "Current Stock", "Rails Per Part", "Tables Possible"])
-        self.parts_table.horizontalHeader().setFixedHeight(60)  # Make header taller
+        self.parts_table.horizontalHeader().setFixedHeight(40)  # Make header taller
         self.parts_table.verticalHeader().setVisible(False)
         
         # Increase font sizes and row height
         header_font = QFont()
-        header_font.setPointSize(16)
+        header_font.setPointSize(12)
         header_font.setBold(True)
         self.parts_table.horizontalHeader().setFont(header_font)
-        self.parts_table.verticalHeader().setDefaultSectionSize(80)
+        self.parts_table.verticalHeader().setDefaultSectionSize(40)
         
         # Take up most of the screen
         self.parts_table.setMinimumHeight(400)
@@ -906,7 +905,7 @@ class MainWindow(QMainWindow):
         
         info_group = QGroupBox("Inventory Summary")
         info_layout = QFormLayout()
-        info_layout.setSpacing(15)  # Increased spacing
+        info_layout.setSpacing(10)  # Increased spacing
         
         # Bigger summary labels
         self.total_parts_label = QLabel("0")
@@ -914,8 +913,8 @@ class MainWindow(QMainWindow):
         self.last_update_label = QLabel("Never")
         
         for label in [self.total_parts_label, self.low_stock_label, self.last_update_label]:
-            label.setStyleSheet("font-size: 14pt;")
-        self.low_stock_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #c0392b;")
+            label.setStyleSheet("font-size: 11pt;")
+        self.low_stock_label.setStyleSheet("font-size: 11pt; font-weight: bold; color: #c0392b;")
         
         info_layout.addRow(QLabel("Total Parts in Stock:"), self.total_parts_label)
         info_layout.addRow(QLabel("Parts Low on Stock:"), self.low_stock_label)
@@ -936,13 +935,13 @@ class MainWindow(QMainWindow):
         low_stock_count = 0
 
         table_font = QFont()
-        table_font.setPointSize(14)
+        table_font.setPointSize(10)
         table_font.setBold(True)
 
         low_stock_items = []  # Track all low stock items
         
         for row, (part_name, count) in enumerate(sorted_parts):
-            actual_count = count if count is not None else 0  # Fixed ternary operator syntax
+            actual_count = count if count is not None else 0 # Fixed ternary operator syntax
             
             # Create items
             name_item = QTableWidgetItem(part_name)
@@ -1005,7 +1004,7 @@ class MainWindow(QMainWindow):
         
         # Larger font for table
         table_font = QFont()
-        table_font.setPointSize(12)
+        table_font.setPointSize(9)
         
         for row, day_data in enumerate(weekday_data):
             # Format date
@@ -1102,8 +1101,8 @@ class MainWindow(QMainWindow):
                 if match:
                     base_text_color = match.group(1)
             
-            base_label_style = f"color: {base_text_color}; font-size: 10pt;"
-            shortage_label_style = f"color: #c62828; font-weight: bold; font-size: 10pt;" # Red and bold for shortage
+            base_label_style = f"color: {base_text_color}; font-size: 9pt;"
+            shortage_label_style = f"color: #c62828; font-weight: bold; font-size: 9pt;" # Red and bold for shortage
 
             if body_stock_label: 
                 body_stock_label.setText(str(body_stock))
@@ -1121,7 +1120,7 @@ class MainWindow(QMainWindow):
                 if rail_stock_label: rail_stock_label.setStyleSheet(shortage_label_style)
             elif body_stock == rail_stock:
                 status_text = f"Can assemble {body_stock} tables."
-                status_style = f"color: #2e7d32; font-weight: bold; font-size: 10pt;" # Green and bold
+                status_style = f"color: #2e7d32; font-weight: bold; font-size: 9pt;" # Green and bold
             elif body_stock > rail_stock:
                 needed = body_stock - rail_stock
                 status_text = f"{needed} more Top Rails needed."
@@ -1264,12 +1263,11 @@ class MainWindow(QMainWindow):
             parts_data.sort(key=lambda x: x['rails_possible'])
 
             # Populate grid
-            num_columns = 5
+            num_columns = 6
             for i, data in enumerate(parts_data):
-                bubble = QGroupBox(data['name'])
-                # Use QVBoxLayout to allow for centering
+                bubble = QGroupBox()
                 bubble_layout = QVBoxLayout(bubble)
-                bubble_layout.setContentsMargins(10, 25, 10, 10)
+                bubble_layout.setContentsMargins(10, 20, 10, 10)
                 bubble_layout.setSpacing(5)
                 bubble_layout.setAlignment(Qt.AlignCenter)
 
@@ -1277,50 +1275,53 @@ class MainWindow(QMainWindow):
                 text_widget = QWidget()
                 text_layout = QVBoxLayout(text_widget)
                 text_layout.setContentsMargins(8, 8, 8, 8)
-                text_widget.setStyleSheet("background-color: rgba(255, 255, 255, 0.8); border-radius: 8px;")
+                text_layout.setSpacing(2)
+                text_widget.setStyleSheet("background-color: rgba(255,255,255,0.92); border-radius: 12px;")
 
-                stock_label = QLabel(f"In Stock: <b>{data['stock']}</b>")
+                # Large in-stock number
+                stock_label = QLabel(f"{data['stock']}")
                 stock_label.setAlignment(Qt.AlignCenter)
-                per_rail_label = QLabel(f"Per Rail: <b>{data['per_rail']}</b>")
-                per_rail_label.setAlignment(Qt.AlignCenter)
-                rails_label = QLabel(f"Rails Possible: <b>{data['rails_possible']}</b>")
-                rails_label.setAlignment(Qt.AlignCenter)
+                stock_label.setStyleSheet("font-size: 32pt; font-weight: bold; color: #222; padding: 0; margin: 0;")
+
+                # Part name
+                name_label = QLabel(data['name'])
+                name_label.setAlignment(Qt.AlignCenter)
+                name_label.setStyleSheet("font-size: 10pt; font-weight: 600; color: #444; padding: 0; margin: 0;")
+
+                # Can Build
+                can_build_label = QLabel(f"Can Build: <b>{data['rails_possible']}</b>")
+                can_build_label.setAlignment(Qt.AlignCenter)
+                can_build_label.setStyleSheet("font-size: 11pt; color: #1976d2; padding: 0; margin: 0;")
 
                 text_layout.addWidget(stock_label)
-                text_layout.addWidget(per_rail_label)
-                text_layout.addWidget(rails_label)
-                
+                text_layout.addWidget(name_label)
+                text_layout.addWidget(can_build_label)
+                text_layout.addStretch(1)
                 bubble_layout.addWidget(text_widget)
 
                 # Color coding
-                color = "#e8f5e9" # Green
-                border = "#388e3c"
+                bg_color = "#e8f5e9" # Green
+                border_color = "#388e3c"
                 if data['rails_possible'] < 5:
-                    color = "#ffebee"
-                    border = "#c62828"
+                    bg_color = "#ffebee" # Red
+                    border_color = "#c62828"
                 elif data['rails_possible'] < 10:
-                    color = "#fff3e0"
-                    border = "#f57c00"
+                    bg_color = "#fff3e0" # Orange
+                    border_color = "#f57c00"
 
                 bubble.setStyleSheet(f"""
                     QGroupBox {{
-                        background-color: {color};
-                        border: 2px solid {border};
-                        border-radius: 15px;
+                        background-color: {bg_color};
+                        border: 2px solid {border_color};
+                        border-radius: 18px;
                         margin-top: 10px;
                         font-weight: bold;
                     }}
                     QGroupBox::title {{
                         subcontrol-origin: margin;
                         subcontrol-position: top center;
-                        padding: 2px 8px;
-                        background-color: rgba(255, 255, 255, 0.7);
-                        border-radius: 4px;
-                    }}
-                    QLabel {{ 
-                        font-size: 10pt; 
-                        font-weight: normal; 
-                        color: black; /* Ensure text is readable on light background */
+                        padding: 0;
+                        background-color: transparent;
                     }}
                 """)
 
@@ -1356,6 +1357,7 @@ class MainWindow(QMainWindow):
                     form_layout_deficit = QFormLayout(color_group_deficit)
                     form_layout_deficit.setContentsMargins(15, 25, 15, 15)  # Add more padding
                     
+
                     hex_color_code = self.TABLE_FINISH_COLORS.get(color_key, self.TABLE_FINISH_COLORS["Default"])
                     q_color = QColor(hex_color_code)
                     
@@ -1407,7 +1409,7 @@ class MainWindow(QMainWindow):
                     
                     # Always use white text for dark backgrounds and black for light ones
                     text_color = 'white' if q_color.lightnessF() < 0.5 else 'black'
-                    label_style = f"color: {text_color}; font-size: 11pt; margin: 2px;"  # Increased font size and margin
+                    label_style = f"color: {text_color}; font-size: 10pt; margin: 2px;"  # Increased font size and margin
                     
                     # --- Create and style labels ---
                     body_stock_val_label = QLabel("N/A")
@@ -1453,18 +1455,18 @@ class MainWindow(QMainWindow):
                 widgets["rail_stock"].setText(str(rail_stock))
                 
                 # Base style for these labels (can be simple, specific styles below will override)
-                base_deficit_value_style = "font-size: 10pt;"
+                base_deficit_value_style = "font-size: 9pt;"
                 widgets["body_stock"].setStyleSheet(base_deficit_value_style) 
                 widgets["rail_stock"].setStyleSheet(base_deficit_value_style) 
 
                 status_text = ""
-                status_style = "font-size: 10pt; color: #555;" # Default neutral
+                status_style = "font-size: 9pt; color: #555;" # Default neutral
                 
 # Add styling for text boxes with light background
                 value_box_style = """
                     background-color: rgba(255, 255, 255, 0.9);
                     border-radius: 4px;
-                    padding: 4px 8px;
+                    padding: 2px 4px;
                     margin: 2px;
                 """
                 
@@ -1546,7 +1548,7 @@ class MainWindow(QMainWindow):
         parts_data.sort(key=lambda x: min(x['possible_7ft'], x['possible_6ft']))
 
         # Populate grid
-        num_columns = 5 # Adjust as needed for screen size
+        num_columns = 6 # Adjust as needed for screen size
         for i, data in enumerate(parts_data):
             bubble = QGroupBox()
             bubble_layout = QVBoxLayout(bubble)
@@ -1555,6 +1557,7 @@ class MainWindow(QMainWindow):
             bubble_layout.setAlignment(Qt.AlignCenter)
 
             # Container for text with a solid background
+           
             text_widget = QWidget()
             text_layout = QVBoxLayout(text_widget)
             text_layout.setContentsMargins(8, 8, 8, 8)
@@ -1564,12 +1567,12 @@ class MainWindow(QMainWindow):
             # Large in-stock number
             stock_label = QLabel(f"{data['stock']}")
             stock_label.setAlignment(Qt.AlignCenter)
-            stock_label.setStyleSheet("font-size: 38pt; font-weight: bold; color: #222; padding: 0; margin: 0;")
+            stock_label.setStyleSheet("font-size: 32pt; font-weight: bold; color: #222; padding: 0; margin: 0;")
 
             # Part name
             name_label = QLabel(data['name'])
             name_label.setAlignment(Qt.AlignCenter)
-            name_label.setStyleSheet("font-size: 11pt; font-weight: 600; color: #444; padding: 0; margin: 0;")
+            name_label.setStyleSheet("font-size: 10pt; font-weight: 600; color: #444; padding: 0; margin: 0;")
 
             # Can Build: Only show 7ft for most, 6ft for 6ft-only parts
             if data['req_6ft'] > 0 and data['req_7ft'] == 0:
@@ -1580,7 +1583,7 @@ class MainWindow(QMainWindow):
                 can_build_val = str(data['possible_7ft']) if data['possible_7ft'] != float('inf') else "N/A"
                 can_build_label = QLabel(f"Can Build: <b>{can_build_val}</b> (7ft)")
             can_build_label.setAlignment(Qt.AlignCenter)
-            can_build_label.setStyleSheet("font-size: 12pt; color: #1976d2; padding: 0; margin: 0;")
+            can_build_label.setStyleSheet("font-size: 11pt; color: #1976d2; padding: 0; margin: 0;")
 
             text_layout.addWidget(stock_label)
             text_layout.addWidget(name_label)
@@ -1834,9 +1837,9 @@ class MainWindow(QMainWindow):
         self.setFont(font)
         
         # Update tab contents scaling
-        if hasattr(self, 'tab_widget'):  # Add safety check
-            for i in range(self.tab_widget.count()):
-                scroll = self.tab_widget.widget(i)
+        if hasattr(self, 'tabs'):  # Add safety check
+            for i in range(self.tabs.count()):
+                scroll = self.tabs.widget(i)
                 if isinstance(scroll, QScrollArea):
                     content = scroll.widget()
                     if content:
@@ -1844,17 +1847,8 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-
-    # --- Loading Screen ---
-    splash_pix = QPixmap(os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "splash.png"))  # Replace with your splash image
-    splash = LoadingScreen(splash_pix)
-    splash.show()
-    splash.showMessage("Loading application...", alignment=Qt.AlignBottom | Qt.AlignCenter, color=QColor("black"))
-    app.processEvents()  # Ensure the splash screen is displayed
-
     window = MainWindow()
     window.show()
-    splash.finish(window)  # Close splash screen when main window is ready
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
