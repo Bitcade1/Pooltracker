@@ -646,7 +646,7 @@ class MainWindow(QMainWindow):
 
         # Page 1: Performance
         page1 = QWidget(); page1.setObjectName("DashboardPage")
-        layout1 = QVBoxLayout(page1); layout1.setAlignment(Qt.AlignTop)  # Changed to AlignTop
+        layout1 = QVBoxLayout(page1)
         header1 = QLabel("Top Rail Performance"); header1.setObjectName("DashboardHeader"); header1.setAlignment(Qt.AlignCenter)
         layout1.addWidget(header1)
         
@@ -747,18 +747,8 @@ class MainWindow(QMainWindow):
         prod_stats_layout.addWidget(self.tr_dash_next_serial_label, 3, 0, 1, 3)  # Span all columns
 
         prod_stats_group.setLayout(prod_stats_layout)
-        layout1.addWidget(prod_stats_group)
+        layout1.addWidget(prod_stats_group, 1) # Add stretch factor
         
-        # Remove the next serial number from the current performance group
-        current_perf_group = QGroupBox("Current Performance")
-        current_perf_layout = QFormLayout()
-        self.tr_dash_current_time_label = QLabel("N/A")
-        self.tr_dash_current_time_label.setObjectName("DashboardMetricValue")
-        current_perf_layout.addRow(QLabel("Time on Current Rail:", objectName="DashboardMetricLabel"),
-                                 self.tr_dash_current_time_label)
-        
-        # ...rest of existing code...
-
         self.dashboard_stacked_widget.addWidget(page1)
 
         # Page 2: Parts Inventory - Now as a grid of bubbles
@@ -786,7 +776,7 @@ class MainWindow(QMainWindow):
 
         # Page 3: Deficits (Top Rails vs Bodies)
         page3 = QWidget(); page3.setObjectName("DashboardPage")
-        layout3 = QVBoxLayout(page3); layout3.setAlignment(Qt.AlignTop)
+        layout3 = QVBoxLayout(page3)
         header3 = QLabel("Top Rail - Assembly Needs"); header3.setObjectName("DashboardHeader"); header3.setAlignment(Qt.AlignCenter)
         layout3.addWidget(header3)
         self.tr_dash_deficits_layout_7ft = QVBoxLayout() # For 7ft tables
@@ -797,8 +787,7 @@ class MainWindow(QMainWindow):
         group_6ft_deficit = QGroupBox("6ft Tables"); group_6ft_deficit.setLayout(self.tr_dash_deficits_layout_6ft)
         deficit_content_layout.addWidget(group_7ft_deficit)
         deficit_content_layout.addWidget(group_6ft_deficit)
-        layout3.addLayout(deficit_content_layout)
-        layout3.addStretch()
+        layout3.addLayout(deficit_content_layout, 1)
         self.dashboard_stacked_widget.addWidget(page3)
 
         # Initialize dashboard widgets dictionary (for parts and deficits)
@@ -1266,6 +1255,7 @@ class MainWindow(QMainWindow):
             num_columns = 6
             for i, data in enumerate(parts_data):
                 bubble = QGroupBox()
+                bubble.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
                 bubble_layout = QVBoxLayout(bubble)
                 bubble_layout.setContentsMargins(10, 20, 10, 10)
                 bubble_layout.setSpacing(5)
@@ -1354,6 +1344,7 @@ class MainWindow(QMainWindow):
                 # Ensure widget dictionary structure exists
                 if color_key not in self.top_rail_dashboard_widgets[size_layout_key]:
                     color_group_deficit = QGroupBox(config['color_display'])
+                    color_group_deficit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
                     form_layout_deficit = QFormLayout(color_group_deficit)
                     form_layout_deficit.setContentsMargins(15, 25, 15, 15)  # Add more padding
                     
@@ -1551,13 +1542,13 @@ class MainWindow(QMainWindow):
         num_columns = 6 # Adjust as needed for screen size
         for i, data in enumerate(parts_data):
             bubble = QGroupBox()
+            bubble.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             bubble_layout = QVBoxLayout(bubble)
             bubble_layout.setContentsMargins(10, 20, 10, 10)
             bubble_layout.setSpacing(5)
             bubble_layout.setAlignment(Qt.AlignCenter)
 
             # Container for text with a solid background
-           
             text_widget = QWidget()
             text_layout = QVBoxLayout(text_widget)
             text_layout.setContentsMargins(8, 8, 8, 8)
