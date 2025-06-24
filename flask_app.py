@@ -2209,6 +2209,9 @@ def bodies():
             "Color ball trim": 1,
             "Ball window trim": 1,
             "Aluminum corner": 4,
+            "Chrome corner": 4,
+            "Top rail trim short length": 1,
+            "Top rail trim long length": 1,
             "Ramp 170mm": 1,
             "Ramp 158mm": 1,
             "Ramp 918mm": 1,
@@ -2500,8 +2503,9 @@ def top_rails():
         color_str = color_selector.lower().replace(' ', '_')
         size_str = size_selector.replace('ft', '')
         
-        long_piece_name = f"piece_{color_str}_{size_str}_long"
-        short_piece_name = f"piece_{color_str}_{size_str}_short"
+        # Construct the exact part names as they appear in the database
+        long_piece_name = f"{color_str}_{size_str}_long"
+        short_piece_name = f"{color_str}_{size_str}_short"
         
         parts_to_deduct[long_piece_name] = 2
         parts_to_deduct[short_piece_name] = 2
