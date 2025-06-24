@@ -4144,7 +4144,7 @@ def top_rail_pieces():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    colors = ['black', 'rustic_oak', 'grey_oak', 'stone']
+    colors = ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black']
     sizes = ['6', '7']
     lengths = ['short', 'long']
     part_keys = [f"{color}_{size}_{length}" for color in colors for size in sizes for length in lengths]
