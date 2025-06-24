@@ -180,6 +180,29 @@
             </table>
         </div>
 
+         <!-- Manage MDF Inventory Section -->
+<button class="collapsible" onclick="toggleCollapsible('manageInventory')">Manage MDF Inventory</button>
+<div id="manageInventory" class="collapsible-content">
+    <form method="POST" action="{{ url_for('manage_mdf_inventory') }}">
+        <h3>Current Inventory</h3>
+        <p>Plain MDF: {{ inventory.plain_mdf }}</p>
+        <p>Black MDF: {{ inventory.black_mdf }}</p>
+        <p>36mm Plain MDF: {{ inventory.plain_mdf_36 }}</p>
+
+        <h3>Add to Inventory</h3>
+        <label for="additional_plain_mdf">Additional Plain MDF:</label>
+        <input type="number" id="additional_plain_mdf" name="additional_plain_mdf" placeholder="Enter amount" required>
+
+        <label for="additional_black_mdf">Additional Black MDF:</label>
+        <input type="number" id="additional_black_mdf" name="additional_black_mdf" placeholder="Enter amount" required>
+
+        <label for="additional_plain_mdf_36">Additional 36mm Plain MDF:</label>
+        <input type="number" id="additional_plain_mdf_36" name="additional_plain_mdf_36" placeholder="Enter amount" required>
+
+        <button type="submit" class="button">Update Inventory</button>
+    </form>
+</div>
+
         <!-- Manage Raw Data -->
         <button class="collapsible">Manage Raw Data</button>
         <div class="collapsible-content">
