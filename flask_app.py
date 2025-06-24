@@ -2496,11 +2496,22 @@ def top_rails():
             "4.8x32mm Self Tapping Screw": 24
         }
 
+        # Add top rail pieces to deduct based on color and size
+        color_str = color_selector.lower().replace(' ', '_')
+        size_str = size_selector.replace('ft', '')
+        
+        long_piece_name = f"piece_{color_str}_{size_str}_long"
+        short_piece_name = f"piece_{color_str}_{size_str}_short"
+        
+        parts_to_deduct[long_piece_name] = 2
+        parts_to_deduct[short_piece_name] = 2
+
         # Check inventory and deduct all required parts
         for part_name, quantity_needed in parts_to_deduct.items():
             # Get all entries for this part and sum up total available
             entries = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
-                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).all()
+                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            
             total_available = sum(entry.count for entry in entries)
             
             if total_available < quantity_needed:
