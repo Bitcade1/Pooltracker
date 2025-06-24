@@ -54,120 +54,158 @@
             background-color: #0056b3;
         }
     </style>
-    <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
-        }
-    </script>
 </head>
 <body>
     <div class="container">
-        <h1>Admin Area</h1>
-
-        <!-- Flash Messages -->
+        <h1>Admin Panel</h1>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </div>
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
             {% endif %}
         {% endwith %}
 
-        <!-- Manage Workers Section -->
-        <button class="collapsible" onclick="toggleCollapsible('manageWorkers')">Manage Workers</button>
-        <div id="manageWorkers" class="collapsible-content">
+        <!-- Manage Workers -->
+        <button class="collapsible">Manage Workers</button>
+        <div class="collapsible-content">
+            <!-- Add Worker -->
             <form method="POST" action="{{ url_for('admin') }}">
-                <label for="new_worker">Add New Worker:</label>
-                <input type="text" id="new_worker" name="new_worker" placeholder="Enter worker name" required>
-                <button type="submit" class="button">Add Worker</button>
+                <h2>Add Worker</h2>
+                <label for="new_worker">Worker Name:</label>
+                <input type="text" id="new_worker" name="new_worker" required>
+                <button type="submit">Add Worker</button>
             </form>
+            <!-- Remove Worker -->
             <form method="POST" action="{{ url_for('admin') }}">
-                <label for="remove_worker">Remove Worker:</label>
-                <select name="remove_worker" id="remove_worker" required>
+                <h2>Remove Worker</h2>
+                <label for="remove_worker">Select Worker:</label>
+                <select id="remove_worker" name="remove_worker" required>
                     {% for worker in workers %}
                         <option value="{{ worker.name }}">{{ worker.name }}</option>
                     {% endfor %}
                 </select>
-                <button type="submit" class="button">Remove Worker</button>
+                <button type="submit">Remove Worker</button>
             </form>
         </div>
 
-        <!-- Manage Issues Section -->
-        <button class="collapsible" onclick="toggleCollapsible('manageIssues')">Manage Issues</button>
-        <div id="manageIssues" class="collapsible-content">
+        <!-- Manage Issues -->
+        <button class="collapsible">Manage Issues</button>
+        <div class="collapsible-content">
+            <!-- Add Issue -->
             <form method="POST" action="{{ url_for('admin') }}">
-                <label for="new_issue">Add New Issue:</label>
-                <input type="text" id="new_issue" name="new_issue" placeholder="Enter issue description" required>
-                <button type="submit" class="button">Add Issue</button>
+                <h2>Add Issue</h2>
+                <label for="new_issue">Issue Description:</label>
+                <input type="text" id="new_issue" name="new_issue" required>
+                <button type="submit">Add Issue</button>
             </form>
+            <!-- Remove Issue -->
             <form method="POST" action="{{ url_for('admin') }}">
-                <label for="remove_issue">Remove Issue:</label>
-                <select name="remove_issue" id="remove_issue" required>
+                <h2>Remove Issue</h2>
+                <label for="remove_issue">Select Issue:</label>
+                <select id="remove_issue" name="remove_issue" required>
                     {% for issue in issues %}
                         <option value="{{ issue.description }}">{{ issue.description }}</option>
                     {% endfor %}
                 </select>
-                <button type="submit" class="button">Remove Issue</button>
+                <button type="submit">Remove Issue</button>
             </form>
         </div>
 
- <!-- Manage MDF Inventory Section -->
-<button class="collapsible" onclick="toggleCollapsible('manageInventory')">Manage MDF Inventory</button>
-<div id="manageInventory" class="collapsible-content">
-    <form method="POST" action="{{ url_for('manage_mdf_inventory') }}">
-        <h3>Current Inventory</h3>
-        <p>Plain MDF: {{ inventory.plain_mdf }}</p>
-        <p>Black MDF: {{ inventory.black_mdf }}</p>
-        <p>36mm Plain MDF: {{ inventory.plain_mdf_36 }}</p>
-
-        <h3>Add to Inventory</h3>
-        <label for="additional_plain_mdf">Additional Plain MDF:</label>
-        <input type="number" id="additional_plain_mdf" name="additional_plain_mdf" placeholder="Enter amount" required>
-
-        <label for="additional_black_mdf">Additional Black MDF:</label>
-        <input type="number" id="additional_black_mdf" name="additional_black_mdf" placeholder="Enter amount" required>
-
-        <label for="additional_plain_mdf_36">Additional 36mm Plain MDF:</label>
-        <input type="number" id="additional_plain_mdf_36" name="additional_plain_mdf_36" placeholder="Enter amount" required>
-
-        <button type="submit" class="button">Update Inventory</button>
-    </form>
-</div>
-
-
-        <!-- Add New Hardware Parts Section -->
-        <button class="collapsible" onclick="toggleCollapsible('addHardwareParts')">Add New Hardware Parts</button>
-        <div id="addHardwareParts" class="collapsible-content">
-            <!-- 
-                 The key here is that we have:
-                 1) "method=POST" 
-                 2) "action={{ url_for('admin') }}" 
-                 3) a hidden input "add_hardware_part" to indicate 
-                    that this form is for adding a new hardware part 
-            -->
+        <!-- Manage Hardware Parts -->
+        <button class="collapsible">Manage Hardware Parts</button>
+        <div class="collapsible-content">
+            <h2>Add New Hardware Part</h2>
             <form method="POST" action="{{ url_for('admin') }}">
-                <input type="hidden" name="add_hardware_part" value="true">
-
-                <label for="new_hardware_part">Hardware Part Name:</label>
-                <input type="text" id="new_hardware_part" name="new_hardware_part" placeholder="Enter hardware part name" required>
-
+                <label for="new_hardware_part">Part Name:</label>
+                <input type="text" id="new_hardware_part" name="new_hardware_part" required>
                 <label for="initial_hardware_count">Initial Count:</label>
-                <input type="number" id="initial_hardware_count" name="initial_hardware_count" min="0" placeholder="Enter initial count" required>
-
-                <button type="submit" class="button">Add Hardware Part</button>
+                <input type="number" id="initial_hardware_count" name="initial_hardware_count" value="0" required>
+                <button type="submit">Add Hardware Part</button>
             </form>
+            <hr>
+            <h2>Existing Hardware Parts</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part Name</th>
+                        <th>Initial Count</th>
+                        <th>Used Per Table</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part in hardware_parts %}
+                    <tr>
+                        <td>{{ part.name }}</td>
+                        <td>{{ part.initial_count }}</td>
+                        <td>{{ part.used_per_table }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
-        <!-- Link to Raw Data Management Page -->
-        <button class="collapsible" onclick="window.location.href='{{ url_for('manage_raw_data') }}'">Raw Data Management</button>
+        <!-- Manage Low Stock Thresholds -->
+        <button class="collapsible">Manage Low Stock Thresholds</button>
+        <div class="collapsible-content">
+            <h2>Set Low Stock Notification Thresholds</h2>
+            <p>Set a threshold for a part. A notification will be sent when the stock level drops to or below this number. Set to 0 to disable notifications for a part.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part Name</th>
+                        <th>Current Threshold</th>
+                        <th>New Threshold</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part_name in all_part_names %}
+                    <tr>
+                        <form method="POST" action="{{ url_for('admin') }}">
+                            <input type="hidden" name="update_threshold" value="1">
+                            <input type="hidden" name="part_name" value="{{ part_name }}">
+                            <td>{{ part_name }}</td>
+                            <td>{{ thresholds_map.get(part_name, 0) }}</td>
+                            <td>
+                                <input type="number" name="threshold" value="{{ thresholds_map.get(part_name, 0) }}" min="0" style="width: 80px;">
+                            </td>
+                            <td>
+                                <button type="submit">Update</button>
+                            </td>
+                        </form>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-        <!-- Back to Menu Button -->
+        <!-- Manage Raw Data -->
+        <button class="collapsible">Manage Raw Data</button>
+        <div class="collapsible-content">
+            <p>To edit or delete individual entries, go to the <a href="{{ url_for('manage_raw_data') }}">Raw Data Management page</a>.</p>
+        </div>
+
         <div class="back-to-menu">
             <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
         </div>
     </div>
+
+    <script>
+        var coll = document.getElementsByClassName("collapsible");
+        var i;
+
+        for (i = 0; i < coll.length; i++) {
+            coll[i].addEventListener("click", function() {
+                this.classList.toggle("active");
+                var content = this.nextElementSibling;
+                if (content.style.display === "block") {
+                    content.style.display = "none";
+                } else {
+                    content.style.display = "block";
+                }
+            });
+        }
+    </script>
 </body>
 </html>

@@ -134,6 +134,24 @@ class HardwarePart(db.Model):
     initial_count = db.Column(db.Integer, default=0)
     used_per_table = db.Column(db.Float, default=0.0000)
 
+class PartThreshold(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    part_name = db.Column(db.String(100), unique=True, nullable=False)
+    threshold = db.Column(db.Integer, default=0, nullable=False)
+
+def check_and_notify_low_stock(part_name, old_count, new_count):
+    threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
+    if threshold_entry and threshold_entry.threshold > 0:
+        if old_count > threshold_entry.threshold and new_count <= threshold_entry.threshold:
+            try:
+                title = f"Low Stock Alert: {part_name}"
+                message = f"Stock for {part_name} is low. Current count: {new_count}. Threshold: {threshold_entry.threshold}."
+                requests.post("https://ntfy.sh/PoolTableTracker",
+                              data=message,
+                              headers={"Title": title, "Priority": "high"})
+            except requests.RequestException as e:
+                print(f"Ntfy low stock notification failed for {part_name}: {e}")
+
 @app.route('/logout')
 def logout():
     session.pop('worker', None)
@@ -224,6 +242,27 @@ def admin():
         else:
             flash("Issue not found.", "error")
 
+    # --- Part Threshold Management ---
+    if request.method == 'POST' and 'update_threshold' in request.form:
+        part_name = request.form.get('part_name')
+        try:
+            threshold = int(request.form.get('threshold', 0))
+            if threshold < 0:
+                threshold = 0
+            
+            threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
+            if not threshold_entry:
+                threshold_entry = PartThreshold(part_name=part_name, threshold=threshold)
+                db.session.add(threshold_entry)
+            else:
+                threshold_entry.threshold = threshold
+            
+            db.session.commit()
+            flash(f"Threshold for {part_name} updated to {threshold}.", "success")
+        except ValueError:
+            flash("Invalid threshold value.", "error")
+        return redirect(url_for('admin'))
+
  # Fetch all existing hardware parts from the database
     hardware_parts = HardwarePart.query.all()
 
@@ -258,6 +297,16 @@ def admin():
     pods = CompletedPods.query.all()
     top_rails = TopRail.query.all()
     bodies = CompletedTable.query.all()
+
+    # Gather all unique part names for threshold management
+    all_parts_query1 = db.session.query(HardwarePart.name.label("part_name")).distinct()
+    all_parts_query2 = db.session.query(PrintedPartsCount.part_name.label("part_name")).distinct()
+    all_parts_union = all_parts_query1.union(all_parts_query2).all()
+    all_part_names = sorted([name for (name,) in all_parts_union])
+
+    # Get all current thresholds
+    thresholds = PartThreshold.query.all()
+    thresholds_map = {t.part_name: t.threshold for t in thresholds}
 
     if request.method == 'POST' and 'table' in request.form:
         table = request.form.get('table')
@@ -345,7 +394,9 @@ def admin():
         pods=pods,
         top_rails=top_rails,
         bodies=bodies,
-        hardware_parts=hardware_parts
+        hardware_parts=hardware_parts,
+        all_part_names=all_part_names,
+        thresholds_map=thresholds_map
     )
 
 @app.route('/dashboard')
@@ -704,28 +755,15 @@ def counting_chinese_parts():
             flash("Amount must be a number.", "error")
             return redirect(url_for('counting_chinese_parts'))
 
-        # Retrieve or create a single row for this part
-        existing_entry = (db.session.query(PrintedPartsCount)
-                          .filter_by(part_name=selected_part)
-                          .first())
-        if not existing_entry:
-            # Create a new entry if none exists yet
-            existing_entry = PrintedPartsCount(
-                part_name=selected_part,
-                count=current_count,  # Likely 0, but we'll match logic
-                date=datetime.utcnow().date(),
-                time=datetime.utcnow().time()
-            )
-            db.session.add(existing_entry)
-            db.session.commit()  # Commit to get an ID if needed
-
         # Perform the requested action
         if action == 'increment':
             existing_entry.count += 1
 
         elif action == 'decrement':
             if existing_entry.count > 0:
+                old_count = existing_entry.count
                 existing_entry.count -= 1
+                check_and_notify_low_stock(selected_part, old_count, existing_entry.count)
             else:
                 flash("Cannot decrement below zero.", "error")
                 return redirect(url_for('counting_chinese_parts'))
@@ -735,7 +773,11 @@ def counting_chinese_parts():
             if amount < 0 and existing_entry.count < abs(amount):
                 flash("Insufficient stock to perform this bulk decrement.", "error")
                 return redirect(url_for('counting_chinese_parts'))
+            
+            old_count = existing_entry.count
             existing_entry.count += amount
+            if amount < 0:
+                check_and_notify_low_stock(selected_part, old_count, existing_entry.count)
 
         else:
             flash("Invalid operation.", "error")
@@ -828,22 +870,26 @@ def counting_hardware():
                 return redirect(url_for('counting_hardware'))
 
             current_count = hardware_counts[part_name]
+            new_count = current_count
 
             if action == 'increment':
                 new_count = current_count + 1
             elif action == 'decrement':
                 if current_count > 0:
                     new_count = current_count - 1
+                    check_and_notify_low_stock(part_name, current_count, new_count)
                 else:
-                    flash("Cannot decrement; no stock left.", "error")
+                    flash("Cannot decrement below zero.", "error")
                     return redirect(url_for('counting_hardware'))
             elif action == 'bulk':
                 # Positive for adding, negative for subtracting
                 potential_new_count = current_count + amount
                 if potential_new_count < 0:
-                    flash("Insufficient stock for that bulk reduction.", "error")
+                    flash("Insufficient stock for bulk decrement.", "error")
                     return redirect(url_for('counting_hardware'))
                 new_count = potential_new_count
+                if amount < 0:
+                    check_and_notify_low_stock(part_name, current_count, new_count)
 
             # Record the new count in the PrintedPartsCount table
             new_entry = PrintedPartsCount(
@@ -856,9 +902,6 @@ def counting_hardware():
             db.session.commit()
 
             flash(f"{part_name} updated successfully! New count: {new_count}", "success")
-
-            # Update local dict so it's accurate for this page load
-            hardware_counts[part_name] = new_count
 
     # 4. Render the template
     return render_template(
@@ -947,9 +990,17 @@ def pods():
             )
             
             # Actually deduct the parts now
+            old_felt_count = felt_entry.count
             felt_entry.count -= 1
+            check_and_notify_low_stock(felt_part, old_felt_count, felt_entry.count)
+
+            old_carpet_count = carpet_entry.count
             carpet_entry.count -= 1
+            check_and_notify_low_stock(carpet_part, old_carpet_count, carpet_entry.count)
+
+            old_tee_nuts_count = tee_nuts_entry.count
             tee_nuts_entry.count -= 16  # Added this line to deduct the Tee Nuts
+            check_and_notify_low_stock("M10x13mm Tee Nut", old_tee_nuts_count, tee_nuts_entry.count)
 
             db.session.add(new_pod)
             db.session.commit()
@@ -2144,8 +2195,10 @@ def bodies():
                 db.session.add(part_entry)
                 db.session.commit()
             
-            if part_entry.count >= quantity_needed:
+            old_count = part_entry.count
+            if old_count >= quantity_needed:
                 part_entry.count -= quantity_needed
+                check_and_notify_low_stock(part_name, old_count, part_entry.count)
             else:
                 flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {part_entry.count}) to complete the body!", "error")
                 db.session.rollback()
@@ -2179,10 +2232,9 @@ def bodies():
             except requests.RequestException as e:
                 print(f"Ntfy notification failed: {e}")
             # --- End NTFY Notification ---
-
-        except Exception as e:
+        except IntegrityError:
             db.session.rollback()
-            flash(f"Error: {str(e)}", "error")
+            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('bodies'))
 
         # Helper function to determine color from serial number
@@ -2413,6 +2465,8 @@ def top_rails():
             if total_available < quantity_needed:
                 flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {total_available}", "error")
                 return redirect(url_for('top_rails'))
+            
+            check_and_notify_low_stock(part_name, total_available, total_available - quantity_needed)
             
             # Deduct parts from newest entries first
             remaining = quantity_needed
