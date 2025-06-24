@@ -746,7 +746,20 @@ def counting_chinese_parts():
             flash("Invalid part selected.", "error")
             return redirect(url_for('counting_chinese_parts'))
 
-        current_count = table_parts_counts[selected_part]
+        # Fetch the specific part entry to be updated
+        existing_entry = (db.session.query(PrintedPartsCount)
+                          .filter_by(part_name=selected_part)
+                          .first())
+
+        # If no entry exists, create one before proceeding
+        if not existing_entry:
+            existing_entry = PrintedPartsCount(
+                part_name=selected_part,
+                count=0,
+                date=datetime.utcnow().date(),
+                time=datetime.utcnow().time()
+            )
+            db.session.add(existing_entry)
 
         # Amount is only used for 'bulk' updates; default to 1 otherwise
         try:
@@ -761,17 +774,14 @@ def counting_chinese_parts():
 
         elif action == 'decrement':
             if existing_entry.count > 0:
-                old_count = existing_entry.count
                 existing_entry.count -= 1
-                check_and_notify_low_stock(selected_part, old_count, existing_entry.count)
             else:
-                flash("Cannot decrement below zero.", "error")
-                return redirect(url_for('counting_chinese_parts'))
+                flash(f"Cannot decrement {selected_part}, count is already 0.", "warning")
 
         elif action == 'bulk':
             # Positive bulk = add stock; negative bulk = remove stock if sufficient
             if amount < 0 and existing_entry.count < abs(amount):
-                flash("Insufficient stock to perform this bulk decrement.", "error")
+                flash(f"Not enough stock to remove {abs(amount)} of {selected_part}. Current stock: {existing_entry.count}", "error")
                 return redirect(url_for('counting_chinese_parts'))
             
             old_count = existing_entry.count
@@ -3176,7 +3186,7 @@ def counting_3d_printing_parts():
     bodies_built_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
     bodies_built_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
 
-    # Now accurately calculate required totals per table type
+    # Now accurately calculate required totals
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
