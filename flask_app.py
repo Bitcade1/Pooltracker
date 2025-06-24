@@ -4134,35 +4134,6 @@ def get_top_rail_production_stats():
         'yearly': year_count
     })
 
-@app.route('/top_rail_timing')
-def top_rail_timing_page():
-    """Render the top rail timing page."""
-    if 'worker' not in session:
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-    
-    worker = session['worker']
-    
-    # Get recent timing data for display
-    recent_timings = TopRailTiming.query.filter_by(
-        worker=worker, 
-        completed=True
-    ).order_by(TopRailTiming.date.desc()).limit(20).all()
-    
-    # Calculate statistics
-    if recent_timings:
-        durations = [t.duration_minutes for t in recent_timings if t.duration_minutes]
-        average_time = sum(durations) / len(durations) if durations else 0
-        best_time = min(durations) if durations else 0
-        total_completed = len(recent_timings)
-    else:
-        average_time = best_time = total_completed = 0
-    
-    return render_template('top_rail_timing.html', 
-                         recent_timings=recent_timings,
-                         average_time=round(average_time, 2),
-                         best_time=round(best_time, 2),
-                         total_completed=total_completed)
 
 class TopRailPieceCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
