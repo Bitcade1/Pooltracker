@@ -144,13 +144,13 @@ def check_and_notify_low_stock(part_name, old_count, new_count):
     if threshold_entry and threshold_entry.threshold > 0:
         if old_count > threshold_entry.threshold and new_count <= threshold_entry.threshold:
             try:
-                title = f"Low Stock Alert: {part_name}"
-                message = f"Stock for {part_name} is low. Current count: {new_count}. Threshold: {threshold_entry.threshold}."
+                message = f"Stock for {part_name} is low ({new_count} remaining)."
+                title = "Low Stock Warning"
                 requests.post("https://ntfy.sh/PoolTableTracker",
                               data=message,
                               headers={"Title": title, "Priority": "high"})
             except requests.RequestException as e:
-                print(f"Ntfy low stock notification failed for {part_name}: {e}")
+                print(f"Ntfy notification failed for low stock: {e}")
 
 @app.route('/logout')
 def logout():
@@ -774,14 +774,16 @@ def counting_chinese_parts():
 
         elif action == 'decrement':
             if existing_entry.count > 0:
+                old_count = existing_entry.count
                 existing_entry.count -= 1
+                check_and_notify_low_stock(selected_part, old_count, existing_entry.count)
             else:
-                flash(f"Cannot decrement {selected_part}, count is already 0.", "warning")
+                flash("Cannot decrement below zero.", "error")
 
         elif action == 'bulk':
             # Positive bulk = add stock; negative bulk = remove stock if sufficient
             if amount < 0 and existing_entry.count < abs(amount):
-                flash(f"Not enough stock to remove {abs(amount)} of {selected_part}. Current stock: {existing_entry.count}", "error")
+                flash(f"Not enough stock to remove. Current count for '{selected_part}': {existing_entry.count}", "error")
                 return redirect(url_for('counting_chinese_parts'))
             
             old_count = existing_entry.count
@@ -871,35 +873,33 @@ def counting_hardware():
             try:
                 amount = int(amount_str)
             except ValueError:
-                flash("Please provide a valid integer for bulk amount.", "error")
+                flash("Amount must be a number.", "error")
                 return redirect(url_for('counting_hardware'))
 
             # Validate the selected part
             if part_name not in hardware_counts:
-                flash("Invalid hardware part selected.", "error")
+                flash(f"Invalid hardware part: {part_name}", "error")
                 return redirect(url_for('counting_hardware'))
 
             current_count = hardware_counts[part_name]
             new_count = current_count
 
             if action == 'increment':
-                new_count = current_count + 1
+                new_count += amount
             elif action == 'decrement':
-                if current_count > 0:
-                    new_count = current_count - 1
-                    check_and_notify_low_stock(part_name, current_count, new_count)
-                else:
-                    flash("Cannot decrement below zero.", "error")
+                if current_count < amount:
+                    flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
                     return redirect(url_for('counting_hardware'))
+                new_count -= amount
             elif action == 'bulk':
-                # Positive for adding, negative for subtracting
-                potential_new_count = current_count + amount
-                if potential_new_count < 0:
-                    flash("Insufficient stock for bulk decrement.", "error")
+                if amount < 0 and current_count < abs(amount):
+                    flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
                     return redirect(url_for('counting_hardware'))
-                new_count = potential_new_count
-                if amount < 0:
-                    check_and_notify_low_stock(part_name, current_count, new_count)
+                new_count += amount
+
+            # Check for low stock if count is decreasing
+            if new_count < current_count:
+                check_and_notify_low_stock(part_name, current_count, new_count)
 
             # Record the new count in the PrintedPartsCount table
             new_entry = PrintedPartsCount(
@@ -3125,7 +3125,9 @@ def counting_3d_printing_parts():
                 PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
 
             if current_count and current_count.count >= reject_amount:
+                old_count = current_count.count
                 current_count.count -= reject_amount
+                check_and_notify_low_stock(part, old_count, current_count.count)
                 flash(f"Rejected {reject_amount} of {part} from inventory.", "success")
                 db.session.commit()
             else:
