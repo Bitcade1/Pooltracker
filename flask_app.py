@@ -4133,3 +4133,41 @@ def top_rail_timing_page():
                          best_time=round(best_time, 2),
                          total_completed=total_completed)
 
+@app.route('/top_rail_pieces', methods=['GET', 'POST'])
+def top_rail_pieces():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    colors = ['black', 'rustic_oak', 'grey_oak', 'stone']
+    sizes = ['6', '7']
+    lengths = ['short', 'long']
+    part_keys = [f"{color}_{size}_{length}" for color in colors for size in sizes for length in lengths]
+
+    if request.method == 'POST':
+        for key in part_keys:
+            input_value = request.form.get(f"piece_{key}")
+            if input_value is not None:
+                try:
+                    count = int(input_value)
+                    part = TopRailPieceCount.query.filter_by(part_key=key).first()
+                    if not part:
+                        part = TopRailPieceCount(part_key=key, count=count)
+                        db.session.add(part)
+                    else:
+                        part.count = count
+                except ValueError:
+                    flash(f"Invalid number for {key}", "error")
+        db.session.commit()
+        flash("Top rail piece counts updated successfully.", "success")
+        return redirect(url_for('top_rail_pieces'))
+
+    # Prepare data for display
+    counts = {}
+    all_parts = TopRailPieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
+
+    return render_template('top_rail_pieces.html', counts=counts)
+
+
