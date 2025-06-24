@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Count Top Rail Pieces</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        fieldset {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        legend {
+            font-weight: bold;
+            font-size: 1.2em;
+            padding: 0 10px;
+        }
+        .form-group {
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        label {
+            font-weight: 500;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .button-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Count Top Rail Pieces</h1>
+        <p>Enter the current stock for each top rail piece. The values represent individual pieces, not pairs.</p>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('top_rail_pieces') }}" method="post">
+            <div class="grid-container">
+                {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone'] %}
+                {% set sizes = ['6ft', '7ft'] %}
+                {% set lengths = ['Short', 'Long'] %}
+
+                {% for color in colors %}
+                <fieldset>
+                    <legend>{{ color }}</legend>
+                    {% for size in sizes %}
+                        {% for length in lengths %}
+                            {% set part_name = size ~ ' ' ~ length %}
+                            {% set input_name = 'piece_' ~ color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ length|lower %}
+                            <div class="form-group">
+                                <label for="{{ input_name }}">{{ part_name }}</label>
+                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
+                            </div>
+                        {% endfor %}
+                    {% endfor %}
+                </fieldset>
+                {% endfor %}
+            </div>
+            <div class="button-container">
+                <button type="submit" class="btn btn-primary">Update Counts</button>
+            </div>
+        </form>
+        <div class="button-container">
+             <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>
