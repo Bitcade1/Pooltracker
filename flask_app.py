@@ -258,6 +258,36 @@ def admin():
                 threshold_entry.threshold = threshold
             
             db.session.commit()
+
+            # --- Check for immediate low stock after threshold update ---
+            # Get current stock count
+            latest_entry = (db.session.query(PrintedPartsCount.count)
+                            .filter_by(part_name=part_name)
+                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                            .first())
+            
+            current_stock = 0
+            if latest_entry:
+                current_stock = latest_entry[0]
+            else:
+                # Check if it's a hardware part with an initial count
+                hardware_part = HardwarePart.query.filter_by(name=part_name).first()
+                if hardware_part:
+                    current_stock = hardware_part.initial_count
+
+            # If stock is already below the new threshold, notify
+            if threshold > 0 and current_stock <= threshold:
+                try:
+                    message = f"Stock for {part_name} is low ({current_stock} remaining, threshold is {threshold})."
+                    title = "Low Stock Warning"
+                    requests.post("https://ntfy.sh/PoolTableTracker",
+                                  data=message,
+                                  headers={"Title": title, "Priority": "high"})
+                    flash(f"Low stock notification sent for {part_name}.", "info")
+                except requests.RequestException as e:
+                    print(f"Ntfy notification failed for low stock: {e}")
+            # --- End check ---
+
             flash(f"Threshold for {part_name} updated to {threshold}.", "success")
         except ValueError:
             flash("Invalid threshold value.", "error")
