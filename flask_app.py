@@ -4133,6 +4133,11 @@ def top_rail_timing_page():
                          best_time=round(best_time, 2),
                          total_completed=total_completed)
 
+class TopRailPieceCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short'
+    count = db.Column(db.Integer, default=0, nullable=False)
+
 @app.route('/top_rail_pieces', methods=['GET', 'POST'])
 def top_rail_pieces():
     if 'worker' not in session:
