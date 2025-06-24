@@ -1365,7 +1365,7 @@ def manage_raw_data():
                 
                 db.session.delete(entry)
                 db.session.commit()
-                flash(f"{table.capitalize()} entry deleted successfully!", "success")
+                flash(f"{table.title()} entry deleted successfully!", "success")
             else:
                 # Update logic for non-deletion operations
                 if table == 'pods':
@@ -2125,19 +2125,38 @@ def bodies():
             unconverted_pods.append(pod)
 
     if request.method == 'POST':
+        # Helper function to determine color from serial number
+        def get_color(serial):
+            norm_serial = serial.replace(" ", "")
+            if "-GO" in norm_serial or "-go" in norm_serial:
+                return "grey_oak"
+            elif "-O" in norm_serial and not "-GO" in norm_serial:
+                return "rustic_oak"
+            elif "-C" in norm_serial or "-c" in norm_serial:
+                return "stone"
+            elif "-RB" in norm_serial or "-rb" in norm_serial:
+                return "rustic_black"
+            else:
+                return "black"  # Default if no color suffix or has -B
+
+        # Helper function to determine if it's a 6ft table
+        def is_6ft(serial):
+            return serial.replace(" ", "").endswith("-6")
+
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
-        original_serial_number = request.form['serial_number']
-        color_selector = request.form.get('color_selector', 'Black')
-        
+        serial_number = request.form['serial_number']
+        issue_text = request.form['issue']
+        lunch = request.form['lunch']
+
         # Get the formatted serial number if it exists, otherwise use the original
-        serial_number = request.form.get('formatted_serial_number', original_serial_number)
-        
+        serial_number = request.form.get('formatted_serial_number', serial_number)
+
         # If formatted_serial_number is empty or not provided, format the serial number manually
         if not serial_number or serial_number.strip() == "":
             # Clean any existing color suffix from the serial number, but preserve size suffix
-            clean_serial = original_serial_number
+            clean_serial = serial_number
             
             # Remove "**Pod Serial Number:" prefix if present
             if "**Pod Serial Number:" in clean_serial:
@@ -2202,10 +2221,6 @@ def bodies():
             "Latch": 12
         }
 
-        # Helper function to determine if it's a 6ft table
-        def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6")
-
         # Adjust parts for 6ft tables
         if is_6ft(serial_number):
             # For a 6ft table, remove standard parts and add the 6ft-specific ones.
@@ -2216,7 +2231,7 @@ def bodies():
             parts_to_deduct.pop("Ramp 158mm", None)  # Also remove Ramp 158mm for 6ft tables
             parts_to_deduct["6ft Large Ramp"] = 1
             parts_to_deduct["6ft Cue Ball Separator"] = 1
-
+        print(parts_to_deduct)
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
             part_entry = (PrintedPartsCount.query
@@ -2276,20 +2291,6 @@ def bodies():
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('bodies'))
-
-        # Helper function to determine color from serial number
-        def get_color(serial):
-            norm_serial = serial.replace(" ", "")
-            if "-GO" in norm_serial or "-go" in norm_serial:
-                return "grey_oak"
-            elif "-O" in norm_serial and not "-GO" in norm_serial:
-                return "rustic_oak"
-            elif "-C" in norm_serial or "-c" in norm_serial:
-                return "stone"
-            elif "-RB" in norm_serial or "-rb" in norm_serial:
-                return "rustic_black"
-            else:
-                return "black"  # Default if no color suffix or has -B
 
         # Update table stock based on size and color
         size = "6ft" if is_6ft(serial_number) else "7ft"
@@ -3582,7 +3583,7 @@ def counting_cushions():
                     if job_record.paused_time:
                         flash("Please resume the job before finishing it.", "error")
                         return redirect(url_for('counting_cushions'))
-                        
+                    
                     job_record.finish_time = now
                     
                     # Calculate actual working minutes excluding lunch break if applicable
