@@ -4135,25 +4135,6 @@ def get_top_rail_production_stats():
     })
 
 
-class TopRailPieceCount(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short'
-    count = db.Column(db.Integer, default=0, nullable=False)
-    
-    # Calculate statistics
-    if recent_timings:
-        durations = [t.duration_minutes for t in recent_timings if t.duration_minutes]
-        average_time = sum(durations) / len(durations) if durations else 0
-        best_time = min(durations) if durations else 0
-        total_completed = len(recent_timings)
-    else:
-        average_time = best_time = total_completed = 0
-    
-    return render_template('top_rail_timing.html', 
-                         recent_timings=recent_timings,
-                         average_time=round(average_time, 2),
-                         best_time=round(best_time, 2),
-                         total_completed=total_completed)
 
 class TopRailPieceCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
