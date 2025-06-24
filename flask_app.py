@@ -2512,29 +2512,44 @@ def top_rails():
 
         # Check inventory and deduct all required parts
         for part_name, quantity_needed in parts_to_deduct.items():
-            # Get all entries for this part and sum up total available
-            entries = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
-                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
-            
-            total_available = sum(entry.count for entry in entries)
-            
-            if total_available < quantity_needed:
-                flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {total_available}", "error")
-                return redirect(url_for('top_rails'))
-            
-            check_and_notify_low_stock(part_name, total_available, total_available - quantity_needed)
-            
-            # Deduct parts from newest entries first
-            remaining = quantity_needed
-            for entry in entries:
-                if remaining <= 0:
-                    break
-                if entry.count >= remaining:
-                    entry.count -= remaining
-                    remaining = 0
-                else:
-                    remaining -= entry.count
-                    entry.count = 0
+            if part_name in [short_piece_name, long_piece_name]:
+                # Get the top rail piece count
+                part_entry = TopRailPieceCount.query.filter_by(part_key=part_name).first()
+                if not part_entry:
+                    flash(f"No inventory set up for {part_name}!", "error")
+                    return redirect(url_for('top_rails'))
+                
+                # Check if we have enough
+                if part_entry.count < quantity_needed:
+                    flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {part_entry.count}", "error")
+                    return redirect(url_for('top_rails'))
+                
+                # Deduct from inventory
+                part_entry.count -= quantity_needed
+            else:
+                # Handle other parts using PrintedPartsCount as before
+                entries = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
+                    PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                
+                total_available = sum(entry.count for entry in entries)
+                
+                if total_available < quantity_needed:
+                    flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {total_available}", "error")
+                    return redirect(url_for('top_rails'))
+                
+                check_and_notify_low_stock(part_name, total_available, total_available - quantity_needed)
+                
+                # Deduct parts from newest entries first
+                remaining = quantity_needed
+                for entry in entries:
+                    if remaining <= 0:
+                        break
+                    if entry.count >= remaining:
+                        entry.count -= remaining
+                        remaining = 0
+                    else:
+                        remaining -= entry.count
+                        entry.count = 0
             
             db.session.commit()
 
@@ -3555,6 +3570,7 @@ def counting_cushions():
             flash("Please enter valid numbers for targets and goal times.", "error")
             return redirect(url_for('counting_cushions'))
     
+       
     # Handle job start/finish/pause
     if request.method == 'POST' and 'job_action' in request.form:
         action = request.form['job_action']
@@ -4132,6 +4148,26 @@ def top_rail_timing_page():
         worker=worker, 
         completed=True
     ).order_by(TopRailTiming.date.desc()).limit(20).all()
+    
+    # Calculate statistics
+    if recent_timings:
+        durations = [t.duration_minutes for t in recent_timings if t.duration_minutes]
+        average_time = sum(durations) / len(durations) if durations else 0
+        best_time = min(durations) if durations else 0
+        total_completed = len(recent_timings)
+    else:
+        average_time = best_time = total_completed = 0
+    
+    return render_template('top_rail_timing.html', 
+                         recent_timings=recent_timings,
+                         average_time=round(average_time, 2),
+                         best_time=round(best_time, 2),
+                         total_completed=total_completed)
+
+class TopRailPieceCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short'
+    count = db.Column(db.Integer, default=0, nullable=False)
     
     # Calculate statistics
     if recent_timings:
