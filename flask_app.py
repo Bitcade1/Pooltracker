@@ -2288,10 +2288,22 @@ def bodies():
             db.session.commit()
             flash("Body entry added successfully and inventory updated!", "success")
 
+            # Calculate time taken
+            start_dt = datetime.combine(date.today(), datetime.strptime(start_time, "%H:%M").time())
+            finish_dt = datetime.combine(date.today(), datetime.strptime(finish_time, "%H:%M").time())
+
+            # Subtract 30 minutes if lunch was taken
+            if lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+            time_taken_str = str(time_taken)[:-3]  # Format as HH:MM
+
+
             # --- NTFY Notification ---
             size = "6ft" if is_6ft(serial_number) else "7ft"
             color = get_color(serial_number).replace('_', ' ').title()
-            message = f"Serial: {serial_number}"
+            message = f"Serial: {serial_number}\nTime Taken: {time_taken_str}"
             title = f"Body Completed: {size} {color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
