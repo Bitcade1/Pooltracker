@@ -4211,4 +4211,37 @@ def top_rail_pieces():
 
     return render_template('top_rail_pieces.html', counts=counts)
 
+@app.route('/top_rail_leaderboard')
+def top_rail_leaderboard():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    top_rails = TopRail.query.all()
+    leaderboard = []
+
+    for tr in top_rails:
+        start_dt = datetime.combine(tr.date, tr.start_time)
+        finish_dt = datetime.combine(tr.date, tr.finish_time)
+
+        # Adjust for lunch
+        if tr.lunch.lower() == "yes":
+            finish_dt -= timedelta(minutes=30)
+
+        time_taken = finish_dt - start_dt
+        leaderboard.append({
+            "worker": tr.worker,
+            "serial_number": tr.serial_number,
+            "time_taken": time_taken,
+            "date": tr.date.strftime("%d/%m/%Y")
+        })
+
+    # Sort by fastest (shortest) time
+    leaderboard.sort(key=lambda x: x['time_taken'])
+
+    # Keep top 20 fastest
+    top_20 = leaderboard[:20]
+
+    return render_template("top_rail_leaderboard.html", leaderboard=top_20)
+
 

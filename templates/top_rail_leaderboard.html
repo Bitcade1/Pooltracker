@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>🏆 Top Rail Fastest Completion Times</h2>
+<table border="1" cellpadding="6">
+    <tr>
+        <th>Rank</th>
+        <th>Worker</th>
+        <th>Serial Number</th>
+        <th>Time Taken</th>
+        <th>Date</th>
+    </tr>
+    {% for row in leaderboard %}
+    <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ row.worker }}</td>
+        <td>{{ row.serial_number }}</td>
+        <td>{{ row.time_taken }}</td>
+        <td>{{ row.date }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
