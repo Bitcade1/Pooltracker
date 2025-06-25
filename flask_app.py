@@ -2675,7 +2675,7 @@ def top_rails():
             
             # --- NTFY Notification ---
             display_color = color.replace('_', ' ').title()
-            message = f"Serial: {serial_number}"
+            message = f"Serial: {serial_number}\nTime Taken: {time_taken_str}"
             title = f"Top Rail Completed: {size} {display_color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
