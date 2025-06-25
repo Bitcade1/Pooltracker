@@ -1051,7 +1051,7 @@ def pods():
 
             # Adjust for lunch break
             if lunch.lower() == "yes":
-             finish_dt -= timedelta(minutes=30)
+                finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
             time_taken_str = str(time_taken)[:-3]  # Trim seconds if you want HH:MM format
@@ -2664,7 +2664,7 @@ def top_rails():
             
             # --- NTFY Notification ---
             display_color = color.replace('_', ' ').title()
-            message = f"Serial: {serial_number}\nTime Taken: {time_taken_str}"
+            message = f"Serial: {serial_number}"
             title = f"Top Rail Completed: {size} {display_color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
