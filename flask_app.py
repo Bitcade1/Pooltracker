@@ -1046,9 +1046,19 @@ def pods():
             db.session.commit()
             flash(f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, and 16 M10x13mm Tee Nuts", "success")
 
+            start_dt = datetime.combine(date.today(), start_time)
+            finish_dt = datetime.combine(date.today(), finish_time)
+
+            # Adjust for lunch break
+            if lunch.lower() == "yes":
+             finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+            time_taken_str = str(time_taken)[:-3]  # Trim seconds if you want HH:MM format
+
             # --- NTFY Notification ---
             size = "6ft" if is_6ft else "7ft"
-            message = f"Serial: {serial_number}"
+            message = f"Serial: {serial_number}\nTime Taken: {time_taken_str}"
             title = f"Pod Completed: {size}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
