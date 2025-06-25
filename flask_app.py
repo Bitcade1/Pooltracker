@@ -4222,14 +4222,17 @@ def top_rail_leaderboard():
 
     for tr in top_rails:
         try:
-            # Parse string time fields into datetime.time objects
             start_time = datetime.strptime(tr.start_time, "%H:%M").time()
             finish_time = datetime.strptime(tr.finish_time, "%H:%M").time()
-
             start_dt = datetime.combine(tr.date, start_time)
-            finish_dt = datetime.combine(tr.date, finish_time)
 
-            # Subtract 30 minutes if lunch was taken
+            # Handle overnight job
+            if finish_time < start_time:
+                finish_dt = datetime.combine(tr.date + timedelta(days=1), finish_time)
+            else:
+                finish_dt = datetime.combine(tr.date, finish_time)
+
+            # Subtract 30 mins for lunch
             if tr.lunch and tr.lunch.lower() == "yes":
                 finish_dt -= timedelta(minutes=30)
 
@@ -4245,12 +4248,11 @@ def top_rail_leaderboard():
         except Exception as e:
             print(f"Skipping entry due to error: {e}")
 
-    # Sort by fastest time
+    # Sort by fastest
     leaderboard.sort(key=lambda x: x['time_taken'])
-
-    # Keep top 20 fastest
     top_20 = leaderboard[:20]
 
     return render_template("top_rail_leaderboard.html", leaderboard=top_20)
+
 
 
