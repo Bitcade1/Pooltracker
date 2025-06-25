@@ -4218,6 +4218,7 @@ def fastest_leaderboard():
         return redirect(url_for('login'))
 
     min_duration = timedelta(minutes=40)
+    min_body_duration = timedelta(minutes=50)
 
     top_rail_entries = []
     pod_entries = []
@@ -4246,6 +4247,7 @@ def fastest_leaderboard():
                     "time_taken": time_taken,
                     "date": tr.date.strftime("%d/%m/%Y")
                 })
+
         except Exception as e:
             print(f"Skipping top rail: {e}")
 
@@ -4269,6 +4271,7 @@ def fastest_leaderboard():
                     "time_taken": time_taken,
                     "date": pod.date.strftime("%d/%m/%Y")
                 })
+
         except Exception as e:
             print(f"Skipping pod: {e}")
 
@@ -4288,13 +4291,14 @@ def fastest_leaderboard():
                 finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
-            if time_taken >= min_duration:
+            if time_taken >= min_body_duration:
                 body_entries.append({
                     "worker": body.worker,
                     "serial_number": body.serial_number,
                     "time_taken": time_taken,
                     "date": body.date.strftime("%d/%m/%Y")
                 })
+
         except Exception as e:
             print(f"Skipping body: {e}")
 
@@ -4307,6 +4311,7 @@ def fastest_leaderboard():
                            top_rails=top_rails,
                            pods=top_pods,
                            bodies=top_bodies)
+
 
 
 
