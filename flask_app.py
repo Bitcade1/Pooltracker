@@ -4218,7 +4218,7 @@ def fastest_leaderboard():
         return redirect(url_for('login'))
 
     min_duration = timedelta(minutes=40)
-    min_body_duration = timedelta(minutes=50)
+    min_body_duration = timedelta(minutes=55)
 
     top_rail_entries = []
     pod_entries = []
