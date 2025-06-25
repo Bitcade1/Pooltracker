@@ -2590,8 +2590,12 @@ def top_rails():
             db.session.add(new_top_rail)
             db.session.commit()
 
-            start_dt = datetime.combine(date.today(), start_time)
-            finish_dt = datetime.combine(date.today(), finish_time)
+            start_time_obj = datetime.strptime(start_time, "%H:%M").time()
+            finish_time_obj = datetime.strptime(finish_time, "%H:%M").time()
+
+            start_dt = datetime.combine(date.today(), start_time_obj)
+            finish_dt = datetime.combine(date.today(), finish_time_obj)
+
 
             if lunch.lower() == "yes":
                 finish_dt -= timedelta(minutes=30)
