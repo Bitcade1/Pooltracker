@@ -4221,22 +4221,31 @@ def top_rail_leaderboard():
     leaderboard = []
 
     for tr in top_rails:
-        start_dt = datetime.combine(tr.date, tr.start_time)
-        finish_dt = datetime.combine(tr.date, tr.finish_time)
+        try:
+            # Parse string time fields into datetime.time objects
+            start_time = datetime.strptime(tr.start_time, "%H:%M").time()
+            finish_time = datetime.strptime(tr.finish_time, "%H:%M").time()
 
-        # Adjust for lunch
-        if tr.lunch.lower() == "yes":
-            finish_dt -= timedelta(minutes=30)
+            start_dt = datetime.combine(tr.date, start_time)
+            finish_dt = datetime.combine(tr.date, finish_time)
 
-        time_taken = finish_dt - start_dt
-        leaderboard.append({
-            "worker": tr.worker,
-            "serial_number": tr.serial_number,
-            "time_taken": time_taken,
-            "date": tr.date.strftime("%d/%m/%Y")
-        })
+            # Subtract 30 minutes if lunch was taken
+            if tr.lunch and tr.lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
 
-    # Sort by fastest (shortest) time
+            time_taken = finish_dt - start_dt
+
+            leaderboard.append({
+                "worker": tr.worker,
+                "serial_number": tr.serial_number,
+                "time_taken": time_taken,
+                "date": tr.date.strftime("%d/%m/%Y")
+            })
+
+        except Exception as e:
+            print(f"Skipping entry due to error: {e}")
+
+    # Sort by fastest time
     leaderboard.sort(key=lambda x: x['time_taken'])
 
     # Keep top 20 fastest
