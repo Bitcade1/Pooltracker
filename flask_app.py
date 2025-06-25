@@ -2589,6 +2589,16 @@ def top_rails():
         try:
             db.session.add(new_top_rail)
             db.session.commit()
+
+            start_dt = datetime.combine(date.today(), start_time)
+            finish_dt = datetime.combine(date.today(), finish_time)
+
+            if lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+            time_taken_str = str(time_taken)[:-3]
+
             
             # --- Timer Logic: Stop previous timer and start new one ---
             try:
@@ -2662,7 +2672,7 @@ def top_rails():
             stock_entry.count += 1
             db.session.commit()
 
-
+            
             # --- NTFY Notification ---
             display_color = color.replace('_', ' ').title()
             message = f"Serial: {serial_number}"
