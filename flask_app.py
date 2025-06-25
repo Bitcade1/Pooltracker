@@ -4221,10 +4221,10 @@ def fastest_leaderboard():
 
     top_rail_entries = []
     pod_entries = []
+    body_entries = []
 
     # Top Rails
-    top_rails = TopRail.query.all()
-    for tr in top_rails:
+    for tr in TopRail.query.all():
         try:
             start_time = datetime.strptime(tr.start_time, "%H:%M").time()
             finish_time = datetime.strptime(tr.finish_time, "%H:%M").time()
@@ -4239,22 +4239,18 @@ def fastest_leaderboard():
                 finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
-            if time_taken < min_duration:
-                continue  # skip bad data
-
-            top_rail_entries.append({
-                "worker": tr.worker,
-                "serial_number": tr.serial_number,
-                "time_taken": time_taken,
-                "date": tr.date.strftime("%d/%m/%Y")
-            })
-
+            if time_taken >= min_duration:
+                top_rail_entries.append({
+                    "worker": tr.worker,
+                    "serial_number": tr.serial_number,
+                    "time_taken": time_taken,
+                    "date": tr.date.strftime("%d/%m/%Y")
+                })
         except Exception as e:
-            print(f"Skipping top rail entry due to error: {e}")
+            print(f"Skipping top rail: {e}")
 
     # Pods
-    pods = CompletedPods.query.all()
-    for pod in pods:
+    for pod in CompletedPods.query.all():
         try:
             start_dt = datetime.combine(pod.date, pod.start_time)
             finish_dt = datetime.combine(pod.date, pod.finish_time)
@@ -4266,29 +4262,52 @@ def fastest_leaderboard():
                 finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
-            if time_taken < min_duration:
-                continue  # skip bad data
-
-            pod_entries.append({
-                "worker": pod.worker,
-                "serial_number": pod.serial_number,
-                "time_taken": time_taken,
-                "date": pod.date.strftime("%d/%m/%Y")
-            })
-
+            if time_taken >= min_duration:
+                pod_entries.append({
+                    "worker": pod.worker,
+                    "serial_number": pod.serial_number,
+                    "time_taken": time_taken,
+                    "date": pod.date.strftime("%d/%m/%Y")
+                })
         except Exception as e:
-            print(f"Skipping pod entry due to error: {e}")
+            print(f"Skipping pod: {e}")
 
-    # Sort and get top 5 for each
-    top_rail_entries.sort(key=lambda x: x['time_taken'])
-    pod_entries.sort(key=lambda x: x['time_taken'])
+    # Bodies
+    for body in CompletedTable.query.all():
+        try:
+            start_time = datetime.strptime(body.start_time, "%H:%M").time()
+            finish_time = datetime.strptime(body.finish_time, "%H:%M").time()
+            start_dt = datetime.combine(body.date, start_time)
 
-    top_5_rails = top_rail_entries[:5]
-    top_5_pods = pod_entries[:5]
+            if finish_time < start_time:
+                finish_dt = datetime.combine(body.date + timedelta(days=1), finish_time)
+            else:
+                finish_dt = datetime.combine(body.date, finish_time)
+
+            if body.lunch and body.lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+            if time_taken >= min_duration:
+                body_entries.append({
+                    "worker": body.worker,
+                    "serial_number": body.serial_number,
+                    "time_taken": time_taken,
+                    "date": body.date.strftime("%d/%m/%Y")
+                })
+        except Exception as e:
+            print(f"Skipping body: {e}")
+
+    # Sort and keep top 5
+    top_rails = sorted(top_rail_entries, key=lambda x: x['time_taken'])[:5]
+    top_pods = sorted(pod_entries, key=lambda x: x['time_taken'])[:5]
+    top_bodies = sorted(body_entries, key=lambda x: x['time_taken'])[:5]
 
     return render_template("fastest_leaderboard.html",
-                           top_rails=top_5_rails,
-                           pods=top_5_pods)
+                           top_rails=top_rails,
+                           pods=top_pods,
+                           bodies=top_bodies)
+
 
 
 
