@@ -4211,48 +4211,75 @@ def top_rail_pieces():
 
     return render_template('top_rail_pieces.html', counts=counts)
 
-@app.route('/top_rail_leaderboard')
-def top_rail_leaderboard():
+@app.route('/fastest_leaderboard')
+def fastest_leaderboard():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    top_rails = TopRail.query.all()
-    leaderboard = []
+    entries = []
 
+    # Top Rails
+    top_rails = TopRail.query.all()
     for tr in top_rails:
         try:
             start_time = datetime.strptime(tr.start_time, "%H:%M").time()
             finish_time = datetime.strptime(tr.finish_time, "%H:%M").time()
             start_dt = datetime.combine(tr.date, start_time)
 
-            # Handle overnight job
+            # Handle overnight
             if finish_time < start_time:
                 finish_dt = datetime.combine(tr.date + timedelta(days=1), finish_time)
             else:
                 finish_dt = datetime.combine(tr.date, finish_time)
 
-            # Subtract 30 mins for lunch
             if tr.lunch and tr.lunch.lower() == "yes":
                 finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
 
-            leaderboard.append({
+            entries.append({
                 "worker": tr.worker,
                 "serial_number": tr.serial_number,
                 "time_taken": time_taken,
-                "date": tr.date.strftime("%d/%m/%Y")
+                "date": tr.date.strftime("%d/%m/%Y"),
+                "type": "Top Rail"
             })
-
         except Exception as e:
-            print(f"Skipping entry due to error: {e}")
+            print(f"Skipping top rail entry due to error: {e}")
 
-    # Sort by fastest
-    leaderboard.sort(key=lambda x: x['time_taken'])
-    top_20 = leaderboard[:20]
+    # Pods
+    pods = CompletedPods.query.all()
+    for pod in pods:
+        try:
+            start_dt = datetime.combine(pod.date, pod.start_time)
+            finish_dt = datetime.combine(pod.date, pod.finish_time)
 
-    return render_template("top_rail_leaderboard.html", leaderboard=top_20)
+            # Handle overnight
+            if pod.finish_time < pod.start_time:
+                finish_dt = datetime.combine(pod.date + timedelta(days=1), pod.finish_time)
+
+            if pod.lunch and pod.lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+
+            entries.append({
+                "worker": pod.worker,
+                "serial_number": pod.serial_number,
+                "time_taken": time_taken,
+                "date": pod.date.strftime("%d/%m/%Y"),
+                "type": "Pod"
+            })
+        except Exception as e:
+            print(f"Skipping pod entry due to error: {e}")
+
+    # Sort by fastest time
+    entries.sort(key=lambda x: x['time_taken'])
+    top_20 = entries[:20]
+
+    return render_template("fastest_leaderboard.html", leaderboard=top_20)
+
 
 
 
