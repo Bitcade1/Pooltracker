@@ -4217,7 +4217,10 @@ def fastest_leaderboard():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    entries = []
+    min_duration = timedelta(minutes=40)
+
+    top_rail_entries = []
+    pod_entries = []
 
     # Top Rails
     top_rails = TopRail.query.all()
@@ -4227,7 +4230,6 @@ def fastest_leaderboard():
             finish_time = datetime.strptime(tr.finish_time, "%H:%M").time()
             start_dt = datetime.combine(tr.date, start_time)
 
-            # Handle overnight
             if finish_time < start_time:
                 finish_dt = datetime.combine(tr.date + timedelta(days=1), finish_time)
             else:
@@ -4237,14 +4239,16 @@ def fastest_leaderboard():
                 finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
+            if time_taken < min_duration:
+                continue  # skip bad data
 
-            entries.append({
+            top_rail_entries.append({
                 "worker": tr.worker,
                 "serial_number": tr.serial_number,
                 "time_taken": time_taken,
-                "date": tr.date.strftime("%d/%m/%Y"),
-                "type": "Top Rail"
+                "date": tr.date.strftime("%d/%m/%Y")
             })
+
         except Exception as e:
             print(f"Skipping top rail entry due to error: {e}")
 
@@ -4255,7 +4259,6 @@ def fastest_leaderboard():
             start_dt = datetime.combine(pod.date, pod.start_time)
             finish_dt = datetime.combine(pod.date, pod.finish_time)
 
-            # Handle overnight
             if pod.finish_time < pod.start_time:
                 finish_dt = datetime.combine(pod.date + timedelta(days=1), pod.finish_time)
 
@@ -4263,22 +4266,30 @@ def fastest_leaderboard():
                 finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
+            if time_taken < min_duration:
+                continue  # skip bad data
 
-            entries.append({
+            pod_entries.append({
                 "worker": pod.worker,
                 "serial_number": pod.serial_number,
                 "time_taken": time_taken,
-                "date": pod.date.strftime("%d/%m/%Y"),
-                "type": "Pod"
+                "date": pod.date.strftime("%d/%m/%Y")
             })
+
         except Exception as e:
             print(f"Skipping pod entry due to error: {e}")
 
-    # Sort by fastest time
-    entries.sort(key=lambda x: x['time_taken'])
-    top_20 = entries[:20]
+    # Sort and get top 5 for each
+    top_rail_entries.sort(key=lambda x: x['time_taken'])
+    pod_entries.sort(key=lambda x: x['time_taken'])
 
-    return render_template("fastest_leaderboard.html", leaderboard=top_20)
+    top_5_rails = top_rail_entries[:5]
+    top_5_pods = pod_entries[:5]
+
+    return render_template("fastest_leaderboard.html",
+                           top_rails=top_5_rails,
+                           pods=top_5_pods)
+
 
 
 

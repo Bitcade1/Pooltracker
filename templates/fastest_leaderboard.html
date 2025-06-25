@@ -1,20 +1,42 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>🏁 Fastest Completion Leaderboard (Pods + Top Rails)</h2>
+<h2>🚀 Fastest Completion Leaderboard</h2>
+
+<h3>Top 5 Fastest Top Rails</h3>
 <table border="1" cellpadding="6">
     <tr>
         <th>Rank</th>
-        <th>Type</th>
         <th>Worker</th>
         <th>Serial Number</th>
         <th>Time Taken</th>
         <th>Date</th>
     </tr>
-    {% for row in leaderboard %}
+    {% for row in top_rails %}
     <tr>
         <td>{{ loop.index }}</td>
-        <td>{{ row.type }}</td>
+        <td>{{ row.worker }}</td>
+        <td>{{ row.serial_number }}</td>
+        <td>{{ row.time_taken }}</td>
+        <td>{{ row.date }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<br>
+
+<h3>Top 5 Fastest Pods</h3>
+<table border="1" cellpadding="6">
+    <tr>
+        <th>Rank</th>
+        <th>Worker</th>
+        <th>Serial Number</th>
+        <th>Time Taken</th>
+        <th>Date</th>
+    </tr>
+    {% for row in pods %}
+    <tr>
+        <td>{{ loop.index }}</td>
         <td>{{ row.worker }}</td>
         <td>{{ row.serial_number }}</td>
         <td>{{ row.time_taken }}</td>
