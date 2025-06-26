@@ -2231,6 +2231,7 @@ def bodies():
             "4.8x16mm Self Tapping Screw": 37,
             "4.0 x 50mm Wood Screw": 4,
             "Plastic Window": 1,
+            "4.2 x 16 No2 Self Tapping Screw": 19,
             "Latch": 12
         }
 
