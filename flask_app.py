@@ -3305,40 +3305,31 @@ def counting_3d_printing_parts():
         "7ft Felt": 2
     }
 
-    # FIXED: Calculate parts status more accurately
     parts_status = {}
-    for part, usage in parts_usage_per_body.items():
-        # Determine required quantities based on table size
-        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:
-            total_required = target_7ft * usage
-            already_used = bodies_built_7ft * usage
-            still_needed = (target_7ft - bodies_built_7ft) * usage
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:
-            total_required = target_6ft * usage
-            already_used = bodies_built_6ft * usage
-            still_needed = (target_6ft - bodies_built_6ft) * usage
-        else:
-            total_required = (target_7ft + target_6ft) * usage
-            already_used = (bodies_built_7ft + bodies_built_6ft) * usage
-            still_needed = ((target_7ft + target_6ft) - (bodies_built_7ft + bodies_built_6ft)) * usage
+        for part, usage in parts_usage_per_body.items():
+            # Get current inventory
+            inventory = inventory_counts.get(part, 0)
 
-        # Current inventory count
-        current_inventory = inventory_counts.get(part, 0)
+            # Calculate still needed based on size
+            if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:
+                still_needed = (target_7ft - built_7ft) * usage
+            elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:
+                still_needed = (target_6ft - built_6ft) * usage
+            else:
+                still_needed = (total_target - total_built) * usage
 
-        still_needed = total_required - already_used
-        current_inventory = inventory_counts.get(part, 0)
-        surplus = current_inventory - still_needed
+            extra = inventory - still_needed
 
-        if surplus < 0:
-            parts_status[part] = f"{-surplus} left to make"
-        else:
-            parts_status[part] = f"{surplus} extras"
+            if extra >= 0:
+                parts_status[part] = f"{extra} extras"
+            else:
+                parts_status[part] = f"{-extra} left to make"
 
-    return render_template(
-        'counting_3d_printing_parts.html',
-        parts_counts=parts_counts,
-        parts_status=parts_status
-    )
+        return render_template(
+            'counting_3d_printing_parts.html',
+            parts_counts=parts_counts,
+            parts_status=parts_status
+        )
 
 
 def reset_cushion_jobs():
