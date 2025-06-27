@@ -3325,11 +3325,14 @@ def counting_3d_printing_parts():
         # Current inventory count
         current_inventory = inventory_counts.get(part, 0)
 
-        # If we have enough to cover what's still needed
-        if current_inventory >= still_needed:
-            parts_status[part] = f"{current_inventory - still_needed} extras"
+        expected_total_required = total_required
+        current_inventory = inventory_counts.get(part, 0)
+        total_short = expected_total_required - current_inventory
+
+        if total_short > 0:
+            parts_status[part] = f"{total_short} left to make"
         else:
-            parts_status[part] = f"{still_needed - current_inventory} left to make"
+            parts_status[part] = f"{-total_short} extras"
 
     return render_template(
         'counting_3d_printing_parts.html',
