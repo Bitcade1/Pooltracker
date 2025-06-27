@@ -633,7 +633,7 @@ def inventory():
         "6ft Carpet": 1,    # Added new 6ft parts
         "6ft Felt": 1,
         "7ft Carpet": 1,    # Added new 7ft parts
-        "7ft Felt": 1
+        "7ft Felt": 2
         
     }
 
@@ -3302,7 +3302,7 @@ def counting_3d_printing_parts():
         "6ft Carpet": 1,    # Added new 6ft parts
         "6ft Felt": 1,
         "7ft Carpet": 1,    # Added new 7ft parts
-        "7ft Felt": 1
+        "7ft Felt": 2
     }
 
     parts_status = {}
