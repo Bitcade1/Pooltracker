@@ -2293,12 +2293,12 @@ def bodies():
             start_dt = datetime.combine(date.today(), datetime.strptime(start_time, "%H:%M").time())
             finish_dt = datetime.combine(date.today(), datetime.strptime(finish_time, "%H:%M").time())
 
-            # Subtract 30 minutes if lunch was taken
+            # Adjust for lunch break
             if lunch.lower() == "yes":
                 finish_dt -= timedelta(minutes=30)
 
             time_taken = finish_dt - start_dt
-            time_taken_str = str(time_taken)[:-3]  # Format as HH:MM
+            time_taken_str = str(time_taken)[:-3]  # Trim seconds if you want HH:MM format
 
 
             # --- NTFY Notification ---
@@ -3274,7 +3274,7 @@ def counting_3d_printing_parts():
     target_7ft = schedule.target_7ft if schedule else 60
     target_6ft = schedule.target_6ft if schedule else 60
 
-    # Fetch tables built this month (exactly as you did in bodies route)
+    # Fetch tables built this month
     all_bodies_this_month = CompletedTable.query.filter(
         extract('year', CompletedTable.date) == current_year,
         extract('month', CompletedTable.date) == current_month
@@ -3287,7 +3287,7 @@ def counting_3d_printing_parts():
     bodies_built_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
     bodies_built_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
 
-    # Now accurately calculate required totals
+    # Define usage per table for each part.
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
@@ -3299,37 +3299,37 @@ def counting_3d_printing_parts():
         "Bushing": 2,
         "6ft Cue Ball Separator": 1,
         "6ft Large Ramp": 1,
-        "6ft Carpet": 1,    # Added new 6ft parts
+        "6ft Carpet": 1,
         "6ft Felt": 1,
-        "7ft Carpet": 1,    # Added new 7ft parts
+        "7ft Carpet": 1,
         "7ft Felt": 2
     }
 
+    # FIXED: Calculate parts status more accurately
     parts_status = {}
     for part, usage in parts_usage_per_body.items():
-        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
-            required_total = target_7ft * usage
-            completed_total = bodies_built_7ft * usage
-
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
-            required_total = target_6ft * usage
-            completed_total = bodies_built_6ft * usage
-
+        # Determine required quantities based on table size
+        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:
+            total_required = target_7ft * usage
+            already_used = bodies_built_7ft * usage
+            still_needed = (target_7ft - bodies_built_7ft) * usage
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:
+            total_required = target_6ft * usage
+            already_used = bodies_built_6ft * usage
+            still_needed = (target_6ft - bodies_built_6ft) * usage
         else:
-            required_total = (target_7ft + target_6ft) * usage
-            completed_total = (bodies_built_7ft + bodies_built_6ft) * usage
+            total_required = (target_7ft + target_6ft) * usage
+            already_used = (bodies_built_7ft + bodies_built_6ft) * usage
+            still_needed = ((target_7ft + target_6ft) - (bodies_built_7ft + bodies_built_6ft)) * usage
 
-        # IMPORTANT: inventory is exactly what's in stock now
-        inventory_total = inventory_counts.get(part, 0)
+        # Current inventory count
+        current_inventory = inventory_counts.get(part, 0)
 
-        # How many parts you have available in total
-        available_total = inventory_total + completed_total
-
-        difference = available_total - required_total
-        if difference >= 0:
-            parts_status[part] = f"{difference} extras"
+        # If we have enough to cover what's still needed
+        if current_inventory >= still_needed:
+            parts_status[part] = f"{current_inventory - still_needed} extras"
         else:
-            parts_status[part] = f"{abs(difference)} left to make"
+            parts_status[part] = f"{still_needed - current_inventory} left to make"
 
     return render_template(
         'counting_3d_printing_parts.html',
