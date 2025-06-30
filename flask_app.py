@@ -3288,7 +3288,8 @@ def counting_3d_printing_parts():
     bodies_built_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
 
     # Define usage per table for each part.
-    parts_usage_per_bofold_felt_count = felt_entry.countLarge Ramp": 1,
+    parts_usage_per_body = {
+        "Large Ramp": 1,
         "Paddle": 1,
         "Laminate": 4,
         "Spring Mount": 1,
@@ -4318,7 +4319,6 @@ def fastest_leaderboard():
                            top_rails=top_rails,
                            pods=top_pods,
                            bodies=top_bodies)
-
 
 
 
