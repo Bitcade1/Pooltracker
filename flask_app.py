@@ -4228,7 +4228,7 @@ def top_rail_pieces():
             else:
                 part.count += 1
             db.session.commit()
-                    return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
+                return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
 
         # Standard form submission
         for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
