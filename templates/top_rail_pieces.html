@@ -141,15 +141,20 @@
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({ key_code: key })
             }).then(response => response.json())
-              .then(data => {
-                  if (data.success) {
-                      console.log(data.message);
-                  }
-              }).catch(error => {
-                  console.error("Error updating count:", error);
-              });
+            .then(data => {
+                if (data.success && data.part_key) {
+                    const inputId = 'piece_' + data.part_key;
+                    const inputField = document.getElementById(inputId);
+                    if (inputField) {
+                        inputField.value = parseInt(inputField.value || 0) + 1;
+                    }
+                }
+            }).catch(error => {
+                console.error("Error updating count:", error);
+            });
         }
     });
     </script>
+
 </body>
 </html>
