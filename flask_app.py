@@ -142,16 +142,13 @@ class PartThreshold(db.Model):
 def check_and_notify_low_stock(part_name, old_count, new_count):
     threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
     if threshold_entry and threshold_entry.threshold > 0:
-        # notify on every decrement while at or below threshold
-        if new_count <= threshold_entry.threshold:
+        if old_count > threshold_entry.threshold and new_count <= threshold_entry.threshold:
             try:
                 message = f"Stock for {part_name} is low ({new_count} remaining)."
-                title   = "Low Stock Warning"
-                requests.post(
-                    "https://ntfy.sh/PoolTableTracker",
-                    data=message,
-                    headers={"Title": title, "Priority": "high"}
-                )
+                title = "Low Stock Warning"
+                requests.post("https://ntfy.sh/PoolTableTracker",
+                              data=message,
+                              headers={"Title": title, "Priority": "high"})
             except requests.RequestException as e:
                 print(f"Ntfy notification failed for low stock: {e}")
 
