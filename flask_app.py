@@ -4203,7 +4203,18 @@ def top_rail_pieces():
         'h': 'stone_6_long',
         'i': 'rustic_black_6_short',
         'j': 'rustic_black_6_long',
+        'k': 'black_7_short',
+        'l': 'black_7_long',
+        'm': 'rustic_oak_7_short',
+        'n': 'rustic_oak_7_long',
+        'o': 'grey_oak_7_short',
+        'p': 'grey_oak_7_long',
+        'q': 'stone_7_short',
+        'r': 'stone_7_long',
+        's': 'rustic_black_7_short',
+        't': 'rustic_black_7_long',
     }
+
 
 
     if request.method == 'POST':
