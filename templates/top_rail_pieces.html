@@ -45,13 +45,24 @@
             text-align: center;
             margin-top: 20px;
         }
+        .key-helper {
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #444;
+        }
+        .key-helper code {
+            background: #eee;
+            padding: 2px 5px;
+            margin-right: 8px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Count Top Rail Pieces</h1>
         <p>Enter the current stock for each top rail piece. The values represent individual pieces, not pairs.</p>
-        
+
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -87,8 +98,44 @@
             </div>
         </form>
         <div class="button-container">
-             <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
+            <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
+        </div>
+
+        <div class="key-helper">
+            <h3>Quick Add (Keyboard Shortcuts)</h3>
+            <p>Press these keys on your keyboard to quickly add 1 to the stock:</p>
+            <code>A</code> Black 6ft Short
+            <code>B</code> Black 6ft Long
+            <code>C</code> Rustic Oak 6ft Short
+            <code>D</code> Rustic Oak 6ft Long
+            <code>E</code> Grey Oak 6ft Short
+            <code>F</code> Grey Oak 6ft Long
+            <code>G</code> Stone 6ft Short
+            <code>H</code> Stone 6ft Long
+            <code>I</code> Rustic Black 6ft Short
+            <code>J</code> Rustic Black 6ft Long
         </div>
     </div>
+
+    <script>
+    document.addEventListener('keydown', function(event) {
+        const validKeys = ['a','b','c','d','e','f','g','h','i','j'];
+        const key = event.key.toLowerCase();
+        if (validKeys.includes(key)) {
+            fetch("/top_rail_pieces", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ key_code: key })
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      console.log(data.message);
+                  }
+              }).catch(error => {
+                  console.error("Error updating count:", error);
+              });
+        }
+    });
+    </script>
 </body>
 </html>

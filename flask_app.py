@@ -4192,13 +4192,35 @@ def top_rail_pieces():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    colors = ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black']
-    sizes = ['6', '7']
-    lengths = ['short', 'long']
-    part_keys = [f"{color}_{size}_{length}" for color in colors for size in sizes for length in lengths]
+    key_map = {
+        'a': 'black_6_short',
+        'b': 'black_6_long',
+        'c': 'rustic_oak_6_short',
+        'd': 'rustic_oak_6_long',
+        'e': 'grey_oak_6_short',
+        'f': 'grey_oak_6_long',
+        'g': 'stone_6_short',
+        'h': 'stone_6_long',
+        'i': 'rustic_black_6_short',
+        'j': 'rustic_black_6_long',
+    }
+
 
     if request.method == 'POST':
-        for key in part_keys:
+        key_code = request.form.get('key_code')
+        if key_code and key_code in key_map:
+            part_key = key_map[key_code]
+            part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+            if not part:
+                part = TopRailPieceCount(part_key=part_key, count=1)
+                db.session.add(part)
+            else:
+                part.count += 1
+            db.session.commit()
+            return jsonify({"success": True, "message": f"Added 1 to {part_key}"}), 200
+
+        # Standard form submission
+        for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
             input_value = request.form.get(f"piece_{key}")
             if input_value is not None:
                 try:
@@ -4222,6 +4244,7 @@ def top_rail_pieces():
         counts[f"piece_{part.part_key}"] = part.count
 
     return render_template('top_rail_pieces.html', counts=counts)
+
 
 @app.route('/fastest_leaderboard')
 def fastest_leaderboard():
