@@ -1285,16 +1285,11 @@ def manage_raw_data():
                         "Color ball trim": 1,
                         "Ball window trim": 1,
                         "Aluminum corner": 4,
-                        "Chrome corner": 4,
-                        "Top rail trim short length": 1,
-                        "Top rail trim long length": 1,
                         "Ramp 170mm": 1,
                         "Ramp 158mm": 1,
                         "Ramp 918mm": 1,
                         "Ramp 376mm": 1,
                         "Chrome handles": 1,
-                        "Center pockets": 2,
-                        "Corner pockets": 4,
                         "Sticker Set": 1
                     }
                     # If the table was a 6ft table, adjust the parts used.
@@ -2223,9 +2218,6 @@ def bodies():
             "Color ball trim": 1,
             "Ball window trim": 1,
             "Aluminum corner": 4,
-            "Chrome corner": 4,
-            "Top rail trim short length": 1,
-            "Top rail trim long length": 1,
             "Ramp 170mm": 1,
             "Ramp 158mm": 1,
             "Ramp 918mm": 1,
