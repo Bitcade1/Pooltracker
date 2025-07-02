@@ -4350,6 +4350,81 @@ def fastest_leaderboard():
                            pods=top_pods,
                            bodies=top_bodies)
 
+@app.route('/order_chinese_parts', methods=['GET', 'POST'])
+def order_chinese_parts():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    # Chinese table parts and how many are needed per table
+    chinese_parts = {
+        "Table legs": 4,
+        "Ball Gullies 1 (Untouched)": 2,
+        "Ball Gullies 2": 1,
+        "Ball Gullies 3": 1,
+        "Ball Gullies 4": 1,
+        "Ball Gullies 5": 1,
+        "Feet": 4,
+        "Triangle trim": 1,
+        "White ball return trim": 1,
+        "Color ball trim": 1,
+        "Ball window trim": 1,
+        "Aluminum corner": 4,
+        "Chrome corner": 4,
+        "Top rail trim short length": 4,
+        "Top rail trim long length": 2,
+        "Ramp 170mm": 1,
+        "Ramp 158mm": 1,
+        "Ramp 918mm": 1,
+        "Ramp 376mm": 1,
+        "Chrome handles": 1,
+        "Center pockets": 2,
+        "Corner pockets": 4,
+        "Sticker Set": 1
+    }
+
+    # Fetch latest count for each part
+    part_stock = {}
+    for part in chinese_parts:
+        latest_entry = (
+            db.session.query(PrintedPartsCount.count)
+            .filter_by(part_name=part)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first()
+        )
+        part_stock[part] = latest_entry[0] if latest_entry else 0
+
+    # Calculate how many tables can be built based on current part limits
+    tables_possible_per_part = {
+        part: part_stock[part] // qty
+        for part, qty in chinese_parts.items()
+    }
+    max_tables_possible = min(tables_possible_per_part.values())
+
+    parts_to_order = {}
+    target_table_count = None
+
+    if request.method == 'POST':
+        try:
+            target_table_count = int(request.form.get('target_tables'))
+        except ValueError:
+            flash("Please enter a valid number.", "error")
+            return redirect(url_for('order_chinese_parts'))
+
+        for part, qty_per_table in chinese_parts.items():
+            needed = target_table_count * qty_per_table
+            current = part_stock.get(part, 0)
+            parts_to_order[part] = max(0, needed - current)
+
+    return render_template(
+        'order_chinese_parts.html',
+        chinese_parts=chinese_parts,
+        part_stock=part_stock,
+        tables_possible_per_part=tables_possible_per_part,
+        max_tables_possible=max_tables_possible,
+        parts_to_order=parts_to_order,
+        target_table_count=target_table_count
+    )
 
 
 
