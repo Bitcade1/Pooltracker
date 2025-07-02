@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What Do I Need to Order from China?</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .form-section {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        input[type="number"] {
+            padding: 5px;
+            width: 80px;
+        }
+        .btn {
+            padding: 8px 16px;
+            margin-top: 10px;
+        }
+        .highlight {
+            font-weight: bold;
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>What Do I Need to Order from China?</h1>
+        <p>Current stock and how many tables you can build. Enter how many tables you're planning to build to see what needs ordering.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="form-section">
+            <form method="post">
+                <label for="target_tables"><strong>Target Tables:</strong></label>
+                <input type="number" id="target_tables" name="target_tables" min="1" required value="{{ target_table_count or '' }}">
+                <button type="submit" class="btn btn-primary">Calculate</button>
+            </form>
+        </div>
+
+        <h3>Tables Buildable from Current Stock: <span class="highlight">{{ max_tables_possible }}</span></h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Part</th>
+                    <th>Stock</th>
+                    <th>Per Table</th>
+                    <th>Can Build</th>
+                    {% if target_table_count %}
+                    <th>Need to Order</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for part, qty_per_table in chinese_parts.items() %}
+                <tr>
+                    <td>{{ part }}</td>
+                    <td>{{ part_stock[part] }}</td>
+                    <td>{{ qty_per_table }}</td>
+                    <td>{{ tables_possible_per_part[part] }}</td>
+                    {% if target_table_count %}
+                    <td>{{ parts_to_order[part] }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="form-section">
+            <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
+        </div>
+    </div>
+</body>
+</html>
