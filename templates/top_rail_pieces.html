@@ -56,6 +56,18 @@
             margin-right: 8px;
             display: inline-block;
         }
+
+        /* Highlighting animation */
+        input.highlight {
+            animation: highlightFade 1s ease;
+            border: 2px solid limegreen;
+            background-color: #c6f7c6;
+        }
+
+        @keyframes highlightFade {
+            0%   { background-color: #c6f7c6; }
+            100% { background-color: white; }
+        }
     </style>
 </head>
 <body>
@@ -128,7 +140,6 @@
             <code>S</code> Rustic Black Short
             <code>T</code> Rustic Black Long
         </div>
-
     </div>
 
     <script>
@@ -147,6 +158,12 @@
                     const inputField = document.getElementById(inputId);
                     if (inputField) {
                         inputField.value = parseInt(inputField.value || 0) + 1;
+
+                        // Add highlight and remove after animation
+                        inputField.classList.add('highlight');
+                        inputField.addEventListener('animationend', function() {
+                            inputField.classList.remove('highlight');
+                        }, { once: true });
                     }
                 }
             }).catch(error => {
