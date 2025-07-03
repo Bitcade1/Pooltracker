@@ -6,79 +6,60 @@
     <title>Count Top Rail Pieces</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        html, body {
-            width: 100%;
-            height: 100%;
+        body {
             margin: 0;
             padding: 0;
             font-size: 1.8em;
-            box-sizing: border-box;
         }
-
-        *, *:before, *:after {
-            box-sizing: inherit;
-        }
-
         .container {
-            width: 100%;
-            padding: 20px 40px;
+            width: 100vw;
+            padding: 20px;
         }
-
         .grid-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 20px;
-            width: 100%;
         }
-
         fieldset {
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 20px;
         }
-
         legend {
             font-weight: bold;
             font-size: 2em;
             padding: 0 10px;
         }
-
         .form-group {
             margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-
         label {
             font-weight: 600;
         }
-
         input[type="number"] {
-            width: 120px;
+            width: 100px;
             padding: 10px;
             font-size: 1.5em;
             border-radius: 6px;
             border: 1px solid #ccc;
         }
-
         .button-container {
             text-align: center;
             margin-top: 30px;
         }
-
         button, .btn {
             font-size: 1.5em;
             padding: 10px 25px;
             border-radius: 8px;
         }
-
         .key-helper {
             margin-top: 50px;
             font-size: 1em;
             color: #222;
         }
-
         .key-helper code {
             background: #eee;
             padding: 5px 10px;
@@ -87,6 +68,7 @@
             font-size: 1.2em;
         }
 
+        /* Highlight animation */
         input.highlight {
             animation: highlightFade 3s ease;
             border: 3px solid limegreen;
@@ -97,7 +79,7 @@
             0%   { background-color: #c6f7c6; }
             100% { background-color: white; }
         }
-</style>
+    </style>
 </head>
 <body>
     <div class="container">
