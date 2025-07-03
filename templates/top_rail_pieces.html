@@ -6,61 +6,72 @@
     <title>Count Top Rail Pieces</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-size: 1.8em;
+        }
         .container {
-            max-width: 900px;
-            margin: 20px auto;
+            width: 100vw;
             padding: 20px;
         }
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 20px;
         }
         fieldset {
             border: 1px solid #ccc;
             border-radius: 8px;
-            padding: 15px;
+            padding: 20px;
         }
         legend {
             font-weight: bold;
-            font-size: 1.2em;
+            font-size: 2em;
             padding: 0 10px;
         }
         .form-group {
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         label {
-            font-weight: 500;
+            font-weight: 600;
         }
         input[type="number"] {
-            width: 80px;
-            padding: 5px;
-            border-radius: 4px;
+            width: 100px;
+            padding: 10px;
+            font-size: 1.5em;
+            border-radius: 6px;
             border: 1px solid #ccc;
         }
         .button-container {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 30px;
+        }
+        button, .btn {
+            font-size: 1.5em;
+            padding: 10px 25px;
+            border-radius: 8px;
         }
         .key-helper {
-            margin-top: 30px;
-            font-size: 0.9em;
-            color: #444;
+            margin-top: 50px;
+            font-size: 1em;
+            color: #222;
         }
         .key-helper code {
             background: #eee;
-            padding: 2px 5px;
-            margin-right: 8px;
+            padding: 5px 10px;
+            margin: 5px;
             display: inline-block;
+            font-size: 1.2em;
         }
 
-        /* Highlighting animation */
+        /* Highlight animation */
         input.highlight {
-            animation: highlightFade 5s ease;
-            border: 2px solid limegreen;
+            animation: highlightFade 3s ease;
+            border: 3px solid limegreen;
             background-color: #c6f7c6;
         }
 
@@ -72,8 +83,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>Count Top Rail Pieces</h1>
-        <p>Enter the current stock for each top rail piece. The values represent individual pieces, not pairs.</p>
+        <h1 style="font-size: 3em;">Count Top Rail Pieces</h1>
+        <p style="font-size: 1.5em;">Enter the current stock for each top rail piece. The values represent individual pieces, not pairs.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -114,7 +125,7 @@
         </div>
 
         <div class="key-helper">
-            <h3>Quick Add (Keyboard Shortcuts)</h3>
+            <h3 style="font-size: 2em;">Quick Add (Keyboard Shortcuts)</h3>
             <p>Press these keys on your keyboard to quickly add 1 to the stock:</p>
             <strong>6ft:</strong><br>
             <code>A</code> Black Short
@@ -172,6 +183,5 @@
         }
     });
     </script>
-
 </body>
 </html>
