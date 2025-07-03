@@ -168,19 +168,16 @@
                 if (data.success && data.part_key) {
                     const inputId = 'piece_' + data.part_key;
                     const inputField = document.getElementById(inputId);
-            if (inputField) {
-                inputField.value = parseInt(inputField.value || 0) + 1;
+                    if (inputField) {
+                        inputField.value = parseInt(inputField.value || 0) + 1;
 
-                // Scroll the input into view
-                inputField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                // Add highlight and remove after animation
-                inputField.classList.add('highlight');
-                inputField.addEventListener('animationend', function() {
-                    inputField.classList.remove('highlight');
-                }, { once: true });
-            }
-
+                        // Add highlight and remove after animation
+                        inputField.classList.add('highlight');
+                        inputField.addEventListener('animationend', function() {
+                            inputField.classList.remove('highlight');
+                        }, { once: true });
+                    }
+                }
             }).catch(error => {
                 console.error("Error updating count:", error);
             });
