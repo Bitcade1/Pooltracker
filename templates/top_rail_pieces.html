@@ -103,8 +103,10 @@
                 {% set lengths = ['Short', 'Long'] %}
 
                 {% for color in colors %}
-                <fieldset>
-                    <legend>{{ color }}</legend>
+                {% set image_file = color|lower|replace(' ', '_') ~ '.jpg' %}
+                <fieldset style="background-image: url('{{ url_for('static', filename='images/' ~ image_file) }}'); background-size: cover; background-position: center; color: white;">
+                    <legend style="background-color: rgba(0,0,0,0.6); padding: 5px 10px;">{{ color }}</legend>
+
                     {% for size in sizes %}
                         {% for length in lengths %}
                             {% set part_name = size ~ ' ' ~ length %}
