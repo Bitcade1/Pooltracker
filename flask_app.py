@@ -2286,8 +2286,17 @@ def bodies():
             flash("Body entry added successfully and inventory updated!", "success")
 
             # Calculate time taken
-            start_dt = datetime.combine(date.today(), datetime.strptime(start_time, "%H:%M").time())
-            finish_dt = datetime.combine(date.today(), datetime.strptime(finish_time, "%H:%M").time())
+            try:
+                start_time_obj = datetime.strptime(start_time, "%H:%M").time()
+            except ValueError:
+                start_time_obj = datetime.strptime(start_time, "%H:%M:%S").time()
+            try:
+                finish_time_obj = datetime.strptime(finish_time, "%H:%M").time()
+            except ValueError:
+                finish_time_obj = datetime.strptime(finish_time, "%H:%M:%S").time()
+
+            start_dt = datetime.combine(date.today(), start_time_obj)
+            finish_dt = datetime.combine(date.today(), finish_time_obj)
 
             # Adjust for lunch break
             if lunch.lower() == "yes":
