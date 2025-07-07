@@ -1614,11 +1614,11 @@ class MainWindow(QMainWindow):
             self.body_parts_grid_layout.addWidget(bubble, row, col)
 
         # Update warning text
-        if min_7ft_possible < 5 or min_6ft_possible < 5:
+        if min_7ft_possible < 5 or min_6ft_possible < 1:
             warning_text = "Overall build capacity is low:\n\n"
             if min_7ft_possible < 5:
                 warning_text += f"• Can only build {min_7ft_possible} more 7ft bodies.\n"
-            if min_6ft_possible < 5:
+            if min_6ft_possible < 1:
                 warning_text += f"• Can only build {min_6ft_possible} more 6ft bodies.\n"
             self.body_low_stock_warning_text.setText(warning_text)
             self.body_low_stock_warning_section.show()
