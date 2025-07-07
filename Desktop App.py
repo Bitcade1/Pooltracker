@@ -337,7 +337,7 @@ class MainWindow(QMainWindow):
         "Aluminum corner": 4, "Ramp 170mm": 1, "Ramp 158mm": 1, "Ramp 918mm": 1,
         "Ramp 376mm": 1, "Chrome handles": 1, "Sticker Set": 1,
         "4.8x16mm Self Tapping Screw": 37, "4.0 x 50mm Wood Screw": 4,
-        "Plastic Window": 1, "Latch": 12
+        "Plastic Window": 1, "Latch": 12, "Spring": 1, "Handle Tube": 1
     }
     BODY_PARTS_7FT = {**BODY_PARTS_COMMON, "Large Ramp": 1, "Cue Ball Separator": 1}
     BODY_PARTS_6FT = {**BODY_PARTS_COMMON, "6ft Large Ramp": 1, "6ft Cue Ball Separator": 1}
