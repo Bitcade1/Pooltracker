@@ -1547,51 +1547,47 @@ class MainWindow(QMainWindow):
         parts_data.sort(key=lambda x: min(x['possible_7ft'], x['possible_6ft']))
 
         # Populate grid
-        num_columns = 6 # Adjust as needed for screen size
+        num_columns = 8  # Increased from 6
         for i, data in enumerate(parts_data):
             bubble = QGroupBox()
             bubble.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             bubble_layout = QVBoxLayout(bubble)
-            bubble_layout.setContentsMargins(10, 20, 10, 10)
-            bubble_layout.setSpacing(5)
+            bubble_layout.setContentsMargins(5, 10, 5, 5)  # Reduced from (10, 20, 10, 10)
+            bubble_layout.setSpacing(2)  # Reduced from 5
             bubble_layout.setAlignment(Qt.AlignCenter)
-
-            # Container for text with a solid background
 
             text_widget = QWidget()
             text_layout = QVBoxLayout(text_widget)
-            text_layout.setContentsMargins(8, 8, 8, 8)
-            text_layout.setSpacing(2)
-            text_widget.setStyleSheet("background-color: rgba(255,255,255,0.92); border-radius: 12px;")
+            text_layout.setContentsMargins(4, 4, 4, 4)  # Reduced from (8, 8, 8, 8)
+            text_layout.setSpacing(1)  # Reduced from 2
+            text_widget.setStyleSheet("background-color: rgba(255,255,255,0.92); border-radius: 8px;")
 
             # Large in-stock number
             stock_label = QLabel(f"{data['stock']}")
             stock_label.setAlignment(Qt.AlignCenter)
-            stock_label.setStyleSheet("font-size: 32pt; font-weight: bold; color: #222; padding: 0; margin: 0;")
+            stock_label.setStyleSheet("font-size: 28pt; font-weight: bold; color: #222; padding: 0; margin: 0;")  # Reduced from 32pt
 
             # Part name
             name_label = QLabel(data['name'])
             name_label.setAlignment(Qt.AlignCenter)
-            name_label.setStyleSheet("font-size: 10pt; font-weight: 600; color: #444; padding: 0; margin: 0;")
+            name_label.setStyleSheet("font-size: 9pt; font-weight: 600; color: #444; padding: 0; margin: 0;")  # Reduced from 10pt
 
-            # Can Build: Only show 7ft for most, 6ft for 6ft-only parts
+            # Can Build label
             if data['req_6ft'] > 0 and data['req_7ft'] == 0:
-                # 6ft-only part
                 can_build_val = str(data['possible_6ft']) if data['possible_6ft'] != float('inf') else "N/A"
                 can_build_label = QLabel(f"Can Build: <b>{can_build_val}</b> (6ft)")
             else:
                 can_build_val = str(data['possible_7ft']) if data['possible_7ft'] != float('inf') else "N/A"
                 can_build_label = QLabel(f"Can Build: <b>{can_build_val}</b> (7ft)")
             can_build_label.setAlignment(Qt.AlignCenter)
-            can_build_label.setStyleSheet("font-size: 11pt; color: #1976d2; padding: 0; margin: 0;")
+            can_build_label.setStyleSheet("font-size: 10pt; color: #1976d2; padding: 0; margin: 0;")  # Reduced from 11pt
 
             text_layout.addWidget(stock_label)
             text_layout.addWidget(name_label)
             text_layout.addWidget(can_build_label)
-            text_layout.addStretch(1)
             bubble_layout.addWidget(text_widget)
 
-            # Color coding
+             # Color coding
             min_possible = min(data['possible_7ft'], data['possible_6ft'])
             bg_color = "#e8f5e9" # Green
             border_color = "#388e3c"
@@ -1601,13 +1597,14 @@ class MainWindow(QMainWindow):
             elif min_possible < 10:
                 bg_color = "#fff3e0" # Orange
                 border_color = "#f57c00"
-                
+
+
             bubble.setStyleSheet(f"""
                 QGroupBox {{
                     background-color: {bg_color};
                     border: 2px solid {border_color};
-                    border-radius: 18px;
-                    margin-top: 10px;
+                    border-radius: 12px;  /* Reduced from 18px */
+                    margin-top: 5px;  /* Reduced from 10px */
                     font-weight: bold;
                 }}
                 QGroupBox::title {{
