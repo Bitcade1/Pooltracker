@@ -1604,7 +1604,7 @@ class MainWindow(QMainWindow):
             name_label.setStyleSheet(f"""
                 font-size: 11pt;
                 font-weight: bold;
-                color: {text_color};
+                color: black;
                 padding: 0;
                 margin: 0;
             """)
@@ -1612,7 +1612,7 @@ class MainWindow(QMainWindow):
             can_build_label.setStyleSheet(f"""
                 font-size: 11pt;
                 font-weight: bold;
-                color: {text_color};
+                color: black;
                 padding: 0;
                 margin: 0;
             """)
