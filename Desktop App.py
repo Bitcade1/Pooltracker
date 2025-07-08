@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QSpacerItem, QGridLayout, QStackedWidget, QScrollArea
 )
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon, QIntValidator, QPixmap
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QObject, QThread, pyqtSignal
 
 from LoadingScreen import LoadingScreen  # Import the LoadingScreen class
 
@@ -224,6 +224,55 @@ def load_config():
             return DEFAULT_CONFIG.copy()
     return DEFAULT_CONFIG.copy()
 
+class Worker(QObject):
+    """Worker to handle blocking API calls in a separate thread."""
+    connection_status_ready = pyqtSignal(bool)
+    production_data_ready = pyqtSignal(list)
+    inventory_data_ready = pyqtSignal(object)
+    error = pyqtSignal(str, str)
+
+    def __init__(self, api_client):
+        super().__init__()
+        self.api_client = api_client
+
+    def check_connection(self):
+        """Checks API connection status."""
+        try:
+            status = self.api_client.test_connection()
+            self.connection_status_ready.emit(status)
+        except Exception as e:
+            self.error.emit("Connection Error", f"Connection check failed: {e}")
+            self.connection_status_ready.emit(False)
+
+    def fetch_production_data(self, year):
+        """Fetches production data for a given year."""
+        try:
+            yearly_data = []
+            for month in range(1, 13):
+                monthly_data = self.api_client.get_production_for_month(year, month)
+                if monthly_data:
+                    yearly_data.extend(monthly_data)
+            self.production_data_ready.emit(yearly_data)
+        except Exception as e:
+            self.error.emit("Production Data Error", f"Failed to fetch production data: {e}")
+
+    def fetch_all_data(self, year):
+        """Fetches all data required for the dashboards."""
+        try:
+            # Fetch production data
+            yearly_data = []
+            for month in range(1, 13):
+                monthly_data = self.api_client.get_production_for_month(year, month)
+                if monthly_data:
+                    yearly_data.extend(monthly_data)
+            self.production_data_ready.emit(yearly_data)
+
+            # Fetch inventory data
+            inventory_data = self.api_client.get_inventory_summary()
+            self.inventory_data_ready.emit(inventory_data)
+        except Exception as e:
+            self.error.emit("Data Refresh Error", f"An error occurred while refreshing data: {e}")
+
 class APIClient:
     def __init__(self, api_url, api_token, api_port=None):
         self.api_url = api_url
@@ -392,12 +441,16 @@ class MainWindow(QMainWindow):
         self.setup_ui()
         self.setStyleSheet(STYLESHEET) 
         
+        # Set up worker thread for background tasks
+        self.setup_worker_thread()
+
         # Set default tab if configured
         default_tab = self.config.get("DEFAULT_TAB", 0)
         if hasattr(self, 'tabs'):
             self.tabs.setCurrentIndex(default_tab)
             
-        self.check_api_connection() 
+        # Delay the initial check slightly to ensure the worker thread is ready
+        QTimer.singleShot(100, self.check_api_connection)
 
         # Configure timers
         self.refresh_timer.timeout.connect(self.refresh_all_data)
@@ -406,6 +459,63 @@ class MainWindow(QMainWindow):
         self.dashboard_scroll_timer.timeout.connect(self.scroll_dashboard_page)
         scroll_time = self.config.get("SCROLL_TIMER", 10)
         self.dashboard_scroll_timer.start(scroll_time * 1000)
+
+    def setup_worker_thread(self):
+        """Initializes the worker thread for background API calls."""
+        self.thread = QThread()
+        self.worker = Worker(self.api_client)
+        self.worker.moveToThread(self.thread)
+
+        # Connect worker signals to main window slots
+        self.worker.connection_status_ready.connect(self.handle_connection_status)
+        self.worker.production_data_ready.connect(self.handle_production_data)
+        self.worker.inventory_data_ready.connect(self.handle_inventory_data)
+        self.worker.error.connect(self.handle_worker_error)
+
+        # Connect thread signals
+        # self.thread.started.connect(self.worker.check_connection) # This is now called from check_api_connection
+        self.thread.finished.connect(self.worker.deleteLater)
+        self.thread.start()
+
+    def handle_connection_status(self, is_connected):
+        """Updates UI based on connection status from worker."""
+        if is_connected:
+            self.connection_label.setText("API: Connected")
+            self.connection_label.setProperty("status", "connected")
+            self.refresh_all_data() # Trigger full data refresh on successful connection
+        else:
+            self.connection_label.setText("API: Disconnected")
+            self.connection_label.setProperty("status", "disconnected")
+            self.update_production_table([]); self.update_summary_counts([])
+            self.update_parts_inventory_table(None); self.update_assembly_deficit_display()
+            self.update_top_rail_dashboard()
+            self.update_body_build_dashboard()
+            QMessageBox.warning(self, "Connection Error", f"Unable to connect to the API at {self.api_client.base_url}.")
+        self.style().polish(self.connection_label)
+        self.refresh_button.setEnabled(True)
+
+    def handle_production_data(self, data):
+        """Receives production data from worker and updates UI."""
+        self.update_production_table(data)
+        self.update_summary_counts(data)
+        self.statusBar().showMessage(f"Production data refreshed at {datetime.now().strftime('%H:%M:%S')}", 5000)
+        self.refresh_button.setEnabled(True)
+
+    def handle_inventory_data(self, data):
+        """Receives inventory data from worker and updates UI."""
+        self.inventory_data = data
+        self.update_parts_inventory_table(self.inventory_data)
+        self.update_assembly_deficit_display()
+        self.update_top_rail_dashboard()
+        self.update_body_build_dashboard()
+        self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}", 5000)
+        self.refresh_button.setEnabled(True)
+
+    def handle_worker_error(self, title, message):
+        """Displays errors received from the worker thread."""
+        QMessageBox.critical(self, title, message)
+        self.statusBar().showMessage("Error during data refresh.", 5000)
+        self.refresh_button.setEnabled(True)
 
     def setup_ui(self):
         self.setWindowTitle("Pool Table Factory Tracker")
@@ -1656,76 +1766,25 @@ class MainWindow(QMainWindow):
     def check_api_connection(self):
         self.connection_label.setText("API: Checking...")
         self.connection_label.setProperty("status", "checking"); self.style().polish(self.connection_label)
-        if self.api_client.test_connection():
-            self.connection_label.setText("API: Connected")
-            self.connection_label.setProperty("status", "connected"); self.refresh_all_data()
-        else:
-            self.connection_label.setText("API: Disconnected")
-            self.connection_label.setProperty("status", "disconnected")
-            self.update_production_table([]); self.update_summary_counts([])
-            self.update_parts_inventory_table(None); self.update_assembly_deficit_display() 
-            self.update_top_rail_dashboard() # Clear dashboard on disconnect
-            self.update_body_build_dashboard()
-            QMessageBox.warning(self, "Connection Error", f"Unable to connect to the API at {self.api_client.base_url}.")
-        self.style().polish(self.connection_label)
+        self.refresh_button.setEnabled(False)
+        # Trigger worker to check connection
+        QTimer.singleShot(0, self.worker.check_connection)
 
     def refresh_production_data(self):
-        """Fetches and updates production data for the entire year."""
+        """Triggers the worker to fetch and update production data."""
         self.statusBar().showMessage("Refreshing production data...")
         self.refresh_button.setEnabled(False)
         selected_year = int(self.prod_year_combo.currentText())
-        yearly_data = []
-
-        # Fetch data for all months in the selected year
-        for month in range(1, 13):
-            monthly_data = self.api_client.get_production_for_month(selected_year, month)
-            if monthly_data:
-                yearly_data.extend(monthly_data)
-
-        # Update the production table and summary counts with the yearly data
-        self.update_production_table(yearly_data)
-        self.update_summary_counts(yearly_data)
-
-        self.statusBar().showMessage(f"Production data refreshed for {selected_year} at {datetime.now().strftime('%H:%M:%S')}")
-        self.refresh_button.setEnabled(True)
+        # Use a QTimer to invoke the method on the worker's thread
+        QTimer.singleShot(0, lambda: self.worker.fetch_production_data(selected_year))
 
     def refresh_all_data(self):
-        """Refreshes all data from the API without resetting the UI."""
+        """Triggers the worker to refresh all data from the API."""
         self.statusBar().showMessage("Refreshing all data from API...")
         self.refresh_button.setEnabled(False)
-
-        try:
-            # Fetch production data for the entire year
-            selected_prod_year = int(self.prod_year_combo.currentText())
-            yearly_data = []
-            
-            # Fetch data for all months in the selected year
-            for month in range(1, 13):
-                monthly_data = self.api_client.get_production_for_month(selected_prod_year, month)
-                if monthly_data:
-                    yearly_data.extend(monthly_data)
-
-            # Update production table and summary with yearly data
-            self.update_production_table(yearly_data)
-            self.update_summary_counts(yearly_data)
-
-            # Fetch inventory data
-            self.parts_table.setUpdatesEnabled(False)
-            self.inventory_data = self.api_client.get_inventory_summary()
-            self.update_parts_inventory_table(self.inventory_data)
-            self.parts_table.setUpdatesEnabled(True)
-
-            # Update other components
-            self.update_assembly_deficit_display()
-            self.update_top_rail_dashboard()
-            self.update_body_build_dashboard()
-
-            self.statusBar().showMessage(f"All data refreshed at {datetime.now().strftime('%H:%M:%S')}")
-        except Exception as e:
-            self.statusBar().showMessage("Error refreshing data.")
-            QMessageBox.critical(self, "Error", f"An error occurred while refreshing data: {e}")
-        finally:
-            self.refresh_button.setEnabled(True)
+        selected_prod_year = int(self.prod_year_combo.currentText())
+        # Use a QTimer to invoke the method on the worker's thread
+        QTimer.singleShot(0, lambda: self.worker.fetch_all_data(selected_prod_year))
 
     def save_settings(self):
         self.config["API_URL"] = self.api_url_input.text().strip()
@@ -1757,12 +1816,14 @@ class MainWindow(QMainWindow):
             
         config_file = save_config(self.config)
         
-        # Re-initialize APIClient with new settings
+        # Re-initialize APIClient and worker with new settings
         self.api_client = APIClient(
             self.config["API_URL"], 
             self.config["API_TOKEN"], 
             self.config["API_PORT"]
         )
+        self.worker.api_client = self.api_client # Update worker's client
+
         new_display_url = self.api_client.base_url # Get potentially modified URL (with port)
         self.server_info_label.setText(f"Server: {new_display_url}")
         if hasattr(self, 'about_text_label'):
@@ -1866,6 +1927,12 @@ class MainWindow(QMainWindow):
         about_group.setLayout(about_layout)
         settings_layout.addWidget(about_group)
 
+    def closeEvent(self, event):
+        """Ensure the worker thread is cleanly stopped on application close."""
+        self.thread.quit()
+        self.thread.wait()
+        super().closeEvent(event)
+
     def resizeEvent(self, event):
         """Handle window resize events to maintain proper scaling"""
         super().resizeEvent(event)
@@ -1884,11 +1951,32 @@ class MainWindow(QMainWindow):
                     if content:
                         content.updateGeometry()
 
-def main():
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
-
 if __name__ == "__main__":
-    main()
+    app = QApplication(sys.argv)
+    
+    # --- Loading Screen ---
+    # Define base directory to find images
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    loading_image_path = os.path.join(BASE_DIR, "images", "loading.png")
+
+    # Create a QPixmap for the loading screen
+    if os.path.exists(loading_image_path):
+        pixmap = QPixmap(loading_image_path)
+    else:
+        print(f"Warning: Loading image not found at '{loading_image_path}'. Using a blank image.")
+        pixmap = QPixmap(600, 300) # Create a blank pixmap as a fallback
+        pixmap.fill(QColor("#f0f2f5"))
+
+    loading_screen = LoadingScreen(pixmap)
+    loading_screen.show()
+    app.processEvents() # Process events to make sure the loading screen is displayed
+
+    # Load configuration and initialize main window
+    config = load_config()
+    main_win = MainWindow(config)
+    
+    # Close loading screen and show main window
+    loading_screen.close()
+    main_win.show()
+    
+    sys.exit(app.exec_())
