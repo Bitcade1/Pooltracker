@@ -203,7 +203,8 @@ DEFAULT_CONFIG = {
     "API_URL": "https://pooltabletracker.com",
     "API_PORT": None,
     "API_TOKEN": "bitcade_api_key_1",
-    "SCROLL_TIMER": 10  # Default 10 seconds
+    "SCROLL_TIMER": 10,  # Default 10 seconds
+    "DEFAULT_TAB": 0  # Default to first tab
 }
 
 def save_config(config):
@@ -358,6 +359,7 @@ class MainWindow(QMainWindow):
             self.config.get("API_TOKEN", DEFAULT_CONFIG["API_TOKEN"]),
             self.config.get("API_PORT") 
         )
+        
         self.inventory_data = None 
         
         self.table_configurations = [
@@ -389,6 +391,12 @@ class MainWindow(QMainWindow):
 
         self.setup_ui()
         self.setStyleSheet(STYLESHEET) 
+        
+        # Set default tab if configured
+        default_tab = self.config.get("DEFAULT_TAB", 0)
+        if hasattr(self, 'tabs'):
+            self.tabs.setCurrentIndex(default_tab)
+            
         self.check_api_connection() 
 
         # Configure timers
@@ -1549,6 +1557,7 @@ class MainWindow(QMainWindow):
             bubble_layout.setAlignment(Qt.AlignCenter)
 
             # Container for text with a solid background
+
             text_widget = QWidget()
             text_layout = QVBoxLayout(text_widget)
             text_layout.setContentsMargins(8, 8, 8, 8)
@@ -1702,7 +1711,12 @@ class MainWindow(QMainWindow):
     def save_settings(self):
         self.config["API_URL"] = self.api_url_input.text().strip()
         self.config["API_TOKEN"] = self.api_token_input.text().strip()
-        if self.use_standard_port.isChecked(): self.config["API_PORT"] = None
+        
+        # Save default tab selection
+        self.config["DEFAULT_TAB"] = self.default_tab_combo.currentIndex()
+        
+        if self.use_standard_port.isChecked():
+            self.config["API_PORT"] = None
         else:
             try:
                 port_val = int(self.api_port_input.text().strip())
@@ -1794,6 +1808,21 @@ class MainWindow(QMainWindow):
         # Timer Settings Group
         timer_group = QGroupBox("Dashboard Settings")
         timer_layout = QFormLayout()
+        
+        # Add default tab selector
+        self.default_tab_combo = QComboBox()
+        self.default_tab_combo.addItems([
+            "Monthly Production",
+            "Assembly Capacity",
+            "Top Rail Dashboard",
+            "Body Build Dashboard",
+            "Inventory Parts"
+        ])
+        current_tab = self.config.get("DEFAULT_TAB", 0)
+        self.default_tab_combo.setCurrentIndex(current_tab)
+        timer_layout.addRow("Default startup tab:", self.default_tab_combo)
+        
+        # Add existing scroll timer setting
         self.scroll_timer_input = QLineEdit(str(self.config.get("SCROLL_TIMER", 10)))
         self.scroll_timer_input.setFixedWidth(80)
         self.scroll_timer_input.setValidator(QIntValidator(1, 60))
