@@ -1294,7 +1294,6 @@ class MainWindow(QMainWindow):
                 text_layout.addWidget(stock_label)
                 text_layout.addWidget(name_label)
                 text_layout.addWidget(can_build_label)
-                text_layout.addStretch(1)
                 bubble_layout.addWidget(text_widget)
 
                 # Color coding
@@ -1552,59 +1551,82 @@ class MainWindow(QMainWindow):
             bubble = QGroupBox()
             bubble.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             bubble_layout = QVBoxLayout(bubble)
-            bubble_layout.setContentsMargins(5, 10, 5, 5)  # Reduced from (10, 20, 10, 10)
-            bubble_layout.setSpacing(2)  # Reduced from 5
+            bubble_layout.setContentsMargins(4, 8, 4, 4)  # Reduced margins further
+            bubble_layout.setSpacing(1)  # Minimal spacing
             bubble_layout.setAlignment(Qt.AlignCenter)
 
-            text_widget = QWidget()
-            text_layout = QVBoxLayout(text_widget)
-            text_layout.setContentsMargins(4, 4, 4, 4)  # Reduced from (8, 8, 8, 8)
-            text_layout.setSpacing(1)  # Reduced from 2
-            text_widget.setStyleSheet("background-color: rgba(255,255,255,0.92); border-radius: 8px;")
-
-            # Large in-stock number
+            # Large in-stock number - made even bigger
             stock_label = QLabel(f"{data['stock']}")
             stock_label.setAlignment(Qt.AlignCenter)
-            stock_label.setStyleSheet("font-size: 28pt; font-weight: bold; color: #222; padding: 0; margin: 0;")  # Reduced from 32pt
+            stock_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-            # Part name
+            # Part name - adjusted to be more prominent
             name_label = QLabel(data['name'])
             name_label.setAlignment(Qt.AlignCenter)
-            name_label.setStyleSheet("font-size: 9pt; font-weight: 600; color: #444; padding: 0; margin: 0;")  # Reduced from 10pt
+            name_label.setWordWrap(True)
+            name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
-            # Can Build label
+            # Can Build label - more compact
             if data['req_6ft'] > 0 and data['req_7ft'] == 0:
                 can_build_val = str(data['possible_6ft']) if data['possible_6ft'] != float('inf') else "N/A"
-                can_build_label = QLabel(f"Can Build: <b>{can_build_val}</b> (6ft)")
+                can_build_text = f"Build: {can_build_val} (6ft)"
             else:
                 can_build_val = str(data['possible_7ft']) if data['possible_7ft'] != float('inf') else "N/A"
-                can_build_label = QLabel(f"Can Build: <b>{can_build_val}</b> (7ft)")
+                can_build_text = f"Build: {can_build_val} (7ft)"
+            can_build_label = QLabel(can_build_text)
             can_build_label.setAlignment(Qt.AlignCenter)
-            can_build_label.setStyleSheet("font-size: 10pt; color: #1976d2; padding: 0; margin: 0;")  # Reduced from 11pt
+            can_build_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
-            text_layout.addWidget(stock_label)
-            text_layout.addWidget(name_label)
-            text_layout.addWidget(can_build_label)
-            bubble_layout.addWidget(text_widget)
-
-             # Color coding
+            # Color coding
             min_possible = min(data['possible_7ft'], data['possible_6ft'])
-            bg_color = "#e8f5e9" # Green
-            border_color = "#388e3c"
             if min_possible < 5:
-                bg_color = "#ffebee" # Red
+                bg_color = "#ffebee"  # Red
                 border_color = "#c62828"
+                text_color = "#c62828"  # Matching red
             elif min_possible < 10:
-                bg_color = "#fff3e0" # Orange
+                bg_color = "#fff3e0"  # Orange
                 border_color = "#f57c00"
+                text_color = "#f57c00"  # Matching orange
+            else:
+                bg_color = "#e8f5e9"  # Green
+                border_color = "#388e3c"
+                text_color = "#388e3c"  # Matching green
 
+            # Apply styles with matching colors and larger text
+            stock_label.setStyleSheet(f"""
+                font-size: 36pt;
+                font-weight: bold;
+                color: {text_color};
+                padding: 0;
+                margin: 0;
+            """)
+            
+            name_label.setStyleSheet(f"""
+                font-size: 11pt;
+                font-weight: bold;
+                color: {text_color};
+                padding: 0;
+                margin: 0;
+            """)
+            
+            can_build_label.setStyleSheet(f"""
+                font-size: 11pt;
+                font-weight: bold;
+                color: {text_color};
+                padding: 0;
+                margin: 0;
+            """)
+
+            bubble_layout.addWidget(stock_label, 2)  # Give more space to stock number
+            bubble_layout.addWidget(name_label, 1)
+            bubble_layout.addWidget(can_build_label, 1)
 
             bubble.setStyleSheet(f"""
                 QGroupBox {{
                     background-color: {bg_color};
                     border: 2px solid {border_color};
-                    border-radius: 12px;  /* Reduced from 18px */
-                    margin-top: 5px;  /* Reduced from 10px */
+                    border-radius: 12px;
+                    margin-top: 5px;
                     font-weight: bold;
                 }}
                 QGroupBox::title {{
