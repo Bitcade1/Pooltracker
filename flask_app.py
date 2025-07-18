@@ -4191,9 +4191,6 @@ class TopRailPieceCount(db.Model):
 
 @app.route('/top_rail_pieces', methods=['GET', 'POST'])
 def top_rail_pieces():
-    if 'worker' not in session:
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
 
     key_map = {
         'a': 'black_6_short',
