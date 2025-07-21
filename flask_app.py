@@ -1021,6 +1021,13 @@ def pods():
             flash("Not enough M10x13mm Tee Nuts in stock! Need 16 per pod.", "error")
             return redirect(url_for('pods'))
         
+        # Check and deduct Rows of Black Staples
+        black_staples_entry = PrintedPartsCount.query.filter_by(part_name="Rows of Black Staples").order_by(
+            PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+        if not black_staples_entry or black_staples_entry.count < 2:
+            flash("Not enough Rows of Black Staples in stock! Need 2 per pod.", "error")
+            return redirect(url_for('pods'))
+        
         try:
             # Create and save the new pod
             new_pod = CompletedPods(
