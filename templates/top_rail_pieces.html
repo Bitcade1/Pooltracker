@@ -68,14 +68,6 @@
             display: inline-block;
             font-size: 1.2em;
         }
-        .cutting-rules {
-            background-color: #fff2e7;
-            border: 1px solid #ffb366;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-            font-size: 0.8em;
-        }
         input.highlight {
             animation: highlightFade 3s ease;
             border: 3px solid limegreen;
@@ -90,7 +82,6 @@
 <body>
     <div class="container">
         <h1 style="font-size: 3em;">Count Laminate Pieces</h1>
-        <p style="font-size: 1.5em;">Enter the current stock for each laminate piece. Use keyboard shortcuts for quick counting.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -99,16 +90,6 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-
-        <div class="cutting-rules">
-            <h3>Cutting Rules:</h3>
-            <ul>
-                <li><strong>6ft Short / Long:</strong> Deducts 0.5 uncut each</li>
-                <li><strong>7ft Short:</strong> Deducts 0.5 uncut</li>
-                <li><strong>7ft Long:</strong> Deducts 1 uncut</li>
-                <li><strong>Uncut Keys:</strong> U–Y add 1 uncut</li>
-            </ul>
-        </div>
 
         <form action="{{ url_for('counting_laminate') }}" method="post">
             <div class="grid-container">
@@ -183,50 +164,49 @@
         </div>
     </div>
 
-<script>
-document.addEventListener('keydown', function(event) {
-    if (event.target.tagName === 'INPUT') return;
+    <script>
+    document.addEventListener('keydown', function(event) {
+        if (event.target.tagName === 'INPUT') return;
 
-    const key = event.key.toLowerCase();
-    const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
-    if (!validKeys.includes(key)) return;
+        const key = event.key.toLowerCase();
+        const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
+        if (!validKeys.includes(key)) return;
 
-    fetch("/counting_laminate", {
-        method: "POST",
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ key_code: key })
-    }).then(response => response.json())
-    .then(data => {
-        if (data.success && data.part_key) {
-            const partKey = 'piece_' + data.part_key;
-            const inputField = document.getElementById(partKey);
-            if (inputField) {
-                inputField.value = (parseFloat(inputField.value || 0) + 1).toFixed(1);
-                inputField.classList.add('highlight');
-                inputField.addEventListener('animationend', () => {
-                    inputField.classList.remove('highlight');
-                }, { once: true });
-            }
-
-            if (data.deducted_uncut && data.deducted_uncut > 0 && data.uncut_key) {
-                const uncutField = document.getElementById('piece_' + data.uncut_key);
-                if (uncutField) {
-                    uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
-                    uncutField.classList.add('highlight');
-                    uncutField.addEventListener('animationend', () => {
-                        uncutField.classList.remove('highlight');
+        fetch("/counting_laminate", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ key_code: key })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success && data.part_key) {
+                const partKey = 'piece_' + data.part_key;
+                const inputField = document.getElementById(partKey);
+                if (inputField) {
+                    inputField.value = (parseFloat(inputField.value || 0) + 1).toFixed(1);
+                    inputField.classList.add('highlight');
+                    inputField.addEventListener('animationend', () => {
+                        inputField.classList.remove('highlight');
                     }, { once: true });
                 }
-            }
-        } else {
-            alert(data.message || "Error occurred");
-        }
-    }).catch(error => {
-        console.error("Error updating count:", error);
-        alert("Network error occurred");
-    });
-});
-</script>
 
+                if (data.deducted_uncut && data.deducted_uncut > 0 && data.uncut_key) {
+                    const uncutField = document.getElementById('piece_' + data.uncut_key);
+                    if (uncutField) {
+                        uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
+                        uncutField.classList.add('highlight');
+                        uncutField.addEventListener('animationend', () => {
+                            uncutField.classList.remove('highlight');
+                        }, { once: true });
+                    }
+                }
+            } else {
+                alert(data.message || "Error occurred");
+            }
+        }).catch(error => {
+            console.error("Error updating count:", error);
+            alert("Network error occurred");
+        });
+    });
+    </script>
 </body>
 </html>
