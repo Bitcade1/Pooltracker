@@ -634,11 +634,10 @@ def inventory():
         "Bushing": 2,
         "6ft Cue Ball Separator": 1,
         "6ft Large Ramp": 1,
-        "6ft Carpet": 1,    # Added new 6ft parts
+        "6ft Carpet": 1,
         "6ft Felt": 1,
-        "7ft Carpet": 1,    # Added new 7ft parts
+        "7ft Carpet": 1,
         "7ft Felt": 2
-        
     }
 
     # Calculate how many of each part have been used this month.
@@ -2611,7 +2610,7 @@ def top_rails():
             start_dt = datetime.combine(date.today(), start_time_obj)
             finish_dt = datetime.combine(date.today(), finish_time_obj)
 
-
+            # Adjust for lunch break
             if lunch.lower() == "yes":
                 finish_dt -= timedelta(minutes=30)
 
@@ -3323,11 +3322,11 @@ def counting_3d_printing_parts():
     parts_status = {}
     for part, usage in parts_usage_per_body.items():
         # Determine required quantities based on table size
-        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:
+        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
             total_required = target_7ft * usage
             already_used = bodies_built_7ft * usage
             still_needed = (target_7ft - bodies_built_7ft) * usage
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
             total_required = target_6ft * usage
             already_used = bodies_built_6ft * usage
             still_needed = (target_6ft - bodies_built_6ft) * usage
@@ -3557,7 +3556,7 @@ def counting_cushions():
                     lunch_end = lunch_start + timedelta(minutes=30)
                     
                     if record.start_time < lunch_end and record.finish_time > lunch_start:
-                        # Calculate overlap with lunch
+                                               # Calculate overlap with lunch
                         overlap_start = max(record.start_time, lunch_start)
                         overlap_end = min(record.finish_time, lunch_end)
                         lunch_duration = (overlap_end - overlap_start).total_seconds() / 60
@@ -4193,7 +4192,7 @@ def get_top_rail_production_stats():
 
 class TopRailPieceCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short'
+    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short' or 'uncut'
     count = db.Column(db.Integer, default=0, nullable=False)
 
 @app.route('/top_rail_pieces', methods=['GET', 'POST'])
@@ -4226,16 +4225,78 @@ def top_rail_pieces():
 
     if request.method == 'POST':
         key_code = request.form.get('key_code')
+        action = request.form.get('action', 'add')
+        
         if key_code and key_code in key_map:
             part_key = key_map[key_code]
-            part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
-            if not part:
-                part = TopRailPieceCount(part_key=part_key, count=1)
-                db.session.add(part)
-            else:
-                part.count += 1
-            db.session.commit()
-            return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
+            
+            if action == 'add':
+                part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+                if not part:
+                    part = TopRailPieceCount(part_key=part_key, count=1)
+                    db.session.add(part)
+                else:
+                    part.count += 1
+                db.session.commit()
+                return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
+            
+            elif action == 'cut':
+                # Handle cutting operations that deduct from uncut pieces
+                uncut_part = TopRailPieceCount.query.filter_by(part_key='uncut').first()
+                if not uncut_part:
+                    return jsonify({"success": False, "message": "No uncut pieces available!"}), 400
+                
+                pieces_to_deduct = 0
+                pieces_to_add = {}
+                
+                if part_key.endswith('_6_short') or part_key.endswith('_6_long'):
+                    # For 6ft pieces, need both short and long to deduct 1 uncut
+                    other_type = part_key.replace('_short', '_long') if '_short' in part_key else part_key.replace('_long', '_short')
+                    
+                    # Check if we're adding both pieces (complete cut)
+                    current_part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+                    other_part = TopRailPieceCount.query.filter_by(part_key=other_type).first()
+                    
+                    current_count = current_part.count if current_part else 0
+                    other_count = other_part.count if other_part else 0
+                    
+                    # If this is the second piece being added, deduct uncut
+                    if (current_count == 0 and other_count > 0) or (current_count > 0 and other_count == 0):
+                        pieces_to_deduct = 1
+                        pieces_to_add[part_key] = 1
+                        pieces_to_add[other_type] = 1 if other_count == 0 else 0
+                    else:
+                        pieces_to_add[part_key] = 1
+                
+                elif part_key.endswith('_7_short'):
+                    # For 7ft short, one cut yields two short pieces.
+                    pieces_to_deduct = 1
+                    pieces_to_add[part_key] = 2
+                
+                elif part_key.endswith('_7_long'):
+                    # For 7ft long, each cut yields 1 long piece.
+                    pieces_to_deduct = 1
+                    pieces_to_add[part_key] = 1
+                
+                # Check if we have enough uncut pieces
+                if pieces_to_deduct > 0 and uncut_part.count < pieces_to_deduct:
+                    return jsonify({"success": False, "message": f"Not enough uncut pieces! Need {pieces_to_deduct}, have {uncut_part.count}"}), 400
+                
+                # Apply the changes
+                if pieces_to_deduct > 0:
+                    uncut_part.count -= pieces_to_deduct
+                
+                for add_part_key, add_count in pieces_to_add.items():
+                    if add_count > 0:
+                        part = TopRailPieceCount.query.filter_by(part_key=add_part_key).first()
+                        if not part:
+                            part = TopRailPieceCount(part_key=add_part_key, count=add_count)
+                            db.session.add(part)
+                        else:
+                            part.count += add_count
+                
+                db.session.commit()
+                return jsonify({"success": True, "message": f"Cut operation completed for {part_key}", "deducted_uncut": pieces_to_deduct}), 200
 
         # Standard form submission
         for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
@@ -4251,17 +4312,10 @@ def top_rail_pieces():
                         part.count = count
                 except ValueError:
                     flash(f"Invalid number for {key}", "error")
+        
         db.session.commit()
         flash("Top rail piece counts updated successfully.", "success")
-        return redirect(url_for('top_rail_pieces'))
-
-    # Prepare data for display
-    counts = {}
-    all_parts = TopRailPieceCount.query.all()
-    for part in all_parts:
-        counts[f"piece_{part.part_key}"] = part.count
-
-    return render_template('top_rail_pieces.html', counts=counts)
+        return redirect(url_for('top_rail_pieces')
 
 
 @app.route('/fastest_leaderboard')
@@ -4473,7 +4527,12 @@ def counting_laminate():
         'r': 'stone_7_long',
         's': 'rustic_black_7_short',
         't': 'rustic_black_7_long',
-        'u': 'uncut',
+        # Uncut sheets per color
+        'u': 'black_uncut',
+        'v': 'rustic_oak_uncut',
+        'w': 'grey_oak_uncut',
+        'x': 'stone_uncut',
+        'y': 'rustic_black_uncut',
     }
 
     if request.method == 'POST':
@@ -4494,45 +4553,33 @@ def counting_laminate():
                 return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
             
             elif action == 'cut':
+                # Determine the color from the part key to find the correct uncut sheet
+                color = part_key.split('_')[0]
+                uncut_part_key = f"{color}_uncut"
+                
                 # Handle cutting operations that deduct from uncut pieces
-                uncut_part = LaminatePieceCount.query.filter_by(part_key='uncut').first()
-                if not uncut_part:
-                    return jsonify({"success": False, "message": "No uncut pieces available!"}), 400
+                uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_part_key).first()
+                if not uncut_part or uncut_part.count == 0:
+                    return jsonify({"success": False, "message": f"No uncut pieces available for {color}!"}), 400
                 
                 pieces_to_deduct = 0
                 pieces_to_add = {}
                 
                 if part_key.endswith('_6_short') or part_key.endswith('_6_long'):
-                    # For 6ft pieces, need both short and long to deduct 1 uncut
-                    other_type = part_key.replace('_short', '_long') if '_short' in part_key else part_key.replace('_long', '_short')
-                    
-                    # Check if we're adding both pieces (complete cut)
-                    current_part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
-                    other_part = LaminatePieceCount.query.filter_by(part_key=other_type).first()
-                    
-                    current_count = current_part.count if current_part else 0
-                    other_count = other_part.count if other_part else 0
-                    
-                    # If this is the second piece being added, deduct uncut
-                    if (current_count == 0 and other_count > 0) or (current_count > 0 and other_count == 0):
-                        pieces_to_deduct = 1
-                        pieces_to_add[part_key] = 1
-                        pieces_to_add[other_type] = 1 if other_count == 0 else 0
-                    else:
-                        pieces_to_add[part_key] = 1
+                    # For 6ft pieces, one cut yields one short and one long. We deduct 1 uncut sheet.
+                    pieces_to_deduct = 1
+                    short_piece_key = f"{color}_6_short"
+                    long_piece_key = f"{color}_6_long"
+                    pieces_to_add[short_piece_key] = 1
+                    pieces_to_add[long_piece_key] = 1
                 
                 elif part_key.endswith('_7_short'):
-                    # For 7ft short, need 2 pieces to deduct 1 uncut
-                    current_part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
-                    current_count = current_part.count if current_part else 0
-                    
-                    # If this makes it an even number (2, 4, 6, etc.), deduct uncut
-                    if (current_count + 1) % 2 == 0:
-                        pieces_to_deduct = 1
-                    pieces_to_add[part_key] = 1
+                    # For 7ft short, one cut yields two short pieces.
+                    pieces_to_deduct = 1
+                    pieces_to_add[part_key] = 2
                 
                 elif part_key.endswith('_7_long'):
-                    # For 7ft long, each piece deducts 1 uncut
+                    # For 7ft long, one cut yields one long piece.
                     pieces_to_deduct = 1
                     pieces_to_add[part_key] = 1
                 
@@ -4557,8 +4604,10 @@ def counting_laminate():
                 return jsonify({"success": True, "message": f"Cut operation completed for {part_key}", "deducted_uncut": pieces_to_deduct}), 200
 
         # Standard form submission
-        all_keys = [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black'] 
-                   for size in ['6', '7'] for length in ['short', 'long']] + ['uncut']
+        colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+        all_keys = [f"{color}_{size}_{length}" for color in colors
+                   for size in ['6', '7'] for length in ['short', 'long']] + \
+                   [f"{color}_uncut" for color in colors]
         
         for key in all_keys:
             input_value = request.form.get(f"piece_{key}")

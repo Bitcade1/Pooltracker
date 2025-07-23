@@ -120,15 +120,6 @@
 
         <form action="{{ url_for('counting_laminate') }}" method="post">
             <div class="grid-container">
-                <!-- Uncut Sheets Section -->
-                <fieldset class="uncut-fieldset">
-                    <legend>Uncut Sheets</legend>
-                    <div class="form-group">
-                        <label for="piece_uncut">Uncut</label>
-                        <input type="number" id="piece_uncut" name="piece_uncut" value="{{ counts.get('piece_uncut', 0) }}" min="0" required>
-                    </div>
-                </fieldset>
-
                 {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
                 {% set sizes = ['6ft', '7ft'] %}
                 {% set lengths = ['Short', 'Long'] %}
@@ -136,6 +127,12 @@
                 {% for color in colors %}
                 <fieldset>
                     <legend>{{ color }}</legend>
+                    {% set uncut_key = 'piece_' ~ color|lower|replace(' ', '_') ~ '_uncut' %}
+                    <div class="form-group">
+                        <label for="{{ uncut_key }}">Uncut Sheets</label>
+                        <input type="number" id="{{ uncut_key }}" name="{{ uncut_key }}" value="{{ counts.get(uncut_key, 0) }}" min="0" required>
+                    </div>
+                    <hr>
                     {% for size in sizes %}
                         {% for length in lengths %}
                             {% set part_name = size ~ ' ' ~ length %}
@@ -184,8 +181,12 @@
             <code>S</code> Rustic Black Short
             <code>T</code> Rustic Black Long
             <br><br>
-            <strong>Other:</strong><br>
-            <code>U</code> Uncut Sheets
+            <strong>Uncut Sheets:</strong><br>
+            <code>U</code> Black Uncut
+            <code>V</code> Rustic Oak Uncut
+            <code>W</code> Grey Oak Uncut
+            <code>X</code> Stone Uncut
+            <code>Y</code> Rustic Black Uncut
             <br><br>
             <strong>Cut Mode:</strong><br>
             <code>Shift + Key</code> Simulate cutting operation (deducts from uncut pieces)
@@ -194,7 +195,7 @@
 
     <script>
     document.addEventListener('keydown', function(event) {
-        const validKeys = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u'];
+        const validKeys = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y'];
         const key = event.key.toLowerCase();
         
         if (validKeys.includes(key)) {
@@ -238,7 +239,6 @@
     </script>
 </body>
 </html>
-                    <div class="piece-row">
                         <span class="piece-label">Long</span>
                         <input type="number" name="piece_black_7_long" value="{{ counts.get('piece_black_7_long', 0) }}" class="piece-input" min="0">
                         <span class="piece-count">{{ counts.get('piece_black_7_long', 0) }}</span>
