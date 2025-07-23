@@ -4310,13 +4310,12 @@ def top_rail_pieces():
                         db.session.add(part)
                     else:
                         part.count = count
-                except ValueError:
+                  except ValueError:
                     flash(f"Invalid number for {key}", "error")
         
-          db.session.commit()
+        db.session.commit()
         flash("Top rail piece counts updated successfully.", "success")
         return redirect(url_for('top_rail_pieces'))
-
 @app.route('/fastest_leaderboard')
 def fastest_leaderboard():
     if 'worker' not in session:
