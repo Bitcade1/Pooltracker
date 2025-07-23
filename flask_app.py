@@ -4380,7 +4380,6 @@ class LaminatePieceCount(db.Model):
 
 @app.route('/top_rail_pieces', methods=['GET', 'POST'])
 def top_rail_pieces():
-
     key_map = {
         'a': 'black_6_short',
         'b': 'black_6_long',
@@ -4404,22 +4403,36 @@ def top_rail_pieces():
         't': 'rustic_black_7_long',
     }
 
-
-
     if request.method == 'POST':
         key_code = request.form.get('key_code')
         if key_code and key_code in key_map:
             part_key = key_map[key_code]
+
+            # Increment top rail count
             part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
             if not part:
                 part = TopRailPieceCount(part_key=part_key, count=1)
                 db.session.add(part)
             else:
                 part.count += 1
-            db.session.commit()
-            return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
 
-        # Standard form submission
+            # Deduct 1 matching laminate piece
+            laminate_part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
+            if not laminate_part:
+                laminate_part = LaminatePieceCount(part_key=part_key, count=0)
+                db.session.add(laminate_part)
+
+            laminate_part.count = max(0, laminate_part.count - 1)
+
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "message": f"Logged 1 top rail ({part_key}), deducted 1 matching laminate piece",
+                "part_key": part_key
+            }), 200
+
+        # Handle manual form submissions
         for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
             input_value = request.form.get(f"piece_{key}")
             if input_value is not None:
@@ -4433,17 +4446,19 @@ def top_rail_pieces():
                         part.count = count
                 except ValueError:
                     flash(f"Invalid number for {key}", "error")
+
         db.session.commit()
         flash("Top rail piece counts updated successfully.", "success")
         return redirect(url_for('top_rail_pieces'))
 
-    # Prepare data for display
+    # Display counts
     counts = {}
     all_parts = TopRailPieceCount.query.all()
     for part in all_parts:
         counts[f"piece_{part.part_key}"] = part.count
 
     return render_template('top_rail_pieces.html', counts=counts)
+
 
 @app.route('/counting_laminate', methods=['GET', 'POST'])
 def counting_laminate():
