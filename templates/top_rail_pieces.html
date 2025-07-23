@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Count Top Rail Pieces</title>
+    <title>Count Laminate Pieces</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         body {
@@ -13,7 +13,7 @@
         }
         .container {
             width: 100%;
-            padding: 20px 20px; /* Reduce padding */
+            padding: 20px;
             margin: 0 auto;
         }
         .grid-container {
@@ -68,25 +68,29 @@
             display: inline-block;
             font-size: 1.2em;
         }
-
-        /* Highlight animation */
+        .cutting-rules {
+            background-color: #fff2e7;
+            border: 1px solid #ffb366;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 0.8em;
+        }
         input.highlight {
             animation: highlightFade 3s ease;
             border: 3px solid limegreen;
             background-color: #c6f7c6;
         }
-
         @keyframes highlightFade {
             0%   { background-color: #c6f7c6; }
             100% { background-color: white; }
         }
     </style>
 </head>
-<meta http-equiv="refresh" content="10">
 <body>
     <div class="container">
-        <h1 style="font-size: 3em;">Count Top Rail Pieces</h1>
-        <p style="font-size: 1.5em;">Enter the current stock for each top rail piece. The values represent individual pieces, not pairs.</p>
+        <h1 style="font-size: 3em;">Count Laminate Pieces</h1>
+        <p style="font-size: 1.5em;">Enter the current stock for each laminate piece. Use keyboard shortcuts for quick counting.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -96,7 +100,17 @@
             {% endif %}
         {% endwith %}
 
-        <form action="{{ url_for('top_rail_pieces') }}" method="post">
+        <div class="cutting-rules">
+            <h3>Cutting Rules:</h3>
+            <ul>
+                <li><strong>6ft Short / Long:</strong> Deducts 0.5 uncut each</li>
+                <li><strong>7ft Short:</strong> Deducts 0.5 uncut</li>
+                <li><strong>7ft Long:</strong> Deducts 1 uncut</li>
+                <li><strong>Uncut Keys:</strong> U–Y add 1 uncut</li>
+            </ul>
+        </div>
+
+        <form action="{{ url_for('counting_laminate') }}" method="post">
             <div class="grid-container">
                 {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
                 {% set sizes = ['6ft', '7ft'] %}
@@ -105,13 +119,19 @@
                 {% for color in colors %}
                 <fieldset>
                     <legend>{{ color }}</legend>
+                    {% set uncut_key = 'piece_' ~ color|lower|replace(' ', '_') ~ '_uncut' %}
+                    <div class="form-group">
+                        <label for="{{ uncut_key }}">Uncut Sheets</label>
+                        <input type="number" id="{{ uncut_key }}" name="{{ uncut_key }}" value="{{ counts.get(uncut_key, 0) }}" step="any" min="0" required>
+                    </div>
+                    <hr>
                     {% for size in sizes %}
                         {% for length in lengths %}
                             {% set part_name = size ~ ' ' ~ length %}
                             {% set input_name = 'piece_' ~ color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ length|lower %}
                             <div class="form-group">
                                 <label for="{{ input_name }}">{{ part_name }}</label>
-                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
+                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
                             </div>
                         {% endfor %}
                     {% endfor %}
@@ -122,6 +142,7 @@
                 <button type="submit" class="btn btn-primary">Update Counts</button>
             </div>
         </form>
+
         <div class="button-container">
             <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
         </div>
@@ -152,37 +173,39 @@
             <code>R</code> Stone Long
             <code>S</code> Rustic Black Short
             <code>T</code> Rustic Black Long
+            <br><br>
+            <strong>Uncut Sheets:</strong><br>
+            <code>U</code> Black Uncut
+            <code>V</code> Rustic Oak Uncut
+            <code>W</code> Grey Oak Uncut
+            <code>X</code> Stone Uncut
+            <code>Y</code> Rustic Black Uncut
         </div>
     </div>
 
     <script>
     document.addEventListener('keydown', function(event) {
-        const validKeys = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t'];
-        const key = event.key.toLowerCase();
-        if (validKeys.includes(key)) {
-            fetch("/top_rail_pieces", {
-                method: "POST",
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ key_code: key })
-            }).then(response => response.json())
-            .then(data => {
-                if (data.success && data.part_key) {
-                    const inputId = 'piece_' + data.part_key;
-                    const inputField = document.getElementById(inputId);
-                    if (inputField) {
-                        inputField.value = parseInt(inputField.value || 0) + 1;
+        if (event.target.tagName === 'INPUT') return;
 
-                        // Add highlight and remove after animation
-                        inputField.classList.add('highlight');
-                        inputField.addEventListener('animationend', function() {
-                            inputField.classList.remove('highlight');
-                        }, { once: true });
-                    }
-                }
-            }).catch(error => {
-                console.error("Error updating count:", error);
-            });
-        }
+        const key = event.key.toLowerCase();
+        const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
+        if (!validKeys.includes(key)) return;
+
+        fetch("/counting_laminate", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ key_code: key })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || "Error occurred");
+            }
+        }).catch(error => {
+            console.error("Error updating count:", error);
+            alert("Network error occurred");
+        });
     });
     </script>
 </body>
