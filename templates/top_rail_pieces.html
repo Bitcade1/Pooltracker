@@ -183,30 +183,50 @@
         </div>
     </div>
 
-    <script>
-    document.addEventListener('keydown', function(event) {
-        if (event.target.tagName === 'INPUT') return;
+<script>
+document.addEventListener('keydown', function(event) {
+    if (event.target.tagName === 'INPUT') return;
 
-        const key = event.key.toLowerCase();
-        const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
-        if (!validKeys.includes(key)) return;
+    const key = event.key.toLowerCase();
+    const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
+    if (!validKeys.includes(key)) return;
 
-        fetch("/counting_laminate", {
-            method: "POST",
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ key_code: key })
-        }).then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.message || "Error occurred");
+    fetch("/counting_laminate", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ key_code: key })
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success && data.part_key) {
+            const partKey = 'piece_' + data.part_key;
+            const inputField = document.getElementById(partKey);
+            if (inputField) {
+                inputField.value = (parseFloat(inputField.value || 0) + 1).toFixed(1);
+                inputField.classList.add('highlight');
+                inputField.addEventListener('animationend', () => {
+                    inputField.classList.remove('highlight');
+                }, { once: true });
             }
-        }).catch(error => {
-            console.error("Error updating count:", error);
-            alert("Network error occurred");
-        });
+
+            if (data.deducted_uncut && data.deducted_uncut > 0 && data.uncut_key) {
+                const uncutField = document.getElementById('piece_' + data.uncut_key);
+                if (uncutField) {
+                    uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
+                    uncutField.classList.add('highlight');
+                    uncutField.addEventListener('animationend', () => {
+                        uncutField.classList.remove('highlight');
+                    }, { once: true });
+                }
+            }
+        } else {
+            alert(data.message || "Error occurred");
+        }
+    }).catch(error => {
+        console.error("Error updating count:", error);
+        alert("Network error occurred");
     });
-    </script>
+});
+</script>
+
 </body>
 </html>
