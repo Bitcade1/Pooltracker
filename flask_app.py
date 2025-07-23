@@ -4440,7 +4440,155 @@ def order_chinese_parts():
         parts_to_order=parts_to_order,
         target_table_count=target_table_count
     )
+class TopRailPieceCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short'
+    count = db.Column(db.Integer, default=0, nullable=False)
 
+class LaminatePieceCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short' or 'uncut'
+    count = db.Column(db.Integer, default=0, nullable=False)
+
+@app.route('/counting_laminate', methods=['GET', 'POST'])
+def counting_laminate():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    key_map = {
+        'a': 'black_6_short',
+        'b': 'black_6_long',
+        'c': 'rustic_oak_6_short',
+        'd': 'rustic_oak_6_long',
+        'e': 'grey_oak_6_short',
+        'f': 'grey_oak_6_long',
+        'g': 'stone_6_short',
+        'h': 'stone_6_long',
+        'i': 'rustic_black_6_short',
+        'j': 'rustic_black_6_long',
+        'k': 'black_7_short',
+        'l': 'black_7_long',
+        'm': 'rustic_oak_7_short',
+        'n': 'rustic_oak_7_long',
+        'o': 'grey_oak_7_short',
+        'p': 'grey_oak_7_long',
+        'q': 'stone_7_short',
+        'r': 'stone_7_long',
+        's': 'rustic_black_7_short',
+        't': 'rustic_black_7_long',
+        'u': 'uncut',
+    }
+
+    if request.method == 'POST':
+        key_code = request.form.get('key_code')
+        action = request.form.get('action', 'add')
+        
+        if key_code and key_code in key_map:
+            part_key = key_map[key_code]
+            
+            if action == 'add':
+                part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
+                if not part:
+                    part = LaminatePieceCount(part_key=part_key, count=1)
+                    db.session.add(part)
+                else:
+                    part.count += 1
+                db.session.commit()
+                return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
+            
+            elif action == 'cut':
+                # Handle cutting operations that deduct from uncut pieces
+                uncut_part = LaminatePieceCount.query.filter_by(part_key='uncut').first()
+                if not uncut_part:
+                    return jsonify({"success": False, "message": "No uncut pieces available!"}), 400
+                
+                pieces_to_deduct = 0
+                pieces_to_add = {}
+                
+                if part_key.endswith('_6_short') or part_key.endswith('_6_long'):
+                    # For 6ft pieces, need both short and long to deduct 1 uncut
+                    other_type = part_key.replace('_short', '_long') if '_short' in part_key else part_key.replace('_long', '_short')
+                    
+                    # Check if we're adding both pieces (complete cut)
+                    current_part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
+                    other_part = LaminatePieceCount.query.filter_by(part_key=other_type).first()
+                    
+                    current_count = current_part.count if current_part else 0
+                    other_count = other_part.count if other_part else 0
+                    
+                    # If this is the second piece being added, deduct uncut
+                    if (current_count == 0 and other_count > 0) or (current_count > 0 and other_count == 0):
+                        pieces_to_deduct = 1
+                        pieces_to_add[part_key] = 1
+                        pieces_to_add[other_type] = 1 if other_count == 0 else 0
+                    else:
+                        pieces_to_add[part_key] = 1
+                
+                elif part_key.endswith('_7_short'):
+                    # For 7ft short, need 2 pieces to deduct 1 uncut
+                    current_part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
+                    current_count = current_part.count if current_part else 0
+                    
+                    # If this makes it an even number (2, 4, 6, etc.), deduct uncut
+                    if (current_count + 1) % 2 == 0:
+                        pieces_to_deduct = 1
+                    pieces_to_add[part_key] = 1
+                
+                elif part_key.endswith('_7_long'):
+                    # For 7ft long, each piece deducts 1 uncut
+                    pieces_to_deduct = 1
+                    pieces_to_add[part_key] = 1
+                
+                # Check if we have enough uncut pieces
+                if pieces_to_deduct > 0 and uncut_part.count < pieces_to_deduct:
+                    return jsonify({"success": False, "message": f"Not enough uncut pieces! Need {pieces_to_deduct}, have {uncut_part.count}"}), 400
+                
+                # Apply the changes
+                if pieces_to_deduct > 0:
+                    uncut_part.count -= pieces_to_deduct
+                
+                for add_part_key, add_count in pieces_to_add.items():
+                    if add_count > 0:
+                        part = LaminatePieceCount.query.filter_by(part_key=add_part_key).first()
+                        if not part:
+                            part = LaminatePieceCount(part_key=add_part_key, count=add_count)
+                            db.session.add(part)
+                        else:
+                            part.count += add_count
+                
+                db.session.commit()
+                return jsonify({"success": True, "message": f"Cut operation completed for {part_key}", "deducted_uncut": pieces_to_deduct}), 200
+
+        # Standard form submission
+        all_keys = [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black'] 
+                   for size in ['6', '7'] for length in ['short', 'long']] + ['uncut']
+        
+        for key in all_keys:
+            input_value = request.form.get(f"piece_{key}")
+            if input_value is not None:
+                try:
+                    count = int(input_value)
+                    part = LaminatePieceCount.query.filter_by(part_key=key).first()
+                    if not part:
+                        part = LaminatePieceCount(part_key=key, count=count)
+                        db.session.add(part)
+                    else:
+                        part.count = count
+                except ValueError:
+                    flash(f"Invalid number for {key}", "error")
+        
+        db.session.commit()
+        flash("Laminate piece counts updated successfully.", "success")
+        return redirect(url_for('counting_laminate'))
+
+    # Prepare data for display
+    counts = {}
+    all_parts = LaminatePieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
+
+    return render_template('counting_laminate.html', counts=counts)
 
 
 
