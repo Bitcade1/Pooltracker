@@ -4195,73 +4195,6 @@ class TopRailPieceCount(db.Model):
     part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short' or 'uncut'
     count = db.Column(db.Integer, default=0, nullable=False)
 
-@app.route('/top_rail_pieces', methods=['GET', 'POST'])
-def top_rail_pieces():
-
-    key_map = {
-        'a': 'black_6_short',
-        'b': 'black_6_long',
-        'c': 'rustic_oak_6_short',
-        'd': 'rustic_oak_6_long',
-        'e': 'grey_oak_6_short',
-        'f': 'grey_oak_6_long',
-        'g': 'stone_6_short',
-        'h': 'stone_6_long',
-        'i': 'rustic_black_6_short',
-        'j': 'rustic_black_6_long',
-        'k': 'black_7_short',
-        'l': 'black_7_long',
-        'm': 'rustic_oak_7_short',
-        'n': 'rustic_oak_7_long',
-        'o': 'grey_oak_7_short',
-        'p': 'grey_oak_7_long',
-        'q': 'stone_7_short',
-        'r': 'stone_7_long',
-        's': 'rustic_black_7_short',
-        't': 'rustic_black_7_long',
-    }
-
-
-
-    if request.method == 'POST':
-        key_code = request.form.get('key_code')
-        if key_code and key_code in key_map:
-            part_key = key_map[key_code]
-            part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
-            if not part:
-                part = TopRailPieceCount(part_key=part_key, count=1)
-                db.session.add(part)
-            else:
-                part.count += 1
-            db.session.commit()
-            return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
-
-        # Standard form submission
-        for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
-            input_value = request.form.get(f"piece_{key}")
-            if input_value is not None:
-                try:
-                    count = int(input_value)
-                    part = TopRailPieceCount.query.filter_by(part_key=key).first()
-                    if not part:
-                        part = TopRailPieceCount(part_key=key, count=count)
-                        db.session.add(part)
-                    else:
-                        part.count = count
-                except ValueError:
-                    flash(f"Invalid number for {key}", "error")
-        db.session.commit()
-        flash("Top rail piece counts updated successfully.", "success")
-        return redirect(url_for('top_rail_pieces'))
-
-    # Prepare data for display
-    counts = {}
-    all_parts = TopRailPieceCount.query.all()
-    for part in all_parts:
-        counts[f"piece_{part.part_key}"] = part.count
-
-    return render_template('top_rail_pieces.html', counts=counts)
-
 @app.route('/fastest_leaderboard')
 def fastest_leaderboard():
     if 'worker' not in session:
@@ -4443,6 +4376,74 @@ class LaminatePieceCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short' or 'uncut'
     count = db.Column(db.Integer, default=0, nullable=False)
+
+
+@app.route('/top_rail_pieces', methods=['GET', 'POST'])
+def top_rail_pieces():
+
+    key_map = {
+        'a': 'black_6_short',
+        'b': 'black_6_long',
+        'c': 'rustic_oak_6_short',
+        'd': 'rustic_oak_6_long',
+        'e': 'grey_oak_6_short',
+        'f': 'grey_oak_6_long',
+        'g': 'stone_6_short',
+        'h': 'stone_6_long',
+        'i': 'rustic_black_6_short',
+        'j': 'rustic_black_6_long',
+        'k': 'black_7_short',
+        'l': 'black_7_long',
+        'm': 'rustic_oak_7_short',
+        'n': 'rustic_oak_7_long',
+        'o': 'grey_oak_7_short',
+        'p': 'grey_oak_7_long',
+        'q': 'stone_7_short',
+        'r': 'stone_7_long',
+        's': 'rustic_black_7_short',
+        't': 'rustic_black_7_long',
+    }
+
+
+
+    if request.method == 'POST':
+        key_code = request.form.get('key_code')
+        if key_code and key_code in key_map:
+            part_key = key_map[key_code]
+            part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+            if not part:
+                part = TopRailPieceCount(part_key=part_key, count=1)
+                db.session.add(part)
+            else:
+                part.count += 1
+            db.session.commit()
+            return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
+
+        # Standard form submission
+        for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
+            input_value = request.form.get(f"piece_{key}")
+            if input_value is not None:
+                try:
+                    count = int(input_value)
+                    part = TopRailPieceCount.query.filter_by(part_key=key).first()
+                    if not part:
+                        part = TopRailPieceCount(part_key=key, count=count)
+                        db.session.add(part)
+                    else:
+                        part.count = count
+                except ValueError:
+                    flash(f"Invalid number for {key}", "error")
+        db.session.commit()
+        flash("Top rail piece counts updated successfully.", "success")
+        return redirect(url_for('top_rail_pieces'))
+
+    # Prepare data for display
+    counts = {}
+    all_parts = TopRailPieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
+
+    return render_template('top_rail_pieces.html', counts=counts)
 
 @app.route('/counting_laminate', methods=['GET', 'POST'])
 def counting_laminate():
