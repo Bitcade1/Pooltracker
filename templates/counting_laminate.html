@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Count Laminate Pieces</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <meta http-equiv="refresh" content="10">
     <style>
         body {
             margin: 0;
@@ -13,7 +14,7 @@
         }
         .container {
             width: 100%;
-            padding: 20px 20px; /* Reduce padding */
+            padding: 20px;
             margin: 0 auto;
         }
         .grid-container {
@@ -81,7 +82,6 @@
             border-color: #ffc107;
         }
 
-        /* Highlight animation */
         input.highlight {
             animation: highlightFade 3s ease;
             border: 3px solid limegreen;
@@ -94,7 +94,6 @@
         }
     </style>
 </head>
-<meta http-equiv="refresh" content="10">
 <body>
     <div class="container">
         <h1 style="font-size: 3em;">Count Laminate Pieces</h1>
@@ -150,6 +149,7 @@
                 <button type="submit" class="btn btn-primary">Update Counts</button>
             </div>
         </form>
+
         <div class="button-container">
             <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
         </div>
@@ -195,7 +195,8 @@
 
     <script>
     document.addEventListener('keydown', function(event) {
-        const validKeys = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y'];
+        if (event.target.tagName === 'INPUT') return; // Ignore if typing in input
+        const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
         const key = event.key.toLowerCase();
         
         if (validKeys.includes(key)) {
@@ -213,14 +214,11 @@
                     const inputField = document.getElementById(inputId);
                     if (inputField && action === 'add') {
                         inputField.value = parseInt(inputField.value || 0) + 1;
-
-                        // Add highlight and remove after animation
                         inputField.classList.add('highlight');
                         inputField.addEventListener('animationend', function() {
                             inputField.classList.remove('highlight');
                         }, { once: true });
                     } else if (action === 'cut') {
-                        // For cut operations, show message and reload to reflect changes
                         let message = data.message;
                         if (data.deducted_uncut > 0) {
                             message += ` (${data.deducted_uncut} uncut sheet(s) used)`;
@@ -228,7 +226,7 @@
                         alert(message);
                         location.reload();
                     }
-                } else if (!data.success) {
+                } else {
                     alert(data.message || 'Error occurred');
                 }
             }).catch(error => {
@@ -236,147 +234,6 @@
             });
         }
     });
-    </script>
-</body>
-</html>
-                        <span class="piece-label">Long</span>
-                        <input type="number" name="piece_black_7_long" value="{{ counts.get('piece_black_7_long', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_black_7_long', 0) }}</span>
-                    </div>
-                </div>
-
-                <!-- 7ft Rustic Oak -->
-                <div class="laminate-section">
-                    <div class="section-title">7ft Rustic Oak</div>
-                    <div class="piece-row">
-                        <span class="piece-label">Short</span>
-                        <input type="number" name="piece_rustic_oak_7_short" value="{{ counts.get('piece_rustic_oak_7_short', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_rustic_oak_7_short', 0) }}</span>
-                    </div>
-                    <div class="piece-row">
-                        <span class="piece-label">Long</span>
-                        <input type="number" name="piece_rustic_oak_7_long" value="{{ counts.get('piece_rustic_oak_7_long', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_rustic_oak_7_long', 0) }}</span>
-                    </div>
-                </div>
-
-                <!-- 7ft Grey Oak -->
-                <div class="laminate-section">
-                    <div class="section-title">7ft Grey Oak</div>
-                    <div class="piece-row">
-                        <span class="piece-label">Short</span>
-                        <input type="number" name="piece_grey_oak_7_short" value="{{ counts.get('piece_grey_oak_7_short', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_grey_oak_7_short', 0) }}</span>
-                    </div>
-                    <div class="piece-row">
-                        <span class="piece-label">Long</span>
-                        <input type="number" name="piece_grey_oak_7_long" value="{{ counts.get('piece_grey_oak_7_long', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_grey_oak_7_long', 0) }}</span>
-                    </div>
-                </div>
-
-                <!-- 7ft Stone -->
-                <div class="laminate-section">
-                    <div class="section-title">7ft Stone</div>
-                    <div class="piece-row">
-                        <span class="piece-label">Short</span>
-                        <input type="number" name="piece_stone_7_short" value="{{ counts.get('piece_stone_7_short', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_stone_7_short', 0) }}</span>
-                    </div>
-                    <div class="piece-row">
-                        <span class="piece-label">Long</span>
-                        <input type="number" name="piece_stone_7_long" value="{{ counts.get('piece_stone_7_long', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_stone_7_long', 0) }}</span>
-                    </div>
-                </div>
-
-                <!-- 7ft Rustic Black -->
-                <div class="laminate-section">
-                    <div class="section-title">7ft Rustic Black</div>
-                    <div class="piece-row">
-                        <span class="piece-label">Short</span>
-                        <input type="number" name="piece_rustic_black_7_short" value="{{ counts.get('piece_rustic_black_7_short', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_rustic_black_7_short', 0) }}</span>
-                    </div>
-                    <div class="piece-row">
-                        <span class="piece-label">Long</span>
-                        <input type="number" name="piece_rustic_black_7_long" value="{{ counts.get('piece_rustic_black_7_long', 0) }}" class="piece-input" min="0">
-                        <span class="piece-count">{{ counts.get('piece_rustic_black_7_long', 0) }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Update Counts</button>
-        </form>
-
-        <a href="{{ url_for('home') }}" class="btn btn-secondary">Back to Home</a>
-    </div>
-
-    <script>
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(event) {
-            if (event.target.tagName === 'INPUT') return; // Don't trigger when typing in inputs
-            
-            const key = event.key.toLowerCase();
-            const isShiftPressed = event.shiftKey;
-            
-            if (isShiftPressed) {
-                // Cut mode - Shift + key
-                cutPiece(key);
-            } else {
-                // Add mode - just key
-                addPiece(key);
-            }
-        });
-
-        function addPiece(key) {
-            fetch('/counting_laminate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `key_code=${key}&action=add`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.message || 'Error occurred');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Network error occurred');
-            });
-        }
-
-        function cutPiece(key) {
-            fetch('/counting_laminate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `key_code=${key}&action=cut`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    let message = data.message;
-                    if (data.deducted_uncut > 0) {
-                        message += ` (${data.deducted_uncut} uncut sheet(s) used)`;
-                    }
-                    alert(message);
-                    location.reload();
-                } else {
-                    alert(data.message || 'Error occurred');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Network error occurred');
-            });
-        }
     </script>
 </body>
 </html>
