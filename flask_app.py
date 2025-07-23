@@ -4313,10 +4313,9 @@ def top_rail_pieces():
                 except ValueError:
                     flash(f"Invalid number for {key}", "error")
         
-        db.session.commit()
+          db.session.commit()
         flash("Top rail piece counts updated successfully.", "success")
-        return redirect(url_for('top_rail_pieces')
-
+        return redirect(url_for('top_rail_pieces'))
 
 @app.route('/fastest_leaderboard')
 def fastest_leaderboard():
