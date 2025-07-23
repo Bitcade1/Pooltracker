@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Count Laminate Pieces</title>
+    <title>Count Top Rail Pieces</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         body {
@@ -13,7 +13,7 @@
         }
         .container {
             width: 100%;
-            padding: 20px;
+            padding: 20px 20px; /* Reduce padding */
             margin: 0 auto;
         }
         .grid-container {
@@ -56,20 +56,37 @@
             padding: 10px 25px;
             border-radius: 8px;
         }
+        .key-helper {
+            margin-top: 50px;
+            font-size: 1em;
+            color: #222;
+        }
+        .key-helper code {
+            background: #eee;
+            padding: 5px 10px;
+            margin: 5px;
+            display: inline-block;
+            font-size: 1.2em;
+        }
+
+        /* Highlight animation */
         input.highlight {
             animation: highlightFade 3s ease;
             border: 3px solid limegreen;
             background-color: #c6f7c6;
         }
+
         @keyframes highlightFade {
             0%   { background-color: #c6f7c6; }
             100% { background-color: white; }
         }
     </style>
 </head>
+<meta http-equiv="refresh" content="10">
 <body>
     <div class="container">
-        <h1 style="font-size: 3em;">Count Laminate Pieces</h1>
+        <h1 style="font-size: 3em;">Count Top Rail Pieces</h1>
+        <p style="font-size: 1.5em;">Enter the current stock for each top rail piece. The values represent individual pieces, not pairs.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -79,7 +96,7 @@
             {% endif %}
         {% endwith %}
 
-        <form action="{{ url_for('counting_laminate') }}" method="post">
+        <form action="{{ url_for('top_rail_pieces') }}" method="post">
             <div class="grid-container">
                 {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
                 {% set sizes = ['6ft', '7ft'] %}
@@ -88,19 +105,13 @@
                 {% for color in colors %}
                 <fieldset>
                     <legend>{{ color }}</legend>
-                    {% set uncut_key = 'piece_' ~ color|lower|replace(' ', '_') ~ '_uncut' %}
-                    <div class="form-group">
-                        <label for="{{ uncut_key }}">Uncut Sheets</label>
-                        <input type="number" id="{{ uncut_key }}" name="{{ uncut_key }}" value="{{ counts.get(uncut_key, 0) }}" step="any" min="0" required>
-                    </div>
-                    <hr>
                     {% for size in sizes %}
                         {% for length in lengths %}
                             {% set part_name = size ~ ' ' ~ length %}
                             {% set input_name = 'piece_' ~ color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ length|lower %}
                             <div class="form-group">
                                 <label for="{{ input_name }}">{{ part_name }}</label>
-                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
+                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
                             </div>
                         {% endfor %}
                     {% endfor %}
@@ -111,54 +122,67 @@
                 <button type="submit" class="btn btn-primary">Update Counts</button>
             </div>
         </form>
-
         <div class="button-container">
             <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
+        </div>
+
+        <div class="key-helper">
+            <h3 style="font-size: 2em;">Quick Add (Keyboard Shortcuts)</h3>
+            <p>Press these keys on your keyboard to quickly add 1 to the stock:</p>
+            <strong>6ft:</strong><br>
+            <code>A</code> Black Short
+            <code>B</code> Black Long
+            <code>C</code> Rustic Oak Short
+            <code>D</code> Rustic Oak Long
+            <code>E</code> Grey Oak Short
+            <code>F</code> Grey Oak Long
+            <code>G</code> Stone Short
+            <code>H</code> Stone Long
+            <code>I</code> Rustic Black Short
+            <code>J</code> Rustic Black Long
+            <br><br>
+            <strong>7ft:</strong><br>
+            <code>K</code> Black Short
+            <code>L</code> Black Long
+            <code>M</code> Rustic Oak Short
+            <code>N</code> Rustic Oak Long
+            <code>O</code> Grey Oak Short
+            <code>P</code> Grey Oak Long
+            <code>Q</code> Stone Short
+            <code>R</code> Stone Long
+            <code>S</code> Rustic Black Short
+            <code>T</code> Rustic Black Long
         </div>
     </div>
 
     <script>
     document.addEventListener('keydown', function(event) {
-        if (event.target.tagName === 'INPUT') return;
-
+        const validKeys = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t'];
         const key = event.key.toLowerCase();
-        const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
-        if (!validKeys.includes(key)) return;
+        if (validKeys.includes(key)) {
+            fetch("/top_rail_pieces", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ key_code: key })
+            }).then(response => response.json())
+            .then(data => {
+                if (data.success && data.part_key) {
+                    const inputId = 'piece_' + data.part_key;
+                    const inputField = document.getElementById(inputId);
+                    if (inputField) {
+                        inputField.value = parseInt(inputField.value || 0) + 1;
 
-        fetch("/counting_laminate", {
-            method: "POST",
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ key_code: key })
-        }).then(response => response.json())
-        .then(data => {
-            if (data.success && data.part_key) {
-                const partKey = 'piece_' + data.part_key;
-                const inputField = document.getElementById(partKey);
-                if (inputField) {
-                    inputField.value = (parseFloat(inputField.value || 0) + 1).toFixed(1);
-                    inputField.classList.add('highlight');
-                    inputField.addEventListener('animationend', () => {
-                        inputField.classList.remove('highlight');
-                    }, { once: true });
-                }
-
-                if (data.deducted_uncut && data.deducted_uncut > 0 && data.uncut_key) {
-                    const uncutField = document.getElementById('piece_' + data.uncut_key);
-                    if (uncutField) {
-                        uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
-                        uncutField.classList.add('highlight');
-                        uncutField.addEventListener('animationend', () => {
-                            uncutField.classList.remove('highlight');
+                        // Add highlight and remove after animation
+                        inputField.classList.add('highlight');
+                        inputField.addEventListener('animationend', function() {
+                            inputField.classList.remove('highlight');
                         }, { once: true });
                     }
                 }
-            } else {
-                alert(data.message || "Error occurred");
-            }
-        }).catch(error => {
-            console.error("Error updating count:", error);
-            alert("Network error occurred");
-        });
+            }).catch(error => {
+                console.error("Error updating count:", error);
+            });
+        }
     });
     </script>
 </body>
