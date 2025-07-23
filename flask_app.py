@@ -4492,7 +4492,13 @@ def counting_laminate():
                 else:
                     part.count += 1
                 db.session.commit()
-                return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
+                return jsonify({
+                    "success": True,
+                    "message": f"Added 1 to {part_key}",
+                    "part_key": part_key,
+                    "deducted_uncut": 0,
+                    "uncut_key": part_key  # for JS update
+                }), 200
 
             # Deduct uncut depending on size/type
             color = part_key.split('_')[0]
@@ -4539,7 +4545,8 @@ def counting_laminate():
                 "success": True,
                 "message": f"Added 1 to {part_key}, deducted {to_deduct} uncut sheet(s)",
                 "deducted_uncut": to_deduct,
-                "part_key": part_key
+                "part_key": part_key,
+                "uncut_key": uncut_key
             }), 200
 
         # Handle manual form submission
@@ -4572,6 +4579,7 @@ def counting_laminate():
         counts[f"piece_{part.part_key}"] = part.count
 
     return render_template('counting_laminate.html', counts=counts)
+
 
 
 
