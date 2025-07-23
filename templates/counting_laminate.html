@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counting Laminate</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .laminate-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .laminate-section {
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            color: #333;
+        }
+        .piece-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 5px 0;
+            padding: 5px;
+            background-color: white;
+            border-radius: 4px;
+        }
+        .piece-label {
+            font-size: 14px;
+        }
+        .piece-count {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .piece-input {
+            width: 60px;
+            text-align: center;
+            padding: 2px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .hotkey-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .hotkey-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+        .hotkey-btn.add {
+            background-color: #3498db;
+            color: white;
+        }
+        .hotkey-btn.cut {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .hotkey-btn:hover {
+            opacity: 0.8;
+        }
+        .uncut-section {
+            grid-column: 1 / -1;
+            background-color: #fff3cd;
+            border-color: #ffc107;
+        }
+        .instructions {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .cutting-rules {
+            background-color: #fff2e7;
+            border: 1px solid #ffb366;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Counting Laminate</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ul>
+                <li><strong>Add Mode:</strong> Use hotkeys A-T to add individual pieces to inventory</li>
+                <li><strong>Cut Mode:</strong> Use Shift + hotkeys to simulate cutting operations (deducts from uncut pieces)</li>
+                <li><strong>Uncut pieces:</strong> Use 'U' to add uncut laminate sheets</li>
+            </ul>
+        </div>
+
+        <div class="cutting-rules">
+            <h3>Cutting Rules:</h3>
+            <ul>
+                <li><strong>6ft pieces:</strong> Cutting both 6ft short AND 6ft long deducts 1 uncut piece</li>
+                <li><strong>7ft short:</strong> Every 2 pieces cut deducts 1 uncut piece</li>
+                <li><strong>7ft long:</strong> Each piece cut deducts 1 uncut piece</li>
+            </ul>
+        </div>
+
+        <div class="hotkey-buttons">
+            <button class="hotkey-btn add" onclick="addPiece('a')">A - Black 6 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('b')">B - Black 6 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('c')">C - Rustic Oak 6 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('d')">D - Rustic Oak 6 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('e')">E - Grey Oak 6 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('f')">F - Grey Oak 6 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('g')">G - Stone 6 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('h')">H - Stone 6 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('i')">I - Rustic Black 6 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('j')">J - Rustic Black 6 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('k')">K - Black 7 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('l')">L - Black 7 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('m')">M - Rustic Oak 7 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('n')">N - Rustic Oak 7 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('o')">O - Grey Oak 7 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('p')">P - Grey Oak 7 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('q')">Q - Stone 7 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('r')">R - Stone 7 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('s')">S - Rustic Black 7 Short</button>
+            <button class="hotkey-btn add" onclick="addPiece('t')">T - Rustic Black 7 Long</button>
+            <button class="hotkey-btn add" onclick="addPiece('u')">U - Uncut Sheets</button>
+        </div>
+
+        <div style="margin: 20px 0; padding: 10px; background-color: #ffe6e6; border-radius: 5px;">
+            <strong>Cut Mode:</strong> Hold Shift + letter key to simulate cutting operation
+        </div>
+
+        <form method="POST">
+            <div class="laminate-grid">
+                <!-- Uncut Section -->
+                <div class="laminate-section uncut-section">
+                    <div class="section-title">Uncut Sheets</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Uncut</span>
+                        <input type="number" name="piece_uncut" value="{{ counts.get('piece_uncut', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_uncut', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 6ft Black -->
+                <div class="laminate-section">
+                    <div class="section-title">6ft Black</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_black_6_short" value="{{ counts.get('piece_black_6_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_black_6_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_black_6_long" value="{{ counts.get('piece_black_6_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_black_6_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 6ft Rustic Oak -->
+                <div class="laminate-section">
+                    <div class="section-title">6ft Rustic Oak</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_rustic_oak_6_short" value="{{ counts.get('piece_rustic_oak_6_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_oak_6_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_rustic_oak_6_long" value="{{ counts.get('piece_rustic_oak_6_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_oak_6_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 6ft Grey Oak -->
+                <div class="laminate-section">
+                    <div class="section-title">6ft Grey Oak</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_grey_oak_6_short" value="{{ counts.get('piece_grey_oak_6_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_grey_oak_6_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_grey_oak_6_long" value="{{ counts.get('piece_grey_oak_6_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_grey_oak_6_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 6ft Stone -->
+                <div class="laminate-section">
+                    <div class="section-title">6ft Stone</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_stone_6_short" value="{{ counts.get('piece_stone_6_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_stone_6_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_stone_6_long" value="{{ counts.get('piece_stone_6_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_stone_6_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 6ft Rustic Black -->
+                <div class="laminate-section">
+                    <div class="section-title">6ft Rustic Black</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_rustic_black_6_short" value="{{ counts.get('piece_rustic_black_6_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_black_6_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_rustic_black_6_long" value="{{ counts.get('piece_rustic_black_6_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_black_6_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 7ft Black -->
+                <div class="laminate-section">
+                    <div class="section-title">7ft Black</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_black_7_short" value="{{ counts.get('piece_black_7_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_black_7_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_black_7_long" value="{{ counts.get('piece_black_7_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_black_7_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 7ft Rustic Oak -->
+                <div class="laminate-section">
+                    <div class="section-title">7ft Rustic Oak</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_rustic_oak_7_short" value="{{ counts.get('piece_rustic_oak_7_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_oak_7_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_rustic_oak_7_long" value="{{ counts.get('piece_rustic_oak_7_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_oak_7_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 7ft Grey Oak -->
+                <div class="laminate-section">
+                    <div class="section-title">7ft Grey Oak</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_grey_oak_7_short" value="{{ counts.get('piece_grey_oak_7_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_grey_oak_7_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_grey_oak_7_long" value="{{ counts.get('piece_grey_oak_7_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_grey_oak_7_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 7ft Stone -->
+                <div class="laminate-section">
+                    <div class="section-title">7ft Stone</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_stone_7_short" value="{{ counts.get('piece_stone_7_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_stone_7_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_stone_7_long" value="{{ counts.get('piece_stone_7_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_stone_7_long', 0) }}</span>
+                    </div>
+                </div>
+
+                <!-- 7ft Rustic Black -->
+                <div class="laminate-section">
+                    <div class="section-title">7ft Rustic Black</div>
+                    <div class="piece-row">
+                        <span class="piece-label">Short</span>
+                        <input type="number" name="piece_rustic_black_7_short" value="{{ counts.get('piece_rustic_black_7_short', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_black_7_short', 0) }}</span>
+                    </div>
+                    <div class="piece-row">
+                        <span class="piece-label">Long</span>
+                        <input type="number" name="piece_rustic_black_7_long" value="{{ counts.get('piece_rustic_black_7_long', 0) }}" class="piece-input" min="0">
+                        <span class="piece-count">{{ counts.get('piece_rustic_black_7_long', 0) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Update Counts</button>
+        </form>
+
+        <a href="{{ url_for('home') }}" class="btn btn-secondary">Back to Home</a>
+    </div>
+
+    <script>
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.target.tagName === 'INPUT') return; // Don't trigger when typing in inputs
+            
+            const key = event.key.toLowerCase();
+            const isShiftPressed = event.shiftKey;
+            
+            if (isShiftPressed) {
+                // Cut mode - Shift + key
+                cutPiece(key);
+            } else {
+                // Add mode - just key
+                addPiece(key);
+            }
+        });
+
+        function addPiece(key) {
+            fetch('/counting_laminate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `key_code=${key}&action=add`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || 'Error occurred');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Network error occurred');
+            });
+        }
+
+        function cutPiece(key) {
+            fetch('/counting_laminate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `key_code=${key}&action=cut`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let message = data.message;
+                    if (data.deducted_uncut > 0) {
+                        message += ` (${data.deducted_uncut} uncut sheet(s) used)`;
+                    }
+                    alert(message);
+                    location.reload();
+                } else {
+                    alert(data.message || 'Error occurred');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Network error occurred');
+            });
+        }
+    </script>
+</body>
+</html>
