@@ -4225,78 +4225,16 @@ def top_rail_pieces():
 
     if request.method == 'POST':
         key_code = request.form.get('key_code')
-        action = request.form.get('action', 'add')
-        
         if key_code and key_code in key_map:
             part_key = key_map[key_code]
-            
-            if action == 'add':
-                part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
-                if not part:
-                    part = TopRailPieceCount(part_key=part_key, count=1)
-                    db.session.add(part)
-                else:
-                    part.count += 1
-                db.session.commit()
-                return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
-            
-            elif action == 'cut':
-                # Handle cutting operations that deduct from uncut pieces
-                uncut_part = TopRailPieceCount.query.filter_by(part_key='uncut').first()
-                if not uncut_part:
-                    return jsonify({"success": False, "message": "No uncut pieces available!"}), 400
-                
-                pieces_to_deduct = 0
-                pieces_to_add = {}
-                
-                if part_key.endswith('_6_short') or part_key.endswith('_6_long'):
-                    # For 6ft pieces, need both short and long to deduct 1 uncut
-                    other_type = part_key.replace('_short', '_long') if '_short' in part_key else part_key.replace('_long', '_short')
-                    
-                    # Check if we're adding both pieces (complete cut)
-                    current_part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
-                    other_part = TopRailPieceCount.query.filter_by(part_key=other_type).first()
-                    
-                    current_count = current_part.count if current_part else 0
-                    other_count = other_part.count if other_part else 0
-                    
-                    # If this is the second piece being added, deduct uncut
-                    if (current_count == 0 and other_count > 0) or (current_count > 0 and other_count == 0):
-                        pieces_to_deduct = 1
-                        pieces_to_add[part_key] = 1
-                        pieces_to_add[other_type] = 1 if other_count == 0 else 0
-                    else:
-                        pieces_to_add[part_key] = 1
-                
-                elif part_key.endswith('_7_short'):
-                    # For 7ft short, one cut yields two short pieces.
-                    pieces_to_deduct = 1
-                    pieces_to_add[part_key] = 2
-                
-                elif part_key.endswith('_7_long'):
-                    # For 7ft long, each cut yields 1 long piece.
-                    pieces_to_deduct = 1
-                    pieces_to_add[part_key] = 1
-                
-                # Check if we have enough uncut pieces
-                if pieces_to_deduct > 0 and uncut_part.count < pieces_to_deduct:
-                    return jsonify({"success": False, "message": f"Not enough uncut pieces! Need {pieces_to_deduct}, have {uncut_part.count}"}), 400
-                
-                # Apply the changes
-                if pieces_to_deduct > 0:
-                    uncut_part.count -= pieces_to_deduct
-                
-                for add_part_key, add_count in pieces_to_add.items():
-                    if add_count > 0:
-                        part = TopRailPieceCount.query.filter_by(part_key=add_part_key).first()
-                        if not part:
-                            part = TopRailPieceCount(part_key=add_part_key, count=add_count)
-                            db.session.add(part)
-                        else:
-                            part.count += add_count
-                
-                db.session.commit()
-                return jsonify({"success": True, "message": f"Cut operation completed for {part_key}", "deducted_uncut": pieces_to_deduct}), 200
+            part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+            if not part:
+                part = TopRailPieceCount(part_key=part_key, count=1)
+                db.session.add(part)
+            else:
+                part.count += 1
+            db.session.commit()
+            return jsonify({"success": True, "message": f"Added 1 to {part_key}", "part_key": part_key}), 200
 
         # Standard form submission
         for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
@@ -4308,14 +4246,22 @@ def top_rail_pieces():
                     if not part:
                         part = TopRailPieceCount(part_key=key, count=count)
                         db.session.add(part)
-                      else:
+                    else:
                         part.count = count
                 except ValueError:
                     flash(f"Invalid number for {key}", "error")
-        
         db.session.commit()
-      flash("Top rail piece counts updated successfully.", "success")
+        flash("Top rail piece counts updated successfully.", "success")
         return redirect(url_for('top_rail_pieces'))
+
+    # Prepare data for display
+    counts = {}
+    all_parts = TopRailPieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
+
+    return render_template('top_rail_pieces.html', counts=counts)
+
 @app.route('/fastest_leaderboard')
 def fastest_leaderboard():
     if 'worker' not in session:
