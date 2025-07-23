@@ -4440,10 +4440,6 @@ def order_chinese_parts():
         parts_to_order=parts_to_order,
         target_table_count=target_table_count
     )
-class TopRailPieceCount(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short'
-    count = db.Column(db.Integer, default=0, nullable=False)
 
 class LaminatePieceCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
