@@ -1,214 +1,214 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Count Laminate Pieces</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-size: 1.8em;
-        }
-        .container {
-            width: 100%;
-            padding: 20px;
-            margin: 0 auto;
-        }
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        fieldset {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 20px;
-        }
-        legend {
-            font-weight: bold;
-            font-size: 2em;
-            padding: 0 10px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        label {
-            font-weight: 600;
-            margin-right: 10px;
-        }
-        input[type="number"] {
-            width: 100px;
-            padding: 10px;
-            font-size: 1.5em;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-        }
-        .button-container {
-            text-align: center;
-            margin-top: 30px;
-        }
-        button, .btn {
-            font-size: 1.5em;
-            padding: 10px 25px;
-            border-radius: 8px;
-        }
-        .key-helper {
-            margin-top: 50px;
-            font-size: 1em;
-            color: #222;
-        }
-        .key-helper code {
-            background: #eee;
-            padding: 5px 10px;
-            margin: 5px;
-            display: inline-block;
-            font-size: 1.2em;
-        }
-        input.highlight {
-            animation: highlightFade 3s ease;
-            border: 3px solid limegreen;
-            background-color: #c6f7c6;
-        }
-        @keyframes highlightFade {
-            0%   { background-color: #c6f7c6; }
-            100% { background-color: white; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Count Laminate Pieces</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-size: 1.8em;
+    }
+    .container {
+      width: 100%;
+      padding: 20px;
+      margin: 0 auto;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    fieldset {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    legend {
+      font-weight: bold;
+      font-size: 2em;
+      padding: 0 10px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    label {
+      font-weight: 600;
+      margin-right: 10px;
+    }
+    input[type="number"] {
+      width: 100px;
+      padding: 10px;
+      font-size: 1.5em;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .button-container {
+      text-align: center;
+      margin-top: 30px;
+    }
+    button, .btn {
+      font-size: 1.5em;
+      padding: 10px 25px;
+      border-radius: 8px;
+    }
+    .key-helper {
+      margin-top: 50px;
+      font-size: 1em;
+      color: #222;
+    }
+    .key-helper code {
+      background: #eee;
+      padding: 5px 10px;
+      margin: 5px;
+      display: inline-block;
+      font-size: 1.2em;
+    }
+    input.highlight {
+      animation: highlightFade 3s ease;
+      border: 3px solid limegreen;
+      background-color: #c6f7c6;
+    }
+    @keyframes highlightFade {
+      0%   { background-color: #c6f7c6; }
+      100% { background-color: white; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1 style="font-size: 3em;">Count Laminate Pieces</h1>
+  <div class="container">
+    <h1 style="font-size: 3em;">Count Laminate Pieces</h1>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
 
-        <form action="{{ url_for('counting_laminate') }}" method="post">
-            <div class="grid-container">
-                {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
-                {% set sizes = ['6ft', '7ft'] %}
-                {% set lengths = ['Short', 'Long'] %}
+    <form action="{{ url_for('counting_laminate') }}" method="post">
+      <div class="grid-container">
+        {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
+        {% set sizes = ['6ft', '7ft'] %}
+        {% set lengths = ['Short', 'Long'] %}
 
-                {% for color in colors %}
-                <fieldset>
-                    <legend>{{ color }}</legend>
-                    {% set uncut_key = 'piece_' ~ color|lower|replace(' ', '_') ~ '_uncut' %}
-                    <div class="form-group">
-                        <label for="{{ uncut_key }}">Uncut Sheets</label>
-                        <input type="number" id="{{ uncut_key }}" name="{{ uncut_key }}" value="{{ counts.get(uncut_key, 0) }}" step="any" min="0" required>
-                    </div>
-                    <hr>
-                    {% for size in sizes %}
-                        {% for length in lengths %}
-                            {% set part_key = color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ length|lower %}
-                            {% set part_name = size ~ ' ' ~ length %}
-                            {% set input_name = 'piece_' ~ part_key %}
-                            <div class="form-group">
-                                {% if color == 'Black' and size == '7ft' %}
-                                    <button type="button" onclick="bulkAdd('{{ part_key }}')">{{ part_name }}</button>
-                                    <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
-                                {% else %}
-                                    <label for="{{ input_name }}">{{ part_name }}</label>
-                                    <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    {% endfor %}
-                </fieldset>
-                {% endfor %}
-            </div>
-            <div class="button-container">
-                <button type="submit" class="btn btn-primary">Update Counts</button>
-            </div>
-        </form>
+        {% for color in colors %}
+        <fieldset>
+          <legend>{{ color }}</legend>
+          {% set uncut_key = 'piece_' ~ color|lower|replace(' ', '_') ~ '_uncut' %}
+          <div class="form-group">
+            <label for="{{ uncut_key }}">Uncut Sheets</label>
+            <input type="number" id="{{ uncut_key }}" name="{{ uncut_key }}" value="{{ counts.get(uncut_key, 0) }}" step="any" min="0" required>
+          </div>
+          <hr>
+          {% for size in sizes %}
+            {% for length in lengths %}
+              {% set part_key = color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ length|lower %}
+              {% set part_name = size ~ ' ' ~ length %}
+              {% set input_name = 'piece_' ~ part_key %}
+              <div class="form-group">
+                {% if color == 'Black' and size == '7ft' %}
+                  <button type="button" onclick="bulkAdd('{{ part_key }}')">{{ part_name }}</button>
+                  <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
+                {% else %}
+                  <label for="{{ input_name }}">{{ part_name }}</label>
+                  <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
+                {% endif %}
+              </div>
+            {% endfor %}
+          {% endfor %}
+        </fieldset>
+        {% endfor %}
+      </div>
+      <div class="button-container">
+        <button type="submit" class="btn btn-primary">Update Counts</button>
+      </div>
+    </form>
 
-        <div class="button-container">
-            <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
-        </div>
-
-        <div class="key-helper">
-            <h3 style="font-size: 2em;">Quick Add (Keyboard Shortcuts)</h3>
-            <strong>6ft:</strong><br>
-            <code>A</code> Black Short <code>B</code> Black Long <code>C</code> Rustic Oak Short <code>D</code> Rustic Oak Long
-            <code>E</code> Grey Oak Short <code>F</code> Grey Oak Long <code>G</code> Stone Short <code>H</code> Stone Long
-            <code>I</code> Rustic Black Short <code>J</code> Rustic Black Long<br><br>
-            <strong>7ft:</strong><br>
-            <code>K</code> Black Short <code>L</code> Black Long <code>M</code> Rustic Oak Short <code>N</code> Rustic Oak Long
-            <code>O</code> Grey Oak Short <code>P</code> Grey Oak Long <code>Q</code> Stone Short <code>R</code> Stone Long
-            <code>S</code> Rustic Black Short <code>T</code> Rustic Black Long<br><br>
-            <strong>Uncut Sheets:</strong><br>
-            <code>U</code> Black <code>V</code> Rustic Oak <code>W</code> Grey Oak <code>X</code> Stone <code>Y</code> Rustic Black
-        </div>
+    <div class="button-container">
+      <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
     </div>
 
-    <script>
+    <div class="key-helper">
+      <h3 style="font-size: 2em;">Quick Add (Keyboard Shortcuts)</h3>
+      <strong>6ft:</strong><br>
+      <code>A</code> Black Short <code>B</code> Black Long <code>C</code> Rustic Oak Short <code>D</code> Rustic Oak Long
+      <code>E</code> Grey Oak Short <code>F</code> Grey Oak Long <code>G</code> Stone Short <code>H</code> Stone Long
+      <code>I</code> Rustic Black Short <code>J</code> Rustic Black Long<br><br>
+      <strong>7ft:</strong><br>
+      <code>K</code> Black Short <code>L</code> Black Long <code>M</code> Rustic Oak Short <code>N</code> Rustic Oak Long
+      <code>O</code> Grey Oak Short <code>P</code> Grey Oak Long <code>Q</code> Stone Short <code>R</code> Stone Long
+      <code>S</code> Rustic Black Short <code>T</code> Rustic Black Long<br><br>
+      <strong>Uncut Sheets:</strong><br>
+      <code>U</code> Black <code>V</code> Rustic Oak <code>W</code> Grey Oak <code>X</code> Stone <code>Y</code> Rustic Black
+    </div>
+  </div>
+
+  <script>
     document.addEventListener('keydown', function(event) {
-        if (event.target.tagName === 'INPUT') return;
+      if (event.target.tagName === 'INPUT') return;
 
-        const key = event.key.toLowerCase();
-        const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
-        if (!validKeys.includes(key)) return;
+      const key = event.key.toLowerCase();
+      const validKeys = 'abcdefghijklmnopqrstuvwxyz'.split('');
+      if (!validKeys.includes(key)) return;
 
-        fetch("/counting_laminate", {
-            method: "POST",
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ key_code: key })
-        }).then(response => response.json())
-        .then(data => updateFields(data))
-        .catch(error => {
-            console.error("Error updating count:", error);
-            alert("Network error occurred");
-        });
+      fetch("/counting_laminate", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ key_code: key })
+      }).then(response => response.json())
+      .then(data => updateFields(data))
+      .catch(error => {
+        console.error("Error updating count:", error);
+        alert("Network error occurred");
+      });
     });
 
     function bulkAdd(partKey) {
-        fetch("/counting_laminate_bulk", {
-            method: "POST",
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ part_key: partKey, quantity: 10 })
-        }).then(response => response.json())
-        .then(data => updateFields(data))
-        .catch(error => {
-            console.error("Bulk add failed:", error);
-            alert("Bulk update failed");
-        });
+      fetch("/counting_laminate_bulk", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ part_key: partKey, amount: 10 })  // ✅ Fixed param
+      }).then(response => response.json())
+      .then(data => updateFields(data))
+      .catch(error => {
+        console.error("Bulk add failed:", error);
+        alert("Bulk update failed");
+      });
     }
 
     function updateFields(data) {
-        if (data.success && data.part_key) {
-            const partKey = 'piece_' + data.part_key;
-            const inputField = document.getElementById(partKey);
-            if (inputField) {
-                inputField.value = (parseFloat(inputField.value || 0) + (data.quantity || 1)).toFixed(1);
-                inputField.classList.add('highlight');
-                inputField.addEventListener('animationend', () => {
-                    inputField.classList.remove('highlight');
-                }, { once: true });
-            }
-
-            if (data.deducted_uncut && data.deducted_uncut > 0 && data.uncut_key) {
-                const uncutField = document.getElementById('piece_' + data.uncut_key);
-                if (uncutField) {
-                    uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
-                    uncutField.classList.add('highlight');
-                    uncutField.addEventListener('animationend', () => {
-                        uncutField.classList.remove('highlight');
-                    }, { once: true });
-                }
-            }
-        } else {
-            alert(data.message || "Error occurred");
+      if (data.success && data.part_key) {
+        const partKey = 'piece_' + data.part_key;
+        const inputField = document.getElementById(partKey);
+        if (inputField) {
+          inputField.value = (parseFloat(inputField.value || 0) + (data.amount || 1)).toFixed(1);
+          inputField.classList.add('highlight');
+          inputField.addEventListener('animationend', () => {
+            inputField.classList.remove('highlight');
+          }, { once: true });
         }
+
+        if (data.deducted_uncut && data.uncut_key) {
+          const uncutField = document.getElementById('piece_' + data.uncut_key);
+          if (uncutField) {
+            uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
+            uncutField.classList.add('highlight');
+            uncutField.addEventListener('animationend', () => {
+              uncutField.classList.remove('highlight');
+            }, { once: true });
+          }
+        }
+      } else {
+        alert(data.message || "Error occurred");
+      }
     }
-    </script>
+  </script>
 </body>
 </html>
