@@ -108,21 +108,19 @@
                     <hr>
                     {% for size in sizes %}
                         {% for length in lengths %}
+                            {% set part_key = color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ length|lower %}
                             {% set part_name = size ~ ' ' ~ length %}
-                            {% set input_name = 'piece_' ~ color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ length|lower %}
+                            {% set input_name = 'piece_' ~ part_key %}
                             <div class="form-group">
                                 <label for="{{ input_name }}">{{ part_name }}</label>
-                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
+                                {% if color == 'Black' and size == '7ft' %}
+                                    <button type="button" onclick="bulkAdd('{{ part_key }}')">{{ part_name }}</button>
+                                {% else %}
+                                    <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
+                                {% endif %}
                             </div>
                         {% endfor %}
                     {% endfor %}
-
-                    {% if color == 'Black' %}
-                        <div class="form-group">
-                            <button type="button" onclick="bulkAdd('black_7_short')">Add 10 to Black 7ft Short</button>
-                            <button type="button" onclick="bulkAdd('black_7_long')">Add 10 to Black 7ft Long</button>
-                        </div>
-                    {% endif %}
                 </fieldset>
                 {% endfor %}
             </div>
@@ -174,21 +172,21 @@
         fetch("/counting_laminate_bulk", {
             method: "POST",
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ part_key: partKey, amount: 10 })
+            body: JSON.stringify({ part_key: partKey, quantity: 10 })
         }).then(response => response.json())
-        .then(data => updateFields(data, 10))
+        .then(data => updateFields(data))
         .catch(error => {
             console.error("Bulk add failed:", error);
             alert("Bulk update failed");
         });
     }
 
-    function updateFields(data, overrideQuantity) {
+    function updateFields(data) {
         if (data.success && data.part_key) {
             const partKey = 'piece_' + data.part_key;
             const inputField = document.getElementById(partKey);
             if (inputField) {
-                inputField.value = (parseFloat(inputField.value || 0) + (overrideQuantity || 1)).toFixed(1);
+                inputField.value = (parseFloat(inputField.value || 0) + (data.quantity || 1)).toFixed(1);
                 inputField.classList.add('highlight');
                 inputField.addEventListener('animationend', () => {
                     inputField.classList.remove('highlight');
