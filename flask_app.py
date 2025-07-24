@@ -4651,14 +4651,15 @@ def counting_laminate_bulk():
 
     db.session.commit()
 
-return jsonify({
-    "success": True,
-    "message": f"Added {amount} to {part_key}, deducted {total_deduction} uncut sheet(s)",
-    "part_key": part_key,
-    "uncut_key": uncut_key,
-    "deducted_uncut": total_deduction,
-    "amount": amount  # ✅ Fix: added comma above
-}), 200
+    return jsonify({
+        "success": True,
+        "message": f"Added {amount} to {part_key}, deducted {total_deduction} uncut sheet(s)",
+        "part_key": part_key,
+        "uncut_key": uncut_key,
+        "deducted_uncut": total_deduction,
+        "amount": amount  # ✅ Fix: added comma above
+    }), 200
+
 
 
 
