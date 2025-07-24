@@ -4657,6 +4657,7 @@ def counting_laminate_bulk():
         "part_key": part_key,
         "uncut_key": uncut_key,
         "deducted_uncut": total_deduction
+        "amount": amount  # ← Add this line
     }), 200
 
 
