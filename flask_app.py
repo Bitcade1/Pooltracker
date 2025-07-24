@@ -4617,13 +4617,11 @@ def counting_laminate_bulk():
     part_key = data['part_key']
     amount = float(data['amount'])
 
-    # Deduction rules
     color = part_key.split('_')[0]
     size = part_key.split('_')[1]
     length = part_key.split('_')[2]
     uncut_key = f"{color}_uncut"
 
-    # Determine how much to deduct per piece
     if size == '7' and length == 'short':
         to_deduct_per = 0.5
     elif size == '7' and length == 'long':
@@ -4635,7 +4633,6 @@ def counting_laminate_bulk():
 
     total_deduction = to_deduct_per * amount
 
-    # Fetch from database
     uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
     if not uncut_part or uncut_part.count < total_deduction:
         return jsonify({
@@ -4643,10 +4640,8 @@ def counting_laminate_bulk():
             "message": f"Not enough uncut sheets for {color}. Needed {total_deduction}, have {uncut_part.count if uncut_part else 0:.1f}"
         }), 400
 
-    # Deduct from uncut
     uncut_part.count -= total_deduction
 
-    # Increment the cut piece
     part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
     if not part:
         part = LaminatePieceCount(part_key=part_key, count=amount)
@@ -4655,6 +4650,7 @@ def counting_laminate_bulk():
         part.count += amount
 
     db.session.commit()
+
     return jsonify({
         "success": True,
         "message": f"Added {amount} to {part_key}, deducted {total_deduction} uncut sheet(s)",
@@ -4662,6 +4658,7 @@ def counting_laminate_bulk():
         "uncut_key": uncut_key,
         "deducted_uncut": total_deduction
     }), 200
+
 
 
 
