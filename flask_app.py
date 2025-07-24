@@ -4608,64 +4608,57 @@ def counting_laminate():
 
     return render_template('counting_laminate.html', counts=counts)
 
-from flask import request, jsonify
-from your_app import app, db
-from your_app.models import LaminatePieceCount  # adjust import to your project structure
-
 @app.route('/counting_laminate_bulk', methods=['POST'])
 def counting_laminate_bulk():
     data = request.get_json()
-    if not data or 'part_key' not in data or 'quantity' not in data:
-        return jsonify({'success': False, 'message': 'Invalid request'}), 400
+    if not data or 'part_key' not in data or 'amount' not in data:
+        return jsonify({"success": False, "message": "Invalid request"}), 400
 
     part_key = data['part_key']
-    quantity = int(data['quantity'])
+    amount = float(data['amount'])
 
-    # Parse color, size, and length from part_key
-    try:
-        color, size, length = part_key.split('_')
-    except ValueError:
-        return jsonify({'success': False, 'message': 'Invalid part key format'}), 400
-
+    color = part_key.split('_')[0]
+    size = part_key.split('_')[1]
+    length = part_key.split('_')[2]
     uncut_key = f"{color}_uncut"
 
-    # Get or create uncut entry
-    uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
-    if not uncut_part:
-        uncut_part = LaminatePieceCount(part_key=uncut_key, count=0)
-        db.session.add(uncut_part)
-        db.session.commit()
+    if size == '7' and length == 'short':
+        to_deduct_per = 0.5
+    elif size == '7' and length == 'long':
+        to_deduct_per = 1
+    elif size == '6':
+        to_deduct_per = 0.5
+    else:
+        to_deduct_per = 0
 
-    # Deduction rule: always 1 per part
-    total_to_deduct = 1 * quantity
-    if uncut_part.count < total_to_deduct:
+    total_deduction = to_deduct_per * amount
+
+    uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
+    if not uncut_part or uncut_part.count < total_deduction:
         return jsonify({
             "success": False,
-            "message": f"Not enough uncut sheets for {color}. Needed {total_to_deduct}, have {uncut_part.count:.1f}"
+            "message": f"Not enough uncut sheets for {color}. Needed {total_deduction}, have {uncut_part.count if uncut_part else 0:.1f}"
         }), 400
 
-    # Deduct uncut
-    uncut_part.count -= total_to_deduct
+    uncut_part.count -= total_deduction
 
-    # Get or create part entry
     part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
     if not part:
-        part = LaminatePieceCount(part_key=part_key, count=quantity)
+        part = LaminatePieceCount(part_key=part_key, count=amount)
         db.session.add(part)
     else:
-        part.count += quantity
+        part.count += amount
 
     db.session.commit()
 
     return jsonify({
         "success": True,
-        "message": f"Added {quantity} to {part_key}, deducted {total_to_deduct} uncut",
+        "message": f"Added {amount} to {part_key}, deducted {total_deduction} uncut sheet(s)",
         "part_key": part_key,
-        "quantity": quantity,
-        "deducted_uncut": total_to_deduct,
-        "uncut_key": uncut_key
+        "uncut_key": uncut_key,
+        "deducted_uncut": total_deduction
     }), 200
-s
+
 
 
 
