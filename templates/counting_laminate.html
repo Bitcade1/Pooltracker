@@ -39,6 +39,7 @@
         }
         label {
             font-weight: 600;
+            margin-right: 10px;
         }
         input[type="number"] {
             width: 100px;
@@ -112,10 +113,11 @@
                             {% set part_name = size ~ ' ' ~ length %}
                             {% set input_name = 'piece_' ~ part_key %}
                             <div class="form-group">
-                                <label for="{{ input_name }}">{{ part_name }}</label>
                                 {% if color == 'Black' and size == '7ft' %}
                                     <button type="button" onclick="bulkAdd('{{ part_key }}')">{{ part_name }}</button>
+                                    <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
                                 {% else %}
+                                    <label for="{{ input_name }}">{{ part_name }}</label>
                                     <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
                                 {% endif %}
                             </div>
