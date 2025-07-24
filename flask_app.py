@@ -4492,6 +4492,9 @@ def counting_laminate():
         'w': 'grey_oak_uncut',
         'x': 'stone_uncut',
         'y': 'rustic_black_uncut',
+        # Bulk buttons
+        '1': 'black_7_short_bulk',
+        '2': 'black_7_long_bulk',
     }
 
     if request.method == 'POST':
@@ -4499,69 +4502,78 @@ def counting_laminate():
         if key_code and key_code in key_map:
             part_key = key_map[key_code]
 
-            # If adding uncut sheet directly
-            if part_key.endswith('uncut'):
-                part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
-                if not part:
-                    part = LaminatePieceCount(part_key=part_key, count=1)
-                    db.session.add(part)
+            # Bulk increments
+            if part_key == 'black_7_short_bulk':
+                part_key_actual = 'black_7_short'
+                uncut_key = 'black_uncut'
+                add_count = 10
+                to_deduct = 5  # 10 x 0.5
+            elif part_key == 'black_7_long_bulk':
+                part_key_actual = 'black_7_long'
+                uncut_key = 'black_uncut'
+                add_count = 10
+                to_deduct = 10  # 10 x 1
+            else:
+                part_key_actual = part_key
+                color, size, length = part_key.split('_')
+                uncut_key = f"{color}_uncut"
+
+                if part_key.endswith('uncut'):
+                    part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
+                    if not part:
+                        part = LaminatePieceCount(part_key=part_key, count=1)
+                        db.session.add(part)
+                    else:
+                        part.count += 1
+                    db.session.commit()
+                    return jsonify({
+                        "success": True,
+                        "message": f"Added 1 to {part_key}",
+                        "part_key": part_key,
+                        "deducted_uncut": 0,
+                        "uncut_key": part_key
+                    }), 200
+
+                # Determine deduction for normal keys
+                if size == '7' and length == 'short':
+                    to_deduct = 0.5
+                elif size == '7' and length == 'long':
+                    to_deduct = 1
+                elif size == '6':
+                    to_deduct = 0.5
                 else:
-                    part.count += 1
-                db.session.commit()
-                return jsonify({
-                    "success": True,
-                    "message": f"Added 1 to {part_key}",
-                    "part_key": part_key,
-                    "deducted_uncut": 0,
-                    "uncut_key": part_key  # for JS update
-                }), 200
+                    to_deduct = 0
+                add_count = 1
 
-            # Deduct uncut depending on size/type
-            color = part_key.split('_')[0]
-            size = part_key.split('_')[1]  # '6' or '7'
-            length = part_key.split('_')[2]  # 'short' or 'long'
-            uncut_key = f"{color}_uncut"
-
-            # Fetch uncut part
+            # Deduct uncut logic
             uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
             if not uncut_part:
                 uncut_part = LaminatePieceCount(part_key=uncut_key, count=0)
                 db.session.add(uncut_part)
                 db.session.commit()
 
-            # Determine how much to deduct
-            if size == '7' and length == 'short':
-                to_deduct = 0.5
-            elif size == '7' and length == 'long':
-                to_deduct = 1
-            elif size == '6' and length in ['short', 'long']:
-                to_deduct = 0.5
-            else:
-                to_deduct = 0
-
             if uncut_part.count < to_deduct:
                 return jsonify({
                     "success": False,
-                    "message": f"Not enough uncut sheets for {color}. Needed {to_deduct}, have {uncut_part.count:.1f}"
+                    "message": f"Not enough uncut sheets for {uncut_key}. Needed {to_deduct}, have {uncut_part.count:.1f}"
                 }), 400
 
-            # Deduct from uncut
             uncut_part.count -= to_deduct
 
-            # Increment part
-            part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
+            # Update main piece count
+            part = LaminatePieceCount.query.filter_by(part_key=part_key_actual).first()
             if not part:
-                part = LaminatePieceCount(part_key=part_key, count=1)
+                part = LaminatePieceCount(part_key=part_key_actual, count=add_count)
                 db.session.add(part)
             else:
-                part.count += 1
+                part.count += add_count
 
             db.session.commit()
             return jsonify({
                 "success": True,
-                "message": f"Added 1 to {part_key}, deducted {to_deduct} uncut sheet(s)",
+                "message": f"Added {add_count} to {part_key_actual}, deducted {to_deduct} uncut sheet(s)",
                 "deducted_uncut": to_deduct,
-                "part_key": part_key,
+                "part_key": part_key_actual,
                 "uncut_key": uncut_key
             }), 200
 
@@ -4588,7 +4600,7 @@ def counting_laminate():
         flash("Laminate piece counts updated successfully.", "success")
         return redirect(url_for('counting_laminate'))
 
-    # Prepare count dictionary for the form
+    # GET request
     counts = {}
     all_parts = LaminatePieceCount.query.all()
     for part in all_parts:
