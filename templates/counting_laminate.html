@@ -173,22 +173,22 @@
     function bulkAdd(partKey) {
         fetch("/counting_laminate_bulk", {
             method: "POST",
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ part_key: partKey, quantity: 10 })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ part_key: partKey, amount: 10 })
         }).then(response => response.json())
-        .then(data => updateFields(data))
+        .then(data => updateFields(data, 10))
         .catch(error => {
             console.error("Bulk add failed:", error);
             alert("Bulk update failed");
         });
     }
 
-    function updateFields(data) {
+    function updateFields(data, overrideQuantity) {
         if (data.success && data.part_key) {
             const partKey = 'piece_' + data.part_key;
             const inputField = document.getElementById(partKey);
             if (inputField) {
-                inputField.value = (parseFloat(inputField.value || 0) + (data.quantity || 1)).toFixed(1);
+                inputField.value = (parseFloat(inputField.value || 0) + (overrideQuantity || 1)).toFixed(1);
                 inputField.classList.add('highlight');
                 inputField.addEventListener('animationend', () => {
                     inputField.classList.remove('highlight');
