@@ -116,6 +116,13 @@
                             </div>
                         {% endfor %}
                     {% endfor %}
+
+                    {% if color == 'Black' %}
+                        <div class="form-group">
+                            <button type="button" onclick="bulkAdd('black_7_short')">Add 10 to Black 7ft Short</button>
+                            <button type="button" onclick="bulkAdd('black_7_long')">Add 10 to Black 7ft Long</button>
+                        </div>
+                    {% endif %}
                 </fieldset>
                 {% endfor %}
             </div>
@@ -156,36 +163,52 @@
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ key_code: key })
         }).then(response => response.json())
-        .then(data => {
-            if (data.success && data.part_key) {
-                const partKey = 'piece_' + data.part_key;
-                const inputField = document.getElementById(partKey);
-                if (inputField) {
-                    inputField.value = (parseFloat(inputField.value || 0) + 1).toFixed(1);
-                    inputField.classList.add('highlight');
-                    inputField.addEventListener('animationend', () => {
-                        inputField.classList.remove('highlight');
-                    }, { once: true });
-                }
-
-                if (data.deducted_uncut && data.deducted_uncut > 0 && data.uncut_key) {
-                    const uncutField = document.getElementById('piece_' + data.uncut_key);
-                    if (uncutField) {
-                        uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
-                        uncutField.classList.add('highlight');
-                        uncutField.addEventListener('animationend', () => {
-                            uncutField.classList.remove('highlight');
-                        }, { once: true });
-                    }
-                }
-            } else {
-                alert(data.message || "Error occurred");
-            }
-        }).catch(error => {
+        .then(data => updateFields(data))
+        .catch(error => {
             console.error("Error updating count:", error);
             alert("Network error occurred");
         });
     });
+
+    function bulkAdd(partKey) {
+        fetch("/counting_laminate_bulk", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ part_key: partKey, quantity: 10 })
+        }).then(response => response.json())
+        .then(data => updateFields(data))
+        .catch(error => {
+            console.error("Bulk add failed:", error);
+            alert("Bulk update failed");
+        });
+    }
+
+    function updateFields(data) {
+        if (data.success && data.part_key) {
+            const partKey = 'piece_' + data.part_key;
+            const inputField = document.getElementById(partKey);
+            if (inputField) {
+                inputField.value = (parseFloat(inputField.value || 0) + (data.quantity || 1)).toFixed(1);
+                inputField.classList.add('highlight');
+                inputField.addEventListener('animationend', () => {
+                    inputField.classList.remove('highlight');
+                }, { once: true });
+            }
+
+            if (data.deducted_uncut && data.deducted_uncut > 0 && data.uncut_key) {
+                const uncutField = document.getElementById('piece_' + data.uncut_key);
+                if (uncutField) {
+                    uncutField.value = (parseFloat(uncutField.value || 0) - parseFloat(data.deducted_uncut)).toFixed(1);
+                    uncutField.classList.add('highlight');
+                    uncutField.addEventListener('animationend', () => {
+                        uncutField.classList.remove('highlight');
+                    }, { once: true });
+                }
+            }
+        } else {
+            alert(data.message || "Error occurred");
+        }
+    }
     </script>
 </body>
 </html>
