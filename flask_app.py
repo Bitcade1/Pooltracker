@@ -4460,8 +4460,12 @@ def top_rail_pieces():
     return render_template('top_rail_pieces.html', counts=counts)
 
 
-@app.route('/top_rail_pieces', methods=['GET', 'POST'])
-def top_rail_pieces():
+@app.route('/counting_laminate', methods=['GET', 'POST'])
+def counting_laminate():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
     key_map = {
         'a': 'black_6_short',
         'b': 'black_6_long',
@@ -4483,69 +4487,97 @@ def top_rail_pieces():
         'r': 'stone_7_long',
         's': 'rustic_black_7_short',
         't': 'rustic_black_7_long',
+        'u': 'black_uncut',
+        'v': 'rustic_oak_uncut',
+        'w': 'grey_oak_uncut',
+        'x': 'stone_uncut',
+        'y': 'rustic_black_uncut',
     }
 
     if request.method == 'POST':
         key_code = request.form.get('key_code')
-        bulk_10 = request.form.get('bulk10') == 'true'
-
         if key_code and key_code in key_map:
             part_key = key_map[key_code]
-            add_count = 10 if bulk_10 else 1
 
-            # Update top rail piece count
-            part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+            # If adding uncut sheet directly
+            if part_key.endswith('uncut'):
+                part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
+                if not part:
+                    part = LaminatePieceCount(part_key=part_key, count=1)
+                    db.session.add(part)
+                else:
+                    part.count += 1
+                db.session.commit()
+                return jsonify({
+                    "success": True,
+                    "message": f"Added 1 to {part_key}",
+                    "part_key": part_key,
+                    "deducted_uncut": 0,
+                    "uncut_key": part_key  # for JS update
+                }), 200
+
+            # Deduct uncut depending on size/type
+            color = part_key.split('_')[0]
+            size = part_key.split('_')[1]  # '6' or '7'
+            length = part_key.split('_')[2]  # 'short' or 'long'
+            uncut_key = f"{color}_uncut"
+
+            # Fetch uncut part
+            uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
+            if not uncut_part:
+                uncut_part = LaminatePieceCount(part_key=uncut_key, count=0)
+                db.session.add(uncut_part)
+                db.session.commit()
+
+            # Determine how much to deduct
+            if size == '7' and length == 'short':
+                to_deduct = 0.5
+            elif size == '7' and length == 'long':
+                to_deduct = 1
+            elif size == '6' and length in ['short', 'long']:
+                to_deduct = 0.5
+            else:
+                to_deduct = 0
+
+            if uncut_part.count < to_deduct:
+                return jsonify({
+                    "success": False,
+                    "message": f"Not enough uncut sheets for {color}. Needed {to_deduct}, have {uncut_part.count:.1f}"
+                }), 400
+
+            # Deduct from uncut
+            uncut_part.count -= to_deduct
+
+            # Increment part
+            part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
             if not part:
-                part = TopRailPieceCount(part_key=part_key, count=add_count)
+                part = LaminatePieceCount(part_key=part_key, count=1)
                 db.session.add(part)
             else:
-                part.count += add_count
-
-            deducted_uncut = 0
-            uncut_key = None
-
-            # Only apply uncut deduction logic for black 7ft
-            if part_key in ['black_7_short', 'black_7_long']:
-                uncut_key = 'black_uncut'
-                uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
-                if not uncut_part:
-                    uncut_part = LaminatePieceCount(part_key=uncut_key, count=0)
-                    db.session.add(uncut_part)
-
-                if part_key == 'black_7_short':
-                    deducted_uncut = 5 if bulk_10 else 0.5
-                elif part_key == 'black_7_long':
-                    deducted_uncut = 10 if bulk_10 else 1
-
-                if uncut_part.count < deducted_uncut:
-                    return jsonify({
-                        "success": False,
-                        "message": f"Not enough black uncut sheets. Need {deducted_uncut}, have {uncut_part.count:.1f}"
-                    }), 400
-
-                uncut_part.count -= deducted_uncut
+                part.count += 1
 
             db.session.commit()
-
             return jsonify({
                 "success": True,
-                "message": f"Added {add_count} to {part_key}" + (
-                    f", deducted {deducted_uncut} black uncut" if deducted_uncut else ""
-                ),
+                "message": f"Added 1 to {part_key}, deducted {to_deduct} uncut sheet(s)",
+                "deducted_uncut": to_deduct,
                 "part_key": part_key,
-                "deducted_uncut": deducted_uncut,
                 "uncut_key": uncut_key
             }), 200
 
-        # Handle form submissions
-        for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
+        # Handle manual form submission
+        colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+        all_keys = [f"{color}_{size}_{length}" for color in colors for size in ['6', '7'] for length in ['short', 'long']] + \
+                   [f"{color}_uncut" for color in colors]
+
+        for key in all_keys:
             input_value = request.form.get(f"piece_{key}")
             if input_value is not None:
                 try:
-                    count = int(input_value)
-                    part = TopRailPieceCount.query.filter_by(part_key=key).first()
+                    count = float(input_value)
+                    part = LaminatePieceCount.query.filter_by(part_key=key).first()
                     if not part:
-                        part = TopRailPieceCount(part_key=key, count=count)
+                        part = LaminatePieceCount(part_key=key, count=count)
                         db.session.add(part)
                     else:
                         part.count = count
@@ -4553,16 +4585,16 @@ def top_rail_pieces():
                     flash(f"Invalid number for {key}", "error")
 
         db.session.commit()
-        flash("Top rail piece counts updated successfully.", "success")
-        return redirect(url_for('top_rail_pieces'))
+        flash("Laminate piece counts updated successfully.", "success")
+        return redirect(url_for('counting_laminate'))
 
+    # Prepare count dictionary for the form
     counts = {}
-    all_parts = TopRailPieceCount.query.all()
+    all_parts = LaminatePieceCount.query.all()
     for part in all_parts:
         counts[f"piece_{part.part_key}"] = part.count
 
-    return render_template('top_rail_pieces.html', counts=counts)
-
+    return render_template('counting_laminate.html', counts=counts)
 
 
 
