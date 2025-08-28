@@ -192,21 +192,13 @@
           // Clean any existing color suffix from the serial number
           let cleanedSerialNumber = selectedSerialNumber;
           
-          // Remove color suffix
-          if (cleanedSerialNumber.includes(' - GO') || cleanedSerialNumber.includes('-GO')) {
-              cleanedSerialNumber = cleanedSerialNumber.replace(/ - GO|-GO/g, '');
-          }
-          if (cleanedSerialNumber.includes(' - O') || cleanedSerialNumber.includes('-O')) {
-              // Make sure we don't remove -O from -GO that's already been removed
-              if (!selectedSerialNumber.includes('GO')) {
-                  cleanedSerialNumber = cleanedSerialNumber.replace(/ - O|-O/g, '');
+          // Remove color suffix - including RB for Rustic Black
+          const colorSuffixes = [' - GO', '-GO', ' - O', '-O', ' - C', '-C', ' - B', '-B', ' - RB', '-RB'];
+          for (const suffix of colorSuffixes) {
+              if (cleanedSerialNumber.includes(suffix)) {
+                  cleanedSerialNumber = cleanedSerialNumber.replace(suffix, '');
+                  break; // Only remove the first matching suffix
               }
-          }
-          if (cleanedSerialNumber.includes(' - C') || cleanedSerialNumber.includes('-C')) {
-              cleanedSerialNumber = cleanedSerialNumber.replace(/ - C|-C/g, '');
-          }
-          if (cleanedSerialNumber.includes(' - B') || cleanedSerialNumber.includes('-B')) {
-              cleanedSerialNumber = cleanedSerialNumber.replace(/ - B|-B/g, '');
           }
           
           // Add color suffix based on selection
