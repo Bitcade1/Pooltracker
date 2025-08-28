@@ -2120,11 +2120,12 @@ def bodies():
     completed_base_serials = []
     
     for (serial,) in completed_table_serials:
-        # Strip any color suffixes to get the base serial
+        # Strip any color suffixes to get the base serial - including RB
         base_serial = serial
-        for suffix in [' - GO', '-GO', ' - O', '-O', ' - C', '-C', ' - B', '-B']:
+        for suffix in [' - GO', '-GO', ' - O', '-O', ' - C', '-C', ' - B', '-B', ' - RB', '-RB']:
             if suffix in base_serial:
                 base_serial = base_serial.split(suffix, 1)[0].strip()
+                break  # Only remove the first matching suffix
         completed_base_serials.append(base_serial)
     
     # Find pods that haven't been converted to tables (considering base serial numbers)
@@ -2162,14 +2163,15 @@ def bodies():
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
+        color_selector = request.form.get('color_selector', 'Black')  # Get color selector
         issue_text = request.form['issue']
         lunch = request.form['lunch']
 
         # Get the formatted serial number if it exists, otherwise use the original
-        serial_number = request.form.get('formatted_serial_number', serial_number)
-
+        formatted_serial = request.form.get('formatted_serial_number', '').strip()
+        
         # If formatted_serial_number is empty or not provided, format the serial number manually
-        if not serial_number or serial_number.strip() == "":
+        if not formatted_serial:
             # Clean any existing color suffix from the serial number, but preserve size suffix
             clean_serial = serial_number
             
@@ -2177,13 +2179,11 @@ def bodies():
             if "**Pod Serial Number:" in clean_serial:
                 clean_serial = clean_serial.replace("**Pod Serial Number:", "").strip()
             
-            # Check for and remove existing color suffixes
-            for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B']:
+            # Check for and remove existing color suffixes - including RB
+            for suffix in [' - GO', '-GO', ' - O', '-O', ' - C', '-C', ' - B', '-B', ' - RB', '-RB']:
                 if suffix in clean_serial:
-                    # If suffix is in the middle of the string, keep what comes after it
-                    parts = re.split(r'(-| - )', clean_serial, 1)
-                    base_serial = parts[0]
-                    clean_serial = f"{base_serial} - 6"
+                    clean_serial = clean_serial.replace(suffix, '').strip()
+                    break  # Only remove the first matching suffix
             
             # Add color suffix based on selection
             if color_selector == 'Grey Oak':
@@ -2192,9 +2192,13 @@ def bodies():
                 clean_serial += ' - O'
             elif color_selector == 'Stone':
                 clean_serial += ' - C'
+            elif color_selector == 'Rustic Black':
+                clean_serial += ' - RB'
             # Black is default, so no suffix needed
             
             serial_number = clean_serial
+        else:
+            serial_number = formatted_serial
 
         issue_text = request.form['issue']
         lunch = request.form['lunch']
@@ -2516,6 +2520,8 @@ def top_rails():
                 color_suffix = ' - O'
             elif color_selector == 'Stone':
                 color_suffix = ' - C'
+            elif color_selector == 'Rustic Black':
+                color_suffix = ' - RB'
             # Black is default, so no suffix needed
             
             if color_suffix:
@@ -2879,7 +2885,6 @@ def top_rails():
         default_size=default_size,
         default_color=default_color
     )
-
 
 def fetch_uk_bank_holidays():
     try:
