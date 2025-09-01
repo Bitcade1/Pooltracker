@@ -4461,8 +4461,20 @@ def top_rail_pieces():
     all_parts = TopRailPieceCount.query.all()
     for part in all_parts:
         counts[f"piece_{part.part_key}"] = part.count
-
-    return render_template('top_rail_pieces.html', counts=counts)
+    
+    # Calculate max top rails we can make
+    colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+    max_top_rails = 0
+    for color in colors:
+        short_6 = counts.get(f'piece_{color}_6_short', 0)
+        long_6 = counts.get(f'piece_{color}_6_long', 0)
+        max_6ft = (short_6 + long_6) // 2
+        short_7 = counts.get(f'piece_{color}_7_short', 0)
+        long_7 = counts.get(f'piece_{color}_7_long', 0)
+        max_7ft = (short_7 + long_7) // 2
+        max_top_rails += max_6ft + max_7ft
+    
+    return render_template('top_rail_pieces.html', counts=counts, max_top_rails=max_top_rails)
 
 
 @app.route('/counting_laminate', methods=['GET', 'POST'])
