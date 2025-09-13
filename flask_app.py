@@ -3564,6 +3564,9 @@ def counting_cushions():
 
 
 
+
+
+
                     # Subtract any paused time from the duration
                     if record.paused_minutes:
                         duration -= record.paused_minutes
@@ -4271,32 +4274,6 @@ def top_rail_pieces():
         flash("Top rail piece counts updated successfully.", "success")
         return redirect(url_for('top_rail_pieces'))
 
-    # Display counts
-    counts = {}
-    all_parts = TopRailPieceCount.query.all()
-    for part in all_parts:
-        counts[f"piece_{part.part_key}"] = part.count
-    
-    # Calculate max top rails we can make
-    colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
-    max_top_rails = 0
-    for color in colors:
-        # For 6ft
-        short_6 = counts.get(f'piece_{color}_6_short', 0)
-        long_6 = counts.get(f'piece_{color}_6_long', 0)
-        # Each top rail requires 2 short and 2 long pieces.
-        # The number of rails is limited by the minimum of sets you can make.
-        max_6ft = min(short_6 // 2, long_6 // 2)
-        
-        # For 7ft
-        short_7 = counts.get(f'piece_{color}_7_short', 0)
-        long_7 = counts.get(f'piece_{color}_7_long', 0)
-        max_7ft = min(short_7 // 2, long_7 // 2)
-        
-        max_top_rails += max_6ft + max_7ft
-    
-    return render_template('top_rail_pieces.html', counts=counts, max_top_rails=max_top_rails)
-
 
 @app.route('/counting_laminate', methods=['GET', 'POST'])
 def counting_laminate():
@@ -4353,7 +4330,9 @@ def counting_laminate():
                 to_deduct = 10  # 10 x 1
             else:
                 part_key_actual = part_key
-                
+                color, size, length = part_key.split('_')
+                uncut_key = f"{color}_uncut"
+
                 if part_key.endswith('uncut'):
                     part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
                     if not part:
@@ -4369,22 +4348,6 @@ def counting_laminate():
                         "deducted_uncut": 0,
                         "uncut_key": part_key
                     }), 200
-
-                # Parse part key to get color, size, length
-                parts = part_key.split('_')
-                if len(parts) >= 3:
-                    if len(parts) == 4:  # Handle rustic_black case
-                        color = f"{parts[0]}_{parts[1]}"  # rustic_black
-                        size = parts[2]
-                        length = parts[3]
-                    else:  # Handle other colors
-                        color = parts[0]
-                        size = parts[1]
-                        length = parts[2]
-                else:
-                    return jsonify({"success": False, "message": "Invalid part key format"}), 400
-                
-                uncut_key = f"{color}_uncut"
 
                 # Determine deduction for normal keys
                 if size == '7' and length == 'short':
@@ -4422,6 +4385,43 @@ def counting_laminate():
 
             db.session.commit()
             return jsonify({
+                "success": True,
+                "message": f"Added {add_count} to {part_key_actual}, deducted {to_deduct} uncut sheet(s)",
+                "deducted_uncut": to_deduct,
+                "part_key": part_key_actual,
+                "uncut_key": uncut_key
+            }), 200
+
+        # Handle manual form submission
+        colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+        all_keys = [f"{color}_{size}_{length}" for color in colors for size in ['6', '7'] for length in ['short', 'long']] + \
+                   [f"{color}_uncut" for color in colors]
+
+        for key in all_keys:
+            input_value = request.form.get(f"piece_{key}")
+            if input_value is not None:
+                try:
+                    count = float(input_value)
+                    part = LaminatePieceCount.query.filter_by(part_key=key).first()
+                    if not part:
+                        part = LaminatePieceCount(part_key=key, count=count)
+                        db.session.add(part)
+                    else:
+                        part.count = count
+                except ValueError:
+                    flash(f"Invalid number for {key}", "error")
+
+        db.session.commit()
+        flash("Laminate piece counts updated successfully.", "success")
+        return redirect(url_for('counting_laminate'))
+
+    # GET request
+    counts = {}
+    all_parts = LaminatePieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
+
+    return render_template('counting_laminate.html', counts=counts)
                 "success": True,
                 "message": f"Added {add_count} to {part_key_actual}, deducted {to_deduct} uncut sheet(s)",
                 "deducted_uncut": to_deduct,
