@@ -276,7 +276,13 @@
             <td colspan="2"><strong>Total Bodies</strong></td>
             <td>
               <strong>
-                {{ table_data.values()|sum }}
+                {% set total_bodies = 0 %}
+                {% for key, value in table_data.items() %}
+                  {% if key.startswith('body_') %}
+                    {% set total_bodies = total_bodies + value %}
+                  {% endif %}
+                {% endfor %}
+                {{ total_bodies }}
               </strong>
             </td>
             <td></td>
@@ -349,7 +355,13 @@
             <td colspan="2"><strong>Total Top Rails</strong></td>
             <td>
               <strong>
-                {{ top_rail_data.values()|sum }}
+                {% set total_rails = 0 %}
+                {% for key, value in top_rail_data.items() %}
+                  {% if key.startswith('top_rail_') %}
+                    {% set total_rails = total_rails + value %}
+                  {% endif %}
+                {% endfor %}
+                {{ total_rails }}
               </strong>
             </td>
             <td></td>
@@ -619,18 +631,29 @@
       // Store open/closed states of sections
       let sectionStates = {};
       
-      // Function to toggle section visibility
+      // Function to toggle section visibility with accordion behavior
       function toggleSection(headerID, contentID, indicatorID) {
         $('#' + headerID).click(function() {
+          // Close all other sections first (accordion behavior)
+          $('.section-content').removeClass('active');
+          $('.section-indicator').removeClass('fa-caret-down').addClass('fa-caret-right');
+          
+          // Then toggle the clicked section
           $('#' + contentID).toggleClass('active');
-          // Toggle the indicator icon (right caret vs down caret)
+          
+          // Toggle the indicator icon
           if ($('#' + contentID).hasClass('active')) {
             $('#' + indicatorID).removeClass('fa-caret-right').addClass('fa-caret-down');
-            sectionStates[contentID] = true;
+            
+            // Update section states
+            Object.keys(sectionStates).forEach(key => {
+              sectionStates[key] = (key === contentID);
+            });
           } else {
             $('#' + indicatorID).removeClass('fa-caret-down').addClass('fa-caret-right');
             sectionStates[contentID] = false;
           }
+          
           // Save section states to localStorage
           localStorage.setItem('sectionStates', JSON.stringify(sectionStates));
         });
@@ -711,23 +734,23 @@
                 'background-color': ''
               });
             }, 2000);
-          }
-          
-          // Clear storage after use
-          sessionStorage.removeItem('scrollPosition');
-          sessionStorage.removeItem('activeSection');
-          sessionStorage.removeItem('formId');
-        }, 100);
-      }
+          } if(entered === "cost123") {
+          ("#stock-cost-access").hide();
+          // Clear storage after use   $("#stock-cost-header").show();
+          sessionStorage.removeItem('scrollPosition');   $("#stock-cost-content").show().addClass('active');
 
-      // Handle password protection for Stock Cost panel
-      $("#stock-cost-submit").click(function() {
-        var entered = $("#stock-cost-password").val();
-        if(entered === "cost123") {
-          $("#stock-cost-access").hide();
-          $("#stock-cost-header").show();
-          $("#stock-cost-content").show().addClass('active');
-          $('#stock-cost-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+
+
+
+
+
+
+
+
+
+
+
+</html></body>  </script>    });        var entered = $("#stock-cost-password").val();      $("#stock-cost-submit").click(function() {      // Handle password protection for Stock Cost panel      }        }, 100);          sessionStorage.removeItem('formId');          sessionStorage.removeItem('activeSection');          $('#stock-cost-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
           sectionStates['stock-cost-content'] = true;
           localStorage.setItem('sectionStates', JSON.stringify(sectionStates));
         } else {
