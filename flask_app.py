@@ -27,7 +27,17 @@ def abs_filter(value):
     except (TypeError, ValueError):
         return 0
 
+# Add a custom filter for formatting numbers with commas
+@app.template_filter('format_number')
+def format_number_filter(value):
+    """Format a number with commas as thousands separators."""
+    try:
+        return "{:,.2f}".format(float(value))
+    except (TypeError, ValueError):
+        return "0.00"
+
 app.jinja_env.filters['abs'] = abs_filter
+app.jinja_env.filters['format_number'] = format_number_filter
 
 # Models
 class CompletedTable(db.Model):
@@ -503,16 +513,6 @@ def dashboard():
         bodies={
             "today": bodies_today,
             "week": bodies_week,
-            "month": bodies_month,
-            "year": bodies_year,
-        },
-        pods={
-            "today": pods_today,
-            "week": pods_week,
-            "month": pods_month,
-            "year": pods_year,
-        },
-        wood=wood_counts
     )
 
 @app.route('/admin/mdf_inventory', methods=['GET', 'POST'])
