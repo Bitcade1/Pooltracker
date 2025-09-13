@@ -1778,6 +1778,7 @@ def counting_wood():
     # Count Top Rail Pieces sheets - CORRECTED LOGIC
     monthly_long_entries = WoodCount.query.filter(
        
+
         WoodCount.date >= month_start_date,
         WoodCount.date <= month_end_date,
         WoodCount.section.like("% - Top Rail Pieces Long"),
@@ -2171,7 +2172,7 @@ def bodies():
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
-        color_selector = request.form.get('color_selector', 'Black')  # Get color selector
+        color_selector = request.form.get('color_selector', 'Black')
         issue_text = request.form['issue']
         lunch = request.form['lunch']
 
@@ -3274,7 +3275,7 @@ def counting_3d_printing_parts():
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
     ]
 
-    parts_counts = {
+    inventory_counts = {
         part: db.session.query(db.func.sum(PrintedPartsCount.count))
             .filter_by(part_name=part)
             .scalar() or 0
