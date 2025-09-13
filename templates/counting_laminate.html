@@ -117,7 +117,7 @@
                   <button type="button" onclick="bulkAdd('{{ part_key }}')">{{ part_name }}</button>
                   <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
                 {% else %}
-                  <label for="{{ input_name }}">{{ part_name }}</label>
+                  <button type="button" onclick="incrementOne('{{ part_key }}')">{{ part_name }}</button>
                   <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
                 {% endif %}
               </div>
@@ -181,6 +181,35 @@
         console.error("Bulk add failed:", error);
         alert("Bulk update failed");
       });
+    }
+
+    function incrementOne(partKey) {
+      fetch("/counting_laminate", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ key_code: getKeyForPart(partKey) })
+      }).then(response => response.json())
+      .then(data => updateFields(data))
+      .catch(error => {
+        console.error("Increment failed:", error);
+        alert("Increment failed");
+      });
+    }
+
+    function getKeyForPart(partKey) {
+      const keyMap = {
+        'black_6_short': 'a', 'black_6_long': 'b',
+        'rustic_oak_6_short': 'c', 'rustic_oak_6_long': 'd',
+        'grey_oak_6_short': 'e', 'grey_oak_6_long': 'f',
+        'stone_6_short': 'g', 'stone_6_long': 'h',
+        'rustic_black_6_short': 'i', 'rustic_black_6_long': 'j',
+        'black_7_short': 'k', 'black_7_long': 'l',
+        'rustic_oak_7_short': 'm', 'rustic_oak_7_long': 'n',
+        'grey_oak_7_short': 'o', 'grey_oak_7_long': 'p',
+        'stone_7_short': 'q', 'stone_7_long': 'r',
+        'rustic_black_7_short': 's', 'rustic_black_7_long': 't'
+      };
+      return keyMap[partKey] || '';
     }
 
     function updateFields(data) {
