@@ -218,11 +218,11 @@
         <i class="fas fa-caret-right section-indicator" id="bodies-indicator"></i> 
         Table Bodies
         <span class="section-count">
-          {% set total = 0 %}
+          {% set ns = namespace(total=0) %}
           {% for key, value in table_data.items() if key.startswith('body_') %}
-            {% set total = total + value %}
+            {% set ns.total = ns.total + value %}
           {% endfor %}
-          {{ total }}
+          {{ ns.total }}
         </span>
       </span>
     </div>
@@ -303,11 +303,11 @@
         <i class="fas fa-caret-right section-indicator" id="top-rails-indicator"></i> 
         Top Rails
         <span class="section-count">
-          {% set total = 0 %}
+          {% set ns = namespace(total=0) %}
           {% for key, value in top_rail_data.items() if key.startswith('top_rail_') %}
-            {% set total = total + value %}
+            {% set ns.total = ns.total + value %}
           {% endfor %}
-          {{ total }}
+          {{ ns.total }}
         </span>
       </span>
     </div>
@@ -388,11 +388,11 @@
         <i class="fas fa-caret-right section-indicator" id="cushions-indicator"></i> 
         Cushion Sets
         <span class="section-count">
-          {% set total = 0 %}
+          {% set ns = namespace(total=0) %}
           {% for key, value in cushion_data.items() if key.startswith('cushion_set_') %}
-            {% set total = total + value %}
+            {% set ns.total = ns.total + value %}
           {% endfor %}
-          {{ total }}
+          {{ ns.total }}
         </span>
       </span>
     </div>
