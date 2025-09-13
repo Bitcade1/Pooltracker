@@ -85,10 +85,31 @@
           background-color: #f8d7da;
           color: #721c24;
       }
+      /* Enhanced size headers for better visual distinction */
       .size-header {
-          background-color: #17a2b8;
-          color: white;
           font-weight: bold;
+          text-align: center;
+          font-size: 1.2em;
+      }
+      /* Distinct styling for 7ft and 6ft */
+      .size-header-7ft {
+          background-color: #4a6da7; /* Darker blue for 7ft */
+          color: white;
+          padding: 12px;
+          border-radius: 5px 5px 0 0;
+      }
+      .size-header-6ft {
+          background-color: #5cb85c; /* Green for 6ft */
+          color: white;
+          padding: 12px;
+          border-radius: 5px 5px 0 0;
+      }
+      /* Light background for rows to match the header color theme */
+      .row-7ft {
+          background-color: rgba(74, 109, 167, 0.1);
+      }
+      .row-6ft {
+          background-color: rgba(92, 184, 92, 0.1);
       }
       .component-header {
           background-color: #5a6268;
@@ -99,6 +120,14 @@
       .subtotal {
           font-weight: bold;
           background-color: #f8f9fa;
+      }
+      .subtotal-7ft {
+          background-color: rgba(74, 109, 167, 0.2);
+          font-weight: bold;
+      }
+      .subtotal-6ft {
+          background-color: rgba(92, 184, 92, 0.2);
+          font-weight: bold;
       }
       .color-cell {
           font-weight: bold;
@@ -145,6 +174,16 @@
       #stock-cost-access {
           text-align: center;
           margin: 20px 0;
+      }
+      /* Form styling */
+      .stock-form {
+          display: inline;
+      }
+      .stock-form input[type="number"] {
+          width: 80px;
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
       }
   </style>
   <!-- jQuery -->
@@ -193,9 +232,11 @@
         </thead>
         <tbody>
           {% for size in sizes %}
-            <!-- Row for size header -->
-            <tr class="size-header">
-              <td colspan="4">{{ size }} Table Bodies</td>
+            <!-- Row for size header with enhanced styling -->
+            <tr>
+              <td colspan="4" class="size-header {% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}">
+                {{ size }} Table Bodies
+              </td>
             </tr>
             
             {% set size_total = 0 %}
@@ -206,14 +247,15 @@
               {% set size_total = size_total + stock_count %}
               {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
               
-              <tr class="{{ color_class }}">
+              <tr class="{{ color_class }} {% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
                 <td>{{ size }}</td>
                 <td class="color-cell">{{ color }}</td>
                 <td>{{ stock_count }}</td>
                 <td>
-                  <form method="post" style="display:inline;">
+                  <form method="post" class="stock-form" id="form-{{ stock_key }}">
                     <input type="hidden" name="stock_type" value="{{ stock_key }}">
-                    <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                    <input type="hidden" name="current_section" value="bodies-content">
+                    <input type="number" name="amount" placeholder="Amount" min="1" required>
                     <button type="submit" name="action" value="add" class="button">Add</button>
                     <button type="submit" name="action" value="remove" class="button">Remove</button>
                   </form>
@@ -221,8 +263,8 @@
               </tr>
             {% endfor %}
             
-            <!-- Row for size subtotal -->
-            <tr class="subtotal">
+            <!-- Row for size subtotal with enhanced styling -->
+            <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
               <td colspan="2">Total {{ size }} Bodies</td>
               <td>{{ size_total }}</td>
               <td></td>
@@ -263,9 +305,11 @@
         </thead>
         <tbody>
           {% for size in sizes %}
-            <!-- Row for size header -->
-            <tr class="size-header">
-              <td colspan="4">{{ size }} Top Rails</td>
+            <!-- Row for size header with enhanced styling -->
+            <tr>
+              <td colspan="4" class="size-header {% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}">
+                {{ size }} Top Rails
+              </td>
             </tr>
             
             {% set size_total = 0 %}
@@ -276,14 +320,15 @@
               {% set size_total = size_total + stock_count %}
               {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
               
-              <tr class="{{ color_class }}">
+              <tr class="{{ color_class }} {% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
                 <td>{{ size }}</td>
                 <td class="color-cell">{{ color }}</td>
                 <td>{{ stock_count }}</td>
                 <td>
-                  <form method="post" style="display:inline;">
+                  <form method="post" class="stock-form" id="form-{{ stock_key }}">
                     <input type="hidden" name="stock_type" value="{{ stock_key }}">
-                    <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                    <input type="hidden" name="current_section" value="top-rails-content">
+                    <input type="number" name="amount" placeholder="Amount" min="1" required>
                     <button type="submit" name="action" value="add" class="button">Add</button>
                     <button type="submit" name="action" value="remove" class="button">Remove</button>
                   </form>
@@ -291,8 +336,8 @@
               </tr>
             {% endfor %}
             
-            <!-- Row for size subtotal -->
-            <tr class="subtotal">
+            <!-- Row for size subtotal with enhanced styling -->
+            <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
               <td colspan="2">Total {{ size }} Top Rails</td>
               <td>{{ size_total }}</td>
               <td></td>
@@ -337,13 +382,16 @@
             {% set stock_count = cushion_data.get(stock_key, 0) %}
             {% set total_cushions = total_cushions + stock_count %}
             
-            <tr>
-              <td>{{ size }} Cushion Set</td>
+            <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
+              <td class="{% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}" style="text-align:left;">
+                {{ size }} Cushion Set
+              </td>
               <td>{{ stock_count }}</td>
               <td>
-                <form method="post" style="display:inline;">
+                <form method="post" class="stock-form" id="form-{{ stock_key }}">
                   <input type="hidden" name="stock_type" value="{{ stock_key }}">
-                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                  <input type="hidden" name="current_section" value="cushions-content">
+                  <input type="number" name="amount" placeholder="Amount" min="1" required>
                   <button type="submit" name="action" value="add" class="button">Add</button>
                   <button type="submit" name="action" value="remove" class="button">Remove</button>
                 </form>
@@ -389,9 +437,10 @@
               <td>{{ type.replace('_', ' ').title() }}</td>
               <td>{{ count }}</td>
               <td>
-                <form method="post" style="display:inline;">
+                <form method="post" class="stock-form" id="form-{{ type }}">
                   <input type="hidden" name="stock_type" value="{{ type }}">
-                  <input type="number" name="amount" placeholder="Amount" min="1" required style="width: 80px;">
+                  <input type="hidden" name="current_section" value="other-content">
+                  <input type="number" name="amount" placeholder="Amount" min="1" required>
                   <button type="submit" name="action" value="add" class="button">Add</button>
                   <button type="submit" name="action" value="remove" class="button">Remove</button>
                 </form>
@@ -426,10 +475,17 @@
           </tr>
         </thead>
         <tbody>
-          {% for size, cost_dict in stock_costs.items() %}
-            {% for color, cost in cost_dict.items() %}
+          {% for size in sizes %}
+            <!-- Size header row with enhanced styling -->
+            <tr>
+              <td colspan="5" class="{% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}">
+                {{ size }} Tables
+              </td>
+            </tr>
+            
+            {% for color, cost in stock_costs[size].items() %}
               {% set stock_key = 'body_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
-              <tr>
+              <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
                 <td>{{ size }}</td>
                 <td>{{ color }}</td>
                 <td>{{ table_data[stock_key] }}</td>
@@ -443,7 +499,16 @@
                 <td>{{ cost }}</td>
               </tr>
             {% endfor %}
+            
+            <!-- Size subtotal row -->
+            <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
+              <td colspan="4">Total {{ size }} Cost</td>
+              <td>
+                £{{ (stock_costs[size].values()|sum) }}
+              </td>
+            </tr>
           {% endfor %}
+          
           <tr class="subtotal">
             <td colspan="4"><strong>Grand Total</strong></td>
             <td><strong>{{ grand_total }}</strong></td>
@@ -474,6 +539,13 @@
         </thead>
         <tbody>
           {% for size in sizes %}
+            <!-- Size header row with enhanced styling -->
+            <tr>
+              <td colspan="6" class="{% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}">
+                {{ size }} Tables
+              </td>
+            </tr>
+            
             {% for color in colors %}
               {% set body_key = 'body_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
               {% set top_key = 'top_rail_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
@@ -481,7 +553,7 @@
               {% set top_count = top_rail_data.get(top_key, 0) %}
               {% set deficit_body = top_count - body_count if top_count > body_count else 0 %}
               {% set deficit_top = body_count - top_count if body_count > top_count else 0 %}
-              <tr>
+              <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
                 <td>{{ size }}</td>
                 <td>{{ color }}</td>
                 <td>{{ body_count }}</td>
@@ -522,8 +594,10 @@
             {% set cushion_key = 'cushion_set_' ~ size|lower %}
             {% set cushion_count = cushion_data.get(cushion_key, 0) %}
             {% set deficit_cushions = total_complete - cushion_count if total_complete > cushion_count else 0 %}
-            <tr>
-              <td>{{ size }}</td>
+            <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
+              <td class="{% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}" style="text-align:left;">
+                {{ size }}
+              </td>
               <td>{{ cushion_count }}</td>
               <td>{{ total_complete }}</td>
               <td {% if deficit_cushions != 0 %} style="color:red;font-weight:bold;" {% endif %}>
@@ -542,6 +616,9 @@
 
   <script>
     $(document).ready(function() {
+      // Store open/closed states of sections
+      let sectionStates = {};
+      
       // Function to toggle section visibility
       function toggleSection(headerID, contentID, indicatorID) {
         $('#' + headerID).click(function() {
@@ -549,9 +626,13 @@
           // Toggle the indicator icon (right caret vs down caret)
           if ($('#' + contentID).hasClass('active')) {
             $('#' + indicatorID).removeClass('fa-caret-right').addClass('fa-caret-down');
+            sectionStates[contentID] = true;
           } else {
             $('#' + indicatorID).removeClass('fa-caret-down').addClass('fa-caret-right');
+            sectionStates[contentID] = false;
           }
+          // Save section states to localStorage
+          localStorage.setItem('sectionStates', JSON.stringify(sectionStates));
         });
       }
       
@@ -563,44 +644,80 @@
       toggleSection('other-header', 'other-content', 'other-indicator');
       {% endif %}
       toggleSection('complete-table-header', 'complete-table-content', 'complete-table-indicator');
+      toggleSection('stock-cost-header', 'stock-cost-content', 'stock-cost-indicator');
 
-      // List of section content IDs to manage for persistent open state
-      var sections = ['bodies-content', 'top-rails-content', 'cushions-content', {% if other_data %}'other-content',{% endif %}'complete-table-content'];
-      var toggleState = JSON.parse(localStorage.getItem("toggleState") || "{}");
-      if (toggleState['bodies-content'] === undefined) {
+      // Restore section states from localStorage
+      if (localStorage.getItem('sectionStates')) {
+        sectionStates = JSON.parse(localStorage.getItem('sectionStates'));
+        
+        // Apply stored states
+        for (const [sectionId, isOpen] of Object.entries(sectionStates)) {
+          if (isOpen) {
+            $('#' + sectionId).addClass('active');
+            
+            // Update indicator
+            let indicatorId = sectionId.replace('content', 'indicator');
+            $('#' + indicatorId).removeClass('fa-caret-right').addClass('fa-caret-down');
+          }
+        }
+      } else {
+        // Default: Open the bodies section
         $('#bodies-content').addClass('active');
         $('#bodies-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
-        toggleState['bodies-content'] = true;
-        localStorage.setItem("toggleState", JSON.stringify(toggleState));
-      } else {
-        sections.forEach(function(section) {
-          if (toggleState[section]) {
-            $('#' + section).addClass('active');
-            if(section === 'bodies-content'){
-              $('#bodies-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
-            } else if(section === 'top-rails-content'){
-              $('#top-rails-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
-            } else if(section === 'cushions-content'){
-              $('#cushions-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
-            } else if(section === 'other-content'){
-              $('#other-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
-            } else if(section === 'complete-table-content'){
-              $('#complete-table-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
-            }
-          }
-        });
+        sectionStates['bodies-content'] = true;
+        localStorage.setItem('sectionStates', JSON.stringify(sectionStates));
       }
 
-      // Save current scroll position when any form is submitted
-      $('form').on('submit', function() {
-        localStorage.setItem('scrollPosition', $(window).scrollTop());
+      // Detect form submission and store position
+      $('.stock-form').on('submit', function(e) {
+        // Get the current section we're in from the hidden field
+        const currentSection = $(this).find('input[name="current_section"]').val();
+        
+        // Store current position, active section, and form data
+        sessionStorage.setItem('scrollPosition', $(window).scrollTop());
+        sessionStorage.setItem('activeSection', currentSection);
+        sessionStorage.setItem('formId', this.id);
       });
 
-      // Restore scroll position if previously saved
-      var savedScroll = localStorage.getItem('scrollPosition');
-      if (savedScroll) {
-        $(window).scrollTop(savedScroll);
-        localStorage.removeItem('scrollPosition');
+      // Restore position after page load
+      if (sessionStorage.getItem('scrollPosition') !== null) {
+        // Open the active section first if needed
+        const activeSection = sessionStorage.getItem('activeSection');
+        if (activeSection && !$('#' + activeSection).hasClass('active')) {
+          $('#' + activeSection).addClass('active');
+          const indicatorId = activeSection.replace('content', 'indicator');
+          $('#' + indicatorId).removeClass('fa-caret-right').addClass('fa-caret-down');
+        }
+        
+        // Scroll to the saved position
+        const scrollPos = parseInt(sessionStorage.getItem('scrollPosition'));
+        
+        // Use setTimeout to ensure scrolling happens after DOM is fully loaded
+        setTimeout(function() {
+          $(window).scrollTop(scrollPos);
+          
+          // Highlight the form that was submitted
+          const formId = sessionStorage.getItem('formId');
+          if (formId) {
+            $('#' + formId).find('input[type="number"]').css({
+              'border': '2px solid #4CAF50',
+              'background-color': '#e8f5e9'
+            });
+            
+            // Clear highlight after 2 seconds
+            setTimeout(function() {
+              $('#' + formId).find('input[type="number"]').css({
+                'border': '1px solid #ddd',
+                'background-color': ''
+              });
+            }, 2000);
+          }
+          
+          // Clear storage after use
+          sessionStorage.removeItem('scrollPosition');
+          sessionStorage.removeItem('activeSection');
+          sessionStorage.removeItem('formId');
+        }, 100);
       }
 
       // Handle password protection for Stock Cost panel
@@ -609,9 +726,10 @@
         if(entered === "cost123") {
           $("#stock-cost-access").hide();
           $("#stock-cost-header").show();
-          $("#stock-cost-content").show();
-          // Enable toggling for Stock Cost panel as well
-          toggleSection('stock-cost-header', 'stock-cost-content', 'stock-cost-indicator');
+          $("#stock-cost-content").show().addClass('active');
+          $('#stock-cost-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+          sectionStates['stock-cost-content'] = true;
+          localStorage.setItem('sectionStates', JSON.stringify(sectionStates));
         } else {
           alert("Incorrect password!");
         }
