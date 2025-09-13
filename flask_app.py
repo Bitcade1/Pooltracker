@@ -3013,13 +3013,13 @@ def table_stock():
     if request.method == 'POST':
         stock_type = request.form.get('stock_type')
         action = request.form.get('action')
+        current_section = request.form.get('current_section', 'bodies-content')  # Get current section
         
         try:
             amount = int(request.form.get('amount', 0))
         except ValueError:
             flash("Invalid amount entered.", "error")
             return redirect(url_for('table_stock'))
-            
         if amount <= 0:
             flash("Amount must be a positive number.", "error")
             return redirect(url_for('table_stock'))
@@ -3048,7 +3048,7 @@ def table_stock():
                 db.session.commit()
                 flash(f"Removed {amount} from {stock_type} stock. New count: {stock_entry.count}", "success")
         elif action == 'set':
-            # New action to directly set the stock count
+            # Additional action to directly set the stock count
             stock_entry.count = amount
             db.session.commit()
             flash(f"Set {stock_type} stock to {amount}", "success")
@@ -3057,156 +3057,69 @@ def table_stock():
 
     # For GET requests, set up stock display and cost calculations.
     # Define the dimensions (sizes and colors)
-    sizes = ['6ft', '7ft']
+    sizes = ['7ft', '6ft']
     colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black']
 
     # Initialize dictionaries for each stock category
-    body_stock = {size: {color: 0 for color in colors} for size in sizes}
-    top_rail_stock = {size: {color: 0 for color in colors} for size in sizes}
-    cushion_stock = {size: 0 for size in sizes}
-    other_stock = {}
+    table_data = {}
+    top_rail_data = {}
+    cushion_data = {}
+    other_data = {}
 
     # Get all stock entries
     all_stock = TableStock.query.all()
     
-    # Process each stock entry
+    # Process each stock entry into appropriate category
     for entry in all_stock:
         stock_type = entry.type
         
         # Handle body stock
         if stock_type.startswith('body_'):
-            parts = stock_type.split('_', 2)
-            if len(parts) >= 3:
-                size = parts[1]
-                color_part = parts[2]
-                
-                # Map normalized color keys to display colors
-                color_map = {
-                    'black': 'Black',
-                    'rustic_oak': 'Rustic Oak',
-                    'grey_oak': 'Grey Oak',
-                    'stone': 'Stone',
-                    'rustic_black': 'Rustic Black'
-                }
-                
-                size_key = f"{size}ft" if not size.endswith('ft') else size
-                color_key = color_map.get(color_part, 'Black')
-                
-                if size_key in body_stock and color_key in body_stock[size_key]:
-                    body_stock[size_key][color_key] = entry.count
+            table_data[stock_type] = entry.count
         
         # Handle top rail stock
         elif stock_type.startswith('top_rail_'):
-            parts = stock_type.split('_', 3)
-            if len(parts) >= 4:
-                size = parts[2]
-                color_part = parts[3]
-                
-                # Map normalized color keys to display colors
-                color_map = {
-                    'black': 'Black',
-                    'rustic_oak': 'Rustic Oak',
-                    'grey_oak': 'Grey Oak',
-                    'stone': 'Stone',
-                    'rustic_black': 'Rustic Black'
-                }
-                
-                size_key = f"{size}ft" if not size.endswith('ft') else size
-                color_key = color_map.get(color_part, 'Black')
-                
-                if size_key in top_rail_stock and color_key in top_rail_stock[size_key]:
-                    top_rail_stock[size_key][color_key] = entry.count
+            top_rail_data[stock_type] = entry.count
         
         # Handle cushion sets
         elif stock_type.startswith('cushion_set_'):
-            parts = stock_type.split('_')
-            if len(parts) >= 3:
-                size = parts[2]
-                size_key = f"{size}ft" if not size.endswith('ft') else size
-                
-                if size_key in cushion_stock:
-                    cushion_stock[size_key] = entry.count
+            cushion_data[stock_type] = entry.count
         
         # Other stock items
         else:
-            other_stock[stock_type] = entry.count
+            other_data[stock_type] = entry.count
 
-    # Calculate costs
-    costs = {}
-    total_cost = 0
+    # Calculate costs for stock value panel
+    stock_costs = {size: {} for size in sizes}
+    grand_total = 0
     
-    # Body costs
+    # Calculate body costs by size and color
     for size in sizes:
-        costs[size] = {}
         for color in colors:
-            count = body_stock[size][color]
+            color_key = color.lower().replace(' ', '_')
+            stock_key = f'body_{size.lower()}_{color_key}'
+            count = table_data.get(stock_key, 0)
+            
             # Black bodies cost £993.60 (incl. VAT); colored bodies cost £1089.60
-            unit_cost = 993.6 if color == 'Black' else 1089.6
+            unit_cost = 993.6 if color.lower() in ['black', 'rustic_black'] else 1089.6
             item_cost = count * unit_cost
-            costs[size][color] = {
-                'count': count,
-                'unit_cost': unit_cost,
-                'total': item_cost,
-                'formatted': f"£{item_cost:,.2f} (incl. VAT)"
-            }
-            total_cost += item_cost
+            stock_costs[size][color] = f"£{item_cost:,.2f}"
+            grand_total += item_cost
 
     # Format the grand total
-    formatted_grand_total = f"£{total_cost:,.2f} (incl. VAT)"
-
-    # Generate a list of all stock types for the dropdown
-    stock_types = []
-    
-    # Add body stock types
-    for size in sizes:
-        size_norm = size.lower().replace('ft', '')
-        for color in colors:
-            color_norm = color.lower().replace(' ', '_')
-            stock_types.append({
-                'value': f"body_{size_norm}_{color_norm}",
-                'display': f"Body - {size} {color}"
-            })
-    
-    # Add top rail stock types
-    for size in sizes:
-        size_norm = size.lower().replace('ft', '')
-        for color in colors:
-            color_norm = color.lower().replace(' ', '_')
-            stock_types.append({
-                'value': f"top_rail_{size_norm}_{color_norm}",
-                'display': f"Top Rail - {size} {color}"
-            })
-    
-    # Add cushion set stock types
-    for size in sizes:
-        size_norm = size.lower().replace('ft', '')
-        stock_types.append({
-            'value': f"cushion_set_{size_norm}",
-            'display': f"Cushion Set - {size}"
-        })
-    
-    # Add other custom stock types
-    for stock_type in other_stock:
-        if stock_type not in [item['value'] for item in stock_types]:
-            stock_types.append({
-                'value': stock_type,
-                'display': stock_type.replace('_', ' ').title()
-            })
+    formatted_grand_total = f"£{grand_total:,.2f} (incl. VAT)"
 
     return render_template(
         'table_stock.html',
         sizes=sizes,
         colors=colors,
-        body_stock=body_stock,
-        top_rail_stock=top_rail_stock,
-        cushion_stock=cushion_stock,
-        other_stock=other_stock,
-        costs=costs,
-        grand_total=formatted_grand_total,
-        stock_types=stock_types
+        table_data=table_data,
+        top_rail_data=top_rail_data,
+        cushion_data=cushion_data,
+        other_data=other_data,
+        stock_costs=stock_costs,
+        grand_total=formatted_grand_total
     )
-
-from math import ceil
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():
