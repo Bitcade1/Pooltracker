@@ -504,7 +504,7 @@
             <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
               <td colspan="4">Total {{ size }} Cost</td>
               <td>
-                £{{ (stock_costs_raw[size].values()|sum) | round(2) | format_number }}
+                £{{ "%.2f"|format((stock_costs_raw[size].values()|sum)) }}
               </td>
             </tr>
           {% endfor %}

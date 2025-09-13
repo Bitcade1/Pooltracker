@@ -27,7 +27,7 @@ def abs_filter(value):
     except (TypeError, ValueError):
         return 0
 
-# Add a custom filter for formatting numbers with commas
+# Make sure the format_number filter is registered correctly
 @app.template_filter('format_number')
 def format_number_filter(value):
     """Format a number with commas as thousands separators."""
@@ -36,6 +36,7 @@ def format_number_filter(value):
     except (TypeError, ValueError):
         return "0.00"
 
+# Register filters explicitly
 app.jinja_env.filters['abs'] = abs_filter
 app.jinja_env.filters['format_number'] = format_number_filter
 
@@ -513,6 +514,16 @@ def dashboard():
         bodies={
             "today": bodies_today,
             "week": bodies_week,
+            "month": bodies_month,
+            "year": bodies_year,
+        },
+        pods={
+            "today": pods_today,
+            "week": pods_week,
+            "month": pods_month,
+            "year": pods_year,
+        },
+        wood_counts=wood_counts
     )
 
 @app.route('/admin/mdf_inventory', methods=['GET', 'POST'])
@@ -4645,7 +4656,7 @@ def counting_laminate():
             "message": f"Not enough uncut sheets for {color}. Needed {total_deduction}, have {uncut_part.count if uncut_part else 0:.1f}"
         }, 400)
 
-    uncut_part.count -= total_deduction
+    uncut_part.count -= total_deduct_per
 
     part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
     if not part:
