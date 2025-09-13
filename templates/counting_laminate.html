@@ -174,7 +174,7 @@
       fetch("/counting_laminate_bulk", {
         method: "POST",
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ part_key: partKey, amount: 10 })  // ✅ Fixed param
+        body: JSON.stringify({ part_key: partKey, amount: 10 })
       }).then(response => response.json())
       .then(data => updateFields(data))
       .catch(error => {
