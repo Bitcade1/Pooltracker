@@ -3091,6 +3091,7 @@ def table_stock():
 
     # Calculate costs for stock value panel
     stock_costs = {size: {} for size in sizes}
+    stock_costs_raw = {size: {} for size in sizes}  # Store raw numeric values
     grand_total = 0
     
     # Calculate body costs by size and color
@@ -3103,7 +3104,11 @@ def table_stock():
             # Black bodies cost £993.60 (incl. VAT); colored bodies cost £1089.60
             unit_cost = 993.6 if color.lower() in ['black', 'rustic_black'] else 1089.6
             item_cost = count * unit_cost
+            
+            # Store both formatted and raw values
             stock_costs[size][color] = f"£{item_cost:,.2f}"
+            stock_costs_raw[size][color] = item_cost
+            
             grand_total += item_cost
 
     # Format the grand total
@@ -3118,8 +3123,10 @@ def table_stock():
         cushion_data=cushion_data,
         other_data=other_data,
         stock_costs=stock_costs,
+        stock_costs_raw=stock_costs_raw,
         grand_total=formatted_grand_total
     )
+
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
 def material_calculator():
@@ -4527,17 +4534,14 @@ def counting_laminate():
 
                 # Parse part key to get color, size, length
                 parts = part_key.split('_')
-                if len(parts) >= 3:
-                    if len(parts) == 4:  # Handle rustic_black case
-                        color = f"{parts[0]}_{parts[1]}"  # rustic_black
-                        size = parts[2]
-                        length = parts[3]
-                    else:  # Handle other colors
-                        color = parts[0]
-                        size = parts[1]
-                        length = parts[2]
-                else:
-                    return jsonify({"success": False, "message": "Invalid part key format"}), 400
+                if len(parts) == 4:  # Handle rustic_black case
+                    color = f"{parts[0]}_{parts[1]}"  # rustic_black
+                    size = parts[2]
+                    length = parts[3]
+                else:  # Handle other colors
+                    color = parts[0]
+                    size = parts[1]
+                    length = parts[2]
                 
                 uncut_key = f"{color}_uncut"
 
@@ -4554,16 +4558,11 @@ def counting_laminate():
 
             # Deduct uncut logic
             uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
-            if not uncut_part:
-                uncut_part = LaminatePieceCount(part_key=uncut_key, count=0)
-                db.session.add(uncut_part)
-                db.session.commit()
-
-            if uncut_part.count < to_deduct:
+            if not uncut_part or uncut_part.count < to_deduct:
                 return jsonify({
                     "success": False,
-                    "message": f"Not enough uncut sheets for {uncut_key}. Needed {to_deduct}, have {uncut_part.count:.1f}"
-                }), 400
+                    "message": f"Not enough uncut sheets for {uncut_key}. Needed {to_deduct}, have {uncut_part.count if uncut_part else 0:.1f}"
+                }, 400)
 
             uncut_part.count -= to_deduct
 
@@ -4579,9 +4578,10 @@ def counting_laminate():
             return jsonify({
                 "success": True,
                 "message": f"Added {add_count} to {part_key_actual}, deducted {to_deduct} uncut sheet(s)",
-                "deducted_uncut": to_deduct,
                 "part_key": part_key_actual,
-                "uncut_key": uncut_key
+                "uncut_key": uncut_key,
+                "deducted_uncut": to_deduct,
+                "amount": add_count
             }), 200
 
         # Handle manual form submission
