@@ -455,7 +455,13 @@
       <span>
         <i class="fas fa-caret-right section-indicator" id="other-indicator"></i> 
         Other Components
-        <span class="section-count">{{ other_data.values()|sum }}</span>
+        <span class="section-count">
+          {% set header_total_other = 0 %}
+          {% for value in other_data.values() %}
+            {% set header_total_other = header_total_other + value %}
+          {% endfor %}
+          {{ header_total_other }}
+        </span>
       </span>
     </div>
     <div class="section-content" id="other-content">
