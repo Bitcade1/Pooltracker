@@ -3192,9 +3192,13 @@ def material_calculator():
             num_top_rails = 0
 
         # Each top rail requires 2 long pieces and 2 short pieces.
-        boards_jobA = ceil(num_top_rails / 4) if num_top_rails > 0 else 0
+        long_needed = 2 * num_top_rails
+        short_needed = 2 * num_top_rails
+
+        # Job A (CNC Job 1) yields 8 long pieces and 2 short pieces per board.
+        boards_jobA = ceil(long_needed / 8) if num_top_rails > 0 else 0
         short_from_jobA = 2 * boards_jobA
-        total_short_needed = 2 * num_top_rails
+        total_short_needed = short_needed
 
         # Determine if additional short pieces are needed from Job B.
         additional_short_needed = max(0, total_short_needed - short_from_jobA)
@@ -3205,8 +3209,8 @@ def material_calculator():
         # Calculate leftovers:
         produced_long = 8 * boards_jobA
         produced_short = (2 * boards_jobA) + (16 * boards_jobB)
-        leftover_long = produced_long - (2 * num_top_rails)
-        leftover_short = produced_short - total_short_needed
+        leftover_long = produced_long - long_needed
+        leftover_short = produced_short - short_needed
    
 
     return render_template(
@@ -3325,27 +3329,28 @@ def counting_3d_printing_parts():
         # Determine required quantities based on table size
         if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
             total_required = target_7ft * usage
-            completed_total = bodies_built_7ft * usage
-
+            already_used = bodies_built_7ft * usage
+            still_needed = (target_7ft - bodies_built_7ft) * usage
         elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
             total_required = target_6ft * usage
-            completed_total = bodies_built_6ft * usage
-
+            already_used = bodies_built_6ft * usage
+            still_needed = (target_6ft - bodies_built_6ft) * usage
         else:
             total_required = (target_7ft + target_6ft) * usage
-            completed_total = (bodies_built_7ft + bodies_built_6ft) * usage
+            already_used = (bodies_built_7ft + bodies_built_6ft) * usage
+            still_needed = ((target_7ft + target_6ft) - (bodies_built_7ft + bodies_built_6ft)) * usage
 
-        # CURRENT INVENTORY COUNT
+        # Current inventory count
         current_inventory = inventory_counts.get(part, 0)
 
-        # How many parts you have available in total
-        available_total = current_inventory + completed_total
+        still_needed = total_required - already_used
+        current_inventory = inventory_counts.get(part, 0)
+        surplus = current_inventory - still_needed
 
-        difference = available_total - total_required
-        if difference >= 0:
-            parts_status[part] = f"{difference} extras"
+        if surplus < 0:
+            parts_status[part] = f"{-surplus} left to make"
         else:
-            parts_status[part] = f"{abs(difference)} left to make"
+            parts_status[part] = f"{surplus} extras"
 
     return render_template(
         'counting_3d_printing_parts.html',
@@ -3561,12 +3566,7 @@ def counting_cushions():
                         overlap_end = min(record.finish_time, lunch_end)
                         lunch_duration = (overlap_end - overlap_start).total_seconds() / 60
                         duration -= lunch_duration
-
-
-
-
-
-
+                    
                     # Subtract any paused time from the duration
                     if record.paused_minutes:
                         duration -= record.paused_minutes
@@ -4200,6 +4200,188 @@ class TopRailPieceCount(db.Model):
     part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short' or 'uncut'
     count = db.Column(db.Integer, default=0, nullable=False)
 
+@app.route('/fastest_leaderboard')
+def fastest_leaderboard():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    min_duration = timedelta(minutes=40)
+    min_body_duration = timedelta(minutes=55)
+
+    top_rail_entries = []
+    pod_entries = []
+    body_entries = []
+
+    # Top Rails
+    for tr in TopRail.query.all():
+        try:
+            start_time = datetime.strptime(tr.start_time, "%H:%M").time()
+            finish_time = datetime.strptime(tr.finish_time, "%H:%M").time()
+            start_dt = datetime.combine(tr.date, start_time)
+
+            if finish_time < start_time:
+                finish_dt = datetime.combine(tr.date + timedelta(days=1), finish_time)
+            else:
+                finish_dt = datetime.combine(tr.date, finish_time)
+
+            if tr.lunch and tr.lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+            if time_taken >= min_duration:
+                top_rail_entries.append({
+                    "worker": tr.worker,
+                    "serial_number": tr.serial_number,
+                    "time_taken": time_taken,
+                    "date": tr.date.strftime("%d/%m/%Y")
+                })
+
+        except Exception as e:
+            print(f"Skipping top rail: {e}")
+
+    # Pods
+    for pod in CompletedPods.query.all():
+        try:
+            start_dt = datetime.combine(pod.date, pod.start_time)
+            finish_dt = datetime.combine(pod.date, pod.finish_time)
+
+            if pod.finish_time < pod.start_time:
+                finish_dt = datetime.combine(pod.date + timedelta(days=1), pod.finish_time)
+
+            if pod.lunch and pod.lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+            if time_taken >= min_duration:
+                pod_entries.append({
+                    "worker": pod.worker,
+                    "serial_number": pod.serial_number,
+                    "time_taken": time_taken,
+                    "date": pod.date.strftime("%d/%m/%Y")
+                })
+
+        except Exception as e:
+            print(f"Skipping pod: {e}")
+
+    # Bodies
+    for body in CompletedTable.query.all():
+        try:
+            start_time = datetime.strptime(body.start_time, "%H:%M").time()
+            finish_time = datetime.strptime(body.finish_time, "%H:%M").time()
+            start_dt = datetime.combine(body.date, start_time)
+
+            if finish_time < start_time:
+                finish_dt = datetime.combine(body.date + timedelta(days=1), finish_time)
+            else:
+                finish_dt = datetime.combine(body.date, finish_time)
+
+            if body.lunch and body.lunch.lower() == "yes":
+                finish_dt -= timedelta(minutes=30)
+
+            time_taken = finish_dt - start_dt
+            if time_taken >= min_body_duration:
+                body_entries.append({
+                    "worker": body.worker,
+                    "serial_number": body.serial_number,
+                    "time_taken": time_taken,
+                    "date": body.date.strftime("%d/%m/%Y")
+                })
+
+        except Exception as e:
+            print(f"Skipping body: {e}")
+
+    # Sort and keep top 5
+    top_rails = sorted(top_rail_entries, key=lambda x: x['time_taken'])[:5]
+    top_pods = sorted(pod_entries, key=lambda x: x['time_taken'])[:5]
+    top_bodies = sorted(body_entries, key=lambda x: x['time_taken'])[:5]
+
+    return render_template("fastest_leaderboard.html",
+                           top_rails=top_rails,
+                           pods=top_pods,
+                           bodies=top_bodies)
+
+@app.route('/order_chinese_parts', methods=['GET', 'POST'])
+def order_chinese_parts():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    # Chinese table parts and how many are needed per table
+    chinese_parts = {
+        "Table legs": 4,
+        "Ball Gullies 1 (Untouched)": 2,
+        "Ball Gullies 2": 1,
+        "Ball Gullies 3": 1,
+        "Ball Gullies 4": 1,
+        "Ball Gullies 5": 1,
+        "Feet": 4,
+        "Triangle trim": 1,
+        "White ball return trim": 1,
+        "Color ball trim": 1,
+        "Ball window trim": 1,
+        "Aluminum corner": 4,
+        "Chrome corner": 4,
+        "Top rail trim short length": 4,
+        "Top rail trim long length": 2,
+        "Ramp 170mm": 1,
+        "Ramp 158mm": 1,
+        "Ramp 918mm": 1,
+        "Ramp 376mm": 1,
+        "Chrome handles": 1,
+        "Center pockets": 2,
+        "Corner pockets": 4,
+        "Sticker Set": 1
+    }
+
+    # Fetch latest count for each part
+    part_stock = {}
+    for part in chinese_parts:
+        latest_entry = (
+            db.session.query(PrintedPartsCount.count)
+            .filter_by(part_name=part)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first()
+        )
+        part_stock[part] = latest_entry[0] if latest_entry else 0
+
+    # Calculate how many tables can be built based on current part limits
+    tables_possible_per_part = {
+        part: part_stock[part] // qty
+        for part, qty in chinese_parts.items()
+    }
+    max_tables_possible = min(tables_possible_per_part.values())
+
+    parts_to_order = {}
+    target_table_count = None
+
+    if request.method == 'POST':
+        try:
+            target_table_count = int(request.form.get('target_tables'))
+        except ValueError:
+            flash("Please enter a valid number.", "error")
+            return redirect(url_for('order_chinese_parts'))
+
+        for part, qty_per_table in chinese_parts.items():
+            needed = target_table_count * qty_per_table
+            current = part_stock.get(part, 0)
+            parts_to_order[part] = max(0, needed - current)
+
+    return render_template(
+        'order_chinese_parts.html',
+        chinese_parts=chinese_parts,
+        part_stock=part_stock,
+        tables_possible_per_part=tables_possible_per_part,
+        max_tables_possible=max_tables_possible,
+        parts_to_order=parts_to_order,
+        target_table_count=target_table_count
+    )
+
+class LaminatePieceCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short' or 'uncut'
+    count = db.Column(db.Integer, default=0, nullable=False)
+
 
 @app.route('/top_rail_pieces', methods=['GET', 'POST'])
 def top_rail_pieces():
@@ -4274,6 +4456,32 @@ def top_rail_pieces():
         flash("Top rail piece counts updated successfully.", "success")
         return redirect(url_for('top_rail_pieces'))
 
+    # Display counts
+    counts = {}
+    all_parts = TopRailPieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
+    
+    # Calculate max top rails we can make
+    colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+    max_top_rails = 0
+    for color in colors:
+        # For 6ft
+        short_6 = counts.get(f'piece_{color}_6_short', 0)
+        long_6 = counts.get(f'piece_{color}_6_long', 0)
+        # Each top rail requires 2 short and 2 long pieces.
+        # The number of rails is limited by the minimum of sets you can make.
+        max_6ft = min(short_6 // 2, long_6 // 2)
+        
+        # For 7ft
+        short_7 = counts.get(f'piece_{color}_7_short', 0)
+        long_7 = counts.get(f'piece_{color}_7_long', 0)
+        max_7ft = min(short_7 // 2, long_7 // 2)
+        
+        max_top_rails += max_6ft + max_7ft
+    
+    return render_template('top_rail_pieces.html', counts=counts, max_top_rails=max_top_rails)
+
 
 @app.route('/counting_laminate', methods=['GET', 'POST'])
 def counting_laminate():
@@ -4301,214 +4509,6 @@ def counting_laminate():
         'q': 'stone_7_short',
         'r': 'stone_7_long',
         's': 'rustic_black_7_short',
-        't': 'rustic_black_7_long',
-        'u': 'black_uncut',
-        'v': 'rustic_oak_uncut',
-        'w': 'grey_oak_uncut',
-        'x': 'stone_uncut',
-        'y': 'rustic_black_uncut',
-        # Bulk buttons
-        '1': 'black_7_short_bulk',
-        '2': 'black_7_long_bulk',
-    }
-
-    if request.method == 'POST':
-        key_code = request.form.get('key_code')
-        if key_code and key_code in key_map:
-            part_key = key_map[key_code]
-
-            # Bulk increments
-            if part_key == 'black_7_short_bulk':
-                part_key_actual = 'black_7_short'
-                uncut_key = 'black_uncut'
-                add_count = 10
-                to_deduct = 5  # 10 x 0.5
-            elif part_key == 'black_7_long_bulk':
-                part_key_actual = 'black_7_long'
-                uncut_key = 'black_uncut'
-                add_count = 10
-                to_deduct = 10  # 10 x 1
-            else:
-                part_key_actual = part_key
-                color, size, length = part_key.split('_')
-                uncut_key = f"{color}_uncut"
-
-                if part_key.endswith('uncut'):
-                    part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
-                    if not part:
-                        part = LaminatePieceCount(part_key=part_key, count=1)
-                        db.session.add(part)
-                    else:
-                        part.count += 1
-                    db.session.commit()
-                    return jsonify({
-                        "success": True,
-                        "message": f"Added 1 to {part_key}",
-                        "part_key": part_key,
-                        "deducted_uncut": 0,
-                        "uncut_key": part_key
-                    }), 200
-
-                # Determine deduction for normal keys
-                if size == '7' and length == 'short':
-                    to_deduct = 0.5
-                elif size == '7' and length == 'long':
-                    to_deduct = 1
-                elif size == '6':
-                    to_deduct = 0.5
-                else:
-                    to_deduct = 0
-                add_count = 1
-
-            # Deduct uncut logic
-            uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
-            if not uncut_part:
-                uncut_part = LaminatePieceCount(part_key=uncut_key, count=0)
-                db.session.add(uncut_part)
-                db.session.commit()
-
-            if uncut_part.count < to_deduct:
-                return jsonify({
-                    "success": False,
-                    "message": f"Not enough uncut sheets for {uncut_key}. Needed {to_deduct}, have {uncut_part.count:.1f}"
-                }), 400
-
-            uncut_part.count -= to_deduct
-
-            # Update main piece count
-            part = LaminatePieceCount.query.filter_by(part_key=part_key_actual).first()
-            if not part:
-                part = LaminatePieceCount(part_key=part_key_actual, count=add_count)
-                db.session.add(part)
-            else:
-                part.count += add_count
-
-            db.session.commit()
-            return jsonify({
-                "success": True,
-                "message": f"Added {add_count} to {part_key_actual}, deducted {to_deduct} uncut sheet(s)",
-                "deducted_uncut": to_deduct,
-                "part_key": part_key_actual,
-                "uncut_key": uncut_key
-            }), 200
-
-        # Handle manual form submission
-        colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
-        all_keys = [f"{color}_{size}_{length}" for color in colors for size in ['6', '7'] for length in ['short', 'long']] + \
-                   [f"{color}_uncut" for color in colors]
-
-        for key in all_keys:
-            input_value = request.form.get(f"piece_{key}")
-            if input_value is not None:
-                try:
-                    count = float(input_value)
-                    part = LaminatePieceCount.query.filter_by(part_key=key).first()
-                    if not part:
-                        part = LaminatePieceCount(part_key=key, count=count)
-                        db.session.add(part)
-                    else:
-                        part.count = count
-                except ValueError:
-                    flash(f"Invalid number for {key}", "error")
-
-        db.session.commit()
-        flash("Laminate piece counts updated successfully.", "success")
-        return redirect(url_for('counting_laminate'))
-
-    # GET request
-    counts = {}
-    all_parts = LaminatePieceCount.query.all()
-    for part in all_parts:
-        counts[f"piece_{part.part_key}"] = part.count
-
-    return render_template('counting_laminate.html', counts=counts)
-                "success": True,
-                "message": f"Added {add_count} to {part_key_actual}, deducted {to_deduct} uncut sheet(s)",
-                "deducted_uncut": to_deduct,
-                "part_key": part_key_actual,
-                "uncut_key": uncut_key
-            }), 200
-
-        # Handle manual form submission
-        colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
-        all_keys = [f"{color}_{size}_{length}" for color in colors for size in ['6', '7'] for length in ['short', 'long']] + \
-                   [f"{color}_uncut" for color in colors]
-
-        for key in all_keys:
-            input_value = request.form.get(f"piece_{key}")
-            if input_value is not None:
-                try:
-                    count = float(input_value)
-                    part = LaminatePieceCount.query.filter_by(part_key=key).first()
-                    if not part:
-                        part = LaminatePieceCount(part_key=key, count=count)
-                        db.session.add(part)
-                    else:
-                        part.count = count
-                except ValueError:
-                    flash(f"Invalid number for {key}", "error")
-
-        db.session.commit()
-        flash("Laminate piece counts updated successfully.", "success")
-        return redirect(url_for('counting_laminate'))
-
-    # GET request
-    counts = {}
-    all_parts = LaminatePieceCount.query.all()
-    for part in all_parts:
-        counts[f"piece_{part.part_key}"] = part.count
-
-    return render_template('counting_laminate.html', counts=counts)
-def counting_laminate_bulk():
-    data = request.get_json()
-    if not data or 'part_key' not in data or 'amount' not in data:
-        return jsonify({"success": False, "message": "Invalid request"}), 400
-
-    part_key = data['part_key']
-    amount = float(data['amount'])
-
-    color = part_key.split('_')[0]
-    size = part_key.split('_')[1]
-    length = part_key.split('_')[2]
-    uncut_key = f"{color}_uncut"
-
-    if size == '7' and length == 'short':
-        to_deduct_per = 0.5
-    elif size == '7' and length == 'long':
-        to_deduct_per = 1
-    elif size == '6':
-        to_deduct_per = 0.5
-    else:
-        to_deduct_per = 0
-
-    total_deduction = to_deduct_per * amount
-
-    uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
-    if not uncut_part or uncut_part.count < total_deduction:
-        return jsonify({
-            "success": False,
-            "message": f"Not enough uncut sheets for {color}. Needed {total_deduction}, have {uncut_part.count if uncut_part else 0:.1f}"
-        }), 400
-
-    uncut_part.count -= total_deduction
-
-    part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
-    if not part:
-        part = LaminatePieceCount(part_key=part_key, count=amount)
-        db.session.add(part)
-    else:
-        part.count += amount
-
-    db.session.commit()
-
-    return jsonify({
-        "success": True,
-        "message": f"Added {amount} to {part_key}, deducted {total_deduction} uncut sheet(s)",
-        "part_key": part_key,
-        "uncut_key": uncut_key,
-        "deducted_uncut": total_deduction,
-        "amount": amount  # ✅ Fix: added comma above
-    }), 200
         't': 'rustic_black_7_long',
         'u': 'black_uncut',
         'v': 'rustic_oak_uncut',
@@ -4682,7 +4682,6 @@ def counting_laminate_bulk():
         "deducted_uncut": total_deduction,
         "amount": amount  # ✅ Fix: added comma above
     }), 200
-
 
 
 
