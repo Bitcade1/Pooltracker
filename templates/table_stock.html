@@ -218,13 +218,7 @@
         <i class="fas fa-caret-right section-indicator" id="bodies-indicator"></i> 
         Table Bodies
         <span class="section-count">
-          {% set header_total_bodies = 0 %}
-          {% for key, value in table_data.items() %}
-            {% if key.startswith('body_') %}
-              {% set header_total_bodies = header_total_bodies + value %}
-            {% endif %}
-          {% endfor %}
-          {{ header_total_bodies }}
+          {{ total_bodies }}
         </span>
       </span>
     </div>
@@ -305,13 +299,7 @@
         <i class="fas fa-caret-right section-indicator" id="top-rails-indicator"></i> 
         Top Rails
         <span class="section-count">
-          {% set header_total_rails = 0 %}
-          {% for key, value in top_rail_data.items() %}
-            {% if key.startswith('top_rail_') %}
-              {% set header_total_rails = header_total_rails + value %}
-            {% endif %}
-          {% endfor %}
-          {{ header_total_rails }}
+          {{ total_rails }}
         </span>
       </span>
     </div>
@@ -392,13 +380,7 @@
         <i class="fas fa-caret-right section-indicator" id="cushions-indicator"></i> 
         Cushion Sets
         <span class="section-count">
-          {% set header_total_cushions = 0 %}
-          {% for key, value in cushion_data.items() %}
-            {% if key.startswith('cushion_set_') %}
-              {% set header_total_cushions = header_total_cushions + value %}
-            {% endif %}
-          {% endfor %}
-          {{ header_total_cushions }}
+          {{ total_cushions }}
         </span>
       </span>
     </div>
@@ -458,7 +440,7 @@
         <span class="section-count">
           {% set header_total_other = 0 %}
           {% for value in other_data.values() %}
-            {% set header_total_other = header_total_other + value %}
+            {% set header_total_other = header_total_other + value|int %}
           {% endfor %}
           {{ header_total_other }}
         </span>

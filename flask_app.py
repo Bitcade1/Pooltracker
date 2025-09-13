@@ -1464,11 +1464,7 @@ def counting_wood():
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
-    available_months = [
-        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
-        (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
-        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
-    ]
+
     # Selected month is taken from form or query string.
     selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
@@ -1781,6 +1777,7 @@ def counting_wood():
 
     # Count Top Rail Pieces sheets - CORRECTED LOGIC
     monthly_long_entries = WoodCount.query.filter(
+       
         WoodCount.date >= month_start_date,
         WoodCount.date <= month_end_date,
         WoodCount.section.like("% - Top Rail Pieces Long"),
@@ -3100,6 +3097,11 @@ def table_stock():
         else:
             other_data[stock_type] = entry.count
 
+    # Pre-calculate totals for the section headers
+    total_bodies = sum(value for key, value in table_data.items() if key.startswith('body_'))
+    total_rails = sum(value for key, value in top_rail_data.items() if key.startswith('top_rail_'))
+    total_cushions = sum(value for key, value in cushion_data.items() if key.startswith('cushion_set_'))
+
     # Calculate costs for stock value panel
     stock_costs = {size: {} for size in sizes}
     stock_costs_raw = {size: {} for size in sizes}  # Store raw numeric values
@@ -3135,7 +3137,10 @@ def table_stock():
         other_data=other_data,
         stock_costs=stock_costs,
         stock_costs_raw=stock_costs_raw,
-        grand_total=formatted_grand_total
+        grand_total=formatted_grand_total,
+        total_bodies=total_bodies,
+        total_rails=total_rails,
+        total_cushions=total_cushions
     )
 
 
@@ -4537,7 +4542,7 @@ def counting_laminate():
                     db.session.commit()
                     return jsonify({
                         "success": True,
-                        "message": f"Added 1 to {part_key}",
+                        "message": f"Logged 1 to {part_key}",
                         "part_key": part_key,
                         "deducted_uncut": 0,
                         "uncut_key": part_key
