@@ -1563,7 +1563,7 @@ def counting_wood():
                             short_count = 3
                         else:  # 7ft section
                             short_count = 2
-                            
+                        
                         if short_entry and short_entry.count >= short_count:
                             short_entry.count -= short_count
                             new_short = WoodCount(section=corresponding_section, count=-short_count, date=today, time=current_time)
@@ -4421,14 +4421,6 @@ def top_rail_pieces():
             else:
                 part.count += 1
 
-            # Deduct 1 matching laminate piece
-            laminate_part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
-            if not laminate_part:
-                laminate_part = LaminatePieceCount(part_key=part_key, count=0)
-                db.session.add(laminate_part)
-
-            laminate_part.count = max(0, laminate_part.count - 1)
-
             db.session.commit()
 
             return jsonify({
@@ -4538,9 +4530,7 @@ def counting_laminate():
                 to_deduct = 10  # 10 x 1
             else:
                 part_key_actual = part_key
-                color, size, length = part_key.split('_')
-                uncut_key = f"{color}_uncut"
-
+                
                 if part_key.endswith('uncut'):
                     part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
                     if not part:
@@ -4556,6 +4546,22 @@ def counting_laminate():
                         "deducted_uncut": 0,
                         "uncut_key": part_key
                     }), 200
+
+                # Parse part key to get color, size, length
+                parts = part_key.split('_')
+                if len(parts) >= 3:
+                    if len(parts) == 4:  # Handle rustic_black case
+                        color = f"{parts[0]}_{parts[1]}"  # rustic_black
+                        size = parts[2]
+                        length = parts[3]
+                    else:  # Handle other colors
+                        color = parts[0]
+                        size = parts[1]
+                        length = parts[2]
+                else:
+                    return jsonify({"success": False, "message": "Invalid part key format"}), 400
+                
+                uncut_key = f"{color}_uncut"
 
                 # Determine deduction for normal keys
                 if size == '7' and length == 'short':
@@ -4623,14 +4629,6 @@ def counting_laminate():
         flash("Laminate piece counts updated successfully.", "success")
         return redirect(url_for('counting_laminate'))
 
-    # GET request
-    counts = {}
-    all_parts = LaminatePieceCount.query.all()
-    for part in all_parts:
-        counts[f"piece_{part.part_key}"] = part.count
-
-    return render_template('counting_laminate.html', counts=counts)
-
 @app.route('/counting_laminate_bulk', methods=['POST'])
 def counting_laminate_bulk():
     data = request.get_json()
@@ -4640,9 +4638,17 @@ def counting_laminate_bulk():
     part_key = data['part_key']
     amount = float(data['amount'])
 
-    color = part_key.split('_')[0]
-    size = part_key.split('_')[1]
-    length = part_key.split('_')[2]
+    # Parse part key to handle rustic_black properly
+    parts = part_key.split('_')
+    if len(parts) == 4:  # Handle rustic_black case
+        color = f"{parts[0]}_{parts[1]}"  # rustic_black
+        size = parts[2]
+        length = parts[3]
+    else:  # Handle other colors
+        color = parts[0]
+        size = parts[1]
+        length = parts[2]
+    
     uncut_key = f"{color}_uncut"
 
     if size == '7' and length == 'short':
@@ -4661,7 +4667,7 @@ def counting_laminate_bulk():
         return jsonify({
             "success": False,
             "message": f"Not enough uncut sheets for {color}. Needed {total_deduction}, have {uncut_part.count if uncut_part else 0:.1f}"
-        }), 400
+        }, 400)
 
     uncut_part.count -= total_deduction
 
@@ -4680,7 +4686,7 @@ def counting_laminate_bulk():
         "part_key": part_key,
         "uncut_key": uncut_key,
         "deducted_uncut": total_deduction,
-        "amount": amount  # ✅ Fix: added comma above
+        "amount": amount
     }), 200
 
 
