@@ -734,23 +734,23 @@
                 'background-color': ''
               });
             }, 2000);
-          } if(entered === "cost123") {
-          ("#stock-cost-access").hide();
-          // Clear storage after use   $("#stock-cost-header").show();
-          sessionStorage.removeItem('scrollPosition');   $("#stock-cost-content").show().addClass('active');
+          }
+          
+          // Clear storage after use
+          sessionStorage.removeItem('scrollPosition');
+          sessionStorage.removeItem('activeSection');
+          sessionStorage.removeItem('formId');
+        }, 100);
+      }
 
-
-
-
-
-
-
-
-
-
-
-
-</html></body>  </script>    });        var entered = $("#stock-cost-password").val();      $("#stock-cost-submit").click(function() {      // Handle password protection for Stock Cost panel      }        }, 100);          sessionStorage.removeItem('formId');          sessionStorage.removeItem('activeSection');          $('#stock-cost-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
+      // Handle password protection for Stock Cost panel
+      $("#stock-cost-submit").click(function() {
+        var entered = $("#stock-cost-password").val();
+        if(entered === "cost123") {
+          $("#stock-cost-access").hide();
+          $("#stock-cost-header").show();
+          $("#stock-cost-content").show().addClass('active');
+          $('#stock-cost-indicator').removeClass('fa-caret-right').addClass('fa-caret-down');
           sectionStates['stock-cost-content'] = true;
           localStorage.setItem('sectionStates', JSON.stringify(sectionStates));
         } else {
