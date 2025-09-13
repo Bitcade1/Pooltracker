@@ -3113,7 +3113,7 @@ def table_stock():
             count = table_data.get(stock_key, 0)
             
             # Black bodies cost £993.60 (incl. VAT); colored bodies cost £1089.60
-            unit_cost = 993.6 if color.lower() in ['black', 'rustic_black'] else 1089.6
+            unit_cost = 993.6 if color.lower() in ['black'] else 1089.6
             item_cost = count * unit_cost
             
             # Store both formatted and raw values
