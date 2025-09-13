@@ -3562,6 +3562,8 @@ def counting_cushions():
                         lunch_duration = (overlap_end - overlap_start).total_seconds() / 60
                         duration -= lunch_duration
 
+
+
                     # Subtract any paused time from the duration
                     if record.paused_minutes:
                         duration -= record.paused_minutes
@@ -4457,8 +4459,6 @@ def counting_laminate():
         counts[f"piece_{part.part_key}"] = part.count
 
     return render_template('counting_laminate.html', counts=counts)
-
-@app.route('/counting_laminate_bulk', methods=['POST'])
 def counting_laminate_bulk():
     data = request.get_json()
     if not data or 'part_key' not in data or 'amount' not in data:
