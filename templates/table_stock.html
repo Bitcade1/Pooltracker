@@ -218,7 +218,13 @@
         <i class="fas fa-caret-right section-indicator" id="bodies-indicator"></i> 
         Table Bodies
         <span class="section-count">
-          {{ total_bodies }}
+          {% set header_total = 0 %}
+          {% for key, value in table_data.items() %}
+            {% if key.startswith('body_') %}
+              {% set header_total = header_total + value %}
+            {% endif %}
+          {% endfor %}
+          {{ header_total }}
         </span>
       </span>
     </div>
@@ -278,13 +284,13 @@
             <td colspan="2"><strong>Total Bodies</strong></td>
             <td>
               <strong>
-                {% set total_bodies = 0 %}
+                {% set grand_total = 0 %}
                 {% for key, value in table_data.items() %}
                   {% if key.startswith('body_') %}
-                    {% set total_bodies = total_bodies + value %}
+                    {% set grand_total = grand_total + value %}
                   {% endif %}
                 {% endfor %}
-                {{ total_bodies }}
+                {{ grand_total }}
               </strong>
             </td>
             <td></td>
@@ -299,7 +305,13 @@
         <i class="fas fa-caret-right section-indicator" id="top-rails-indicator"></i> 
         Top Rails
         <span class="section-count">
-          {{ total_rails }}
+          {% set header_total = 0 %}
+          {% for key, value in top_rail_data.items() %}
+            {% if key.startswith('top_rail_') %}
+              {% set header_total = header_total + value %}
+            {% endif %}
+          {% endfor %}
+          {{ header_total }}
         </span>
       </span>
     </div>
@@ -380,7 +392,13 @@
         <i class="fas fa-caret-right section-indicator" id="cushions-indicator"></i> 
         Cushion Sets
         <span class="section-count">
-          {{ total_cushions }}
+          {% set header_total = 0 %}
+          {% for key, value in cushion_data.items() %}
+            {% if key.startswith('cushion_set_') %}
+              {% set header_total = header_total + value %}
+            {% endif %}
+          {% endfor %}
+          {{ header_total }}
         </span>
       </span>
     </div>
