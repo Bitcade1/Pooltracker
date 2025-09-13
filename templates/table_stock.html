@@ -221,7 +221,7 @@
           {% set header_total = 0 %}
           {% for key, value in table_data.items() %}
             {% if key.startswith('body_') %}
-              {% set header_total = header_total + value %}
+              {% set header_total = header_total + value|int %}
             {% endif %}
           {% endfor %}
           {{ header_total }}
@@ -308,7 +308,7 @@
           {% set header_total = 0 %}
           {% for key, value in top_rail_data.items() %}
             {% if key.startswith('top_rail_') %}
-              {% set header_total = header_total + value %}
+              {% set header_total = header_total + value|int %}
             {% endif %}
           {% endfor %}
           {{ header_total }}
@@ -395,7 +395,7 @@
           {% set header_total = 0 %}
           {% for key, value in cushion_data.items() %}
             {% if key.startswith('cushion_set_') %}
-              {% set header_total = header_total + value %}
+              {% set header_total = header_total + value|int %}
             {% endif %}
           {% endfor %}
           {{ header_total }}
