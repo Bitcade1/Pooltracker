@@ -3329,21 +3329,21 @@ def counting_3d_printing_parts():
         # Determine required quantities based on table size
         if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
             total_required = target_7ft * usage
-            already_used = bodies_built_7ft * usage
+            completed_total = bodies_built_7ft * usage
             still_needed = (target_7ft - bodies_built_7ft) * usage
         elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
             total_required = target_6ft * usage
-            already_used = bodies_built_6ft * usage
+            completed_total = bodies_built_6ft * usage
             still_needed = (target_6ft - bodies_built_6ft) * usage
         else:
             total_required = (target_7ft + target_6ft) * usage
-            already_used = (bodies_built_7ft + bodies_built_6ft) * usage
+            completed_total = (bodies_built_7ft + bodies_built_6ft) * usage
             still_needed = ((target_7ft + target_6ft) - (bodies_built_7ft + bodies_built_6ft)) * usage
 
         # Current inventory count
         current_inventory = inventory_counts.get(part, 0)
 
-        still_needed = total_required - already_used
+        still_needed = total_required - completed_total
         current_inventory = inventory_counts.get(part, 0)
         surplus = current_inventory - still_needed
 
@@ -3557,6 +3557,7 @@ def counting_cushions():
                     duration = (record.finish_time - record.start_time).total_seconds() / 60
                     
                     # Check for lunch break during job
+
                     lunch_start = datetime.combine(record.start_time.date(), datetime.strptime('13:30', '%H:%M').time())
                     lunch_end = lunch_start + timedelta(minutes=30)
                     
@@ -4200,6 +4201,7 @@ class TopRailPieceCount(db.Model):
     part_key = db.Column(db.String(50), unique=True, nullable=False)  # e.g., 'black_6_short' or 'uncut'
     count = db.Column(db.Integer, default=0, nullable=False)
 
+
 @app.route('/fastest_leaderboard')
 def fastest_leaderboard():
     if 'worker' not in session:
@@ -4629,15 +4631,13 @@ def counting_laminate():
         flash("Laminate piece counts updated successfully.", "success")
         return redirect(url_for('counting_laminate'))
 
-@app.route('/counting_laminate_bulk', methods=['POST'])
-def counting_laminate_bulk():
-    data = request.get_json()
-    if not data or 'part_key' not in data or 'amount' not in data:
-        return jsonify({"success": False, "message": "Invalid request"}), 400
+    # GET request handling
+    counts = {}
+    all_parts = LaminatePieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
 
-    part_key = data['part_key']
-    amount = float(data['amount'])
-
+    return render_template('counting_laminate.html', counts=counts)  # Added the missing return statement
     # Parse part key to handle rustic_black properly
     parts = part_key.split('_')
     if len(parts) == 4:  # Handle rustic_black case
