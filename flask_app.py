@@ -1464,7 +1464,11 @@ def counting_wood():
     previous_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     current_month = today.replace(day=1)
     next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
-
+    available_months = [
+        (previous_month.strftime("%Y-%m"), previous_month.strftime("%B %Y")),
+        (current_month.strftime("%Y-%m"), current_month.strftime("%B %Y")),
+        (next_month.strftime("%Y-%m"), next_month.strftime("%B %Y"))
+    ]
     # Selected month is taken from form or query string.
     selected_month = request.form.get('month') or request.args.get('month', current_month.strftime("%Y-%m"))
     selected_year, selected_month_num = map(int, selected_month.split('-'))
@@ -1570,7 +1574,7 @@ def counting_wood():
                             short_count = 3
                         else:  # 7ft section
                             short_count = 2
-                        
+                            
                         if short_entry and short_entry.count >= short_count:
                             short_entry.count -= short_count
                             new_short = WoodCount(section=corresponding_section, count=-short_count, date=today, time=current_time)
@@ -1777,8 +1781,6 @@ def counting_wood():
 
     # Count Top Rail Pieces sheets - CORRECTED LOGIC
     monthly_long_entries = WoodCount.query.filter(
-       
-
         WoodCount.date >= month_start_date,
         WoodCount.date <= month_end_date,
         WoodCount.section.like("% - Top Rail Pieces Long"),
@@ -1984,6 +1986,7 @@ class CushionJobRecord(db.Model):
     
     def __repr__(self):
         return f"<CushionJobRecord {self.job.name} for session {self.session_id}>"
+
 
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
@@ -3275,7 +3278,7 @@ def counting_3d_printing_parts():
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
     ]
 
-    inventory_counts = {
+    parts_counts = {
         part: db.session.query(db.func.sum(PrintedPartsCount.count))
             .filter_by(part_name=part)
             .scalar() or 0
@@ -3329,21 +3332,21 @@ def counting_3d_printing_parts():
         # Determine required quantities based on table size
         if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
             total_required = target_7ft * usage
-            completed_total = bodies_built_7ft * usage
+            already_used = bodies_built_7ft * usage
             still_needed = (target_7ft - bodies_built_7ft) * usage
         elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
             total_required = target_6ft * usage
-            completed_total = bodies_built_6ft * usage
+            already_used = bodies_built_6ft * usage
             still_needed = (target_6ft - bodies_built_6ft) * usage
         else:
             total_required = (target_7ft + target_6ft) * usage
-            completed_total = (bodies_built_7ft + bodies_built_6ft) * usage
+            already_used = (bodies_built_7ft + bodies_built_6ft) * usage
             still_needed = ((target_7ft + target_6ft) - (bodies_built_7ft + bodies_built_6ft)) * usage
 
         # Current inventory count
         current_inventory = inventory_counts.get(part, 0)
 
-        still_needed = total_required - completed_total
+        still_needed = total_required - already_used
         current_inventory = inventory_counts.get(part, 0)
         surplus = current_inventory - still_needed
 
@@ -3497,6 +3500,7 @@ def reset_cushion_jobs():
         db.session.rollback()
         print(f"Error during job system reset: {str(e)}")
         return False
+
 
 @app.route('/counting_cushions', methods=['GET', 'POST'])
 def counting_cushions():
