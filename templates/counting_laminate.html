@@ -113,13 +113,8 @@
               {% set part_name = size ~ ' ' ~ length %}
               {% set input_name = 'piece_' ~ part_key %}
               <div class="form-group">
-                {% if color == 'Black' and size == '7ft' %}
-                  <button type="button" onclick="bulkAdd('{{ part_key }}')">{{ part_name }}</button>
-                  <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
-                {% else %}
-                  <button type="button" onclick="incrementOne('{{ part_key }}')">{{ part_name }}</button>
-                  <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
-                {% endif %}
+                <button type="button" onclick="incrementOne('{{ part_key }}')">{{ part_name }}</button>
+                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" step="any" min="0" required>
               </div>
             {% endfor %}
           {% endfor %}
@@ -236,6 +231,11 @@
         }
       } else {
         alert(data.message || "Error occurred");
+      }
+    }
+  </script>
+</body>
+</html>
       }
     }
   </script>
