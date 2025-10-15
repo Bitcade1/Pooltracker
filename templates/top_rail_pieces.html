@@ -178,6 +178,22 @@
                             inputField.classList.remove('highlight');
                         }, { once: true });
                     }
+
+                    // Handle laminate deduction if applicable
+                    if (data.deducted_laminate && data.laminate_key) {
+                        // Try to find laminate field by checking if we're on a page that might have it
+                        // or make a separate call to update laminate counts
+                        fetch("/update_laminate_count", {
+                            method: "POST",
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                laminate_key: data.laminate_key, 
+                                amount: -parseFloat(data.deducted_laminate) 
+                            })
+                        }).catch(error => {
+                            console.log("Laminate update not available on this page");
+                        });
+                    }
                 }
             }).catch(error => {
                 console.error("Error updating count:", error);
