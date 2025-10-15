@@ -4427,13 +4427,56 @@ def top_rail_pieces():
             else:
                 part.count += 1
 
+            # NEW: Add laminate deduction logic
+            # Parse the part_key to determine the corresponding laminate piece
+            parts = part_key.split('_')
+            if len(parts) >= 3:
+                if len(parts) == 4:  # rustic_black case
+                    color = f"{parts[0]}_{parts[1]}"
+                else:
+                    color = parts[0]
+                size = parts[-2]  # Second to last part
+                length = parts[-1]  # Last part
+                
+                # Map to laminate piece key
+                laminate_key = f"{color}_{size}_{length}"
+                
+                # Determine deduction amount based on size and length
+                if size == '7' and length == 'short':
+                    deduction = 0.5
+                elif size == '7' and length == 'long':
+                    deduction = 1.0
+                elif size == '6':
+                    deduction = 0.5
+                else:
+                    deduction = 0
+                
+                # Find and deduct from laminate if deduction is needed
+                deducted_laminate = 0
+                laminate_response_key = None
+                
+                if deduction > 0:
+                    laminate_part = LaminatePieceCount.query.filter_by(part_key=laminate_key).first()
+                    if laminate_part and laminate_part.count >= deduction:
+                        laminate_part.count -= deduction
+                        deducted_laminate = deduction
+                        laminate_response_key = laminate_key
+
             db.session.commit()
 
-            return jsonify({
+            response_data = {
                 "success": True,
-                "message": f"Logged 1 top rail ({part_key}), deducted 1 matching laminate piece",
+                "message": f"Logged 1 top rail ({part_key})",
                 "part_key": part_key
-            }), 200
+            }
+            
+            # Add laminate deduction info to response if applicable
+            if deducted_laminate > 0:
+                response_data["deducted_laminate"] = deducted_laminate
+                response_data["laminate_key"] = laminate_response_key
+                response_data["message"] += f", deducted {deducted_laminate} laminate piece"
+
+            return jsonify(response_data), 200
 
         # Handle manual form submissions
         for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
@@ -4555,7 +4598,7 @@ def counting_laminate():
 
                 # Parse part key to get color, size, length
                 parts = part_key.split('_')
-                if len(parts) == 4:  # Handle rustic_black case
+                if len(parts) == 4:  # rustic_black case
                     color = f"{parts[0]}_{parts[1]}"  # rustic_black
                     size = parts[2]
                     length = parts[3]
@@ -4575,14 +4618,13 @@ def counting_laminate():
                     to_deduct = 0.5
                 else:
                     to_deduct = 0
-                add_count = 1
-
+            print(part_key, part_key_actual, uncut_key, to_deduct)
             # Deduct uncut logic
             uncut_part = LaminatePieceCount.query.filter_by(part_key=uncut_key).first()
             if not uncut_part or uncut_part.count < to_deduct:
                 return jsonify({
                     "success": False,
-                    "message": f"Not enough uncut sheets for {uncut_key}. Needed {to_deduct}, have {uncut_part.count if uncut_part else 0:.1f}"
+                    "message": f"Not enough uncut sheets for {color}. Needed {to_deduct}, have {uncut_part.count if uncut_part else 0:.1f}"
                 }, 400)
 
             uncut_part.count -= to_deduct
