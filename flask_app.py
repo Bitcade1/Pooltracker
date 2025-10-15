@@ -4443,11 +4443,11 @@ def top_rail_pieces():
                 
                 # Determine deduction amount based on size and length
                 if size == '7' and length == 'short':
-                    deduction = 0.5
+                    deduction = 1
                 elif size == '7' and length == 'long':
                     deduction = 1.0
                 elif size == '6':
-                    deduction = 0.5
+                    deduction = 1
                 else:
                     deduction = 0
                 
