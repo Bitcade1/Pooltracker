@@ -8,6 +8,7 @@ from sqlalchemy import func, extract
 import requests
 import os
 import re  # Add this import at the top of the file
+from math import ceil
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
