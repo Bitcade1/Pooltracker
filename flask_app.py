@@ -2538,7 +2538,10 @@ def top_rails():
         
         # Make sure color suffix is present if needed
         # Colors use the following convention: GO (Grey Oak), O (Rustic Oak), C (Stone), B or none (Black)
-        has_color_suffix = any(suffix in serial_number for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B'])
+        has_color_suffix = any(
+            suffix in serial_number
+            for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B', '-RB', ' - RB']
+        )
         
         if not has_color_suffix:
             # Add color suffix based on selection
