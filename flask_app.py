@@ -2987,10 +2987,6 @@ def _table_stock_count(stock_key):
 
 @app.route('/top_rail_dashboard')
 def top_rail_dashboard_view():
-    if 'worker' not in session:
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-
     today = date.today()
     start_of_week = today - timedelta(days=today.weekday())
 
