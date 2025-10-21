@@ -234,6 +234,10 @@
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
         </div>
+        <div class="stat-card">
+            <span class="stat-label">Next Serial</span>
+            <span class="stat-value">{{ next_serial }}</span>
+        </div>
     </section>
 
     {% if min_rails_possible is not none and min_rails_possible <= 10 %}
