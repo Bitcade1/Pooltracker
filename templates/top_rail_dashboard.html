@@ -27,10 +27,10 @@
     }
 
     .dashboard-wrapper {
-        padding: 1.5rem 2.25rem 2rem;
+        padding: 2rem 2.5rem 2.5rem;
         display: flex;
         flex-direction: column;
-        gap: 1.5rem;
+        gap: 2rem;
     }
 
     .stat-grid {
@@ -42,7 +42,7 @@
     .stat-card {
         background: #ffffff;
         border-radius: 10px;
-        padding: 1rem;
+        padding: 1.35rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         display: flex;
         flex-direction: column;
@@ -50,7 +50,7 @@
     }
 
     .stat-card .stat-label {
-        font-size: 0.8rem;
+        font-size: 1rem;
         font-weight: 600;
         color: #7f8c8d;
         text-transform: uppercase;
@@ -58,7 +58,7 @@
     }
 
     .stat-card .stat-value {
-        font-size: 1.6rem;
+        font-size: 2.2rem;
         font-weight: 700;
         color: #2c3e50;
     }
@@ -71,13 +71,16 @@
         background: #ffebee;
         border: 1px solid #c62828;
         color: #b71c1c;
-        padding: 1rem 1.5rem;
+        padding: 1.25rem 1.75rem;
         border-radius: 10px;
+        font-size: 1.05rem;
+        line-height: 1.5;
     }
 
     .warning-banner strong {
         display: inline-block;
-        margin-right: 0.5rem;
+        margin-right: 0.75rem;
+        font-size: 1.15rem;
     }
 
     .parts-section {
@@ -142,28 +145,28 @@
     .deficits-section {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 1rem;
+        gap: 1.25rem;
     }
 
     .deficit-card {
         background: #ffffff;
         border-radius: 10px;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-        padding: 1rem;
+        padding: 1.25rem;
         display: flex;
         flex-direction: column;
-        gap: 0.6rem;
+        gap: 0.8rem;
     }
 
     .deficit-card h3 {
         margin: 0;
-        font-size: 1.05rem;
+        font-size: 1.3rem;
         color: #2c3e50;
     }
 
     .deficit-entry {
         border-radius: 10px;
-        padding: 0.6rem;
+        padding: 0.85rem;
         background: #f5f7fa;
         display: flex;
         flex-direction: column;
@@ -188,18 +191,18 @@
     }
 
     .deficit-entry strong {
-        font-size: 0.95rem;
+        font-size: 1.1rem;
         color: #2c3e50;
     }
 
     .deficit-entry span {
-        font-size: 0.85rem;
+        font-size: 1rem;
         color: #546e7a;
     }
 
     @media (max-width: 1024px) {
         .dashboard-wrapper {
-            padding: 1.5rem 1.75rem 2rem;
+            padding: 1.75rem 2rem 2.25rem;
         }
     }
 
@@ -211,7 +214,7 @@
         .part-card .part-name,
         .part-card .part-footnote,
         .deficit-entry span {
-            font-size: 0.8rem;
+            font-size: 0.85rem;
         }
     }
 </style>
@@ -284,4 +287,10 @@
         {% endfor %}
     </section>
 </div>
+
+<script>
+    setInterval(function () {
+        window.location.reload();
+    }, 10000);
+</script>
 {% endblock %}
