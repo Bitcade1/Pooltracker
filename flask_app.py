@@ -2629,12 +2629,20 @@ def top_rails():
             start_dt = datetime.combine(date.today(), start_time_obj)
             finish_dt = datetime.combine(date.today(), finish_time_obj)
 
-            # Adjust for lunch break
+            # If finished after midnight (next day), roll finish forward a day
+            if finish_time_obj < start_time_obj:
+                finish_dt = datetime.combine(date.today() + timedelta(days=1), finish_time_obj)
+
+            # Adjust for lunch break (30 min)
             if lunch.lower() == "yes":
                 finish_dt -= timedelta(minutes=30)
 
-            time_taken = finish_dt - start_dt
-            time_taken_str = str(time_taken)[:-3]
+            # Compute total elapsed minutes and format as H:MM hours
+            delta = finish_dt - start_dt
+            total_minutes = max(0, int(delta.total_seconds() // 60))
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            time_taken_str = f"{hours}:{minutes:02d} hours"
 
             
             # --- Timer Logic: Stop previous timer and start new one ---
