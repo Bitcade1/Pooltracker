@@ -3071,7 +3071,7 @@ def top_rail_dashboard_view():
             status_text = "No bodies or rails."
             status_class = "empty"
         elif body_stock == rail_stock:
-            status_text = f"Balanced. Can make {body_stock} sets."
+            status_text = "Balanced"
             status_class = "balanced"
         elif body_stock > rail_stock:
             status_text = f"{body_stock - rail_stock} more Top Rails needed."
