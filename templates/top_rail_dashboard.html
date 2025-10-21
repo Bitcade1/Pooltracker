@@ -4,61 +4,64 @@
 
 {% block content %}
 <style>
+    body {
+        display: block;
+        justify-content: flex-start;
+        align-items: stretch;
+        background-color: #f4f4f9;
+    }
+
+    .site-header,
+    .site-footer {
+        width: 100%;
+    }
+
+    .container {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        text-align: left;
+    }
+
     .dashboard-wrapper {
+        padding: 2.5rem 4rem 3rem;
         display: flex;
         flex-direction: column;
-        gap: 2rem;
+        gap: 2.5rem;
     }
 
     .dashboard-wrapper h2 {
         margin: 0;
-        font-size: 2rem;
+        font-size: 2.4rem;
         color: #2c3e50;
+        text-align: center;
     }
 
-    .metric-grid,
     .stat-grid {
         display: grid;
-        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
     }
 
-    .metric-grid {
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .stat-grid {
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    }
-
-    .metric-card,
     .stat-card {
         background: #ffffff;
-        border-radius: 10px;
-        padding: 1.25rem;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
         display: flex;
         flex-direction: column;
-        gap: 0.35rem;
+        gap: 0.5rem;
     }
 
-    .metric-card .metric-label,
     .stat-card .stat-label {
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         font-weight: 600;
         color: #7f8c8d;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    .metric-card .metric-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #2980b9;
-    }
-
-    .metric-card small {
-        color: #95a5a6;
-        font-size: 0.85rem;
+        letter-spacing: 0.05em;
     }
 
     .stat-card .stat-value {
@@ -201,13 +204,19 @@
         color: #546e7a;
     }
 
+    @media (max-width: 1024px) {
+        .dashboard-wrapper {
+            padding: 2rem 2.5rem 2.5rem;
+        }
+    }
+
     @media (max-width: 680px) {
-        .dashboard-wrapper h2 {
-            font-size: 1.6rem;
+        .dashboard-wrapper {
+            padding: 1.5rem 1.25rem 2rem;
         }
 
-        .metric-card .metric-value {
-            font-size: 1.4rem;
+        .dashboard-wrapper h2 {
+            font-size: 1.8rem;
         }
     }
 </style>
@@ -216,26 +225,6 @@
     <header>
         <h2>Top Rail Dashboard</h2>
     </header>
-
-    <section class="metric-grid">
-        <div class="metric-card">
-            <span class="metric-label">Time on Current Rail</span>
-            <span class="metric-value">{{ active_timer.elapsed if active_timer else 'No active timer' }}</span>
-            {% if active_timer %}<small>Worker: {{ active_timer.worker }}</small>{% endif %}
-        </div>
-        <div class="metric-card">
-            <span class="metric-label">Average Rail Time</span>
-            <span class="metric-value">{{ average_time_display }}</span>
-        </div>
-        <div class="metric-card">
-            <span class="metric-label">Predicted Today</span>
-            <span class="metric-value">{{ predicted_total if predicted_total is not none else 'N/A' }}</span>
-        </div>
-        <div class="metric-card">
-            <span class="metric-label">Next Serial</span>
-            <span class="metric-value">{{ next_serial }}</span>
-        </div>
-    </section>
 
     <section class="stat-grid">
         <div class="stat-card highlight">
