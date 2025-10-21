@@ -1,0 +1,305 @@
+{% extends 'base.html' %}
+
+{% block title %}Top Rail Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .dashboard-wrapper h2 {
+        margin: 0;
+        font-size: 2rem;
+        color: #2c3e50;
+    }
+
+    .metric-grid,
+    .stat-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .metric-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .stat-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .metric-card,
+    .stat-card {
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .metric-card .metric-label,
+    .stat-card .stat-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .metric-card .metric-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #2980b9;
+    }
+
+    .metric-card small {
+        color: #95a5a6;
+        font-size: 0.85rem;
+    }
+
+    .stat-card .stat-value {
+        font-size: 1.9rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .stat-card.highlight {
+        border-left: 4px solid #27ae60;
+    }
+
+    .warning-banner {
+        background: #ffebee;
+        border: 1px solid #c62828;
+        color: #b71c1c;
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+    }
+
+    .warning-banner strong {
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+
+    .parts-section {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .parts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .part-card {
+        border-radius: 12px;
+        padding: 1rem;
+        background: #e8f5e9;
+        border: 2px solid #388e3c;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .part-card.warning {
+        background: #fff3e0;
+        border-color: #f57c00;
+    }
+
+    .part-card.critical {
+        background: #ffebee;
+        border-color: #c62828;
+    }
+
+    .part-card .part-name {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #2d3436;
+    }
+
+    .part-card .part-stock {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .part-card.critical .part-stock {
+        color: #c62828;
+    }
+
+    .part-card.warning .part-stock {
+        color: #f57c00;
+    }
+
+    .part-card .part-footnote {
+        font-size: 0.9rem;
+        color: #546e7a;
+    }
+
+    .deficits-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .deficit-card {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .deficit-card h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        color: #2c3e50;
+    }
+
+    .deficit-entry {
+        border-radius: 10px;
+        padding: 0.75rem;
+        background: #f5f7fa;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .deficit-entry.need-rails {
+        border-left: 4px solid #c62828;
+    }
+
+    .deficit-entry.need-bodies {
+        border-left: 4px solid #1a237e;
+    }
+
+    .deficit-entry.balanced {
+        border-left: 4px solid #27ae60;
+    }
+
+    .deficit-entry.empty {
+        border-left: 4px solid #c62828;
+        background: #ffebee;
+    }
+
+    .deficit-entry strong {
+        font-size: 1rem;
+        color: #2c3e50;
+    }
+
+    .deficit-entry span {
+        font-size: 0.9rem;
+        color: #546e7a;
+    }
+
+    @media (max-width: 680px) {
+        .dashboard-wrapper h2 {
+            font-size: 1.6rem;
+        }
+
+        .metric-card .metric-value {
+            font-size: 1.4rem;
+        }
+    }
+</style>
+
+<div class="dashboard-wrapper">
+    <header>
+        <h2>Top Rail Dashboard</h2>
+    </header>
+
+    <section class="metric-grid">
+        <div class="metric-card">
+            <span class="metric-label">Time on Current Rail</span>
+            <span class="metric-value">{{ active_timer.elapsed if active_timer else 'No active timer' }}</span>
+            {% if active_timer %}<small>Worker: {{ active_timer.worker }}</small>{% endif %}
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Average Rail Time</span>
+            <span class="metric-value">{{ average_time_display }}</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Predicted Today</span>
+            <span class="metric-value">{{ predicted_total if predicted_total is not none else 'N/A' }}</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Next Serial</span>
+            <span class="metric-value">{{ next_serial }}</span>
+        </div>
+    </section>
+
+    <section class="stat-grid">
+        <div class="stat-card highlight">
+            <span class="stat-label">Today</span>
+            <span class="stat-value">{{ stats.daily }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">This Week</span>
+            <span class="stat-value">{{ stats.weekly }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">This Month</span>
+            <span class="stat-value">{{ stats.monthly }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">This Year</span>
+            <span class="stat-value">{{ stats.yearly }}</span>
+        </div>
+    </section>
+
+    {% if min_rails_possible is not none %}
+        <section class="warning-banner">
+            <strong>Production Capacity</strong>
+            {% if min_rails_possible < 5 %}
+                Critical: only {{ min_rails_possible }} full top rails can be assembled with current stock.
+            {% elif min_rails_possible < 10 %}
+                Warning: {{ min_rails_possible }} builds available before parts run out.
+            {% else %}
+                Capacity check OK: {{ min_rails_possible }} builds possible with current inventory.
+            {% endif %}
+            {% if limiting_parts %}
+                Limiting parts: {{ limiting_parts | map(attribute='name') | join(', ') }}.
+            {% endif %}
+        </section>
+    {% endif %}
+
+    <section class="parts-section">
+        <h3>Top Rail Parts Inventory</h3>
+        <div class="parts-grid">
+            {% for part in parts_data %}
+                <div class="part-card {{ part.status }}">
+                    <span class="part-name">{{ part.name }}</span>
+                    <span class="part-stock">{{ part.stock }}</span>
+                    <span class="part-footnote">Per rail: {{ part.per_rail }} | Can build: {{ part.rails_possible }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="deficits-section">
+        {% for size, entries in deficits_by_size.items() %}
+            <div class="deficit-card">
+                <h3>{{ size }} Stock Balance</h3>
+                {% for entry in entries %}
+                    <div class="deficit-entry {{ entry.status_class }}">
+                        <strong>{{ entry.color }}</strong>
+                        <span>Body stock: {{ entry.body_stock }} | Top rail stock: {{ entry.rail_stock }}</span>
+                        <span>{{ entry.status }}</span>
+                    </div>
+                {% else %}
+                    <p>No stock data recorded yet.</p>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </section>
+</div>
+{% endblock %}

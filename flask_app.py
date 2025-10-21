@@ -8,7 +8,7 @@ from sqlalchemy import func, extract
 import requests
 import os
 import re  # Add this import at the top of the file
-from math import ceil
+from math import ceil, floor
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -2921,6 +2921,189 @@ def top_rails():
         current_top_rails_6ft=current_top_rails_6ft,
         default_size=default_size,
         default_color=default_color
+    )
+
+TOP_RAIL_PARTS_REQUIREMENTS = [
+    ("Top rail trim long length", 2),
+    ("Top rail trim short length", 4),
+    ("Chrome corner", 4),
+    ("Center pockets", 2),
+    ("Corner pockets", 4),
+    ("Catch Plate", 12),
+    ("M5 x 20 Socket Cap Screw", 16),
+    ("M5 x 18 x 1.25 Penny Mudguard Washer", 16),
+    ("LAMELLO CLAMEX P-14 CONNECTOR", 18),
+    ("4.8x32mm Self Tapping Screw", 24),
+]
+
+TOP_RAIL_TABLE_STOCK_CONFIGS = [
+    {"size": "7ft", "color": "Black", "body_key": "body_7ft_black", "rail_key": "top_rail_7ft_black"},
+    {"size": "7ft", "color": "Rustic Oak", "body_key": "body_7ft_rustic_oak", "rail_key": "top_rail_7ft_rustic_oak"},
+    {"size": "7ft", "color": "Grey Oak", "body_key": "body_7ft_grey_oak", "rail_key": "top_rail_7ft_grey_oak"},
+    {"size": "7ft", "color": "Stone", "body_key": "body_7ft_stone", "rail_key": "top_rail_7ft_stone"},
+    {"size": "6ft", "color": "Black", "body_key": "body_6ft_black", "rail_key": "top_rail_6ft_black"},
+    {"size": "6ft", "color": "Rustic Oak", "body_key": "body_6ft_rustic_oak", "rail_key": "top_rail_6ft_rustic_oak"},
+    {"size": "6ft", "color": "Grey Oak", "body_key": "body_6ft_grey_oak", "rail_key": "top_rail_6ft_grey_oak"},
+    {"size": "6ft", "color": "Stone", "body_key": "body_6ft_stone", "rail_key": "top_rail_6ft_stone"},
+]
+
+
+def _format_minutes_display(minutes_value):
+    if minutes_value is None:
+        return "N/A"
+    total_seconds = int(max(0, round(minutes_value * 60)))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d} hours"
+    if minutes:
+        return f"{minutes}m {seconds:02d}s"
+    return f"{seconds}s"
+
+
+def _format_seconds_display(seconds_value):
+    total_seconds = int(max(0, round(seconds_value)))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def _latest_part_count(part_name):
+    latest_entry = (
+        PrintedPartsCount.query
+        .filter_by(part_name=part_name)
+        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+        .first()
+    )
+    return latest_entry.count if latest_entry else 0
+
+
+def _table_stock_count(stock_key):
+    entry = TableStock.query.filter_by(type=stock_key).first()
+    return entry.count if entry else 0
+
+
+@app.route('/top_rail_dashboard')
+def top_rail_dashboard_view():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+
+    stats = {
+        "daily": TopRail.query.filter(TopRail.date == today).count(),
+        "weekly": TopRail.query.filter(TopRail.date >= start_of_week, TopRail.date <= today).count(),
+        "monthly": TopRail.query.filter(
+            extract('year', TopRail.date) == today.year,
+            extract('month', TopRail.date) == today.month
+        ).count(),
+        "yearly": TopRail.query.filter(extract('year', TopRail.date) == today.year).count()
+    }
+
+    next_serial = "1000"
+    last_rail = TopRail.query.order_by(TopRail.id.desc()).first()
+    if last_rail and last_rail.serial_number:
+        match = re.match(r'(\d+)', last_rail.serial_number)
+        if match:
+            next_serial = str(int(match.group(1)) + 1)
+
+    active_timer_info = None
+    active_timer = TopRailTiming.query.filter_by(completed=False).order_by(TopRailTiming.start_time.asc()).first()
+    if active_timer:
+        elapsed_seconds = (datetime.now() - active_timer.start_time).total_seconds()
+        active_timer_info = {
+            "worker": active_timer.worker,
+            "elapsed": _format_seconds_display(elapsed_seconds)
+        }
+
+    completed_timings = (
+        TopRailTiming.query
+        .filter(TopRailTiming.completed == True, TopRailTiming.duration_minutes.isnot(None))
+        .order_by(TopRailTiming.date.desc(), TopRailTiming.end_time.desc())
+        .limit(20)
+        .all()
+    )
+
+    average_minutes = None
+    if completed_timings:
+        durations = [t.duration_minutes for t in completed_timings if t.duration_minutes]
+        if durations:
+            average_minutes = sum(durations) / len(durations)
+
+    predicted_total = None
+    if average_minutes and average_minutes > 0:
+        workday_minutes = 7.5 * 60
+        predicted_total = max(stats["daily"], floor(workday_minutes / average_minutes))
+
+    parts_data = []
+    min_rails_possible = None
+    for part_name, qty_per_rail in TOP_RAIL_PARTS_REQUIREMENTS:
+        stock = _latest_part_count(part_name)
+        rails_possible = stock // qty_per_rail if qty_per_rail else stock
+        status = 'ok'
+        if rails_possible < 5:
+            status = 'critical'
+        elif rails_possible < 10:
+            status = 'warning'
+
+        parts_data.append({
+            "name": part_name,
+            "stock": stock,
+            "per_rail": qty_per_rail,
+            "rails_possible": rails_possible,
+            "status": status
+        })
+
+        if min_rails_possible is None:
+            min_rails_possible = rails_possible
+        else:
+            min_rails_possible = min(min_rails_possible, rails_possible)
+
+    parts_data.sort(key=lambda item: item["rails_possible"])
+    limiting_parts = [item for item in parts_data if item["rails_possible"] == min_rails_possible]
+
+    deficits_by_size = {"7ft": [], "6ft": []}
+    for config in TOP_RAIL_TABLE_STOCK_CONFIGS:
+        body_stock = _table_stock_count(config["body_key"])
+        rail_stock = _table_stock_count(config["rail_key"])
+
+        if body_stock == 0 and rail_stock == 0:
+            status_text = "No bodies or rails."
+            status_class = "empty"
+        elif body_stock == rail_stock:
+            status_text = f"Balanced. Can make {body_stock} sets."
+            status_class = "balanced"
+        elif body_stock > rail_stock:
+            status_text = f"{body_stock - rail_stock} more Top Rails needed."
+            status_class = "need-rails"
+        else:
+            status_text = f"{rail_stock - body_stock} more Bodies needed."
+            status_class = "need-bodies"
+
+        deficits_by_size[config["size"]].append({
+            "color": config["color"],
+            "body_stock": body_stock,
+            "rail_stock": rail_stock,
+            "status": status_text,
+            "status_class": status_class
+        })
+
+    for size in deficits_by_size:
+        deficits_by_size[size].sort(key=lambda item: item["color"])
+
+    return render_template(
+        'top_rail_dashboard.html',
+        stats=stats,
+        next_serial=next_serial,
+        active_timer=active_timer_info,
+        average_time_display=_format_minutes_display(average_minutes),
+        predicted_total=predicted_total,
+        parts_data=parts_data,
+        limiting_parts=limiting_parts,
+        min_rails_possible=min_rails_possible,
+        deficits_by_size=deficits_by_size
     )
 
 def fetch_uk_bank_holidays():
