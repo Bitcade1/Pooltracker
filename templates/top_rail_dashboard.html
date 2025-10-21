@@ -258,7 +258,7 @@
         </section>
     {% endif %}
 
-    <section class="parts-section">
+    <section class="parts-section" style="margin-bottom: 0.2rem;">
         <h3>Top Rail Parts Inventory</h3>
         <div class="parts-grid">
             {% for part in parts_data %}
@@ -271,7 +271,7 @@
         </div>
     </section>
 
-    <section class="deficits-section">
+    <section class="deficits-section" style="margin-top: 0.4rem;">
         {% for size, entries in deficits_by_size.items() %}
             <div class="deficit-card">
                 <h3>{{ size }} Stock Balance</h3>
