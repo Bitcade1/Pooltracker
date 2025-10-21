@@ -439,7 +439,7 @@ def admin():
         inventory=inventory,
         pods=pods,
         top_rails=top_rails,
-        bodies=bodies,
+        bodies=bodies
         hardware_parts=hardware_parts,
         all_part_names=all_part_names,
         thresholds_map=thresholds_map
