@@ -2941,10 +2941,12 @@ TOP_RAIL_TABLE_STOCK_CONFIGS = [
     {"size": "7ft", "color": "Rustic Oak", "body_key": "body_7ft_rustic_oak", "rail_key": "top_rail_7ft_rustic_oak"},
     {"size": "7ft", "color": "Grey Oak", "body_key": "body_7ft_grey_oak", "rail_key": "top_rail_7ft_grey_oak"},
     {"size": "7ft", "color": "Stone", "body_key": "body_7ft_stone", "rail_key": "top_rail_7ft_stone"},
+    {"size": "7ft", "color": "Rustic Black", "body_key": "body_7ft_rustic_black", "rail_key": "top_rail_7ft_rustic_black"},
     {"size": "6ft", "color": "Black", "body_key": "body_6ft_black", "rail_key": "top_rail_6ft_black"},
     {"size": "6ft", "color": "Rustic Oak", "body_key": "body_6ft_rustic_oak", "rail_key": "top_rail_6ft_rustic_oak"},
     {"size": "6ft", "color": "Grey Oak", "body_key": "body_6ft_grey_oak", "rail_key": "top_rail_6ft_grey_oak"},
     {"size": "6ft", "color": "Stone", "body_key": "body_6ft_stone", "rail_key": "top_rail_6ft_stone"},
+    {"size": "6ft", "color": "Rustic Black", "body_key": "body_6ft_rustic_black", "rail_key": "top_rail_6ft_rustic_black"},
 ]
 
 
