@@ -245,15 +245,13 @@
         </div>
     </section>
 
-    {% if min_rails_possible is not none %}
+    {% if min_rails_possible is not none and min_rails_possible <= 10 %}
         <section class="warning-banner">
             <strong>Production Capacity</strong>
             {% if min_rails_possible < 5 %}
                 Critical: only {{ min_rails_possible }} full top rails can be assembled with current stock.
-            {% elif min_rails_possible < 10 %}
-                Warning: {{ min_rails_possible }} builds available before parts run out.
             {% else %}
-                Capacity check OK: {{ min_rails_possible }} builds possible with current inventory.
+                Warning: {{ min_rails_possible }} builds available before parts run out.
             {% endif %}
             {% if limiting_parts %}
                 Limiting parts: {{ limiting_parts | map(attribute='name') | join(', ') }}.
