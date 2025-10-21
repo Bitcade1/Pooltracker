@@ -116,16 +116,22 @@
             <a href="{{ url_for('predicted_finish') }}">Predicted Finish</a>
         </div>
 
+        <!-- Dashboards Dropdown -->
+        <button class="dropdown-button" data-target="dashboardsDropdown" onclick="toggleDropdown('dashboardsDropdown')">Dashboards</button>
+        <div id="dashboardsDropdown" class="dropdown-content">
+            <a href="{{ url_for('dashboard') }}">Production Dashboard</a>
+            <a href="{{ url_for('top_rail_dashboard_view') }}">Top Rail Dashboard</a>
+        </div>
+
         <!-- Admin Dropdown -->
         <button class="dropdown-button" data-target="adminDropdown" onclick="toggleDropdown('adminDropdown')">Admin</button>
         <div id="adminDropdown" class="dropdown-content">
             <a href="{{ url_for('inventory') }}">Inventory</a>
-            <a href="{{ url_for('dashboard') }}">Dashboard</a>
             <a href="{{ url_for('working_days') }}">Number of Working Days</a>
             <a href="{{ url_for('admin') }}">Admin Centre</a>
             <a href="{{ url_for('production_schedule') }}">Production Schedule</a>
             <a href="{{ url_for('table_stock') }}">Table Stock</a>
-            <a href="{{ url_for('order_chinese_parts') }}">Order Chinese Parts</a
+            <a href="{{ url_for('order_chinese_parts') }}">Order Chinese Parts</a>
             <a href="{{ url_for('api_documentation') }}">API Documentation</a>
         </div>
     </div>
