@@ -50,11 +50,12 @@
     }
 
     .stat-card.next-serial {
-        padding: 2rem;
+        padding: 1.25rem 1.5rem;
         grid-column: span 2;
         justify-content: center;
         align-items: center;
         text-align: center;
+        min-height: 230px;
     }
 
     .stat-card .stat-label {
@@ -72,9 +73,10 @@
     }
 
     .next-serial-value {
-        font-size: 4.5rem;
+        font-size: clamp(4.5rem, 8vw, 7.5rem);
         font-weight: 800;
         color: #1f2d3d;
+        line-height: 1.05;
     }
 
     .stat-card.highlight {
