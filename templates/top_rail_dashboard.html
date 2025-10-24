@@ -49,6 +49,10 @@
         gap: 0.5rem;
     }
 
+    .stat-card.next-serial {
+        padding: 1.6rem;
+    }
+
     .stat-card .stat-label {
         font-size: 1rem;
         font-weight: 600;
@@ -61,6 +65,11 @@
         font-size: 2.2rem;
         font-weight: 700;
         color: #2c3e50;
+    }
+
+    .next-serial-value {
+        font-size: 2.8rem;
+        color: #34495e;
     }
 
     .stat-card.highlight {
@@ -239,9 +248,9 @@
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card next-serial">
             <span class="stat-label">Next Serial</span>
-            <span class="stat-value">{{ next_serial }}</span>
+            <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
     </section>
 
