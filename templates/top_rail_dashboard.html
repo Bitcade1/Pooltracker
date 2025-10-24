@@ -52,6 +52,8 @@
     .stat-card.next-serial {
         padding: 1.35rem;
         text-align: center;
+        justify-content: center;
+        align-items: center;
     }
 
     .stat-card.next-serial .stat-label {
@@ -74,10 +76,11 @@
     }
 
     .next-serial-value {
-        font-size: 5.2rem;
-        font-weight: 800;
+        font-size: clamp(5.8rem, 11vw, 8.5rem);
+        font-weight: 900;
         color: #1f2d3d;
-        line-height: 1.1;
+        line-height: 1.05;
+        white-space: nowrap;
     }
 
     .stat-card.highlight {
