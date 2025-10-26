@@ -771,15 +771,17 @@ def inventory():
 def build_stock_snapshot():
     stock_items = []
 
-    def add_item(category, identifier, label, count, **extra_fields):
+    def add_item(category, identifier, label, count, key_category=None, **extra_fields):
         key_source = identifier or label
-        key = f"{slugify_key(category)}__{slugify_key(key_source)}"
+        storage_category = key_category or category
+        key = f"{slugify_key(storage_category)}__{slugify_key(key_source)}"
         try:
             numeric_count = float(count)
         except (TypeError, ValueError):
             numeric_count = 0.0
         item_data = {
             "category": category,
+            "storage_category": storage_category,
             "identifier": identifier,
             "label": label,
             "count": numeric_count,
@@ -836,7 +838,15 @@ def build_stock_snapshot():
         count, has_record = fetch_part_count(part_name)
         if not has_record and part_name in hardware_defaults:
             count = hardware_defaults[part_name]
-        add_item("Parts Inventory", part_name, part_name, count)
+
+        if part_name in hardware_defaults:
+            display_category = "Hardware Parts"
+        elif part_name in table_parts:
+            display_category = "Chinese Parts"
+        else:
+            display_category = "3D Printed Parts"
+
+        add_item(display_category, part_name, part_name, count, key_category="Parts Inventory")
 
     wood_sections = [
         ("Body Wood Sets", "Body"),
