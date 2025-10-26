@@ -240,8 +240,25 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const SCROLL_STORAGE_KEY = 'stock_cost_scroll';
+
+            const restoreScrollPosition = () => {
+                const saved = localStorage.getItem(SCROLL_STORAGE_KEY);
+                if (saved !== null) {
+                    window.scrollTo({ top: parseFloat(saved), left: 0 });
+                    localStorage.removeItem(SCROLL_STORAGE_KEY);
+                }
+            };
+
             const form = document.getElementById('stock-cost-form');
+            restoreScrollPosition();
             if (!form) return;
+
+            const rememberScroll = () => {
+                localStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY || window.pageYOffset || 0));
+            };
+            form.addEventListener('submit', rememberScroll, { passive: true });
+
             const inputs = form.querySelectorAll('input[data-autosave]');
             let saveTimeout = null;
             inputs.forEach((input) => {
