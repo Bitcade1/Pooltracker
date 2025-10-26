@@ -423,8 +423,19 @@ def admin():
                                                        date=datetime.utcnow().date(),
                                                        time=datetime.utcnow().time())
                         db.session.add(new_tee_nuts)
+
+                    # Restore rows of black staples
+                    staples_entry = PrintedPartsCount.query.filter_by(part_name="Rows of Black Staples").order_by(
+                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+                    if staples_entry:
+                        staples_entry.count += 2
+                    else:
+                        new_staples = PrintedPartsCount(part_name="Rows of Black Staples", count=2,
+                                                       date=datetime.utcnow().date(),
+                                                       time=datetime.utcnow().time())
+                        db.session.add(new_staples)
                     
-                    flash(f"Stock restored: +1 {felt_part}, +1 {carpet_part}, +16 Tee Nuts", "success")
+                    flash(f"Stock restored: +1 {felt_part}, +1 {carpet_part}, +16 Tee Nuts, +2 Rows of Black Staples", "success")
         elif table == 'top rails':
             model = TopRail
         elif table == 'bodies':
@@ -1366,9 +1377,16 @@ def pods():
             tee_nuts_entry.count -= 16  # Added this line to deduct the Tee Nuts
             check_and_notify_low_stock("M10x13mm Tee Nut", old_tee_nuts_count, tee_nuts_entry.count)
 
+            old_staples_count = black_staples_entry.count
+            black_staples_entry.count -= 2
+            check_and_notify_low_stock("Rows of Black Staples", old_staples_count, black_staples_entry.count)
+
             db.session.add(new_pod)
             db.session.commit()
-            flash(f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, and 16 M10x13mm Tee Nuts", "success")
+            flash(
+                f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, 16 M10x13mm Tee Nuts, and 2 Rows of Black Staples",
+                "success"
+            )
 
             start_dt = datetime.combine(date.today(), start_time)
             finish_dt = datetime.combine(date.today(), finish_time)
