@@ -106,6 +106,13 @@
             border: 1px solid #cfd8dc;
             text-align: right;
         }
+        .cost-entered {
+            background: #e8f4ff;
+            border-left: 4px solid #2196f3;
+        }
+        .cost-entered td {
+            background: inherit;
+        }
         .table-wrapper {
             overflow-x: auto;
         }
@@ -208,7 +215,7 @@
                                 <td colspan="9">{{ item.laminate_color_label }}</td>
                             </tr>
                             {% else %}
-                            <tr>
+                            <tr class="{{ 'cost-entered' if item.has_cost else '' }}">
                                 <td>{{ item.label }}</td>
                                 <td>{{ item.count|format_number }}</td>
                                 <td>

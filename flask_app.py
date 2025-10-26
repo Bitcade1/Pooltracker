@@ -987,6 +987,7 @@ def stock_costs():
         per_item_with_vat = (material_cost * (1 + vat_rate)) + labour_cost
         stock_value_ex_vat = per_item_total * item['count']
         stock_value_inc_vat = per_item_with_vat * item['count']
+        has_cost = any([unit_cost, shipping_cost, labour_cost])
 
         item['unit_cost'] = unit_cost
         item['shipping_cost'] = shipping_cost
@@ -995,6 +996,7 @@ def stock_costs():
         item['per_item_with_vat'] = per_item_with_vat
         item['stock_value_ex_vat'] = stock_value_ex_vat
         item['stock_value_inc_vat'] = stock_value_inc_vat
+        item['has_cost'] = has_cost
 
         category_totals[item['category']]['ex_vat'] += stock_value_ex_vat
         category_totals[item['category']]['inc_vat'] += stock_value_inc_vat
