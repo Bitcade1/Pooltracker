@@ -109,6 +109,15 @@
         .table-wrapper {
             overflow-x: auto;
         }
+        .laminate-zone-header {
+            background: #f1f8e9;
+            font-weight: 700;
+            color: #33691e;
+        }
+        .laminate-zone-header td {
+            text-align: left;
+            font-size: 1.05rem;
+        }
         .actions {
             display: flex;
             gap: 12px;
@@ -194,6 +203,11 @@
                         </thead>
                         <tbody>
                             {% for item in category.entries %}
+                            {% if item.is_laminate_header %}
+                            <tr class="laminate-zone-header">
+                                <td colspan="9">{{ item.laminate_color_label }}</td>
+                            </tr>
+                            {% else %}
                             <tr>
                                 <td>{{ item.label }}</td>
                                 <td>{{ item.count|format_number }}</td>
@@ -211,6 +225,7 @@
                                 <td>{{ item.stock_value_ex_vat|format_number }}</td>
                                 <td>{{ item.stock_value_inc_vat|format_number }}</td>
                             </tr>
+                            {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>

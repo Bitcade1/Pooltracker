@@ -771,20 +771,23 @@ def inventory():
 def build_stock_snapshot():
     stock_items = []
 
-    def add_item(category, identifier, label, count):
+    def add_item(category, identifier, label, count, **extra_fields):
         key_source = identifier or label
         key = f"{slugify_key(category)}__{slugify_key(key_source)}"
         try:
             numeric_count = float(count)
         except (TypeError, ValueError):
             numeric_count = 0.0
-        stock_items.append({
+        item_data = {
             "category": category,
             "identifier": identifier,
             "label": label,
             "count": numeric_count,
             "key": key
-        })
+        }
+        if extra_fields:
+            item_data.update(extra_fields)
+        stock_items.append(item_data)
 
     def fetch_part_count(part_name):
         entry = (
@@ -878,18 +881,42 @@ def build_stock_snapshot():
     laminate_sizes = ['6', '7']
     laminate_lengths = ['short', 'long']
 
-    for color in laminate_colors:
+    for color_index, color in enumerate(laminate_colors):
         pretty_color = color.replace('_', ' ').title()
+        laminate_meta_base = {
+            'laminate_color': color,
+            'laminate_color_label': pretty_color,
+            'laminate_color_index': color_index,
+            'laminate_zone': True
+        }
+        uncut_key = f"{color}_uncut"
+        uncut_label = f"{pretty_color} Uncut Laminate"
+        count = laminate_counts.get(uncut_key, 0)
+        add_item(
+            "Cut Laminate",
+            uncut_key,
+            uncut_label,
+            count,
+            laminate_is_uncut=True,
+            laminate_size=None,
+            laminate_length=None,
+            **laminate_meta_base
+        )
         for size in laminate_sizes:
             for length in laminate_lengths:
                 part_key = f"{color}_{size}_{length}"
                 label = f"{pretty_color} {size}ft {length.title()} Laminate"
                 count = laminate_counts.get(part_key, 0)
-                add_item("Cut Laminate", part_key, label, count)
-        uncut_key = f"{color}_uncut"
-        uncut_label = f"{pretty_color} Uncut Laminate"
-        count = laminate_counts.get(uncut_key, 0)
-        add_item("Cut Laminate", uncut_key, uncut_label, count)
+                add_item(
+                    "Cut Laminate",
+                    part_key,
+                    label,
+                    count,
+                    laminate_is_uncut=False,
+                    laminate_size=size,
+                    laminate_length=length,
+                    **laminate_meta_base
+                )
 
     return stock_items
 
@@ -970,6 +997,35 @@ def stock_costs():
             }
             category_blocks.append(category_lookup[item['category']])
         category_lookup[item['category']]['entries'].append(item)
+
+    # Reorganize laminate entries to group by color with headers and uncut at top
+    for category in category_blocks:
+        entries = category['entries']
+        if not entries:
+            continue
+        if not any(entry.get('laminate_zone') for entry in entries):
+            continue
+        sorted_entries = sorted(
+            [entry for entry in entries if not entry.get('is_laminate_header')],
+            key=lambda e: (
+                e.get('laminate_color_index', 0),
+                0 if e.get('laminate_is_uncut') else 1,
+                e.get('laminate_size') or '',
+                e.get('laminate_length') or ''
+            )
+        )
+        zoned_entries = []
+        current_color = None
+        for entry in sorted_entries:
+            color_key = entry.get('laminate_color')
+            if color_key != current_color:
+                zoned_entries.append({
+                    'is_laminate_header': True,
+                    'laminate_color_label': entry.get('laminate_color_label', '').title()
+                })
+                current_color = color_key
+            zoned_entries.append(entry)
+        category['entries'] = zoned_entries
 
     category_totals = {k: v for k, v in category_totals.items()}
 
