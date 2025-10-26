@@ -24,14 +24,23 @@
             color: #607d8b;
             margin-bottom: 25px;
         }
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
         .grand-total-card {
             background: linear-gradient(135deg, #1976d2, #42a5f5);
             color: #fff;
             border-radius: 12px;
             padding: 20px;
             text-align: center;
-            margin-bottom: 20px;
             box-shadow: 0 5px 18px rgba(25, 118, 210, 0.3);
+        }
+        .grand-total-card.vat-card {
+            background: linear-gradient(135deg, #00796b, #26a69a);
+            box-shadow: 0 5px 18px rgba(0, 121, 107, 0.3);
         }
         .grand-total-card .label {
             font-size: 1.1rem;
@@ -62,8 +71,13 @@
             margin: 0;
         }
         .category-total {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
             font-weight: 600;
             color: #37474f;
+            font-size: 0.95rem;
+            gap: 4px;
         }
         table {
             width: 100%;
@@ -142,9 +156,15 @@
     <div class="container">
         <h1>Stock Cost Dashboard</h1>
         <p class="page-subtitle">Assign a unit cost and shipping cost to every tracked item to see the total value of your stock.</p>
-        <div class="grand-total-card">
-            <div class="label">Grand Total Stock Value</div>
-            <div class="value">&pound;{{ grand_total|format_number }}</div>
+        <div class="totals-grid">
+            <div class="grand-total-card">
+                <div class="label">Grand Total (Ex VAT)</div>
+                <div class="value">&pound;{{ grand_total_ex_vat|format_number }}</div>
+            </div>
+            <div class="grand-total-card vat-card">
+                <div class="label">Grand Total (Incl. VAT)</div>
+                <div class="value">&pound;{{ grand_total_inc_vat|format_number }}</div>
+            </div>
         </div>
 
         <form method="POST">
@@ -152,7 +172,10 @@
             <div class="category-card">
                 <div class="category-header">
                     <h2>{{ category.name }}</h2>
-                    <div class="category-total">&pound;{{ category_totals.get(category.name, 0)|format_number }}</div>
+                    <div class="category-total">
+                        <span>Ex VAT: &pound;{{ category_totals.get(category.name, {}).get('ex_vat', 0)|format_number }}</span>
+                        <span>Incl VAT: &pound;{{ category_totals.get(category.name, {}).get('inc_vat', 0)|format_number }}</span>
+                    </div>
                 </div>
                 <div class="table-wrapper">
                     <table>
@@ -160,10 +183,13 @@
                             <tr>
                                 <th>Item</th>
                                 <th>In Stock</th>
-                                <th>Unit Cost (&pound;)</th>
-                                <th>Shipping Cost (&pound;)</th>
-                                <th>Cost / Item (&pound;)</th>
-                                <th>Stock Value (&pound;)</th>
+                                <th>Raw Material (&pound;)</th>
+                                <th>Shipping (&pound;)</th>
+                                <th>Labour (&pound;)</th>
+                                <th>Cost / Item (Ex VAT)</th>
+                                <th>Cost / Item (Incl VAT)</th>
+                                <th>Stock Value (Ex VAT)</th>
+                                <th>Stock Value (Incl VAT)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -177,8 +203,13 @@
                                 <td>
                                     <input type="number" step="0.01" min="0" name="shipping_cost_{{ item.key }}" value="{{ '%.2f' % item.shipping_cost }}">
                                 </td>
+                                <td>
+                                    <input type="number" step="0.01" min="0" name="labour_cost_{{ item.key }}" value="{{ '%.2f' % item.labour_cost }}">
+                                </td>
                                 <td>{{ item.per_item_total|format_number }}</td>
-                                <td>{{ item.stock_value|format_number }}</td>
+                                <td>{{ item.per_item_with_vat|format_number }}</td>
+                                <td>{{ item.stock_value_ex_vat|format_number }}</td>
+                                <td>{{ item.stock_value_inc_vat|format_number }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -73,9 +73,10 @@ class StockItemCost(db.Model):
     item_key = db.Column(db.String(120), unique=True, nullable=False)
     unit_cost = db.Column(db.Float, nullable=False, default=0.0)
     shipping_cost = db.Column(db.Float, nullable=False, default=0.0)
+    labour_cost = db.Column(db.Float, nullable=False, default=0.0)
 
     def combined_cost(self):
-        return (self.unit_cost or 0.0) + (self.shipping_cost or 0.0)
+        return (self.unit_cost or 0.0) + (self.shipping_cost or 0.0) + (self.labour_cost or 0.0)
 
 
 class Worker(db.Model):
@@ -901,6 +902,7 @@ def stock_costs():
 
     stock_items = build_stock_snapshot()
     item_keys = [item['key'] for item in stock_items]
+    vat_rate = 0.20
 
     def parse_currency(value):
         if value is None or value == '':
@@ -914,12 +916,14 @@ def stock_costs():
         for item in stock_items:
             unit_value = parse_currency(request.form.get(f"unit_cost_{item['key']}", 0))
             shipping_value = parse_currency(request.form.get(f"shipping_cost_{item['key']}", 0))
+            labour_value = parse_currency(request.form.get(f"labour_cost_{item['key']}", 0))
             cost_entry = StockItemCost.query.filter_by(item_key=item['key']).first()
             if not cost_entry:
                 cost_entry = StockItemCost(item_key=item['key'])
                 db.session.add(cost_entry)
             cost_entry.unit_cost = unit_value
             cost_entry.shipping_cost = shipping_value
+            cost_entry.labour_cost = labour_value
 
         db.session.commit()
         flash("Stock costs updated successfully!", "success")
@@ -930,8 +934,9 @@ def stock_costs():
         for entry in StockItemCost.query.filter(StockItemCost.item_key.in_(item_keys)).all():
             cost_entries[entry.item_key] = entry
 
-    category_totals = defaultdict(float)
-    grand_total = 0.0
+    category_totals = defaultdict(lambda: {'ex_vat': 0.0, 'inc_vat': 0.0})
+    grand_total_ex_vat = 0.0
+    grand_total_inc_vat = 0.0
     category_blocks = []
     category_lookup = {}
 
@@ -939,16 +944,24 @@ def stock_costs():
         entry = cost_entries.get(item['key'])
         unit_cost = entry.unit_cost if entry else 0.0
         shipping_cost = entry.shipping_cost if entry else 0.0
-        per_item_total = unit_cost + shipping_cost
-        stock_value = per_item_total * item['count']
+        labour_cost = entry.labour_cost if entry else 0.0
+        per_item_total = unit_cost + shipping_cost + labour_cost
+        per_item_with_vat = per_item_total * (1 + vat_rate)
+        stock_value_ex_vat = per_item_total * item['count']
+        stock_value_inc_vat = per_item_with_vat * item['count']
 
         item['unit_cost'] = unit_cost
         item['shipping_cost'] = shipping_cost
+        item['labour_cost'] = labour_cost
         item['per_item_total'] = per_item_total
-        item['stock_value'] = stock_value
+        item['per_item_with_vat'] = per_item_with_vat
+        item['stock_value_ex_vat'] = stock_value_ex_vat
+        item['stock_value_inc_vat'] = stock_value_inc_vat
 
-        category_totals[item['category']] += stock_value
-        grand_total += stock_value
+        category_totals[item['category']]['ex_vat'] += stock_value_ex_vat
+        category_totals[item['category']]['inc_vat'] += stock_value_inc_vat
+        grand_total_ex_vat += stock_value_ex_vat
+        grand_total_inc_vat += stock_value_inc_vat
 
         if item['category'] not in category_lookup:
             category_lookup[item['category']] = {
@@ -964,7 +977,8 @@ def stock_costs():
         'stock_costs.html',
         category_blocks=category_blocks,
         category_totals=category_totals,
-        grand_total=grand_total
+        grand_total_ex_vat=grand_total_ex_vat,
+        grand_total_inc_vat=grand_total_inc_vat
     )
 
 
