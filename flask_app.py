@@ -41,6 +41,13 @@ def format_number_filter(value):
 app.jinja_env.filters['abs'] = abs_filter
 app.jinja_env.filters['format_number'] = format_number_filter
 
+
+def slugify_key(value):
+    if not value:
+        return "item"
+    slug = re.sub(r'[^a-z0-9]+', '_', value.lower()).strip('_')
+    return slug or "item"
+
 # Models
 class CompletedTable(db.Model):
     __tablename__ = 'completed_table'
@@ -58,6 +65,17 @@ class TableStock(db.Model):
     # Use a string like 'body_7ft', 'body_6ft', 'top_rail', or 'cushion_set'
     type = db.Column(db.String(50), unique=True, nullable=False)
     count = db.Column(db.Integer, default=0, nullable=False)
+
+
+class StockItemCost(db.Model):
+    __tablename__ = 'stock_item_cost'
+    id = db.Column(db.Integer, primary_key=True)
+    item_key = db.Column(db.String(120), unique=True, nullable=False)
+    unit_cost = db.Column(db.Float, nullable=False, default=0.0)
+    shipping_cost = db.Column(db.Float, nullable=False, default=0.0)
+
+    def combined_cost(self):
+        return (self.unit_cost or 0.0) + (self.shipping_cost or 0.0)
 
 
 class Worker(db.Model):
@@ -746,6 +764,207 @@ def inventory():
         max_tables_possible=max_tables_possible,
         tables_possible_per_part=tables_possible_per_part,
         hardware_counts=hardware_counts
+    )
+
+
+def build_stock_snapshot():
+    stock_items = []
+
+    def add_item(category, identifier, label, count):
+        key_source = identifier or label
+        key = f"{slugify_key(category)}__{slugify_key(key_source)}"
+        try:
+            numeric_count = float(count)
+        except (TypeError, ValueError):
+            numeric_count = 0.0
+        stock_items.append({
+            "category": category,
+            "identifier": identifier,
+            "label": label,
+            "count": numeric_count,
+            "key": key
+        })
+
+    def fetch_part_count(part_name):
+        entry = (
+            PrintedPartsCount.query
+            .filter_by(part_name=part_name)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first()
+        )
+        if entry:
+            return entry.count, True
+        return 0, False
+
+    core_parts = [
+        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+        "Small Ramp", "Cue Ball Separator", "Bushing",
+        "6ft Cue Ball Separator", "6ft Large Ramp",
+        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"
+    ]
+
+    table_parts = {
+        "Table legs": 4, "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1,
+        "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1,
+        "Feet": 4, "Triangle trim": 1, "White ball return trim": 1,
+        "Color ball trim": 1, "Ball window trim": 1, "Aluminum corner": 4,
+        "Chrome corner": 4, "Top rail trim short length": 4,
+        "Top rail trim long length": 2, "Ramp 170mm": 1, "Ramp 158mm": 1,
+        "Ramp 918mm": 1, "Ramp 376mm": 1, "Chrome handles": 1,
+        "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
+    }
+
+    hardware_parts = HardwarePart.query.all()
+    hardware_defaults = {hp.name: hp.initial_count for hp in hardware_parts}
+
+    part_names = set()
+    distinct_parts = db.session.query(PrintedPartsCount.part_name).distinct().all()
+    for part_tuple in distinct_parts:
+        part_name = part_tuple[0]
+        if part_name:
+            part_names.add(part_name)
+
+    part_names.update(core_parts)
+    part_names.update(table_parts.keys())
+    part_names.update(hardware_defaults.keys())
+
+    for part_name in sorted(part_names, key=lambda x: x.lower()):
+        count, has_record = fetch_part_count(part_name)
+        if not has_record and part_name in hardware_defaults:
+            count = hardware_defaults[part_name]
+        add_item("Parts Inventory", part_name, part_name, count)
+
+    wood_sections = [
+        ("Body Wood Sets", "Body"),
+        ("Pod Sides", "Pod Sides"),
+        ("Base Panels", "Bases")
+    ]
+
+    for label, section in wood_sections:
+        entry = (
+            WoodCount.query
+            .filter_by(section=section)
+            .order_by(WoodCount.date.desc(), WoodCount.time.desc())
+            .first()
+        )
+        count = entry.count if entry else 0
+        add_item("Wood Shop", section, label, count)
+
+    inventory_record = MDFInventory.query.first()
+    if not inventory_record:
+        inventory_record = MDFInventory(plain_mdf=0, black_mdf=0, plain_mdf_36=0)
+        db.session.add(inventory_record)
+        db.session.commit()
+
+    add_item("MDF Boards", "plain_mdf", "Plain MDF", inventory_record.plain_mdf)
+    add_item("MDF Boards", "black_mdf", "Black MDF", inventory_record.black_mdf)
+    add_item("MDF Boards", "plain_mdf_36", "36mm Plain MDF", inventory_record.plain_mdf_36)
+
+    for entry in TableStock.query.all():
+        if entry.type.startswith('body_'):
+            category = "Finished Tables"
+        elif entry.type.startswith('top_rail_'):
+            category = "Top Rails"
+        elif entry.type.startswith('cushion_set_'):
+            category = "Cushion Sets"
+        else:
+            category = "Table Stock"
+        label = entry.type.replace('_', ' ').title()
+        add_item(category, entry.type, label, entry.count)
+
+    laminate_counts = {part.part_key: part.count for part in LaminatePieceCount.query.all()}
+    laminate_colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+    laminate_sizes = ['6', '7']
+    laminate_lengths = ['short', 'long']
+
+    for color in laminate_colors:
+        pretty_color = color.replace('_', ' ').title()
+        for size in laminate_sizes:
+            for length in laminate_lengths:
+                part_key = f"{color}_{size}_{length}"
+                label = f"{pretty_color} {size}ft {length.title()} Laminate"
+                count = laminate_counts.get(part_key, 0)
+                add_item("Cut Laminate", part_key, label, count)
+        uncut_key = f"{color}_uncut"
+        uncut_label = f"{pretty_color} Uncut Laminate"
+        count = laminate_counts.get(uncut_key, 0)
+        add_item("Cut Laminate", uncut_key, uncut_label, count)
+
+    return stock_items
+
+
+@app.route('/stock_costs', methods=['GET', 'POST'])
+def stock_costs():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    stock_items = build_stock_snapshot()
+    item_keys = [item['key'] for item in stock_items]
+
+    def parse_currency(value):
+        if value is None or value == '':
+            return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    if request.method == 'POST':
+        for item in stock_items:
+            unit_value = parse_currency(request.form.get(f"unit_cost_{item['key']}", 0))
+            shipping_value = parse_currency(request.form.get(f"shipping_cost_{item['key']}", 0))
+            cost_entry = StockItemCost.query.filter_by(item_key=item['key']).first()
+            if not cost_entry:
+                cost_entry = StockItemCost(item_key=item['key'])
+                db.session.add(cost_entry)
+            cost_entry.unit_cost = unit_value
+            cost_entry.shipping_cost = shipping_value
+
+        db.session.commit()
+        flash("Stock costs updated successfully!", "success")
+        return redirect(url_for('stock_costs'))
+
+    cost_entries = {}
+    if item_keys:
+        for entry in StockItemCost.query.filter(StockItemCost.item_key.in_(item_keys)).all():
+            cost_entries[entry.item_key] = entry
+
+    category_totals = defaultdict(float)
+    grand_total = 0.0
+    category_blocks = []
+    category_lookup = {}
+
+    for item in stock_items:
+        entry = cost_entries.get(item['key'])
+        unit_cost = entry.unit_cost if entry else 0.0
+        shipping_cost = entry.shipping_cost if entry else 0.0
+        per_item_total = unit_cost + shipping_cost
+        stock_value = per_item_total * item['count']
+
+        item['unit_cost'] = unit_cost
+        item['shipping_cost'] = shipping_cost
+        item['per_item_total'] = per_item_total
+        item['stock_value'] = stock_value
+
+        category_totals[item['category']] += stock_value
+        grand_total += stock_value
+
+        if item['category'] not in category_lookup:
+            category_lookup[item['category']] = {
+                'name': item['category'],
+                'items': []
+            }
+            category_blocks.append(category_lookup[item['category']])
+        category_lookup[item['category']]['items'].append(item)
+
+    category_totals = {k: v for k, v in category_totals.items()}
+
+    return render_template(
+        'stock_costs.html',
+        category_blocks=category_blocks,
+        category_totals=category_totals,
+        grand_total=grand_total
     )
 
 
