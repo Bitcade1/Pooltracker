@@ -953,10 +953,10 @@ def stock_costs():
         if item['category'] not in category_lookup:
             category_lookup[item['category']] = {
                 'name': item['category'],
-                'items': []
+                'entries': []
             }
             category_blocks.append(category_lookup[item['category']])
-        category_lookup[item['category']]['items'].append(item)
+        category_lookup[item['category']]['entries'].append(item)
 
     category_totals = {k: v for k, v in category_totals.items()}
 
