@@ -212,13 +212,13 @@
                                 <td>{{ item.label }}</td>
                                 <td>{{ item.count|format_number }}</td>
                                 <td>
-                                    <input type="number" step="0.01" min="0" name="unit_cost_{{ item.key }}" value="{{ '%.2f' % item.unit_cost }}" data-autosave>
+                                    <input type="number" step="any" min="0" name="unit_cost_{{ item.key }}" value="{{ '%.4f' % item.unit_cost }}" data-autosave>
                                 </td>
                                 <td>
-                                    <input type="number" step="0.01" min="0" name="shipping_cost_{{ item.key }}" value="{{ '%.2f' % item.shipping_cost }}" data-autosave>
+                                    <input type="number" step="any" min="0" name="shipping_cost_{{ item.key }}" value="{{ '%.4f' % item.shipping_cost }}" data-autosave>
                                 </td>
                                 <td>
-                                    <input type="number" step="0.01" min="0" name="labour_cost_{{ item.key }}" value="{{ '%.2f' % item.labour_cost }}" data-autosave>
+                                    <input type="number" step="any" min="0" name="labour_cost_{{ item.key }}" value="{{ '%.4f' % item.labour_cost }}" data-autosave>
                                 </td>
                                 <td>{{ item.per_item_total|format_number }}</td>
                                 <td>{{ item.per_item_with_vat|format_number }}</td>
