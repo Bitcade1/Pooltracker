@@ -972,8 +972,9 @@ def stock_costs():
         unit_cost = entry.unit_cost if entry else 0.0
         shipping_cost = entry.shipping_cost if entry else 0.0
         labour_cost = entry.labour_cost if entry else 0.0
-        per_item_total = unit_cost + shipping_cost + labour_cost
-        per_item_with_vat = per_item_total * (1 + vat_rate)
+        material_cost = unit_cost + shipping_cost
+        per_item_total = material_cost + labour_cost  # Ex VAT total (labour is VAT exempt)
+        per_item_with_vat = (material_cost * (1 + vat_rate)) + labour_cost
         stock_value_ex_vat = per_item_total * item['count']
         stock_value_inc_vat = per_item_with_vat * item['count']
 
