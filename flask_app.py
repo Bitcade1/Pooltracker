@@ -5101,14 +5101,17 @@ def counting_laminate():
                 uncut_key = 'black_uncut'
                 add_count = 10
                 to_deduct = 5  # 10 x 0.5
+                color = 'black'
             elif part_key == 'black_7_long_bulk':
                 part_key_actual = 'black_7_long'
                 uncut_key = 'black_uncut'
                 add_count = 10
                 to_deduct = 10  # 10 x 1
+                color = 'black'
             else:
                 part_key_actual = part_key
-                
+                add_count = 1
+
                 if part_key.endswith('uncut'):
                     part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
                     if not part:
