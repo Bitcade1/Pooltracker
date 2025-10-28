@@ -1183,6 +1183,9 @@ def counting_hardware():
     # 1. Fetch all hardware parts
     hardware_parts = HardwarePart.query.all()
 
+    # Default selected part is first in list (if any)
+    selected_part = hardware_parts[0].name if hardware_parts else None
+
     # 2. Build a dictionary of the latest known counts (or initial_count if none recorded)
     hardware_counts = {}
     for part in hardware_parts:
@@ -1194,6 +1197,7 @@ def counting_hardware():
 
     # 3. Handle POST actions
     if request.method == 'POST':
+        selected_part = request.form.get('hardware_part', selected_part)
         action = request.form.get('action')
 
         # ------------------------------------------------------
@@ -1208,7 +1212,12 @@ def counting_hardware():
                 new_usage = float(new_usage_str)
             except ValueError:
                 flash("Please provide a valid number (integer or decimal) for 'Used Per Table'.", "error")
-                return redirect(url_for('counting_hardware'))
+                return render_template(
+                    'counting_hardware.html',
+                    hardware_parts=hardware_parts,
+                    hardware_counts=hardware_counts,
+                    selected_part=selected_part
+                )
 
             # Find the HardwarePart in the database
             hardware_part = HardwarePart.query.filter_by(name=part_name).first()
@@ -1218,8 +1227,6 @@ def counting_hardware():
                 flash(f"Updated usage for '{part_name}' to {new_usage} per table.", "success")
             else:
                 flash(f"Hardware part '{part_name}' not found.", "error")
-
-            return redirect(url_for('counting_hardware'))
 
         # ------------------------------------------------------
         # B) INCREMENT / DECREMENT / BULK UPDATE the count
@@ -1232,12 +1239,22 @@ def counting_hardware():
                 amount = int(amount_str)
             except ValueError:
                 flash("Amount must be a number.", "error")
-                return redirect(url_for('counting_hardware'))
+                return render_template(
+                    'counting_hardware.html',
+                    hardware_parts=hardware_parts,
+                    hardware_counts=hardware_counts,
+                    selected_part=selected_part
+                )
 
             # Validate the selected part
             if part_name not in hardware_counts:
                 flash(f"Invalid hardware part: {part_name}", "error")
-                return redirect(url_for('counting_hardware'))
+                return render_template(
+                    'counting_hardware.html',
+                    hardware_parts=hardware_parts,
+                    hardware_counts=hardware_counts,
+                    selected_part=selected_part
+                )
 
             current_count = hardware_counts[part_name]
             new_count = current_count
@@ -1247,12 +1264,22 @@ def counting_hardware():
             elif action == 'decrement':
                 if current_count < amount:
                     flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
-                    return redirect(url_for('counting_hardware'))
+                    return render_template(
+                        'counting_hardware.html',
+                        hardware_parts=hardware_parts,
+                        hardware_counts=hardware_counts,
+                        selected_part=selected_part
+                    )
                 new_count -= amount
             elif action == 'bulk':
                 if amount < 0 and current_count < abs(amount):
                     flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
-                    return redirect(url_for('counting_hardware'))
+                    return render_template(
+                        'counting_hardware.html',
+                        hardware_parts=hardware_parts,
+                        hardware_counts=hardware_counts,
+                        selected_part=selected_part
+                    )
                 new_count += amount
 
             # Check for low stock if count is decreasing
@@ -1278,7 +1305,8 @@ def counting_hardware():
     return render_template(
         'counting_hardware.html',
         hardware_parts=hardware_parts,
-        hardware_counts=hardware_counts
+        hardware_counts=hardware_counts,
+        selected_part=selected_part
     )
 
 

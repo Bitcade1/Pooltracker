@@ -35,6 +35,7 @@
                 "{{ part.name }}": {{ part.used_per_table if part.used_per_table else 0 }},
             {% endfor %}
         };
+        const initialSelection = {{ selected_part|tojson }};
 
         // Update the "Current Stock" and "Used Per Table" displays when a part is selected
         function updateCountDisplay() {
@@ -45,9 +46,17 @@
             countDisplay.innerText = counts[selectedPart] || 0;
             usageDisplay.innerText = usage[selectedPart] || 0;
         }
+
+        function initializeHardwareForm() {
+            const select = document.getElementById("hardware_part");
+            if (select && initialSelection) {
+                select.value = initialSelection;
+            }
+            updateCountDisplay();
+        }
     </script>
 </head>
-<body onload="updateCountDisplay()">
+<body onload="initializeHardwareForm()">
     <div class="container">
         <h1>Counting Hardware</h1>
 
@@ -69,7 +78,7 @@
                 <label for="hardware_part">Select Hardware Part:</label>
                 <select name="hardware_part" id="hardware_part" onchange="updateCountDisplay()" required>
                     {% for part in hardware_parts %}
-                        <option value="{{ part.name }}">{{ part.name }}</option>
+                        <option value="{{ part.name }}" {% if part.name == selected_part %}selected{% endif %}>{{ part.name }}</option>
                     {% endfor %}
                 </select>
             </div>
