@@ -1269,6 +1269,9 @@ def counting_hardware():
             db.session.add(new_entry)
             db.session.commit()
 
+            # Ensure the rendered page reflects the updated count immediately
+            hardware_counts[part_name] = new_count
+
             flash(f"{part_name} updated successfully! New count: {new_count}", "success")
 
     # 4. Render the template
