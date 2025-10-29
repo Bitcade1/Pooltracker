@@ -1465,16 +1465,20 @@ def pods():
 
             # --- NTFY Notification ---
             size = "6ft" if is_6ft else "7ft"
-            message_lines = [
-                f"Serial: {serial_number}",
-                f"Time Taken: {time_taken_str}"
-            ]
+            message_lines = []
             if low_stock_messages:
+                message_lines.append("LOW STOCK WARNING")
+                for warning in low_stock_messages:
+                    message_lines.append(f"- {warning}")
                 message_lines.append("")
-                message_lines.append("Low Stock Alerts:")
-                message_lines.extend(low_stock_messages)
+                message_lines.append("Completion Details:")
+            message_lines.append(f"Serial: {serial_number}")
+            message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
-            title = f"Pod Completed: {size}"
+            if low_stock_messages:
+                title = f"[LOW STOCK] Pod Completed: {size}"
+            else:
+                title = f"Pod Completed: {size}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
                               data=message,
@@ -2741,16 +2745,20 @@ def bodies():
             # --- NTFY Notification ---
             size = "6ft" if is_6ft(serial_number) else "7ft"
             color = get_color(serial_number).replace('_', ' ').title()
-            message_lines = [
-                f"Serial: {serial_number}",
-                f"Time Taken: {time_taken_str}"
-            ]
+            message_lines = []
             if low_stock_messages:
+                message_lines.append("LOW STOCK WARNING")
+                for warning in low_stock_messages:
+                    message_lines.append(f"- {warning}")
                 message_lines.append("")
-                message_lines.append("Low Stock Alerts:")
-                message_lines.extend(low_stock_messages)
+                message_lines.append("Completion Details:")
+            message_lines.append(f"Serial: {serial_number}")
+            message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
-            title = f"Body Completed: {size} {color}"
+            if low_stock_messages:
+                title = f"[LOW STOCK] Body Completed: {size} {color}"
+            else:
+                title = f"Body Completed: {size} {color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
                               data=message,
@@ -3144,16 +3152,20 @@ def top_rails():
             
             # --- NTFY Notification ---
             display_color = color.replace('_', ' ').title()
-            message_lines = [
-                f"Serial: {serial_number}",
-                f"Time Taken: {time_taken_str}"
-            ]
+            message_lines = []
             if low_stock_messages:
+                message_lines.append("LOW STOCK WARNING")
+                for warning in low_stock_messages:
+                    message_lines.append(f"- {warning}")
                 message_lines.append("")
-                message_lines.append("Low Stock Alerts:")
-                message_lines.extend(low_stock_messages)
+                message_lines.append("Completion Details:")
+            message_lines.append(f"Serial: {serial_number}")
+            message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
-            title = f"Top Rail Completed: {size} {display_color}"
+            if low_stock_messages:
+                title = f"[LOW STOCK] Top Rail Completed: {size} {display_color}"
+            else:
+                title = f"Top Rail Completed: {size} {display_color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
                               data=message,
