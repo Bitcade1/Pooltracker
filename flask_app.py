@@ -1360,6 +1360,7 @@ def pods():
         felt_part = "6ft Felt" if is_6ft else "7ft Felt"
         carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
         
+        low_stock_messages = []
         # Check and deduct felt
         felt_entry = PrintedPartsCount.query.filter_by(part_name=felt_part).order_by(
             PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
@@ -1403,19 +1404,39 @@ def pods():
             # Actually deduct the parts now
             old_felt_count = felt_entry.count
             felt_entry.count -= 1
-            check_and_notify_low_stock(felt_part, old_felt_count, felt_entry.count)
+            check_and_notify_low_stock(
+                felt_part,
+                old_felt_count,
+                felt_entry.count,
+                collected_warnings=low_stock_messages
+            )
 
             old_carpet_count = carpet_entry.count
             carpet_entry.count -= 1
-            check_and_notify_low_stock(carpet_part, old_carpet_count, carpet_entry.count)
+            check_and_notify_low_stock(
+                carpet_part,
+                old_carpet_count,
+                carpet_entry.count,
+                collected_warnings=low_stock_messages
+            )
 
             old_tee_nuts_count = tee_nuts_entry.count
             tee_nuts_entry.count -= 16  # Added this line to deduct the Tee Nuts
-            check_and_notify_low_stock("M10x13mm Tee Nut", old_tee_nuts_count, tee_nuts_entry.count)
+            check_and_notify_low_stock(
+                "M10x13mm Tee Nut",
+                old_tee_nuts_count,
+                tee_nuts_entry.count,
+                collected_warnings=low_stock_messages
+            )
 
             old_staples_count = black_staples_entry.count
             black_staples_entry.count -= 2
-            check_and_notify_low_stock("Rows of Black Staples", old_staples_count, black_staples_entry.count)
+            check_and_notify_low_stock(
+                "Rows of Black Staples",
+                old_staples_count,
+                black_staples_entry.count,
+                collected_warnings=low_stock_messages
+            )
 
             db.session.add(new_pod)
             db.session.commit()
@@ -1444,7 +1465,15 @@ def pods():
 
             # --- NTFY Notification ---
             size = "6ft" if is_6ft else "7ft"
-            message = f"Serial: {serial_number}\nTime Taken: {time_taken_str}"
+            message_lines = [
+                f"Serial: {serial_number}",
+                f"Time Taken: {time_taken_str}"
+            ]
+            if low_stock_messages:
+                message_lines.append("")
+                message_lines.append("Low Stock Alerts:")
+                message_lines.extend(low_stock_messages)
+            message = "\n".join(message_lines)
             title = f"Pod Completed: {size}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
