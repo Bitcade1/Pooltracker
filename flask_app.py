@@ -170,14 +170,17 @@ class PartThreshold(db.Model):
     part_name = db.Column(db.String(100), unique=True, nullable=False)
     threshold = db.Column(db.Integer, default=0, nullable=False)
 
-def check_and_notify_low_stock(part_name, old_count, new_count):
+def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnings=None):
     threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
     if threshold_entry and threshold_entry.threshold > 0:
         # notify on every decrement while at or below threshold
         if new_count <= threshold_entry.threshold:
+            message = f"Stock for {part_name} is low ({new_count} remaining)."
+            if collected_warnings is not None:
+                collected_warnings.append(message)
+                return message
             try:
-                message = f"Stock for {part_name} is low ({new_count} remaining)."
-                title   = "Low Stock Warning"
+                title = "Low Stock Warning"
                 requests.post(
                     "https://ntfy.sh/PoolTableTracker",
                     data=message,
@@ -185,6 +188,8 @@ def check_and_notify_low_stock(part_name, old_count, new_count):
                 )
             except requests.RequestException as e:
                 print(f"Ntfy notification failed for low stock: {e}")
+            return message
+    return None
 
 
 @app.route('/logout')
@@ -2578,6 +2583,7 @@ def bodies():
         # ---------------------------
         # PARTS DEDUCTION LOGIC
         # ---------------------------
+        low_stock_messages = []
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
@@ -2647,7 +2653,12 @@ def bodies():
             old_count = part_entry.count
             if old_count >= quantity_needed:
                 part_entry.count -= quantity_needed
-                check_and_notify_low_stock(part_name, old_count, part_entry.count)
+                check_and_notify_low_stock(
+                    part_name,
+                    old_count,
+                    part_entry.count,
+                    collected_warnings=low_stock_messages
+                )
             else:
                 flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {part_entry.count}) to complete the body!", "error")
                 db.session.rollback()
@@ -2701,7 +2712,15 @@ def bodies():
             # --- NTFY Notification ---
             size = "6ft" if is_6ft(serial_number) else "7ft"
             color = get_color(serial_number).replace('_', ' ').title()
-            message = f"Serial: {serial_number}\nTime Taken: {time_taken_str}"
+            message_lines = [
+                f"Serial: {serial_number}",
+                f"Time Taken: {time_taken_str}"
+            ]
+            if low_stock_messages:
+                message_lines.append("")
+                message_lines.append("Low Stock Alerts:")
+                message_lines.extend(low_stock_messages)
+            message = "\n".join(message_lines)
             title = f"Body Completed: {size} {color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
