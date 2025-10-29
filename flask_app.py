@@ -2929,6 +2929,7 @@ def top_rails():
             if color_suffix:
                 serial_number = serial_number + color_suffix
 
+        low_stock_messages = []
         # Parts and quantities needed for top rail completion
         parts_to_deduct = {
             "Top rail trim long length": 2,
@@ -2981,7 +2982,12 @@ def top_rails():
                     flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {total_available}", "error")
                     return redirect(url_for('top_rails'))
                 
-                check_and_notify_low_stock(part_name, total_available, total_available - quantity_needed)
+                check_and_notify_low_stock(
+                    part_name,
+                    total_available,
+                    total_available - quantity_needed,
+                    collected_warnings=low_stock_messages
+                )
                 
                 # Deduct parts from newest entries first
                 remaining = quantity_needed
@@ -3109,7 +3115,15 @@ def top_rails():
             
             # --- NTFY Notification ---
             display_color = color.replace('_', ' ').title()
-            message = f"Serial: {serial_number}\nTime Taken: {time_taken_str}"
+            message_lines = [
+                f"Serial: {serial_number}",
+                f"Time Taken: {time_taken_str}"
+            ]
+            if low_stock_messages:
+                message_lines.append("")
+                message_lines.append("Low Stock Alerts:")
+                message_lines.extend(low_stock_messages)
+            message = "\n".join(message_lines)
             title = f"Top Rail Completed: {size} {display_color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
