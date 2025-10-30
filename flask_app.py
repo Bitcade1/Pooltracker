@@ -3018,33 +3018,28 @@ def top_rails():
                 )
             else:
                 # Handle other parts using PrintedPartsCount as before
-                entries = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
-                    PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
-                
-                total_available = sum(entry.count for entry in entries)
-                
-                if total_available < quantity_needed:
-                    flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {total_available}", "error")
+                latest_entry = (PrintedPartsCount.query
+                                .filter_by(part_name=part_name)
+                                .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                                .first())
+
+                if not latest_entry:
+                    flash(f"No inventory set up for {part_name}!", "error")
                     return redirect(url_for('top_rails'))
-                
+
+                if latest_entry.count < quantity_needed:
+                    flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {latest_entry.count}", "error")
+                    return redirect(url_for('top_rails'))
+
+                old_count = latest_entry.count
+                latest_entry.count -= quantity_needed
+
                 check_and_notify_low_stock(
                     part_name,
-                    total_available,
-                    total_available - quantity_needed,
+                    old_count,
+                    latest_entry.count,
                     collected_warnings=low_stock_messages
                 )
-                
-                # Deduct parts from newest entries first
-                remaining = quantity_needed
-                for entry in entries:
-                    if remaining <= 0:
-                        break
-                    if entry.count >= remaining:
-                        entry.count -= remaining
-                        remaining = 0
-                    else:
-                        remaining -= entry.count
-                        entry.count = 0
             
             db.session.commit()
 
