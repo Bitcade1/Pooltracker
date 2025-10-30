@@ -371,7 +371,8 @@ def admin():
     # Gather all unique part names for threshold management
     all_parts_query1 = db.session.query(HardwarePart.name.label("part_name")).distinct()
     all_parts_query2 = db.session.query(PrintedPartsCount.part_name.label("part_name")).distinct()
-    all_parts_union = all_parts_query1.union(all_parts_query2).all()
+    all_parts_query3 = db.session.query(TopRailPieceCount.part_key.label("part_name")).distinct()
+    all_parts_union = all_parts_query1.union(all_parts_query2, all_parts_query3).all()
     all_part_names = sorted([name for (name,) in all_parts_union])
 
     # Get all current thresholds
@@ -3007,7 +3008,14 @@ def top_rails():
                     return redirect(url_for('top_rails'))
                 
                 # Deduct from inventory
+                old_piece_count = part_entry.count
                 part_entry.count -= quantity_needed
+                check_and_notify_low_stock(
+                    part_name,
+                    old_piece_count,
+                    part_entry.count,
+                    collected_warnings=low_stock_messages
+                )
             else:
                 # Handle other parts using PrintedPartsCount as before
                 entries = PrintedPartsCount.query.filter_by(part_name=part_name).order_by(
