@@ -112,6 +112,37 @@
     .dust-extractor-off:hover {
       background-color: #c82333;
     }
+    .body-popup-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .body-popup-content {
+      background: #fff;
+      padding: 30px;
+      border-radius: 10px;
+      max-width: 320px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    .body-popup-content h2 {
+      margin-bottom: 10px;
+      color: #007bff;
+    }
+    .body-popup-content button {
+      margin-top: 20px;
+      background-color: #28a745;
+    }
+    .body-popup-content button:hover {
+      background-color: #218838;
+    }
   </style>
   <script>
     function toggleCollapsible(id) {
@@ -401,6 +432,30 @@
     <div class="back-to-menu">
       <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
     </div>
+
+    {% if show_body_popup %}
+      <div class="body-popup-overlay" id="bodyPopupOverlay">
+        <div class="body-popup-content">
+          <h2>10 Bodies Counted</h2>
+          <p>Great work! You just logged another set of 10 bodies.</p>
+          <button type="button" onclick="closeBodyPopup()">OK</button>
+        </div>
+      </div>
+    {% endif %}
   </div>
+  <script>
+    function closeBodyPopup() {
+      var overlay = document.getElementById('bodyPopupOverlay');
+      if (overlay) {
+        overlay.style.display = 'none';
+      }
+    }
+    window.addEventListener('load', function() {
+      var overlay = document.getElementById('bodyPopupOverlay');
+      if (overlay) {
+        overlay.style.display = 'flex';
+      }
+    });
+  </script>
 </body>
 </html>

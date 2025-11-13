@@ -1881,6 +1881,16 @@ def counting_wood():
         "6ft": ["Body", "Pod Sides", "Bases", "Top Rail Pieces Short", "Top Rail Pieces Long"]
     }
 
+    def update_body_popup_counter(increment_amount):
+        """Track how many new bodies have been counted and trigger the popup every 10."""
+        if increment_amount <= 0:
+            return
+        pending_total = session.get('body_popup_counter', 0) + increment_amount
+        triggers = pending_total // 10
+        session['body_popup_counter'] = pending_total % 10
+        if triggers:
+            session['show_body_popup'] = True
+
     if request.method == 'POST' and 'section' in request.form:
         # Expect a section value like "7ft - Body" or "6ft - Top Rail Pieces Long"
         section = request.form['section']
@@ -2084,6 +2094,9 @@ def counting_wood():
             else:
                 flash("Invalid action.", "error")
                 return redirect(url_for('counting_wood', month=selected_month))
+
+        if section.endswith("Body") and new_entry.count > 0:
+            update_body_popup_counter(new_entry.count)
 
         db.session.add(new_entry)
         db.session.commit()
@@ -2325,6 +2338,8 @@ def counting_wood():
        
         daily_wood_data_with_local_time.append(entry_copy)
 
+    show_body_popup = session.pop('show_body_popup', False)
+
     return render_template(
         'counting_wood.html',
         inventory=inventory,
@@ -2338,7 +2353,8 @@ def counting_wood():
         weekly_breakdown=weekly_breakdown,
         yearly_breakdown=yearly_breakdown,
         today=today,
-        current_year=today.year
+        current_year=today.year,
+        show_body_popup=show_body_popup
     )
 
 
