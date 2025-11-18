@@ -2961,7 +2961,7 @@ def top_rails():
         serial_number = clean_serial
         
         # Make sure color suffix is present if needed
-        # Colors use the following convention: GO (Grey Oak), O (Rustic Oak), C (Stone), B or none (Black)
+        # Colors use the following convention: GO (Grey Oak), O (Rustic Oak), C (Stone), RB (Rustic Black), B or none (Black)
         has_color_suffix = any(
             suffix in serial_number
             for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B', '-RB', ' - RB']
@@ -3143,13 +3143,15 @@ def top_rails():
                 return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
             
             def get_color(serial):
-                norm_serial = serial.replace(" ", "")
-                if "-GO" in norm_serial or "-go" in norm_serial:
+                norm_serial = serial.replace(" ", "").upper()
+                if "-GO" in norm_serial:
                     return "grey_oak"
-                elif "-O" in norm_serial and not "-GO" in norm_serial:
+                elif "-O" in norm_serial and "-GO" not in norm_serial:
                     return "rustic_oak"
-                elif "-C" in norm_serial or "-c" in norm_serial:
+                elif "-C" in norm_serial:
                     return "stone"
+                elif "-RB" in norm_serial:
+                    return "rustic_black"
                 else:
                     return "black"  # Default if no color suffix or has -B
             
@@ -3223,13 +3225,15 @@ def top_rails():
             return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
             
         def get_color(serial):
-            norm_serial = serial.replace(" ", "")
-            if "-GO" in norm_serial or "-go" in norm_serial:
+            norm_serial = serial.replace(" ", "").upper()
+            if "-GO" in norm_serial:
                 return "Grey Oak"
-            elif "-O" in norm_serial and not "-GO" in norm_serial:
+            elif "-O" in norm_serial and "-GO" not in norm_serial:
                 return "Rustic Oak"
-            elif "-C" in norm_serial or "-c" in norm_serial:
+            elif "-C" in norm_serial:
                 return "Stone"
+            elif "-RB" in norm_serial:
+                return "Rustic Black"
             else:
                 return "Black"  # Default if no color suffix or has -B
         
