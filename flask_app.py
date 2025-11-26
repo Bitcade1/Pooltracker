@@ -1587,35 +1587,7 @@ def pods():
         target_6ft = 60
     
     # Next serial number generation logic
-    last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
-    next_serial_number = "1000"  # Default value
-    default_size = '7ft'  # Default size
-    
-    if last_pod:
-        # Determine the next serial number and the size
-        serial = last_pod.serial_number
-        
-        # Check if it's a 6ft pod
-        if is_6ft(serial):
-            default_size = '6ft'
-            # Extract base serial number without the size suffix
-            serial_parts = serial.split('-')
-            if len(serial_parts) >= 2:
-                try:
-                    base_serial = serial_parts[0].strip()
-                    next_serial_number = str(int(base_serial) + 1)
-                except ValueError:
-                    next_serial_number = "1000"
-        else:
-            # For 7ft, just increment the number
-            try:
-                if '-' in serial:
-                    base_serial = serial.split('-')[0].strip()
-                    next_serial_number = str(int(base_serial) + 1)
-                else:
-                    next_serial_number = str(int(serial) + 1)
-            except ValueError:
-                next_serial_number = "1000"
+    next_serial_number, default_size = _next_pod_serial_and_size()
     
     return render_template(
         'pods.html',
@@ -3374,6 +3346,15 @@ def top_rails():
         default_color=default_color
     )
 
+POD_PARTS_REQUIREMENTS = [
+    {"name": "7ft Felt", "per_pod": 1, "sizes": ["7ft"]},
+    {"name": "6ft Felt", "per_pod": 1, "sizes": ["6ft"]},
+    {"name": "7ft Carpet", "per_pod": 1, "sizes": ["7ft"]},
+    {"name": "6ft Carpet", "per_pod": 1, "sizes": ["6ft"]},
+    {"name": "M10x13mm Tee Nut", "per_pod": 16, "sizes": ["7ft", "6ft"]},
+    {"name": "Rows of Black Staples", "per_pod": 2, "sizes": ["7ft", "6ft"]},
+]
+
 TOP_RAIL_PARTS_REQUIREMENTS = [
     ("Top rail trim long length", 2),
     ("Top rail trim short length", 4),
@@ -3434,6 +3415,29 @@ def _latest_part_count(part_name):
 def _table_stock_count(stock_key):
     entry = TableStock.query.filter_by(type=stock_key).first()
     return entry.count if entry else 0
+
+
+def _is_6ft_pod(serial):
+    if not serial:
+        return False
+    return serial.replace(" ", "").endswith("-6")
+
+
+def _next_pod_serial_and_size():
+    last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
+    next_serial = "1000"
+    default_size = "7ft"
+
+    if last_pod and last_pod.serial_number:
+        serial = last_pod.serial_number
+        default_size = "6ft" if _is_6ft_pod(serial) else "7ft"
+        base_serial = serial.split('-')[0].strip()
+        try:
+            next_serial = str(int(base_serial) + 1)
+        except ValueError:
+            pass
+
+    return next_serial, default_size
 
 
 @app.route('/top_rail_dashboard')
@@ -3554,6 +3558,97 @@ def top_rail_dashboard_view():
         min_rails_possible=min_rails_possible,
         deficits_by_size=deficits_by_size
     )
+
+
+@app.route('/pod_dashboard')
+def pod_dashboard_view():
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_of_month = today.replace(day=1)
+    start_of_year = today.replace(month=1, day=1)
+
+    stats = {
+        "daily": CompletedPods.query.filter(CompletedPods.date == today).count(),
+        "weekly": CompletedPods.query.filter(CompletedPods.date >= start_of_week, CompletedPods.date <= today).count(),
+        "monthly": CompletedPods.query.filter(
+            extract('year', CompletedPods.date) == today.year,
+            extract('month', CompletedPods.date) == today.month
+        ).count(),
+        "yearly": CompletedPods.query.filter(extract('year', CompletedPods.date) == today.year).count()
+    }
+
+    next_serial, default_size = _next_pod_serial_and_size()
+    next_serial_display = f"{next_serial} - 6" if default_size == "6ft" else next_serial
+
+    part_stock = {
+        part["name"]: _latest_part_count(part["name"])
+        for part in POD_PARTS_REQUIREMENTS
+    }
+
+    parts_data = []
+    for part in POD_PARTS_REQUIREMENTS:
+        stock = part_stock.get(part["name"], 0)
+        pods_possible = stock // part["per_pod"] if part["per_pod"] else stock
+        status = 'ok'
+        if pods_possible < 5:
+            status = 'critical'
+        elif pods_possible < 10:
+            status = 'warning'
+
+        parts_data.append({
+            "name": part["name"],
+            "stock": stock,
+            "per_pod": part["per_pod"],
+            "pods_possible": pods_possible,
+            "status": status,
+            "sizes_display": ", ".join(part["sizes"])
+        })
+
+    parts_data.sort(key=lambda item: item["pods_possible"])
+
+    capacity_by_size = {}
+    for size in ["7ft", "6ft"]:
+        relevant_parts = [p for p in POD_PARTS_REQUIREMENTS if size in p["sizes"]]
+        min_possible = None
+        limiting_parts = []
+        requirements = []
+
+        for part in relevant_parts:
+            requirements.append(f"{part['per_pod']} x {part['name']}")
+            stock = part_stock.get(part["name"], 0)
+            pods_possible = stock // part["per_pod"] if part["per_pod"] else stock
+
+            if min_possible is None or pods_possible < min_possible:
+                min_possible = pods_possible
+                limiting_parts = [part["name"]]
+            elif pods_possible == min_possible:
+                limiting_parts.append(part["name"])
+
+        capacity_by_size[size] = {
+            "pods_possible": min_possible if min_possible is not None else 0,
+            "limiting_parts": limiting_parts,
+            "requirements": requirements
+        }
+
+    min_capacity = min(data["pods_possible"] for data in capacity_by_size.values())
+    limiting_overall = sorted({
+        part_name
+        for data in capacity_by_size.values()
+        if data["pods_possible"] == min_capacity
+        for part_name in data["limiting_parts"]
+    })
+
+    return render_template(
+        'pod_dashboard.html',
+        stats=stats,
+        next_serial=next_serial_display,
+        default_size=default_size,
+        parts_data=parts_data,
+        capacity_by_size=capacity_by_size,
+        limiting_overall=limiting_overall,
+        min_capacity=min_capacity
+    )
+
 
 def fetch_uk_bank_holidays():
     try:
