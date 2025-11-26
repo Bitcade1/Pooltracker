@@ -37,6 +37,34 @@
             margin: 0;
             color: #e0e7ff;
         }
+        .range-form {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: #e5e7eb;
+        }
+        .range-form label {
+            font-size: 0.9rem;
+            color: #e5e7eb;
+        }
+        .range-form input {
+            width: 70px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: 1px solid #3b82f6;
+            background: #0f172a;
+            color: #e5e7eb;
+        }
+        .range-form button {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: none;
+            background: #f59e0b;
+            color: #0b1021;
+            font-weight: 700;
+            cursor: pointer;
+        }
         .cards {
             margin-top: 18px;
             display: grid;
@@ -110,6 +138,15 @@
                 <h1>Production Dashboard</h1>
                 <p>Pods, Bodies and Top Rails — last 12 months</p>
             </div>
+            <form class="range-form" method="get">
+                <label>Months back
+                    <input type="number" name="months_back" min="0" max="36" value="{{ months_back }}">
+                </label>
+                <label>Months forward
+                    <input type="number" name="months_forward" min="0" max="12" value="{{ months_forward }}">
+                </label>
+                <button type="submit">Update</button>
+            </form>
         </div>
 
         <div class="cards">

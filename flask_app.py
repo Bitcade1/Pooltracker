@@ -547,10 +547,22 @@ def dashboard():
         month = month_index % 12 + 1
         return date(year, month, 1)
 
-    # Build last 12 month labels and counts (inclusive of current month)
+    # Range controls
+    def clamp(val, lo, hi):
+        try:
+            num = int(val)
+        except (TypeError, ValueError):
+            return lo
+        return max(lo, min(hi, num))
+
+    months_back = clamp(request.args.get("months_back", 11), 0, 36)
+    months_forward = clamp(request.args.get("months_forward", 0), 0, 12)
+
+    # Build labels between start and end month (inclusive)
     current_month_start = today.replace(day=1)
-    first_month = shift_month(current_month_start, -11)
-    month_starts = [shift_month(first_month, i) for i in range(12)]
+    total_months = months_back + months_forward + 1
+    first_month = shift_month(current_month_start, -months_back)
+    month_starts = [shift_month(first_month, i) for i in range(total_months)]
 
     def monthly_counts(model):
         counts = []
@@ -591,6 +603,8 @@ def dashboard():
         chart_pods=chart_data_pods,
         chart_bodies=chart_data_bodies,
         chart_top_rails=chart_data_top_rails,
+        months_back=months_back,
+        months_forward=months_forward,
         wood_counts=wood_counts
     )
 
