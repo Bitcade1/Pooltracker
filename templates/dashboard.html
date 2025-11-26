@@ -79,6 +79,11 @@
             margin: 0 0 10px 0;
             color: #9ca3af;
         }
+        .chart-holder {
+            position: relative;
+            height: 360px;
+            width: 100%;
+        }
         canvas {
             background: #0f172a;
             border-radius: 12px;
@@ -137,7 +142,9 @@
         <div class="chart-panel">
             <h2>Last 12 Months by Element</h2>
             <p>Monthly totals for pods, bodies, and top rails.</p>
-            <canvas id="productionChart" height="120"></canvas>
+            <div class="chart-holder">
+                <canvas id="productionChart"></canvas>
+            </div>
         </div>
     </div>
 
