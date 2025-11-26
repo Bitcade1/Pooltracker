@@ -278,13 +278,7 @@
             <td colspan="2"><strong>Total Bodies</strong></td>
             <td>
               <strong>
-                {% set grand_total = 0 %}
-                {% for key, value in table_data.items() %}
-                  {% if key.startswith('body_') %}
-                    {% set grand_total = grand_total + value %}
-                  {% endif %}
-                {% endfor %}
-                {{ grand_total }}
+                {{ total_bodies }}
               </strong>
             </td>
             <td></td>
@@ -359,12 +353,6 @@
             <td colspan="2"><strong>Total Top Rails</strong></td>
             <td>
               <strong>
-                {% set total_rails = 0 %}
-                {% for key, value in top_rail_data.items() %}
-                  {% if key.startswith('top_rail_') %}
-                    {% set total_rails = total_rails + value %}
-                  {% endif %}
-                {% endfor %}
                 {{ total_rails }}
               </strong>
             </td>
