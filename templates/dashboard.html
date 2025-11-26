@@ -3,147 +3,239 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Pool Table Tracker</title>
+    <title>Production Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        .collapsible {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 1.2em;
-            margin-top: 20px;
-            border-radius: 5px;
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1f2937 35%, #0b1021 100%);
+            color: #e5e7eb;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .collapsible:hover {
-            background-color: #0056b3;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 16px 80px;
         }
-        .collapsible-content {
-            padding: 15px;
-            display: none;
-            overflow: hidden;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        .dashboard-metrics {
+        .hero {
+            background: linear-gradient(135deg, #1d4ed8, #2563eb, #1e40af);
+            border-radius: 16px;
+            padding: 18px 20px;
+            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.35);
             display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
             flex-wrap: wrap;
-            justify-content: center;
-            gap: 15px;
         }
-        .metric-card {
-            flex: 1 1 160px;
-            max-width: 200px;
-            background-color: #e9ecef;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            transition: transform 0.2s ease;
+        .hero h1 {
+            margin: 0;
+            font-size: 2rem;
+            letter-spacing: 0.02em;
         }
-        .metric-card:hover {
-            transform: translateY(-5px);
+        .hero p {
+            margin: 0;
+            color: #e0e7ff;
         }
-        .metric-title {
-            font-size: 1em;
-            color: #555;
-            margin-bottom: 5px;
+        .cards {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
         }
-        .metric-value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #007bff;
+        .card {
+            background: #0f172a;
+            border: 1px solid #1f2937;
+            border-radius: 12px;
+            padding: 14px 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
         }
-        @media (max-width: 768px) {
-            .metric-card {
-                flex: 1 1 48%;
-                max-width: 48%;
+        .card h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #f9fafb;
+        }
+        .chart-panel {
+            margin-top: 24px;
+            background: #0b1222;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #1f2937;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+        }
+        .chart-panel h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.35rem;
+            color: #e5e7eb;
+        }
+        .chart-panel p {
+            margin: 0 0 10px 0;
+            color: #9ca3af;
+        }
+        canvas {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 10px;
+        }
+        @media (max-width: 720px) {
+            .hero {
+                flex-direction: column;
+                align-items: flex-start;
             }
-        }
-        @media (max-width: 480px) {
-            .metric-card {
-                flex: 1 1 100%;
-                max-width: 100%;
+            .hero h1 {
+                font-size: 1.6rem;
+            }
+            .card .value {
+                font-size: 1.6rem;
             }
         }
     </style>
-    <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
-        }
-    </script>
 </head>
 <body>
     <div class="container">
-        <h1>Dashboard</h1>
-
-        <!-- Top Rails Section -->
-        <button class="collapsible" onclick="toggleCollapsible('topRails')">Top Rails</button>
-        <div id="topRails" class="collapsible-content">
-            <div class="dashboard-metrics">
-                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ top_rails.today }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ top_rails.week }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ top_rails.month }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ top_rails.year }}</p></div>
+        <div class="hero">
+            <div>
+                <h1>Production Dashboard</h1>
+                <p>Pods, Bodies and Top Rails — last 12 months</p>
             </div>
         </div>
 
-        <!-- Bodies Section -->
-        <button class="collapsible" onclick="toggleCollapsible('bodies')">Bodies</button>
-        <div id="bodies" class="collapsible-content">
-            <div class="dashboard-metrics">
-                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ bodies.today }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ bodies.week }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ bodies.month }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ bodies.year }}</p></div>
+        <div class="cards">
+            <div class="card">
+                <h3>Pods Today</h3>
+                <div class="value">{{ stats.pods.today }}</div>
+            </div>
+            <div class="card">
+                <h3>Pods This Month</h3>
+                <div class="value">{{ stats.pods.month }}</div>
+            </div>
+            <div class="card">
+                <h3>Bodies Today</h3>
+                <div class="value">{{ stats.bodies.today }}</div>
+            </div>
+            <div class="card">
+                <h3>Bodies This Month</h3>
+                <div class="value">{{ stats.bodies.month }}</div>
+            </div>
+            <div class="card">
+                <h3>Top Rails Today</h3>
+                <div class="value">{{ stats.top_rails.today }}</div>
+            </div>
+            <div class="card">
+                <h3>Top Rails This Month</h3>
+                <div class="value">{{ stats.top_rails.month }}</div>
             </div>
         </div>
 
-        <!-- Pods Section -->
-        <button class="collapsible" onclick="toggleCollapsible('pods')">Pods</button>
-        <div id="pods" class="collapsible-content">
-            <div class="dashboard-metrics">
-                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ pods.today }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ pods.week }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ pods.month }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ pods.year }}</p></div>
-            </div>
-        </div>
-
-        <!-- Wood Pieces Section -->
-        <button class="collapsible" onclick="toggleCollapsible('woodPieces')">Wood Pieces</button>
-        <div id="woodPieces" class="collapsible-content">
-            <h3>Body</h3>
-            <div class="dashboard-metrics">
-                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ wood.body.today }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ wood.body.week }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ wood.body.month }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ wood.body.year }}</p></div>
-            </div>
-
-            <h3>Pod Sides</h3>
-            <div class="dashboard-metrics">
-                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ wood.pod_sides.today }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ wood.pod_sides.week }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ wood.pod_sides.month }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ wood.pod_sides.year }}</p></div>
-            </div>
-
-            <h3>Bases</h3>
-            <div class="dashboard-metrics">
-                <div class="metric-card"><p class="metric-title">Today</p><p class="metric-value">{{ wood.bases.today }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Week</p><p class="metric-value">{{ wood.bases.week }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Month</p><p class="metric-value">{{ wood.bases.month }}</p></div>
-                <div class="metric-card"><p class="metric-title">This Year</p><p class="metric-value">{{ wood.bases.year }}</p></div>
-            </div>
+        <div class="chart-panel">
+            <h2>Last 12 Months by Element</h2>
+            <p>Monthly totals for pods, bodies, and top rails.</p>
+            <canvas id="productionChart" height="120"></canvas>
         </div>
     </div>
+
+    <script>
+        const labels = {{ chart_labels|tojson }};
+        const podsData = {{ chart_pods|tojson }};
+        const bodiesData = {{ chart_bodies|tojson }};
+        const topRailsData = {{ chart_top_rails|tojson }};
+
+        const ctx = document.getElementById('productionChart');
+        const gradientPlugin = {
+            id: 'customGradient',
+            beforeDatasetsDraw(chart) {
+                const {ctx, chartArea} = chart;
+                if (!chartArea) return;
+                chart.data.datasets.forEach((dataset, idx) => {
+                    const colorStops = [
+                        ['#22d3ee', '#0ea5e9'], // pods
+                        ['#a855f7', '#7c3aed'], // bodies
+                        ['#f59e0b', '#d97706']  // top rails
+                    ];
+                    const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                    const stops = colorStops[idx] || ['#22d3ee', '#0ea5e9'];
+                    g.addColorStop(0, stops[0]);
+                    g.addColorStop(1, stops[1]);
+                    dataset.borderColor = stops[1];
+                    dataset.backgroundColor = g;
+                });
+            }
+        };
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Pods',
+                        data: podsData,
+                        tension: 0.35,
+                        fill: false,
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Bodies',
+                        data: bodiesData,
+                        tension: 0.35,
+                        fill: false,
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Top Rails',
+                        data: topRailsData,
+                        tension: 0.35,
+                        fill: false,
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e5e7eb', boxWidth: 14 }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#9ca3af' },
+                        grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: '#9ca3af' },
+                        grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                    }
+                }
+            },
+            plugins: [gradientPlugin]
+        });
+    </script>
 </body>
 </html>

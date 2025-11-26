@@ -540,26 +540,57 @@ def dashboard():
         },
     }
 
+    def shift_month(dt, months_delta):
+        """Return a date at the first of the month, shifted by months_delta months."""
+        month_index = dt.month - 1 + months_delta
+        year = dt.year + month_index // 12
+        month = month_index % 12 + 1
+        return date(year, month, 1)
+
+    # Build last 12 month labels and counts (inclusive of current month)
+    current_month_start = today.replace(day=1)
+    first_month = shift_month(current_month_start, -11)
+    month_starts = [shift_month(first_month, i) for i in range(12)]
+
+    def monthly_counts(model):
+        counts = []
+        for idx, start_date in enumerate(month_starts):
+            end_date = month_starts[idx + 1] if idx + 1 < len(month_starts) else shift_month(start_date, 1)
+            total = model.query.filter(model.date >= start_date, model.date < end_date).count()
+            counts.append(total)
+        return counts
+
+    chart_labels = [dt.strftime("%b %Y") for dt in month_starts]
+    chart_data_pods = monthly_counts(CompletedPods)
+    chart_data_bodies = monthly_counts(CompletedTable)
+    chart_data_top_rails = monthly_counts(TopRail)
+
     return render_template(
         'dashboard.html',
-        top_rails={
-            "today": top_rails_today,
-            "week": top_rails_week,
-            "month": top_rails_month,
-            "year": top_rails_year,
+        stats={
+            "top_rails": {
+                "today": top_rails_today,
+                "week": top_rails_week,
+                "month": top_rails_month,
+                "year": top_rails_year,
+            },
+            "bodies": {
+                "today": bodies_today,
+                "week": bodies_week,
+                "month": bodies_month,
+                "year": bodies_year,
+            },
+            "pods": {
+                "today": pods_today,
+                "week": pods_week,
+                "month": pods_month,
+                "year": pods_year,
+            },
         },
-        bodies={
-            "today": bodies_today,
-            "week": bodies_week,
-            "month": bodies_month,
-            "year": bodies_year,
-        },
-        pods={
-            "today": pods_today,
-            "week": pods_week,
-            "month": pods_month,
-            "year": pods_year,
-        },
+        chart_labels=chart_labels,
+        chart_pods=chart_data_pods,
+        chart_bodies=chart_data_bodies,
+        chart_top_rails=chart_data_top_rails,
         wood_counts=wood_counts
     )
 
