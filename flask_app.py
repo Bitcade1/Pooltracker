@@ -1401,43 +1401,28 @@ def pods():
                 lunch=lunch,
                 date=date.today()
             )
-            
-            # Actually deduct the parts now
-            old_felt_count = felt_entry.count
-            felt_entry.count -= 1
-            check_and_notify_low_stock(
-                felt_part,
-                old_felt_count,
-                felt_entry.count,
-                collected_warnings=low_stock_messages
-            )
 
-            old_carpet_count = carpet_entry.count
-            carpet_entry.count -= 1
-            check_and_notify_low_stock(
-                carpet_part,
-                old_carpet_count,
-                carpet_entry.count,
-                collected_warnings=low_stock_messages
-            )
+            def record_part_usage(part_name, current_count, decrement):
+                new_count = current_count - decrement
+                usage_entry = PrintedPartsCount(
+                    part_name=part_name,
+                    count=new_count,
+                    date=datetime.utcnow().date(),
+                    time=datetime.utcnow().time()
+                )
+                db.session.add(usage_entry)
+                check_and_notify_low_stock(
+                    part_name,
+                    current_count,
+                    new_count,
+                    collected_warnings=low_stock_messages
+                )
 
-            old_tee_nuts_count = tee_nuts_entry.count
-            tee_nuts_entry.count -= 16  # Added this line to deduct the Tee Nuts
-            check_and_notify_low_stock(
-                "M10x13mm Tee Nut",
-                old_tee_nuts_count,
-                tee_nuts_entry.count,
-                collected_warnings=low_stock_messages
-            )
-
-            old_staples_count = black_staples_entry.count
-            black_staples_entry.count -= 2
-            check_and_notify_low_stock(
-                "Rows of Black Staples",
-                old_staples_count,
-                black_staples_entry.count,
-                collected_warnings=low_stock_messages
-            )
+            # Record deductions as new inventory entries so history and UI stay in sync
+            record_part_usage(felt_part, felt_entry.count, 1)
+            record_part_usage(carpet_part, carpet_entry.count, 1)
+            record_part_usage("M10x13mm Tee Nut", tee_nuts_entry.count, 16)
+            record_part_usage("Rows of Black Staples", black_staples_entry.count, 2)
 
             db.session.add(new_pod)
             db.session.commit()
