@@ -892,6 +892,10 @@ def build_stock_snapshot():
     add_item("MDF Boards", "plain_mdf_36", "36mm Plain MDF", inventory_record.plain_mdf_36)
 
     for entry in TableStock.query.all():
+        # Skip legacy generic body/top_rail keys without color so they don't pollute totals
+        if entry.type in {"body_6ft", "body_7ft", "top_rail_6ft", "top_rail_7ft"}:
+            continue
+
         if entry.type.startswith('body_'):
             category = "Finished Tables"
         elif entry.type.startswith('top_rail_'):
@@ -1720,26 +1724,50 @@ def manage_raw_data():
                 # Now delete the entry.
                 # If deleting a body, also update the table stock
                 if table == 'bodies':
-                    # Determine if it's a 6ft or 7ft body using the normalized approach
-                    if entry.serial_number.replace(" ", "").endswith("-6"):
-                        stock_type = 'body_6ft'
-                    else:
-                        stock_type = 'body_7ft'
-                    
-                    # Update the stock count
+                    def body_is_6ft(serial):
+                        return serial.replace(" ", "").endswith("-6")
+
+                    def body_color_key(serial):
+                        norm = serial.replace(" ", "").upper()
+                        if "-GO" in norm:
+                            return "grey_oak"
+                        if "-O" in norm and "-GO" not in norm:
+                            return "rustic_oak"
+                        if "-C" in norm:
+                            return "stone"
+                        if "-RB" in norm:
+                            return "rustic_black"
+                        return "black"
+
+                    size = "6ft" if body_is_6ft(entry.serial_number) else "7ft"
+                    color_key = body_color_key(entry.serial_number)
+                    stock_type = f'body_{size}_{color_key}'
+
                     stock_entry = TableStock.query.filter_by(type=stock_type).first()
                     if stock_entry and stock_entry.count > 0:
                         stock_entry.count -= 1
                         db.session.commit()
                 # If deleting a top rail, also update the table stock
                 elif table == 'top_rails':
-                    # Determine if it's a 6ft or 7ft top rail using the normalized approach
-                    if entry.serial_number.replace(" ", "").endswith("-6"):
-                        stock_type = 'top_rail_6ft'
-                    else:
-                        stock_type = 'top_rail_7ft'
-                    
-                    # Update the stock count
+                    def rail_is_6ft(serial):
+                        return serial.replace(" ", "").endswith("-6")
+
+                    def rail_color_key(serial):
+                        norm = serial.replace(" ", "").upper()
+                        if "-GO" in norm:
+                            return "grey_oak"
+                        if "-O" in norm and "-GO" not in norm:
+                            return "rustic_oak"
+                        if "-C" in norm:
+                            return "stone"
+                        if "-RB" in norm:
+                            return "rustic_black"
+                        return "black"
+
+                    size = "6ft" if rail_is_6ft(entry.serial_number) else "7ft"
+                    color_key = rail_color_key(entry.serial_number)
+                    stock_type = f'top_rail_{size}_{color_key}'
+
                     stock_entry = TableStock.query.filter_by(type=stock_type).first()
                     if stock_entry and stock_entry.count > 0:
                         stock_entry.count -= 1
