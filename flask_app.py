@@ -3999,8 +3999,13 @@ def table_stock():
     all_stock = TableStock.query.all()
     
     # Process each stock entry into appropriate category
+    legacy_keys = {"body_6ft", "body_7ft", "top_rail_6ft", "top_rail_7ft"}
+
     for entry in all_stock:
         stock_type = entry.type
+        if stock_type in legacy_keys:
+            # Ignore legacy aggregate keys so totals match the per-color rows shown in the UI
+            continue
         
         # Handle body stock
         if stock_type.startswith('body_'):
