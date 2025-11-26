@@ -382,11 +382,11 @@
           </tr>
         </thead>
         <tbody>
-          {% set total_cushions = 0 %}
+          {% set cushion_ns = namespace(total=0) %}
           {% for size in sizes %}
             {% set stock_key = 'cushion_set_' + size.lower() %}
             {% set stock_count = cushion_data.get(stock_key, 0) %}
-            {% set total_cushions = total_cushions + stock_count %}
+            {% set cushion_ns.total = cushion_ns.total + stock_count %}
             
             <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
               <td class="{% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}" style="text-align:left;">
@@ -410,7 +410,7 @@
             <td><strong>Total Cushion Sets</strong></td>
             <td>
               <strong>
-                {{ total_cushions }}
+                {{ cushion_ns.total }}
               </strong>
             </td>
             <td></td>
