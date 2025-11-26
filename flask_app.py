@@ -3340,6 +3340,44 @@ POD_PARTS_REQUIREMENTS = [
     {"name": "Rows of Black Staples", "per_pod": 2, "sizes": ["7ft", "6ft"]},
 ]
 
+BODY_PARTS_REQUIREMENTS = [
+    {"name": "Large Ramp", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "6ft Large Ramp", "per_body": 1, "sizes": ["6ft"]},
+    {"name": "Paddle", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Laminate", "per_body": 4, "sizes": ["7ft", "6ft"]},
+    {"name": "Spring Mount", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Spring Holder", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Small Ramp", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "Cue Ball Separator", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "6ft Cue Ball Separator", "per_body": 1, "sizes": ["6ft"]},
+    {"name": "Bushing", "per_body": 2, "sizes": ["7ft", "6ft"]},
+    {"name": "Table legs", "per_body": 4, "sizes": ["7ft", "6ft"]},
+    {"name": "Ball Gullies 1 (Untouched)", "per_body": 2, "sizes": ["7ft", "6ft"]},
+    {"name": "Ball Gullies 2", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Ball Gullies 3", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Ball Gullies 4", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Ball Gullies 5", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Feet", "per_body": 4, "sizes": ["7ft", "6ft"]},
+    {"name": "Triangle trim", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "White ball return trim", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Color ball trim", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Ball window trim", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Aluminum corner", "per_body": 4, "sizes": ["7ft", "6ft"]},
+    {"name": "Ramp 170mm", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "Ramp 158mm", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "Ramp 918mm", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Ramp 376mm", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Chrome handles", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Sticker Set", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "4.8x16mm Self Tapping Screw", "per_body": 37, "sizes": ["7ft", "6ft"]},
+    {"name": "4.0 x 50mm Wood Screw", "per_body": 4, "sizes": ["7ft", "6ft"]},
+    {"name": "Plastic Window", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "4.2 x 16 No2 Self Tapping Screw", "per_body": 19, "sizes": ["7ft", "6ft"]},
+    {"name": "Spring", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Handle Tube", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Latch", "per_body": 12, "sizes": ["7ft", "6ft"]},
+]
+
 TOP_RAIL_PARTS_REQUIREMENTS = [
     ("Top rail trim long length", 2),
     ("Top rail trim short length", 4),
@@ -3402,6 +3440,12 @@ def _table_stock_count(stock_key):
     return entry.count if entry else 0
 
 
+def _is_6ft_table(serial):
+    if not serial:
+        return False
+    return serial.replace(" ", "").endswith("-6")
+
+
 def _is_6ft_pod(serial):
     if not serial:
         return False
@@ -3421,6 +3465,24 @@ def _next_pod_serial_and_size():
             next_serial = str(int(base_serial) + 1)
         except ValueError:
             pass
+
+    return next_serial, default_size
+
+
+def _next_body_serial_and_size():
+    last_table = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
+    next_serial = "1000"
+    default_size = "7ft"
+
+    if last_table and last_table.serial_number:
+        serial = last_table.serial_number
+        default_size = "6ft" if _is_6ft_table(serial) else "7ft"
+        match = re.match(r"(\d+)", serial)
+        if match:
+            try:
+                next_serial = str(int(match.group(1)) + 1)
+            except ValueError:
+                pass
 
     return next_serial, default_size
 
@@ -3625,6 +3687,96 @@ def pod_dashboard_view():
 
     return render_template(
         'pod_dashboard.html',
+        stats=stats,
+        next_serial=next_serial_display,
+        default_size=default_size,
+        parts_data=parts_data,
+        capacity_by_size=capacity_by_size,
+        limiting_overall=limiting_overall,
+        min_capacity=min_capacity
+    )
+
+
+@app.route('/body_dashboard')
+def body_dashboard_view():
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_of_month = today.replace(day=1)
+    start_of_year = today.replace(month=1, day=1)
+
+    stats = {
+        "daily": CompletedTable.query.filter(CompletedTable.date == today).count(),
+        "weekly": CompletedTable.query.filter(CompletedTable.date >= start_of_week, CompletedTable.date <= today).count(),
+        "monthly": CompletedTable.query.filter(
+            extract('year', CompletedTable.date) == today.year,
+            extract('month', CompletedTable.date) == today.month
+        ).count(),
+        "yearly": CompletedTable.query.filter(extract('year', CompletedTable.date) == today.year).count()
+    }
+
+    next_serial, default_size = _next_body_serial_and_size()
+    next_serial_display = f"{next_serial} - 6" if default_size == "6ft" else next_serial
+
+    part_stock = {
+        part["name"]: _latest_part_count(part["name"])
+        for part in BODY_PARTS_REQUIREMENTS
+    }
+
+    parts_data = []
+    for part in BODY_PARTS_REQUIREMENTS:
+        stock = part_stock.get(part["name"], 0)
+        bodies_possible = stock // part["per_body"] if part["per_body"] else stock
+        status = 'ok'
+        if bodies_possible < 5:
+            status = 'critical'
+        elif bodies_possible < 10:
+            status = 'warning'
+
+        parts_data.append({
+            "name": part["name"],
+            "stock": stock,
+            "per_body": part["per_body"],
+            "bodies_possible": bodies_possible,
+            "status": status,
+            "sizes_display": ", ".join(part["sizes"])
+        })
+
+    parts_data.sort(key=lambda item: item["bodies_possible"])
+
+    capacity_by_size = {}
+    for size in ["7ft", "6ft"]:
+        relevant_parts = [p for p in BODY_PARTS_REQUIREMENTS if size in p["sizes"]]
+        min_possible = None
+        limiting_parts = []
+        requirements = []
+
+        for part in relevant_parts:
+            requirements.append(f"{part['per_body']} x {part['name']}")
+            stock = part_stock.get(part["name"], 0)
+            bodies_possible = stock // part["per_body"] if part["per_body"] else stock
+
+            if min_possible is None or bodies_possible < min_possible:
+                min_possible = bodies_possible
+                limiting_parts = [part["name"]]
+            elif bodies_possible == min_possible:
+                limiting_parts.append(part["name"])
+
+        capacity_by_size[size] = {
+            "bodies_possible": min_possible if min_possible is not None else 0,
+            "limiting_parts": limiting_parts,
+            "requirements": requirements
+        }
+
+    min_capacity = min(data["bodies_possible"] for data in capacity_by_size.values())
+    limiting_overall = sorted({
+        part_name
+        for data in capacity_by_size.values()
+        if data["bodies_possible"] == min_capacity
+        for part_name in data["limiting_parts"]
+    })
+
+    return render_template(
+        'body_dashboard.html',
         stats=stats,
         next_serial=next_serial_display,
         default_size=default_size,

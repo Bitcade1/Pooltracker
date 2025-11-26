@@ -1,0 +1,374 @@
+{% extends 'base.html' %}
+
+{% block title %}Body Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        display: block;
+        justify-content: flex-start;
+        align-items: stretch;
+        background-color: #f4f4f9;
+    }
+
+    .site-header,
+    .site-footer {
+        display: none;
+    }
+
+    .container {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        text-align: left;
+    }
+
+    .dashboard-wrapper {
+        padding: 1.4rem 1.6rem 1.6rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+        gap: 0.6rem;
+    }
+
+    .stat-card {
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 0.9rem 1.1rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-height: 110px;
+    }
+
+    .stat-card.next-serial {
+        padding: 0.4rem 0.6rem;
+        text-align: center;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .stat-card.next-serial .stat-label {
+        font-size: 2.2rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #5d6d7e;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .stat-card.next-serial .stat-value {
+        font-size: clamp(8rem, 16vw, 12rem);
+        font-weight: 900;
+        color: #1f2d3d;
+        line-height: 1.02;
+        white-space: nowrap;
+    }
+
+    .next-serial-value {
+        display: inline-block;
+    }
+
+    .stat-card.highlight {
+        border-left: 4px solid #27ae60;
+    }
+
+    .warning-banner {
+        background: #ffebee;
+        border: 1px solid #c62828;
+        color: #b71c1c;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        line-height: 1.4;
+    }
+
+    .warning-banner strong {
+        display: inline-block;
+        margin-right: 0.6rem;
+        font-size: 1.05rem;
+    }
+
+    .dashboard-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 0.8rem;
+    }
+
+    .panel {
+        background: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        min-height: 0;
+    }
+
+    .panel h3 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .parts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.45rem;
+    }
+
+    .part-card {
+        border-radius: 6px;
+        padding: 0.35rem 0.4rem;
+        background: #e8f5e9;
+        border: 1px solid #388e3c;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-height: 130px;
+    }
+
+    .part-card.warning {
+        background: #fff3e0;
+        border-color: #f57c00;
+    }
+
+    .part-card.critical {
+        background: #ffebee;
+        border-color: #c62828;
+    }
+
+    .part-card .part-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #2d3436;
+    }
+
+    .part-card .part-stock {
+        font-size: 2.25rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .part-card.critical .part-stock {
+        color: #c62828;
+    }
+
+    .part-card.warning .part-stock {
+        color: #f57c00;
+    }
+
+    .part-card .part-footnote {
+        font-size: 1.05rem;
+        color: #546e7a;
+    }
+
+    .deficit-groups {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.45rem;
+    }
+
+    .deficit-card {
+        background: #f7f9fb;
+        border-radius: 8px;
+        padding: 0.7rem 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .deficit-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #2c3e50;
+    }
+
+    .deficit-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .deficit-entry {
+        border-radius: 8px;
+        padding: 0.6rem 0.65rem;
+        background: #f1f3f5;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .deficit-entry.need-rails {
+        border-left: 4px solid #c62828;
+    }
+
+    .deficit-entry.need-bodies {
+        border-left: 4px solid #1a237e;
+    }
+
+    .deficit-entry.balanced {
+        border-left: 4px solid #27ae60;
+    }
+
+    .deficit-entry.empty {
+        border-left: 4px solid #c62828;
+        background: #ffebee;
+    }
+
+    .deficit-entry strong {
+        font-size: 1.35rem;
+        color: #2c3e50;
+    }
+
+    .deficit-entry span {
+        font-size: 1.1rem;
+        color: #546e7a;
+    }
+
+    .deficit-empty {
+        font-size: 1.2rem;
+        color: #7f8c8d;
+    }
+
+    @media (max-width: 1200px) {
+        .dashboard-body {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
+    @media (max-width: 680px) {
+        .dashboard-wrapper {
+            padding: 1.1rem 1rem 1.2rem;
+        }
+
+        .stat-card.next-serial .stat-label {
+            font-size: 1.8rem;
+        }
+
+        .stat-card.next-serial .stat-value {
+            font-size: clamp(5rem, 20vw, 8rem);
+        }
+
+        .panel h3 {
+            font-size: 1.1rem;
+        }
+
+        .parts-grid {
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        }
+    }
+</style>
+
+<div class="dashboard-wrapper">
+    <section class="stat-grid">
+        <div class="stat-card highlight">
+            <span class="stat-label">Today</span>
+            <span class="stat-value">{{ stats.daily }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">This Week</span>
+            <span class="stat-value">{{ stats.weekly }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">This Month</span>
+            <span class="stat-value">{{ stats.monthly }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">This Year</span>
+            <span class="stat-value">{{ stats.yearly }}</span>
+        </div>
+        <div class="stat-card next-serial">
+            <span class="stat-label">Next Serial ({{ default_size }})</span>
+            <span class="stat-value next-serial-value">{{ next_serial }}</span>
+        </div>
+    </section>
+
+    {% if min_capacity is not none and min_capacity <= 10 %}
+        <section class="warning-banner">
+            <strong>Production Capacity</strong>
+            {% if min_capacity < 5 %}
+                Critical: only {{ min_capacity }} bodies can be assembled with current stock.
+            {% else %}
+                Warning: {{ min_capacity }} builds available before parts run out.
+            {% endif %}
+            {% if limiting_overall %}
+                Limiting parts: {{ limiting_overall | join(', ') }}.
+            {% endif %}
+        </section>
+    {% endif %}
+
+    <div class="dashboard-body">
+        <section class="panel parts-panel">
+            <h3>Body Parts Inventory</h3>
+            <div class="parts-grid">
+                {% for part in parts_data %}
+                    <div class="part-card {{ part.status }}">
+                        <span class="part-name">{{ part.name }}</span>
+                        <span class="part-stock">{{ part.stock }}</span>
+                        <span class="part-footnote">Per body: {{ part.per_body }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="panel deficits-panel">
+            <h3>Build Capacity by Size</h3>
+            <div class="deficit-groups">
+                {% for size, data in capacity_by_size.items() %}
+                    {% set entry_class = "balanced" %}
+                    {% if data.bodies_possible < 5 %}
+                        {% set entry_class = "empty" %}
+                    {% elif data.bodies_possible < 10 %}
+                        {% set entry_class = "need-rails" %}
+                    {% endif %}
+                    <div class="deficit-card">
+                        <div class="deficit-title">{{ size }}</div>
+                        <div class="deficit-list">
+                            <div class="deficit-entry {{ entry_class }}">
+                                <strong>Bodies possible now: {{ data.bodies_possible }}</strong>
+                                <span>Parts per body: {{ data.requirements | join(', ') }}</span>
+                                {% if data.limiting_parts %}
+                                    <span>Limiting parts: {{ data.limiting_parts | join(', ') }}</span>
+                                {% else %}
+                                    <span>Limiting parts: Not recorded yet.</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    setInterval(function () {
+        window.location.reload();
+    }, 10000);
+</script>
+{% endblock %}

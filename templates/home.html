@@ -120,6 +120,7 @@
         <button class="dropdown-button" data-target="dashboardsDropdown" onclick="toggleDropdown('dashboardsDropdown')">Dashboards</button>
         <div id="dashboardsDropdown" class="dropdown-content">
             <a href="{{ url_for('dashboard') }}">Production Dashboard</a>
+            <a href="{{ url_for('body_dashboard_view') }}">Body Dashboard</a>
             <a href="{{ url_for('pod_dashboard_view') }}">Pod Dashboard</a>
             <a href="{{ url_for('top_rail_dashboard_view') }}">Top Rail Dashboard</a>
         </div>
