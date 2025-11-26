@@ -555,14 +555,41 @@ def dashboard():
             return lo
         return max(lo, min(hi, num))
 
+    def parse_month_arg(value):
+        if not value:
+            return None
+        try:
+            year, month = value.split("-", 1)
+            year = int(year)
+            month = int(month)
+            return date(year, month, 1)
+        except Exception:
+            return None
+
     months_back = clamp(request.args.get("months_back", 11), 0, 36)
     months_forward = clamp(request.args.get("months_forward", 0), 0, 12)
+    start_month_arg = parse_month_arg(request.args.get("start_month"))
+    end_month_arg = parse_month_arg(request.args.get("end_month"))
 
-    # Build labels between start and end month (inclusive)
     current_month_start = today.replace(day=1)
-    total_months = months_back + months_forward + 1
-    first_month = shift_month(current_month_start, -months_back)
-    month_starts = [shift_month(first_month, i) for i in range(total_months)]
+
+    if start_month_arg:
+        first_month = start_month_arg
+        if end_month_arg:
+            last_month = end_month_arg
+        else:
+            last_month = shift_month(current_month_start, months_forward)
+        if last_month < first_month:
+            last_month = first_month
+        month_starts = []
+        cursor = first_month
+        while cursor <= last_month:
+            month_starts.append(cursor)
+            cursor = shift_month(cursor, 1)
+    else:
+        total_months = months_back + months_forward + 1
+        first_month = shift_month(current_month_start, -months_back)
+        month_starts = [shift_month(first_month, i) for i in range(total_months)]
 
     def monthly_counts(model):
         counts = []
@@ -605,6 +632,8 @@ def dashboard():
         chart_top_rails=chart_data_top_rails,
         months_back=months_back,
         months_forward=months_forward,
+        start_month=start_month_arg.strftime("%Y-%m") if start_month_arg else "",
+        end_month=end_month_arg.strftime("%Y-%m") if end_month_arg else "",
         wood_counts=wood_counts
     )
 

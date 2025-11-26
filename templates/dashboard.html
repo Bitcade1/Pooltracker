@@ -56,6 +56,9 @@
             background: #0f172a;
             color: #e5e7eb;
         }
+        .range-form input[type="month"] {
+            width: 150px;
+        }
         .range-form button {
             padding: 8px 12px;
             border-radius: 8px;
@@ -144,6 +147,12 @@
                 </label>
                 <label>Months forward
                     <input type="number" name="months_forward" min="0" max="12" value="{{ months_forward }}">
+                </label>
+                <label>Start month
+                    <input type="month" name="start_month" value="{{ start_month }}">
+                </label>
+                <label>End month
+                    <input type="month" name="end_month" value="{{ end_month }}">
                 </label>
                 <button type="submit">Update</button>
             </form>
