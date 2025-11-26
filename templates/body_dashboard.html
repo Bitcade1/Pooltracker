@@ -112,7 +112,7 @@
 
     .dashboard-body {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
         gap: 0.8rem;
     }
 
@@ -331,34 +331,6 @@
                         <span class="part-name">{{ part.name }}</span>
                         <span class="part-stock">{{ part.stock }}</span>
                         <span class="part-footnote">Per body: {{ part.per_body }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
-                    </div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <section class="panel deficits-panel">
-            <h3>Build Capacity by Size</h3>
-            <div class="deficit-groups">
-                {% for size, data in capacity_by_size.items() %}
-                    {% set entry_class = "balanced" %}
-                    {% if data.bodies_possible < 5 %}
-                        {% set entry_class = "empty" %}
-                    {% elif data.bodies_possible < 10 %}
-                        {% set entry_class = "need-rails" %}
-                    {% endif %}
-                    <div class="deficit-card">
-                        <div class="deficit-title">{{ size }}</div>
-                        <div class="deficit-list">
-                            <div class="deficit-entry {{ entry_class }}">
-                                <strong>Bodies possible now: {{ data.bodies_possible }}</strong>
-                                <span>Parts per body: {{ data.requirements | join(', ') }}</span>
-                                {% if data.limiting_parts %}
-                                    <span>Limiting parts: {{ data.limiting_parts | join(', ') }}</span>
-                                {% else %}
-                                    <span>Limiting parts: Not recorded yet.</span>
-                                {% endif %}
-                            </div>
-                        </div>
                     </div>
                 {% endfor %}
             </div>
