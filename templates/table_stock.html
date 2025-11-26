@@ -241,12 +241,12 @@
               </td>
             </tr>
             
-            {% set size_total = 0 %}
+            {% set ns = namespace(total=0) %}
             
             {% for color in colors %}
               {% set stock_key = 'body_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
               {% set stock_count = table_data.get(stock_key, 0) %}
-              {% set size_total = size_total + stock_count %}
+              {% set ns.total = ns.total + stock_count %}
               {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
               
               <tr class="{{ color_class }} {% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
@@ -268,7 +268,7 @@
             <!-- Row for size subtotal with enhanced styling -->
             <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
               <td colspan="2">Total {{ size }} Bodies</td>
-              <td>{{ size_total }}</td>
+              <td>{{ ns.total }}</td>
               <td></td>
             </tr>
           {% endfor %}
@@ -322,12 +322,12 @@
               </td>
             </tr>
             
-            {% set size_total = 0 %}
+            {% set ns = namespace(total=0) %}
             
             {% for color in colors %}
               {% set stock_key = 'top_rail_' + size.lower() + '_' + color.lower().replace(' ', '_') %}
               {% set stock_count = top_rail_data.get(stock_key, 0) %}
-              {% set size_total = size_total + stock_count %}
+              {% set ns.total = ns.total + stock_count %}
               {% set color_class = 'color-' + color.lower().replace(' ', '-') %}
               
               <tr class="{{ color_class }} {% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
@@ -349,7 +349,7 @@
             <!-- Row for size subtotal with enhanced styling -->
             <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
               <td colspan="2">Total {{ size }} Top Rails</td>
-              <td>{{ size_total }}</td>
+              <td>{{ ns.total }}</td>
               <td></td>
             </tr>
           {% endfor %}
