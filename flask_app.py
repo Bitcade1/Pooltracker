@@ -2819,16 +2819,16 @@ def bodies():
             return redirect(url_for('bodies'))
 
         remainder_entry = TableStock.query.filter_by(type=wrap_remainder_key).first()
-        bodies_since_last_roll = remainder_entry.count if remainder_entry else 0
-        bodies_since_last_roll += 1  # account for the body being logged now
-        rolls_to_deduct, new_remainder = divmod(bodies_since_last_roll, bodies_per_wrap_roll)
+        used_in_current_roll = remainder_entry.count if remainder_entry else 0  # 0-6 bodies already wrapped on the current roll
+        opened_new_roll = False
 
-        if rolls_to_deduct:
-            if current_wrap_stock < rolls_to_deduct:
-                flash(f"Not enough {pallet_wrap_name} in stock! Need {rolls_to_deduct} roll(s) to wrap this body.", "error")
+        # If no current roll in use, open one and deduct a roll immediately
+        if used_in_current_roll == 0:
+            if current_wrap_stock < 1:
+                flash(f"Not enough {pallet_wrap_name} in stock! Need at least 1 roll to wrap this body.", "error")
                 db.session.rollback()
                 return redirect(url_for('bodies'))
-            new_wrap_stock = current_wrap_stock - rolls_to_deduct
+            new_wrap_stock = current_wrap_stock - 1
             wrap_entry = PrintedPartsCount(
                 part_name=pallet_wrap_name,
                 count=new_wrap_stock,
@@ -2842,11 +2842,20 @@ def bodies():
                 new_wrap_stock,
                 collected_warnings=low_stock_messages
             )
+            current_wrap_stock = new_wrap_stock
+            used_in_current_roll = 1
+            opened_new_roll = True
+        else:
+            used_in_current_roll += 1
+
+        # If the roll is now fully used, reset the counter to 0 (next body will open a new roll)
+        if used_in_current_roll >= bodies_per_wrap_roll:
+            used_in_current_roll = 0
 
         if remainder_entry:
-            remainder_entry.count = new_remainder
+            remainder_entry.count = used_in_current_roll
         else:
-            db.session.add(TableStock(type=wrap_remainder_key, count=new_remainder))
+            db.session.add(TableStock(type=wrap_remainder_key, count=used_in_current_roll))
         db.session.commit()
 
         # Create new CompletedTable record
