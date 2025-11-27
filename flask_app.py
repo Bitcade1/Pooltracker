@@ -969,6 +969,8 @@ def build_stock_snapshot():
         # Skip legacy generic body/top_rail keys without color so they don't pollute totals
         if entry.type in {"body_6ft", "body_7ft", "top_rail_6ft", "top_rail_7ft"}:
             continue
+        if entry.type == "pallet_wrap_remainder":
+            continue
 
         if entry.type.startswith('body_'):
             category = "Finished Tables"
@@ -2772,6 +2774,59 @@ def bodies():
                 flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {part_entry.count}) to complete the body!", "error")
                 db.session.rollback()
                 return redirect(url_for('bodies'))
+
+        # Deduct pallet wrap: 1 roll covers 7 bodies
+        pallet_wrap_name = "Pallet Wrap"
+        bodies_per_wrap_roll = 7
+        wrap_remainder_key = "pallet_wrap_remainder"
+
+        def get_current_stock(part_name):
+            latest_entry = (PrintedPartsCount.query
+                            .filter_by(part_name=part_name)
+                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                            .first())
+            if latest_entry:
+                return latest_entry.count
+            hardware_part = HardwarePart.query.filter_by(name=part_name).first()
+            if hardware_part:
+                return hardware_part.initial_count
+            return None
+
+        current_wrap_stock = get_current_stock(pallet_wrap_name)
+        if current_wrap_stock is None:
+            flash(f"{pallet_wrap_name} is not set up in inventory yet. Please add it before completing bodies.", "error")
+            db.session.rollback()
+            return redirect(url_for('bodies'))
+
+        remainder_entry = TableStock.query.filter_by(type=wrap_remainder_key).first()
+        bodies_since_last_roll = remainder_entry.count if remainder_entry else 0
+        bodies_since_last_roll += 1  # account for the body being logged now
+        rolls_to_deduct, new_remainder = divmod(bodies_since_last_roll, bodies_per_wrap_roll)
+
+        if rolls_to_deduct:
+            if current_wrap_stock < rolls_to_deduct:
+                flash(f"Not enough {pallet_wrap_name} in stock! Need {rolls_to_deduct} roll(s) to wrap this body.", "error")
+                db.session.rollback()
+                return redirect(url_for('bodies'))
+            new_wrap_stock = current_wrap_stock - rolls_to_deduct
+            wrap_entry = PrintedPartsCount(
+                part_name=pallet_wrap_name,
+                count=new_wrap_stock,
+                date=date.today(),
+                time=datetime.utcnow().time()
+            )
+            db.session.add(wrap_entry)
+            check_and_notify_low_stock(
+                pallet_wrap_name,
+                current_wrap_stock,
+                new_wrap_stock,
+                collected_warnings=low_stock_messages
+            )
+
+        if remainder_entry:
+            remainder_entry.count = new_remainder
+        else:
+            db.session.add(TableStock(type=wrap_remainder_key, count=new_remainder))
         db.session.commit()
 
         # Create new CompletedTable record
@@ -3478,6 +3533,7 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "Spring", "per_body": 1, "sizes": ["7ft", "6ft"]},
     {"name": "Handle Tube", "per_body": 1, "sizes": ["7ft", "6ft"]},
     {"name": "Latch", "per_body": 12, "sizes": ["7ft", "6ft"]},
+    {"name": "Pallet Wrap", "per_body": 1/7, "sizes": ["7ft", "6ft"]},
 ]
 
 TOP_RAIL_PARTS_REQUIREMENTS = [
@@ -3534,7 +3590,12 @@ def _latest_part_count(part_name):
         .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
         .first()
     )
-    return latest_entry.count if latest_entry else 0
+    if latest_entry:
+        return latest_entry.count
+    hardware_part = HardwarePart.query.filter_by(name=part_name).first()
+    if hardware_part:
+        return hardware_part.initial_count
+    return 0
 
 
 def _table_stock_count(stock_key):
@@ -3827,7 +3888,7 @@ def body_dashboard_view():
     parts_data = []
     for part in BODY_PARTS_REQUIREMENTS:
         stock = part_stock.get(part["name"], 0)
-        bodies_possible = stock // part["per_body"] if part["per_body"] else stock
+        bodies_possible = int(stock // part["per_body"]) if part["per_body"] else int(stock)
         status = 'ok'
         if bodies_possible < 5:
             status = 'critical'
@@ -3855,7 +3916,7 @@ def body_dashboard_view():
         for part in relevant_parts:
             requirements.append(f"{part['per_body']} x {part['name']}")
             stock = part_stock.get(part["name"], 0)
-            bodies_possible = stock // part["per_body"] if part["per_body"] else stock
+            bodies_possible = int(stock // part["per_body"]) if part["per_body"] else int(stock)
 
             if min_possible is None or bodies_possible < min_possible:
                 min_possible = bodies_possible
@@ -4079,6 +4140,8 @@ def table_stock():
         stock_type = entry.type
         if stock_type in legacy_keys:
             # Ignore legacy aggregate keys so totals match the per-color rows shown in the UI
+            continue
+        if stock_type == "pallet_wrap_remainder":
             continue
         
         # Handle body stock
