@@ -5655,6 +5655,13 @@ def order_chinese_parts():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    def part_cost_ex_vat(part_name):
+        key = f"parts_inventory__{slugify_key(part_name)}"
+        entry = StockItemCost.query.filter_by(item_key=key).first()
+        if not entry:
+            return 0.0
+        return (entry.unit_cost or 0.0) + (entry.shipping_cost or 0.0) + (entry.labour_cost or 0.0)
+
     # Chinese table parts and how many are needed per table
     chinese_parts = {
         "Table legs": 4,
@@ -5702,6 +5709,9 @@ def order_chinese_parts():
 
     parts_to_order = {}
     target_table_count = None
+    part_costs = {part: part_cost_ex_vat(part) for part in chinese_parts}
+    order_costs = {}
+    total_order_cost = 0.0
 
     if request.method == 'POST':
         try:
@@ -5714,6 +5724,8 @@ def order_chinese_parts():
             needed = target_table_count * qty_per_table
             current = part_stock.get(part, 0)
             parts_to_order[part] = max(0, needed - current)
+            order_costs[part] = parts_to_order[part] * part_costs.get(part, 0.0)
+            total_order_cost += order_costs[part]
 
     return render_template(
         'order_chinese_parts.html',
@@ -5722,7 +5734,10 @@ def order_chinese_parts():
         tables_possible_per_part=tables_possible_per_part,
         max_tables_possible=max_tables_possible,
         parts_to_order=parts_to_order,
-        target_table_count=target_table_count
+        target_table_count=target_table_count,
+        part_costs=part_costs,
+        order_costs=order_costs,
+        total_order_cost=total_order_cost
     )
 
 class LaminatePieceCount(db.Model):

@@ -40,6 +40,10 @@
             font-weight: bold;
             color: green;
         }
+        .total-cost {
+            margin-top: 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -72,8 +76,10 @@
                     <th>Stock</th>
                     <th>Per Table</th>
                     <th>Can Build</th>
+                    <th>Cost Each (ex VAT)</th>
                     {% if target_table_count %}
                     <th>Need to Order</th>
+                    <th>Order Cost</th>
                     {% endif %}
                 </tr>
             </thead>
@@ -84,13 +90,20 @@
                     <td>{{ part_stock[part] }}</td>
                     <td>{{ qty_per_table }}</td>
                     <td>{{ tables_possible_per_part[part] }}</td>
+                    <td>£{{ "%.2f"|format(part_costs.get(part, 0)) }}</td>
                     {% if target_table_count %}
                     <td>{{ parts_to_order[part] }}</td>
+                    <td>£{{ "%.2f"|format(order_costs.get(part, 0)) }}</td>
                     {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% if target_table_count %}
+        <div class="total-cost">
+            Total Order Cost (ex VAT): £{{ "%.2f"|format(total_order_cost) }}
+        </div>
+        {% endif %}
 
         <div class="form-section">
             <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
