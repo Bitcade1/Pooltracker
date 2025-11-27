@@ -3701,6 +3701,11 @@ BODY_SUPPORT_PARTS = {
     "7ft Bag of Bolts",
     "6ft Bag of Bolts",
     "Laminate",
+    "Spring",
+    "Handle Tube",
+    "4.2 x 16 No2 Self Tapping Screw",
+    "4.8x16mm Self Tapping Screw",
+    "4.0 x 50mm Wood Screw",
 }
 TOP_RAIL_PARTS_REQUIREMENTS = [
     ("Top rail trim long length", 2),

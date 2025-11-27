@@ -335,8 +335,7 @@
 
     <div class="dashboard-body">
         <section class="panel parts-panel">
-            <h3>Body Parts Inventory</h3>
-            <h4>3D Printed Body Parts</h4>
+            <h3>3D Printed Body Parts</h3>
             <div class="parts-grid">
                 {% for part in printed_parts_data %}
                     <div class="part-card {{ part.status }}">
@@ -346,7 +345,7 @@
                     </div>
                 {% endfor %}
             </div>
-            <h4>Wrap / Supports / Bolts / Laminate</h4>
+            <h3>Wrap / Supports / Bolts / Laminate</h3>
             <div class="parts-grid">
                 {% for part in support_parts_data %}
                     <div class="part-card {{ part.status }}">
