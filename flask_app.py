@@ -3885,6 +3885,14 @@ def body_dashboard_view():
         for part in BODY_PARTS_REQUIREMENTS
     }
 
+    def format_per_body(value):
+        """Show whole numbers without decimals; otherwise round to 2 decimals."""
+        if value is None:
+            return "0"
+        if abs(value - int(value)) < 1e-9:
+            return str(int(value))
+        return f"{value:.2f}"
+
     parts_data = []
     for part in BODY_PARTS_REQUIREMENTS:
         stock = part_stock.get(part["name"], 0)
@@ -3899,6 +3907,7 @@ def body_dashboard_view():
             "name": part["name"],
             "stock": stock,
             "per_body": part["per_body"],
+            "per_body_display": format_per_body(part["per_body"]),
             "bodies_possible": bodies_possible,
             "status": status,
             "sizes_display": ", ".join(part["sizes"])
