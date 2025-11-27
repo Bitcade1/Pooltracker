@@ -3001,6 +3001,46 @@ def bodies():
         for row in daily_history
     ]
 
+    def parse_time_string(value):
+        if not value:
+            return None
+        for fmt in ("%H:%M", "%H:%M:%S"):
+            try:
+                return datetime.strptime(value, fmt).time()
+            except ValueError:
+                continue
+        return None
+
+    def calculate_body_duration(body):
+        start_time_obj = parse_time_string(body.start_time)
+        finish_time_obj = parse_time_string(body.finish_time)
+        if not start_time_obj or not finish_time_obj:
+            return None
+
+        start_dt = datetime.combine(body.date, start_time_obj)
+        finish_dt = datetime.combine(body.date, finish_time_obj)
+        if finish_time_obj < start_time_obj:
+            finish_dt = datetime.combine(body.date + timedelta(days=1), finish_time_obj)
+
+        if body.lunch and str(body.lunch).lower() == "yes":
+            finish_dt -= timedelta(minutes=30)
+
+        delta = finish_dt - start_dt
+        if delta.total_seconds() < 0:
+            return None
+        return delta
+
+    def format_avg_duration(total_seconds, count):
+        if not count:
+            return "N/A"
+        avg_seconds = total_seconds / count
+        avg_seconds = max(0, int(round(avg_seconds)))
+        hours, remainder = divmod(avg_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    workers_of_interest = ["Jack B", "Tom"]
+
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -3022,6 +3062,28 @@ def bodies():
         workers_building_bodies = 2  # two builders now contribute time in parallel
         cumulative_working_hours = work_days * worker_hours_per_day * workers_building_bodies
         avg_hours_per_body = (cumulative_working_hours / total_bodies if total_bodies > 0 else None)
+
+        month_bodies = CompletedTable.query.filter(
+            extract('year', CompletedTable.date) == yr,
+            extract('month', CompletedTable.date) == mo
+        ).all()
+        worker_stats = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
+        for body in month_bodies:
+            duration = calculate_body_duration(body)
+            if duration is None:
+                continue
+            worker_name = body.worker.strip() if body.worker else ""
+            for worker in workers_of_interest:
+                if worker_name.lower() == worker.lower():
+                    worker_stats[worker]["seconds"] += duration.total_seconds()
+                    worker_stats[worker]["count"] += 1
+                    break
+
+        worker_avg_formatted = {
+            worker: format_avg_duration(stats["seconds"], stats["count"])
+            for worker, stats in worker_stats.items()
+        }
+
         if avg_hours_per_body is not None:
             hours = int(avg_hours_per_body)
             minutes = int((avg_hours_per_body - hours) * 60)
@@ -3032,7 +3094,9 @@ def bodies():
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
-            "average_hours_per_body": avg_hours_per_body_formatted
+            "average_hours_per_body": avg_hours_per_body_formatted,
+            "avg_hours_jack": worker_avg_formatted.get("Jack B", "N/A"),
+            "avg_hours_tom": worker_avg_formatted.get("Tom", "N/A")
         })
     
     # Retrieve production targets for the current month

@@ -398,7 +398,8 @@
           <tr>
             <th>Month</th>
             <th>Total Tables Made</th>
-            <th>Average Hours per Table</th>
+            <th>Avg Hours per Table (Jack B)</th>
+            <th>Avg Hours per Table (Tom)</th>
           </tr>
         </thead>
         <tbody>
@@ -406,13 +407,8 @@
             <tr>
               <td>{{ month.month }}</td>
               <td>{{ month.count }}</td>
-              <td>
-                {% if month.average_hours_per_body %}
-                  {{ month.average_hours_per_body }} 
-                {% else %}
-                  N/A
-                {% endif %}
-              </td>
+              <td>{{ month.avg_hours_jack }}</td>
+              <td>{{ month.avg_hours_tom }}</td>
             </tr>
           {% endfor %}
         </tbody>
