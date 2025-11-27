@@ -1321,6 +1321,30 @@ def counting_hardware():
                         .first())
         hardware_counts[part.name] = latest_entry[0] if latest_entry else part.initial_count
 
+    def pallet_wrap_display_count():
+        target_name = "Pallet Wrap"
+        wrap_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == target_name.lower()).first()
+        part_name = wrap_part.name if wrap_part else target_name
+        latest_entry = (PrintedPartsCount.query
+                        .filter(func.lower(PrintedPartsCount.part_name) == part_name.lower())
+                        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                        .first())
+        roll_count = latest_entry.count if latest_entry else (wrap_part.initial_count if wrap_part else 0)
+        remainder_entry = TableStock.query.filter_by(type="pallet_wrap_remainder").first()
+        used_in_current_roll = remainder_entry.count if remainder_entry else 0
+        bodies_per_wrap_roll = 7
+        if used_in_current_roll <= 0 or used_in_current_roll >= bodies_per_wrap_roll:
+            fraction_remaining = 0
+        else:
+            fraction_remaining = (bodies_per_wrap_roll - used_in_current_roll) / bodies_per_wrap_roll
+        display_count = max(0.0, roll_count + fraction_remaining)
+        return round(display_count, 2), part_name
+
+    # Align pallet wrap display with fractional rolls remaining
+    wrap_count, wrap_name = pallet_wrap_display_count()
+    if wrap_name in hardware_counts:
+        hardware_counts[wrap_name] = wrap_count
+
     # 3. Handle POST actions
     if request.method == 'POST':
         selected_part = request.form.get('hardware_part', selected_part)
