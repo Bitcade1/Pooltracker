@@ -4073,6 +4073,7 @@ def body_dashboard_view():
         extract('month', CompletedTable.date) == today.month
     ).all()
     worker_stats_current = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
+    latest_body_time = {worker: None for worker in workers_of_interest}
     for body in current_month_bodies:
         duration = calculate_body_duration(body)
         if duration is None:
@@ -4081,9 +4082,17 @@ def body_dashboard_view():
         if mapped in worker_stats_current:
             worker_stats_current[mapped]["seconds"] += duration.total_seconds()
             worker_stats_current[mapped]["count"] += 1
+            # track latest completion timestamp for the worker
+            completed_dt = datetime.combine(body.date, parse_time_string(body.finish_time) or datetime.min.time())
+            if latest_body_time[mapped] is None or completed_dt > latest_body_time[mapped]:
+                latest_body_time[mapped] = completed_dt
     avg_times_current_month = {
         worker: format_avg_duration(stats["seconds"], stats["count"])
         for worker, stats in worker_stats_current.items()
+    }
+    last_finish_time_display = {
+        worker: (latest_body_time[worker].strftime("%d %b %Y %H:%M") if latest_body_time[worker] else "N/A")
+        for worker in workers_of_interest
     }
 
     parts_data = []
@@ -4150,7 +4159,9 @@ def body_dashboard_view():
         limiting_overall=limiting_overall,
         min_capacity=min_capacity,
         avg_jack_current_month=avg_times_current_month.get("Jack B", "N/A"),
-        avg_tom_current_month=avg_times_current_month.get("Tom", "N/A")
+        avg_tom_current_month=avg_times_current_month.get("Tom", "N/A"),
+        last_jack_finish=last_finish_time_display.get("Jack B", "N/A"),
+        last_tom_finish=last_finish_time_display.get("Tom", "N/A")
     )
 
 
