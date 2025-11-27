@@ -4057,6 +4057,28 @@ def body_dashboard_view():
         for part in BODY_PARTS_REQUIREMENTS
     }
 
+    def pallet_wrap_display_count():
+        target_name = "Pallet Wrap"
+        wrap_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == target_name.lower()).first()
+        part_name = wrap_part.name if wrap_part else target_name
+        latest_entry = (PrintedPartsCount.query
+                        .filter(func.lower(PrintedPartsCount.part_name) == part_name.lower())
+                        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                        .first())
+        roll_count = latest_entry.count if latest_entry else (wrap_part.initial_count if wrap_part else 0)
+        remainder_entry = TableStock.query.filter_by(type="pallet_wrap_remainder").first()
+        used_in_current_roll = remainder_entry.count if remainder_entry else 0
+        bodies_per_wrap_roll = 7
+        if used_in_current_roll <= 0 or used_in_current_roll >= bodies_per_wrap_roll:
+            fraction_remaining = 0
+        else:
+            fraction_remaining = (bodies_per_wrap_roll - used_in_current_roll) / bodies_per_wrap_roll
+        display_count = max(0.0, roll_count + fraction_remaining)
+        return round(display_count, 2)
+
+    # Show fractional rolls remaining for pallet wrap
+    part_stock["Pallet Wrap"] = pallet_wrap_display_count()
+
     def format_per_body(value):
         """Show whole numbers without decimals; otherwise round to 2 decimals."""
         if value is None:
