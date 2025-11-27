@@ -3655,6 +3655,10 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "Handle Tube", "per_body": 1, "sizes": ["7ft", "6ft"]},
     {"name": "Latch", "per_body": 12, "sizes": ["7ft", "6ft"]},
     {"name": "Pallet Wrap", "per_body": 1/7, "sizes": ["7ft", "6ft"]},
+    {"name": "7ft Bag of Bolts", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "6ft Bag of Bolts", "per_body": 1, "sizes": ["6ft"]},
+    {"name": "7ft Ply Supports", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "6ft Ply Supports", "per_body": 1, "sizes": ["6ft"]},
 ]
 
 # Parts that are 3D printed (used to separate dashboard display)
