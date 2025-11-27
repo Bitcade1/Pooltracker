@@ -3662,10 +3662,6 @@ BODY_3D_PRINTED_PARTS = {
     "Cue Ball Separator",
     "6ft Cue Ball Separator",
     "Bushing",
-    "Ramp 170mm",
-    "Ramp 158mm",
-    "Ramp 918mm",
-    "Ramp 376mm",
 }
 
 TOP_RAIL_PARTS_REQUIREMENTS = [
