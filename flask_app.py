@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from collections import defaultdict  # Ensure defaultdict is imported
 from calendar import monthrange
 from sqlalchemy import func, extract
@@ -170,25 +170,45 @@ class PartThreshold(db.Model):
     part_name = db.Column(db.String(100), unique=True, nullable=False)
     threshold = db.Column(db.Integer, default=0, nullable=False)
 
+# Track last time we alerted for a given part to throttle repeats
+LOW_STOCK_LAST_ALERT = {}
+
 def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnings=None):
     threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
     if threshold_entry and threshold_entry.threshold > 0:
-        # notify on every decrement while at or below threshold
-        if new_count <= threshold_entry.threshold:
-            message = f"Stock for {part_name} is low ({new_count} remaining)."
-            if collected_warnings is not None:
-                collected_warnings.append(message)
-                return message
-            try:
-                title = "Low Stock Warning"
-                requests.post(
-                    "https://ntfy.sh/PoolTableTracker",
-                    data=message,
-                    headers={"Title": title, "Priority": "high"}
-                )
-            except requests.RequestException as e:
-                print(f"Ntfy notification failed for low stock: {e}")
-            return message
+        # Reset alert state if stock recovered above threshold
+        if new_count > threshold_entry.threshold:
+            LOW_STOCK_LAST_ALERT.pop(part_name, None)
+            return None
+
+        # Only notify while at/below threshold, throttled to once per hour
+        message = f"Stock for {part_name} is low ({new_count} remaining)."
+        if collected_warnings is not None:
+            collected_warnings.append(message)
+
+        now = datetime.utcnow()
+        last_alert = LOW_STOCK_LAST_ALERT.get(part_name)
+        should_alert = last_alert is None or (now - last_alert) >= timedelta(hours=1)
+
+        if should_alert:
+            # Only alert during business hours (9am-5pm server local time)
+            current_time = datetime.now().time()
+            business_start = time(9, 0)
+            business_end = time(17, 0)
+            within_business_hours = business_start <= current_time < business_end
+
+            if within_business_hours:
+                try:
+                    title = "Low Stock Warning"
+                    requests.post(
+                        "https://ntfy.sh/PoolTableTracker",
+                        data=message,
+                        headers={"Title": title, "Priority": "high"}
+                    )
+                    LOW_STOCK_LAST_ALERT[part_name] = now
+                except requests.RequestException as e:
+                    print(f"Ntfy notification failed for low stock: {e}")
+        return message
     return None
 
 
