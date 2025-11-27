@@ -3020,13 +3020,21 @@ def bodies():
         start_dt = datetime.combine(body.date, start_time_obj)
         finish_dt = datetime.combine(body.date, finish_time_obj)
         if finish_time_obj < start_time_obj:
-            finish_dt = datetime.combine(body.date + timedelta(days=1), finish_time_obj)
+            # Only treat as overnight if within a sane window (<= 12 hours)
+            overnight_dt = datetime.combine(body.date + timedelta(days=1), finish_time_obj)
+            if (overnight_dt - start_dt) <= timedelta(hours=12):
+                finish_dt = overnight_dt
 
         if body.lunch and str(body.lunch).lower() == "yes":
             finish_dt -= timedelta(minutes=30)
 
         delta = finish_dt - start_dt
+        # Guard against bad inputs that skew averages
         if delta.total_seconds() < 0:
+            return None
+        if delta < timedelta(minutes=10):
+            return None
+        if delta > timedelta(hours=8):
             return None
         return delta
 
