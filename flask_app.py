@@ -2799,10 +2799,13 @@ def bodies():
         pallet_wrap_name = "Pallet Wrap"
         bodies_per_wrap_roll = 7
         wrap_remainder_key = "pallet_wrap_remainder"
+        wrap_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == pallet_wrap_name.lower()).first()
+        if wrap_part:
+            pallet_wrap_name = wrap_part.name  # use canonical stored name
 
         def get_current_stock(part_name):
             latest_entry = (PrintedPartsCount.query
-                            .filter_by(part_name=part_name)
+                            .filter(func.lower(PrintedPartsCount.part_name) == part_name.lower())
                             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                             .first())
             if latest_entry:
