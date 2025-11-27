@@ -3073,22 +3073,22 @@ def bodies():
         yr = int(row.year)
         mo = int(row.month)
         total_bodies = row.total
-        last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
-        worker_hours_per_day = 7.5
-        workers_building_bodies = 2  # two builders now contribute time in parallel
-        cumulative_working_hours = work_days * worker_hours_per_day * workers_building_bodies
-        avg_hours_per_body = (cumulative_working_hours / total_bodies if total_bodies > 0 else None)
 
         month_bodies = CompletedTable.query.filter(
             extract('year', CompletedTable.date) == yr,
             extract('month', CompletedTable.date) == mo
         ).all()
+
+        # Use actual recorded durations for averages instead of estimated work hours
+        total_duration_seconds = 0
+        counted_bodies = 0
         worker_stats = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
         for body in month_bodies:
             duration = calculate_body_duration(body)
             if duration is None:
                 continue
+            total_duration_seconds += duration.total_seconds()
+            counted_bodies += 1
             mapped_worker = map_to_worker(body.worker)
             if mapped_worker in worker_stats:
                 worker_stats[mapped_worker]["seconds"] += duration.total_seconds()
@@ -3099,13 +3099,7 @@ def bodies():
             for worker, stats in worker_stats.items()
         }
 
-        if avg_hours_per_body is not None:
-            hours = int(avg_hours_per_body)
-            minutes = int((avg_hours_per_body - hours) * 60)
-            seconds = int((((avg_hours_per_body - hours) * 60) - minutes) * 60)
-            avg_hours_per_body_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
-        else:
-            avg_hours_per_body_formatted = "N/A"
+        avg_hours_per_body_formatted = format_avg_duration(total_duration_seconds, counted_bodies)
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
