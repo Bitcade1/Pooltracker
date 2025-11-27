@@ -35,59 +35,33 @@
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-        gap: 0.6rem;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem;
     }
 
     .stat-card {
         background: #ffffff;
-        border-radius: 10px;
-        padding: 0.9rem 1.1rem;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+        padding: 1.1rem 1.25rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
         display: flex;
         flex-direction: column;
-        gap: 0.35rem;
-        min-height: 110px;
-    }
-
-    .stat-card.next-serial {
-        padding: 0.4rem 0.6rem;
-        text-align: center;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .stat-card.next-serial .stat-label {
-        font-size: 2.2rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #5d6d7e;
+        gap: 0.4rem;
+        min-height: 130px;
     }
 
     .stat-card .stat-label {
-        font-size: 0.95rem;
+        font-size: 1.05rem;
         font-weight: 600;
-        color: #7f8c8d;
+        color: #566573;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.06em;
     }
 
     .stat-card .stat-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #2c3e50;
-    }
-
-    .stat-card.next-serial .stat-value {
-        font-size: clamp(8rem, 16vw, 12rem);
-        font-weight: 900;
+        font-size: 2.6rem;
+        font-weight: 800;
         color: #1f2d3d;
-        line-height: 1.02;
-        white-space: nowrap;
-    }
-
-    .next-serial-value {
-        display: inline-block;
     }
 
     .stat-card.highlight {
@@ -136,19 +110,19 @@
 
     .avg-times {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 0.5rem;
-        margin-top: 0.35rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.65rem;
     }
 
     .avg-card {
-        background: #f7f9fb;
+        background: #ffffff;
         border: 1px solid #d6e2f0;
-        border-radius: 8px;
-        padding: 0.65rem 0.8rem;
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
         display: flex;
         flex-direction: column;
         gap: 0.2rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
 
     .avg-card .label {
@@ -156,12 +130,12 @@
         color: #607d8b;
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        font-weight: 600;
+        font-weight: 700;
     }
 
     .avg-card .value {
-        font-size: 1.4rem;
-        font-weight: 700;
+        font-size: 1.5rem;
+        font-weight: 800;
         color: #1f2d3d;
     }
 
@@ -333,10 +307,6 @@
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
         </div>
-        <div class="stat-card next-serial">
-            <span class="stat-label">Next Serial ({{ default_size }})</span>
-            <span class="stat-value next-serial-value">{{ next_serial }}</span>
-        </div>
     </section>
 
     {% if min_capacity is not none and min_capacity <= 10 %}
@@ -353,19 +323,23 @@
         </section>
     {% endif %}
 
+    <section class="panel">
+        <h3>Average Time Per Body (This Month)</h3>
+        <div class="avg-times">
+            <div class="avg-card">
+                <span class="label">Jack B</span>
+                <span class="value">{{ avg_jack_current_month }}</span>
+            </div>
+            <div class="avg-card">
+                <span class="label">Tom</span>
+                <span class="value">{{ avg_tom_current_month }}</span>
+            </div>
+        </div>
+    </section>
+
     <div class="dashboard-body">
         <section class="panel parts-panel">
             <h3>Body Parts Inventory</h3>
-            <div class="avg-times">
-                <div class="avg-card">
-                    <span class="label">Jack B (This Month)</span>
-                    <span class="value">{{ avg_jack_current_month }}</span>
-                </div>
-                <div class="avg-card">
-                    <span class="label">Tom (This Month)</span>
-                    <span class="value">{{ avg_tom_current_month }}</span>
-                </div>
-            </div>
             <div class="parts-grid">
                 {% for part in parts_data %}
                     <div class="part-card {{ part.status }}">
