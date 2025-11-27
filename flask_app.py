@@ -3040,6 +3040,23 @@ def bodies():
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
     workers_of_interest = ["Jack B", "Tom"]
+    worker_aliases = {
+        "Jack B": ["jackb", "jack"],
+        "Tom": ["tom"]
+    }
+
+    def normalize_worker_name(name):
+        if not name:
+            return ""
+        return re.sub(r'[^a-z]', '', name.lower())
+
+    def map_to_worker(name):
+        norm = normalize_worker_name(name)
+        for worker, aliases in worker_aliases.items():
+            for alias in aliases:
+                if norm.startswith(alias):
+                    return worker
+        return None
 
     monthly_totals = (
         db.session.query(
@@ -3072,12 +3089,10 @@ def bodies():
             duration = calculate_body_duration(body)
             if duration is None:
                 continue
-            worker_name = body.worker.strip() if body.worker else ""
-            for worker in workers_of_interest:
-                if worker_name.lower() == worker.lower():
-                    worker_stats[worker]["seconds"] += duration.total_seconds()
-                    worker_stats[worker]["count"] += 1
-                    break
+            mapped_worker = map_to_worker(body.worker)
+            if mapped_worker in worker_stats:
+                worker_stats[mapped_worker]["seconds"] += duration.total_seconds()
+                worker_stats[mapped_worker]["count"] += 1
 
         worker_avg_formatted = {
             worker: format_avg_duration(stats["seconds"], stats["count"])
