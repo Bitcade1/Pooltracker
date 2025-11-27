@@ -3018,7 +3018,9 @@ def bodies():
         total_bodies = row.total
         last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
         work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
-        cumulative_working_hours = work_days * 7.5
+        worker_hours_per_day = 7.5
+        workers_building_bodies = 2  # two builders now contribute time in parallel
+        cumulative_working_hours = work_days * worker_hours_per_day * workers_building_bodies
         avg_hours_per_body = (cumulative_working_hours / total_bodies if total_bodies > 0 else None)
         if avg_hours_per_body is not None:
             hours = int(avg_hours_per_body)
