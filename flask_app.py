@@ -1286,6 +1286,21 @@ def counting_hardware():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    # Ensure new hardware parts exist so they show in the dropdown
+    required_hardware = [
+        "7ft Bag of Bolts",
+        "6ft Bag of Bolts",
+        "7ft Ply Supports",
+        "6ft Ply Supports"
+    ]
+    created_any = False
+    for name in required_hardware:
+        if not HardwarePart.query.filter(func.lower(HardwarePart.name) == name.lower()).first():
+            db.session.add(HardwarePart(name=name, initial_count=0))
+            created_any = True
+    if created_any:
+        db.session.commit()
+
     # 1. Fetch all hardware parts
     hardware_parts = HardwarePart.query.all()
 
