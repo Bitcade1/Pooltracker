@@ -2823,6 +2823,11 @@ def bodies():
         wrap_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == pallet_wrap_name.lower()).first()
         if wrap_part:
             pallet_wrap_name = wrap_part.name  # use canonical stored name
+        else:
+            # ensure the hardware part exists so counts stay in sync with Counting Hardware page
+            new_wrap_part = HardwarePart(name=pallet_wrap_name, initial_count=0)
+            db.session.add(new_wrap_part)
+            db.session.commit()
 
         def get_current_stock(part_name):
             latest_entry = (PrintedPartsCount.query
