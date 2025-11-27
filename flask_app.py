@@ -3694,6 +3694,14 @@ BODY_3D_PRINTED_PARTS = {
     "Bushing",
 }
 
+BODY_SUPPORT_PARTS = {
+    "Pallet Wrap",
+    "7ft Ply Supports",
+    "6ft Ply Supports",
+    "7ft Bag of Bolts",
+    "6ft Bag of Bolts",
+    "Laminate",
+}
 TOP_RAIL_PARTS_REQUIREMENTS = [
     ("Top rail trim long length", 2),
     ("Top rail trim short length", 4),
@@ -4162,7 +4170,8 @@ def body_dashboard_view():
 
     parts_data.sort(key=lambda item: item["bodies_possible"])
     printed_parts_data = [p for p in parts_data if p["name"] in BODY_3D_PRINTED_PARTS]
-    other_parts_data = [p for p in parts_data if p["name"] not in BODY_3D_PRINTED_PARTS]
+    support_parts_data = [p for p in parts_data if p["name"] in BODY_SUPPORT_PARTS]
+    other_parts_data = [p for p in parts_data if p["name"] not in BODY_3D_PRINTED_PARTS and p["name"] not in BODY_SUPPORT_PARTS]
 
     capacity_by_size = {}
     for size in ["7ft", "6ft"]:
@@ -4210,6 +4219,7 @@ def body_dashboard_view():
         last_jack_duration=last_duration_display.get("Jack B", "N/A"),
         last_tom_duration=last_duration_display.get("Tom", "N/A"),
         printed_parts_data=printed_parts_data,
+        support_parts_data=support_parts_data,
         other_parts_data=other_parts_data
     )
 
