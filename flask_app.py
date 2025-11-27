@@ -185,6 +185,7 @@ def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnin
         message = f"Stock for {part_name} is low ({new_count} remaining)."
         if collected_warnings is not None:
             collected_warnings.append(message)
+            return message
 
         now = datetime.utcnow()
         last_alert = LOW_STOCK_LAST_ALERT.get(part_name)
