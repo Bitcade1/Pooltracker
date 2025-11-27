@@ -5756,6 +5756,11 @@ def order_chinese_parts():
     order_costs = {}
     total_order_cost = 0.0
 
+    gullies_parts = [p for p in chinese_parts if p.lower().startswith("ball gullies")]
+    gullies_stock = sum(part_stock.get(p, 0) for p in gullies_parts)
+    gullies_per_table = sum(chinese_parts.get(p, 0) for p in gullies_parts)
+    gullies_can_build = (gullies_stock // gullies_per_table) if gullies_per_table else 0
+
     if request.method == 'POST':
         try:
             target_table_count = int(request.form.get('target_tables'))
@@ -5770,6 +5775,36 @@ def order_chinese_parts():
             order_costs[part] = parts_to_order[part] * part_costs.get(part, 0.0)
             total_order_cost += order_costs[part]
 
+        gullies_need = max(0, target_table_count * gullies_per_table - gullies_stock) if gullies_per_table else 0
+        gullies_order_cost = sum(order_costs.get(p, 0.0) for p in gullies_parts)
+    else:
+        gullies_need = None
+        gullies_order_cost = None
+
+    standard_parts = []
+    for part, qty_per_table in chinese_parts.items():
+        if part in gullies_parts:
+            continue
+        standard_parts.append({
+            "name": part,
+            "stock": part_stock.get(part, 0),
+            "per_table": qty_per_table,
+            "can_build": tables_possible_per_part.get(part, 0),
+            "cost_each": part_costs.get(part, 0.0),
+            "need_to_order": parts_to_order.get(part, 0) if target_table_count else None,
+            "order_cost": order_costs.get(part, 0.0) if target_table_count else None,
+        })
+
+    gullies_summary = {
+        "name": "Ball Gullies (All)",
+        "stock": gullies_stock,
+        "per_table": gullies_per_table,
+        "can_build": gullies_can_build,
+        "cost_each": None,
+        "need_to_order": gullies_need,
+        "order_cost": gullies_order_cost,
+    }
+
     return render_template(
         'order_chinese_parts.html',
         chinese_parts=chinese_parts,
@@ -5780,7 +5815,9 @@ def order_chinese_parts():
         target_table_count=target_table_count,
         part_costs=part_costs,
         order_costs=order_costs,
-        total_order_cost=total_order_cost
+        total_order_cost=total_order_cost,
+        standard_parts=standard_parts,
+        gullies_summary=gullies_summary
     )
 
 class LaminatePieceCount(db.Model):

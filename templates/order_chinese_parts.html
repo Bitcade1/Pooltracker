@@ -84,16 +84,29 @@
                 </tr>
             </thead>
             <tbody>
-                {% for part, qty_per_table in chinese_parts.items() %}
+                {% if gullies_summary %}
                 <tr>
-                    <td>{{ part }}</td>
-                    <td>{{ part_stock[part] }}</td>
-                    <td>{{ qty_per_table }}</td>
-                    <td>{{ tables_possible_per_part[part] }}</td>
-                    <td>£{{ "%.2f"|format(part_costs.get(part, 0)) }}</td>
+                    <td>{{ gullies_summary.name }}</td>
+                    <td>{{ gullies_summary.stock }}</td>
+                    <td>{{ gullies_summary.per_table }}</td>
+                    <td>{{ gullies_summary.can_build }}</td>
+                    <td>-</td>
                     {% if target_table_count %}
-                    <td>{{ parts_to_order[part] }}</td>
-                    <td>£{{ "%.2f"|format(order_costs.get(part, 0)) }}</td>
+                    <td>{{ gullies_summary.need_to_order }}</td>
+                    <td>£{{ "%.2f"|format(gullies_summary.order_cost or 0) }}</td>
+                    {% endif %}
+                </tr>
+                {% endif %}
+                {% for row in standard_parts %}
+                <tr>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.stock }}</td>
+                    <td>{{ row.per_table }}</td>
+                    <td>{{ row.can_build }}</td>
+                    <td>£{{ "%.2f"|format(row.cost_each) }}</td>
+                    {% if target_table_count %}
+                    <td>{{ row.need_to_order }}</td>
+                    <td>£{{ "%.2f"|format(row.order_cost) }}</td>
                     {% endif %}
                 </tr>
                 {% endfor %}
