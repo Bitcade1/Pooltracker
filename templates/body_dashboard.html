@@ -134,6 +134,37 @@
         color: #2c3e50;
     }
 
+    .avg-times {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.5rem;
+        margin-top: 0.35rem;
+    }
+
+    .avg-card {
+        background: #f7f9fb;
+        border: 1px solid #d6e2f0;
+        border-radius: 8px;
+        padding: 0.65rem 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .avg-card .label {
+        font-size: 0.95rem;
+        color: #607d8b;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 600;
+    }
+
+    .avg-card .value {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #1f2d3d;
+    }
+
     .parts-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -325,6 +356,16 @@
     <div class="dashboard-body">
         <section class="panel parts-panel">
             <h3>Body Parts Inventory</h3>
+            <div class="avg-times">
+                <div class="avg-card">
+                    <span class="label">Jack B (This Month)</span>
+                    <span class="value">{{ avg_jack_current_month }}</span>
+                </div>
+                <div class="avg-card">
+                    <span class="label">Tom (This Month)</span>
+                    <span class="value">{{ avg_tom_current_month }}</span>
+                </div>
+            </div>
             <div class="parts-grid">
                 {% for part in parts_data %}
                     <div class="part-card {{ part.status }}">

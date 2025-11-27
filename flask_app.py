@@ -3996,6 +3996,84 @@ def body_dashboard_view():
             return str(int(value))
         return f"{value:.2f}"
 
+    def parse_time_string(value):
+        if not value:
+            return None
+        for fmt in ("%H:%M", "%H:%M:%S"):
+            try:
+                return datetime.strptime(value, fmt).time()
+            except ValueError:
+                continue
+        return None
+
+    def calculate_body_duration(body):
+        start_time_obj = parse_time_string(body.start_time)
+        finish_time_obj = parse_time_string(body.finish_time)
+        if not start_time_obj or not finish_time_obj:
+            return None
+
+        start_dt = datetime.combine(body.date, start_time_obj)
+        finish_dt = datetime.combine(body.date, finish_time_obj)
+        if finish_time_obj < start_time_obj:
+            overnight_dt = datetime.combine(body.date + timedelta(days=1), finish_time_obj)
+            if (overnight_dt - start_dt) <= timedelta(hours=12):
+                finish_dt = overnight_dt
+
+        if body.lunch and str(body.lunch).lower() == "yes":
+            finish_dt -= timedelta(minutes=30)
+
+        delta = finish_dt - start_dt
+        if delta.total_seconds() < 0 or delta < timedelta(minutes=10) or delta > timedelta(hours=8):
+            return None
+        return delta
+
+    def format_avg_duration(total_seconds, count):
+        if not count:
+            return "N/A"
+        avg_seconds = total_seconds / count
+        avg_seconds = max(0, int(round(avg_seconds)))
+        hours, remainder = divmod(avg_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    workers_of_interest = ["Jack B", "Tom"]
+    worker_aliases = {
+        "Jack B": ["jackb", "jack"],
+        "Tom": ["tom"]
+    }
+
+    def normalize_worker_name(name):
+        if not name:
+            return ""
+        return re.sub(r'[^a-z]', '', name.lower())
+
+    def map_to_worker(name):
+        norm = normalize_worker_name(name)
+        for worker, aliases in worker_aliases.items():
+            for alias in aliases:
+                if norm.startswith(alias):
+                    return worker
+        return None
+
+    # Current month per-worker averages using actual recorded durations
+    current_month_bodies = CompletedTable.query.filter(
+        extract('year', CompletedTable.date) == today.year,
+        extract('month', CompletedTable.date) == today.month
+    ).all()
+    worker_stats_current = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
+    for body in current_month_bodies:
+        duration = calculate_body_duration(body)
+        if duration is None:
+            continue
+        mapped = map_to_worker(body.worker)
+        if mapped in worker_stats_current:
+            worker_stats_current[mapped]["seconds"] += duration.total_seconds()
+            worker_stats_current[mapped]["count"] += 1
+    avg_times_current_month = {
+        worker: format_avg_duration(stats["seconds"], stats["count"])
+        for worker, stats in worker_stats_current.items()
+    }
+
     parts_data = []
     for part in BODY_PARTS_REQUIREMENTS:
         stock = part_stock.get(part["name"], 0)
@@ -4058,7 +4136,9 @@ def body_dashboard_view():
         parts_data=parts_data,
         capacity_by_size=capacity_by_size,
         limiting_overall=limiting_overall,
-        min_capacity=min_capacity
+        min_capacity=min_capacity,
+        avg_jack_current_month=avg_times_current_month.get("Jack B", "N/A"),
+        avg_tom_current_month=avg_times_current_month.get("Tom", "N/A")
     )
 
 
