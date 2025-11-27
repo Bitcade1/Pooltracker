@@ -146,8 +146,8 @@
         </div>
 
         <!-- Manage Low Stock Thresholds -->
-        <button class="collapsible">Manage Low Stock Thresholds</button>
-        <div class="collapsible-content">
+        <button class="collapsible {% if threshold_section_open %}active{% endif %}">Manage Low Stock Thresholds</button>
+        <div class="collapsible-content" style="display: {% if threshold_section_open %}block{% else %}none{% endif %};">
             <h2>Set Low Stock Notification Thresholds</h2>
             <p>Set a threshold for a part. A notification will be sent when the stock level drops to or below this number. Set to 0 to disable notifications for a part.</p>
             <table>

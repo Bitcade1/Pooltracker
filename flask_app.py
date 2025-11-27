@@ -258,6 +258,8 @@ def admin():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    threshold_section_open = False
+
     # Add new worker
     if request.method == 'POST' and 'new_worker' in request.form:
         new_worker = request.form['new_worker']
@@ -351,7 +353,8 @@ def admin():
             flash(f"Threshold for {part_name} updated to {threshold}.", "success")
         except ValueError:
             flash("Invalid threshold value.", "error")
-        # Fall through to render the page without redirect so the section stays open
+        # Keep the threshold section open after updating
+        threshold_section_open = True
 
  # Fetch all existing hardware parts from the database
     hardware_parts = HardwarePart.query.all()
@@ -498,7 +501,8 @@ def admin():
         bodies=bodies,
         hardware_parts=hardware_parts,
         all_part_names=all_part_names,
-        thresholds_map=thresholds_map
+        thresholds_map=thresholds_map,
+        threshold_section_open=threshold_section_open
     )
 
 @app.route('/dashboard')
