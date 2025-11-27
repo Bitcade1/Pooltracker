@@ -5703,7 +5703,8 @@ def order_chinese_parts():
         entry = StockItemCost.query.filter_by(item_key=key).first()
         if not entry:
             return 0.0
-        return (entry.unit_cost or 0.0) + (entry.shipping_cost or 0.0) + (entry.labour_cost or 0.0)
+        # Use material-only (unit + shipping); exclude labour from order cost
+        return (entry.unit_cost or 0.0) + (entry.shipping_cost or 0.0)
 
     # Chinese table parts and how many are needed per table
     chinese_parts = {
@@ -5748,7 +5749,6 @@ def order_chinese_parts():
         part: part_stock[part] // qty
         for part, qty in chinese_parts.items()
     }
-    max_tables_possible = min(tables_possible_per_part.values())
 
     parts_to_order = {}
     target_table_count = None
@@ -5804,6 +5804,11 @@ def order_chinese_parts():
         "need_to_order": gullies_need,
         "order_cost": gullies_order_cost,
     }
+
+    max_tables_possible_candidates = [row["can_build"] for row in standard_parts]
+    if gullies_per_table:
+        max_tables_possible_candidates.append(gullies_can_build)
+    max_tables_possible = min(max_tables_possible_candidates) if max_tables_possible_candidates else 0
 
     return render_template(
         'order_chinese_parts.html',
