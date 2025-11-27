@@ -3651,6 +3651,23 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "Pallet Wrap", "per_body": 1/7, "sizes": ["7ft", "6ft"]},
 ]
 
+# Parts that are 3D printed (used to separate dashboard display)
+BODY_3D_PRINTED_PARTS = {
+    "Large Ramp",
+    "6ft Large Ramp",
+    "Paddle",
+    "Spring Mount",
+    "Spring Holder",
+    "Small Ramp",
+    "Cue Ball Separator",
+    "6ft Cue Ball Separator",
+    "Bushing",
+    "Ramp 170mm",
+    "Ramp 158mm",
+    "Ramp 918mm",
+    "Ramp 376mm",
+}
+
 TOP_RAIL_PARTS_REQUIREMENTS = [
     ("Top rail trim long length", 2),
     ("Top rail trim short length", 4),
@@ -4118,6 +4135,8 @@ def body_dashboard_view():
         })
 
     parts_data.sort(key=lambda item: item["bodies_possible"])
+    printed_parts_data = [p for p in parts_data if p["name"] in BODY_3D_PRINTED_PARTS]
+    other_parts_data = [p for p in parts_data if p["name"] not in BODY_3D_PRINTED_PARTS]
 
     capacity_by_size = {}
     for size in ["7ft", "6ft"]:
@@ -4163,7 +4182,9 @@ def body_dashboard_view():
         avg_jack_current_month=avg_times_current_month.get("Jack B", "N/A"),
         avg_tom_current_month=avg_times_current_month.get("Tom", "N/A"),
         last_jack_duration=last_duration_display.get("Jack B", "N/A"),
-        last_tom_duration=last_duration_display.get("Tom", "N/A")
+        last_tom_duration=last_duration_display.get("Tom", "N/A"),
+        printed_parts_data=printed_parts_data,
+        other_parts_data=other_parts_data
     )
 
 
