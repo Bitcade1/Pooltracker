@@ -351,7 +351,7 @@ def admin():
             flash(f"Threshold for {part_name} updated to {threshold}.", "success")
         except ValueError:
             flash("Invalid threshold value.", "error")
-        return redirect(url_for('admin'))
+        # Fall through to render the page without redirect so the section stays open
 
  # Fetch all existing hardware parts from the database
     hardware_parts = HardwarePart.query.all()
