@@ -2853,38 +2853,34 @@ def bodies():
             return redirect(url_for('bodies'))
 
         remainder_entry = TableStock.query.filter_by(type=wrap_remainder_key).first()
-        used_in_current_roll = remainder_entry.count if remainder_entry else 0  # 0-6 bodies already wrapped on the current roll
-        opened_new_roll = False
+        used_in_current_roll = remainder_entry.count if remainder_entry else 0  # bodies already wrapped on the current roll
 
-        # If no current roll in use, open one and deduct a roll immediately
-        if used_in_current_roll == 0:
-            if current_wrap_stock < 1:
-                flash(f"Not enough {pallet_wrap_name} in stock! Need at least 1 roll to wrap this body.", "error")
-                db.session.rollback()
-                return redirect(url_for('bodies'))
-            new_wrap_stock = current_wrap_stock - 1
-            wrap_entry = PrintedPartsCount(
-                part_name=pallet_wrap_name,
-                count=new_wrap_stock,
-                date=date.today(),
-                time=datetime.utcnow().time()
-            )
-            db.session.add(wrap_entry)
-            check_and_notify_low_stock(
-                pallet_wrap_name,
-                current_wrap_stock,
-                new_wrap_stock,
-                collected_warnings=low_stock_messages
-            )
-            current_wrap_stock = new_wrap_stock
-            used_in_current_roll = 1
-            opened_new_roll = True
-        else:
-            used_in_current_roll += 1
+        # Total bodies available across all rolls (including the open one if any)
+        bodies_available = current_wrap_stock * bodies_per_wrap_roll - used_in_current_roll
+        if bodies_available <= 0:
+            flash(f"Not enough {pallet_wrap_name} in stock to wrap this body.", "error")
+            db.session.rollback()
+            return redirect(url_for('bodies'))
 
-        # If the roll is now fully used, reset the counter to 0 (next body will open a new roll)
-        if used_in_current_roll >= bodies_per_wrap_roll:
-            used_in_current_roll = 0
+        bodies_available -= 1  # wrap this body
+
+        # Compute new rolls left (integer) and remainder used on the current roll
+        new_wrap_stock = ceil(bodies_available / bodies_per_wrap_roll) if bodies_available > 0 else 0
+        used_in_current_roll = 0 if bodies_available <= 0 else (bodies_per_wrap_roll - (bodies_available % bodies_per_wrap_roll)) % bodies_per_wrap_roll
+
+        wrap_entry = PrintedPartsCount(
+            part_name=pallet_wrap_name,
+            count=new_wrap_stock,
+            date=date.today(),
+            time=datetime.utcnow().time()
+        )
+        db.session.add(wrap_entry)
+        check_and_notify_low_stock(
+            pallet_wrap_name,
+            current_wrap_stock,
+            new_wrap_stock,
+            collected_warnings=low_stock_messages
+        )
 
         if remainder_entry:
             remainder_entry.count = used_in_current_roll
