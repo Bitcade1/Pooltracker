@@ -2749,7 +2749,9 @@ def bodies():
             "4.2 x 16 No2 Self Tapping Screw": 19,
             "Spring": 1,
             "Handle Tube": 1,
-            "Latch": 12
+            "Latch": 12,
+            "7ft Bag of Bolts": 1,
+            "7ft Ply Supports": 1
         }
 
         # Adjust parts for 6ft tables
@@ -2762,6 +2764,10 @@ def bodies():
             parts_to_deduct.pop("Ramp 158mm", None)  # Also remove Ramp 158mm for 6ft tables
             parts_to_deduct["6ft Large Ramp"] = 1
             parts_to_deduct["6ft Cue Ball Separator"] = 1
+            parts_to_deduct.pop("7ft Bag of Bolts", None)
+            parts_to_deduct.pop("7ft Ply Supports", None)
+            parts_to_deduct["6ft Bag of Bolts"] = 1
+            parts_to_deduct["6ft Ply Supports"] = 1
         print(parts_to_deduct)
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
