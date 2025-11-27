@@ -27,39 +27,41 @@
     }
 
     .dashboard-wrapper {
-        padding: 1.4rem 1.6rem 1.6rem;
+        padding: 1.1rem 1.2rem 1.2rem;
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.8rem;
+        max-width: 1700px;
+        margin: 0 auto;
     }
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.7rem;
     }
 
     .stat-card {
         background: #ffffff;
-        border-radius: 12px;
-        padding: 1.1rem 1.25rem;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        border-radius: 10px;
+        padding: 0.9rem 1rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
-        min-height: 130px;
+        gap: 0.3rem;
+        min-height: 115px;
     }
 
     .stat-card .stat-label {
-        font-size: 1.05rem;
+        font-size: 0.95rem;
         font-weight: 600;
         color: #566573;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.05em;
     }
 
     .stat-card .stat-value {
-        font-size: 2.6rem;
+        font-size: 2.4rem;
         font-weight: 800;
         color: #1f2d3d;
     }
@@ -110,23 +112,23 @@
 
     .avg-times {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 0.65rem;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.5rem;
     }
 
     .avg-card {
         background: #ffffff;
         border: 1px solid #d6e2f0;
         border-radius: 10px;
-        padding: 0.8rem 1rem;
+        padding: 0.7rem 0.9rem;
         display: flex;
         flex-direction: column;
         gap: 0.2rem;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     .avg-card .label {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         color: #607d8b;
         text-transform: uppercase;
         letter-spacing: 0.04em;
@@ -134,26 +136,26 @@
     }
 
     .avg-card .value {
-        font-size: 1.5rem;
+        font-size: 1.35rem;
         font-weight: 800;
         color: #1f2d3d;
     }
 
     .parts-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 0.45rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.35rem;
     }
 
     .part-card {
         border-radius: 6px;
-        padding: 0.35rem 0.4rem;
+        padding: 0.3rem 0.35rem;
         background: #e8f5e9;
         border: 1px solid #388e3c;
         display: flex;
         flex-direction: column;
-        gap: 0.25rem;
-        min-height: 130px;
+        gap: 0.2rem;
+        min-height: 115px;
     }
 
     .part-card.warning {
@@ -167,13 +169,13 @@
     }
 
     .part-card .part-name {
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         font-weight: 600;
         color: #2d3436;
     }
 
     .part-card .part-stock {
-        font-size: 2.25rem;
+        font-size: 2rem;
         font-weight: 700;
         color: #2c3e50;
     }
@@ -187,7 +189,7 @@
     }
 
     .part-card .part-footnote {
-        font-size: 1.05rem;
+        font-size: 0.95rem;
         color: #546e7a;
     }
 
@@ -269,14 +271,6 @@
     @media (max-width: 680px) {
         .dashboard-wrapper {
             padding: 1.1rem 1rem 1.2rem;
-        }
-
-        .stat-card.next-serial .stat-label {
-            font-size: 1.8rem;
-        }
-
-        .stat-card.next-serial .stat-value {
-            font-size: clamp(5rem, 20vw, 8rem);
         }
 
         .panel h3 {
