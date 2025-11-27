@@ -2770,7 +2770,7 @@ def bodies():
             "Handle Tube": 1,
             "Latch": 12,
             "7ft Bag of Bolts": 1,
-            "7ft Ply Supports": 1
+            "7ft Ply Supports": 2
         }
 
         # Adjust parts for 6ft tables
@@ -2786,7 +2786,7 @@ def bodies():
             parts_to_deduct.pop("7ft Bag of Bolts", None)
             parts_to_deduct.pop("7ft Ply Supports", None)
             parts_to_deduct["6ft Bag of Bolts"] = 1
-            parts_to_deduct["6ft Ply Supports"] = 1
+            parts_to_deduct["6ft Ply Supports"] = 2
         print(parts_to_deduct)
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
@@ -3681,8 +3681,8 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "Pallet Wrap", "per_body": 1/7, "sizes": ["7ft", "6ft"]},
     {"name": "7ft Bag of Bolts", "per_body": 1, "sizes": ["7ft"]},
     {"name": "6ft Bag of Bolts", "per_body": 1, "sizes": ["6ft"]},
-    {"name": "7ft Ply Supports", "per_body": 1, "sizes": ["7ft"]},
-    {"name": "6ft Ply Supports", "per_body": 1, "sizes": ["6ft"]},
+    {"name": "7ft Ply Supports", "per_body": 2, "sizes": ["7ft"]},
+    {"name": "6ft Ply Supports", "per_body": 2, "sizes": ["6ft"]},
 ]
 
 # Parts that are 3D printed (used to separate dashboard display)
