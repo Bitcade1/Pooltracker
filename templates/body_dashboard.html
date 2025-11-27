@@ -335,17 +335,27 @@
 
     <div class="dashboard-body">
         <section class="panel parts-panel">
-            <h3>Body Parts Inventory</h3>
-            <div class="parts-grid">
-                {% for part in parts_data %}
-                    <div class="part-card {{ part.status }}">
-                        <span class="part-name">{{ part.name }}</span>
-                        <span class="part-stock">{{ part.stock }}</span>
-                        <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
-                    </div>
-                {% endfor %}
-            </div>
-        </section>
+        <h3>Body Parts Inventory</h3>
+        <div class="parts-grid">
+            {% for part in printed_parts_data %}
+                <div class="part-card {{ part.status }}">
+                    <span class="part-name">{{ part.name }}</span>
+                    <span class="part-stock">{{ part.stock }}</span>
+                    <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
+                </div>
+            {% endfor %}
+        </div>
+        <h3>Other Body Parts</h3>
+        <div class="parts-grid">
+            {% for part in other_parts_data %}
+                <div class="part-card {{ part.status }}">
+                    <span class="part-name">{{ part.name }}</span>
+                    <span class="part-stock">{{ part.stock }}</span>
+                    <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
     </div>
 </div>
 
