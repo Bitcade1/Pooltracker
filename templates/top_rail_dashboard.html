@@ -306,6 +306,11 @@
             <span class="stat-label">Next Serial</span>
             <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
+        <div class="stat-card">
+            <span class="stat-label">Avg Time (This Month)</span>
+            <span class="stat-value">{{ avg_top_rail_time }}</span>
+            <span class="stat-label">Last rail: {{ last_top_rail_time }}</span>
+        </div>
     </section>
 
     {% if min_rails_possible is not none and min_rails_possible <= 10 %}
@@ -323,17 +328,6 @@
     {% endif %}
 
     <div class="dashboard-body">
-        <section class="panel">
-            <h3>Average Time Per Top Rail (This Month)</h3>
-            <div class="parts-grid">
-                <div class="part-card">
-                    <span class="part-name">Average</span>
-                    <span class="part-stock">{{ avg_top_rail_time }}</span>
-                    <span class="part-footnote">Last rail time: {{ last_top_rail_time }}</span>
-                </div>
-            </div>
-        </section>
-
         <section class="panel parts-panel">
             <h3>Top Rail Parts Inventory</h3>
             <div class="parts-grid">
