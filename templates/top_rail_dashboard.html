@@ -323,6 +323,17 @@
     {% endif %}
 
     <div class="dashboard-body">
+        <section class="panel">
+            <h3>Average Time Per Top Rail (This Month)</h3>
+            <div class="parts-grid">
+                <div class="part-card">
+                    <span class="part-name">Average</span>
+                    <span class="part-stock">{{ avg_top_rail_time }}</span>
+                    <span class="part-footnote">Last rail time: {{ last_top_rail_time }}</span>
+                </div>
+            </div>
+        </section>
+
         <section class="panel parts-panel">
             <h3>Top Rail Parts Inventory</h3>
             <div class="parts-grid">
