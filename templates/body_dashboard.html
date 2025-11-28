@@ -37,21 +37,26 @@
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 0.7rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.5rem;
+        align-items: stretch;
     }
 
     .stat-card {
         background: #ffffff;
         border-radius: 10px;
-        padding: 0.9rem 1rem;
+        padding: 0.6rem 0.7rem;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
         display: flex;
         flex-direction: column;
-        gap: 0.3rem;
-        min-height: 115px;
+        gap: 0.25rem;
+        min-height: 90px;
         align-items: center;
         text-align: center;
+    }
+
+    .stat-card.wide {
+        grid-column: span 2;
     }
 
     .stat-card .stat-label {
@@ -302,6 +307,10 @@
         <div class="stat-card">
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
+        </div>
+        <div class="stat-card wide">
+            <span class="stat-label">Next Serial ({{ default_size }})</span>
+            <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
     </section>
 

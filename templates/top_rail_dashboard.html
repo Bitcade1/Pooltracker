@@ -35,21 +35,26 @@
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-        gap: 0.6rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.5rem;
+        align-items: stretch;
     }
 
     .stat-card {
         background: #ffffff;
         border-radius: 10px;
-        padding: 0.9rem 1.1rem;
+        padding: 0.65rem 0.8rem;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
         display: flex;
         flex-direction: column;
-        gap: 0.35rem;
-        min-height: 110px;
+        gap: 0.3rem;
+        min-height: 95px;
         align-items: center;
         text-align: center;
+    }
+
+    .stat-card.wide {
+        grid-column: span 2;
     }
 
     .stat-card.next-serial {
@@ -304,11 +309,11 @@
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
         </div>
-        <div class="stat-card next-serial">
+        <div class="stat-card next-serial wide">
             <span class="stat-label">Next Serial</span>
             <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card wide">
             <span class="stat-label">Avg Time (This Month)</span>
             <span class="stat-value">{{ avg_top_rail_time }}</span>
             <span class="stat-label">Last rail: {{ last_top_rail_time }}</span>
