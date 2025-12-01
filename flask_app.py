@@ -4109,6 +4109,73 @@ def pod_dashboard_view():
         for part_name in data["limiting_parts"]
     })
 
+    def parse_time_string(value):
+        if not value:
+            return None
+        for fmt in ("%H:%M", "%H:%M:%S"):
+            try:
+                return datetime.strptime(value, fmt).time()
+            except ValueError:
+                continue
+        return None
+
+    def calculate_pod_duration(pod):
+        start_time_obj = pod.start_time
+        finish_time_obj = pod.finish_time
+        if isinstance(start_time_obj, str):
+            start_time_obj = parse_time_string(start_time_obj)
+        if isinstance(finish_time_obj, str):
+            finish_time_obj = parse_time_string(finish_time_obj)
+        if not start_time_obj or not finish_time_obj:
+            return None
+
+        start_dt = datetime.combine(pod.date, start_time_obj)
+        finish_dt = datetime.combine(pod.date, finish_time_obj)
+        if finish_time_obj < start_time_obj:
+            overnight_dt = datetime.combine(pod.date + timedelta(days=1), finish_time_obj)
+            if (overnight_dt - start_dt) <= timedelta(hours=12):
+                finish_dt = overnight_dt
+
+        if pod.lunch and str(pod.lunch).lower() == "yes":
+            finish_dt -= timedelta(minutes=30)
+
+        delta = finish_dt - start_dt
+        if delta.total_seconds() < 0 or delta < timedelta(minutes=10) or delta > timedelta(hours=8):
+            return None
+        return delta
+
+    def format_avg_duration(total_seconds, count):
+        if not count:
+            return "N/A"
+        avg_seconds = total_seconds / count
+        avg_seconds = max(0, int(round(avg_seconds)))
+        hours, remainder = divmod(avg_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    current_month_pods = CompletedPods.query.filter(
+        extract('year', CompletedPods.date) == today.year,
+        extract('month', CompletedPods.date) == today.month
+    ).all()
+    total_duration_seconds = 0
+    counted_pods = 0
+    last_pod_dt = None
+    last_pod_duration = None
+    for pod in current_month_pods:
+        duration = calculate_pod_duration(pod)
+        if duration is None:
+            continue
+        total_duration_seconds += duration.total_seconds()
+        counted_pods += 1
+        finish_obj = pod.finish_time if isinstance(pod.finish_time, datetime.time) else parse_time_string(pod.finish_time)
+        finish_dt = datetime.combine(pod.date, finish_obj) if finish_obj else pod.date
+        if last_pod_dt is None or finish_dt > last_pod_dt:
+            last_pod_dt = finish_dt
+            last_pod_duration = duration
+
+    avg_pod_time = format_avg_duration(total_duration_seconds, counted_pods)
+    last_pod_time = format_avg_duration(last_pod_duration.total_seconds(), 1) if last_pod_duration else "N/A"
+
     return render_template(
         'pod_dashboard.html',
         stats=stats,
@@ -4117,7 +4184,9 @@ def pod_dashboard_view():
         parts_data=parts_data,
         capacity_by_size=capacity_by_size,
         limiting_overall=limiting_overall,
-        min_capacity=min_capacity
+        min_capacity=min_capacity,
+        avg_pod_time=avg_pod_time,
+        last_pod_time=last_pod_time
     )
 
 

@@ -306,6 +306,11 @@
             <span class="stat-label">Next Serial ({{ default_size }})</span>
             <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
+        <div class="stat-card">
+            <span class="stat-label">Avg Time (This Month)</span>
+            <span class="stat-value">{{ avg_pod_time }}</span>
+            <span class="stat-label">Last pod: {{ last_pod_time }}</span>
+        </div>
     </section>
 
     {% if min_capacity is not none and min_capacity <= 10 %}
