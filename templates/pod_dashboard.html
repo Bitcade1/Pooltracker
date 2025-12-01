@@ -341,33 +341,6 @@
             </div>
         </section>
 
-        <section class="panel deficits-panel">
-            <h3>Build Capacity by Size</h3>
-            <div class="deficit-groups">
-                {% for size, data in capacity_by_size.items() %}
-                    {% set entry_class = "balanced" %}
-                    {% if data.pods_possible < 5 %}
-                        {% set entry_class = "empty" %}
-                    {% elif data.pods_possible < 10 %}
-                        {% set entry_class = "need-rails" %}
-                    {% endif %}
-                    <div class="deficit-card">
-                        <div class="deficit-title">{{ size }}</div>
-                        <div class="deficit-list">
-                            <div class="deficit-entry {{ entry_class }}">
-                                <strong>Pods possible now: {{ data.pods_possible }}</strong>
-                                <span>Parts per pod: {{ data.requirements | join(', ') }}</span>
-                                {% if data.limiting_parts %}
-                                    <span>Limiting parts: {{ data.limiting_parts | join(', ') }}</span>
-                                {% else %}
-                                    <span>Limiting parts: Not recorded yet.</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        </section>
     </div>
 </div>
 
