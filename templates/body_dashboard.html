@@ -31,21 +31,22 @@
         display: flex;
         flex-direction: column;
         gap: 0.8rem;
-        max-width: 1700px;
+        max-width: 1200px;
         margin: 0 auto;
     }
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 0.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 180px));
+        gap: 0.4rem;
         align-items: stretch;
+        justify-content: start;
     }
 
     .stat-card {
         background: #ffffff;
         border-radius: 10px;
-        padding: 0.6rem 0.7rem;
+        padding: 0.55rem 0.65rem;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
         display: flex;
         flex-direction: column;
@@ -53,6 +54,7 @@
         min-height: 90px;
         align-items: center;
         text-align: center;
+        width: 100%;
     }
 
     .stat-card.wide {
