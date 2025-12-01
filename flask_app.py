@@ -4167,7 +4167,7 @@ def pod_dashboard_view():
             continue
         total_duration_seconds += duration.total_seconds()
         counted_pods += 1
-        finish_obj = pod.finish_time if isinstance(pod.finish_time, datetime.time) else parse_time_string(pod.finish_time)
+        finish_obj = pod.finish_time if isinstance(pod.finish_time, time) else parse_time_string(pod.finish_time)
         finish_dt = datetime.combine(pod.date, finish_obj) if finish_obj else pod.date
         if last_pod_dt is None or finish_dt > last_pod_dt:
             last_pod_dt = finish_dt
