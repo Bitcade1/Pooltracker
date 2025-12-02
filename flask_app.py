@@ -4679,22 +4679,32 @@ def table_stock_export_csv():
     }
 
     rows = [("Type", "Size", "Color", "Code", "Count")]
-    for cfg in TOP_RAIL_TABLE_STOCK_CONFIGS:
-        size = cfg["size"]
-        color = cfg["color"]
-        code_prefix = "7" if size == "7ft" else "6"
-        code_suffix = color_codes.get(color, color.replace(" ", "").upper())
-        code = f"{code_prefix}{code_suffix}"
+    # Export in planning-friendly format
+    rows = []
+    rows.append(("Top Rails", "Needed", "Have", "To Make"))
+    rail_order = [
+        ("6ft", "Black"), ("7ft", "Black"),
+        ("6ft", "Stone"), ("7ft", "Stone"),
+        ("6ft", "Rustic Oak"), ("7ft", "Rustic Oak"),
+        ("6ft", "Grey Oak"), ("7ft", "Grey Oak"),
+        ("6ft", "Rustic Black"), ("7ft", "Rustic Black"),
+    ]
+    for size, color in rail_order:
+        cfg = next((c for c in TOP_RAIL_TABLE_STOCK_CONFIGS if c["size"] == size and c["color"] == color), None)
+        rail_count = _table_stock_count(cfg["rail_key"]) if cfg else 0
+        rows.append((f"{size} - {color}", "", rail_count, ""))
 
-        body_count = _table_stock_count(cfg["body_key"])
-        rail_count = _table_stock_count(cfg["rail_key"])
-
-        rows.append(("Body", size, color, code, body_count))
-        rows.append(("Top Rail", size, color, code, rail_count))
+    rows.append(("", "", "", ""))
+    rows.append(("Bodies", "Needed", "Have", "To Make"))
+    for size, color in rail_order:
+        cfg = next((c for c in TOP_RAIL_TABLE_STOCK_CONFIGS if c["size"] == size and c["color"] == color), None)
+        body_count = _table_stock_count(cfg["body_key"]) if cfg else 0
+        rows.append((f"{size} - {color}", "", body_count, ""))
 
     output = StringIO()
+    writer = csv.writer(output)
     for row in rows:
-        output.write(",".join(str(item) for item in row) + "\n")
+        writer.writerow(row)
 
     resp = make_response(output.getvalue())
     resp.headers["Content-Type"] = "text/csv"
