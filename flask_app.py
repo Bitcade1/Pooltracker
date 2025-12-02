@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date, time
@@ -9,6 +9,7 @@ import requests
 import os
 import re  # Add this import at the top of the file
 from math import ceil, floor
+from io import StringIO
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -4665,6 +4666,44 @@ def table_stock():
         total_rails=total_rails,
         total_cushions=total_cushions
     )
+
+
+@app.route('/admin/table_stock_export.csv')
+def table_stock_export_csv():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    color_codes = {
+        "Black": "B",
+        "Rustic Oak": "RO",
+        "Grey Oak": "GO",
+        "Rustic Black": "RB",
+        "Stone": "S",
+    }
+
+    rows = [("Type", "Size", "Color", "Code", "Count")]
+    for cfg in TOP_RAIL_TABLE_STOCK_CONFIGS:
+        size = cfg["size"]
+        color = cfg["color"]
+        code_prefix = "7" if size == "7ft" else "6"
+        code_suffix = color_codes.get(color, color.replace(" ", "").upper())
+        code = f"{code_prefix}{code_suffix}"
+
+        body_count = _table_stock_count(cfg["body_key"])
+        rail_count = _table_stock_count(cfg["rail_key"])
+
+        rows.append(("Body", size, color, code, body_count))
+        rows.append(("Top Rail", size, color, code, rail_count))
+
+    output = StringIO()
+    for row in rows:
+        output.write(",".join(str(item) for item in row) + "\n")
+
+    resp = make_response(output.getvalue())
+    resp.headers["Content-Type"] = "text/csv"
+    resp.headers["Content-Disposition"] = "attachment; filename=table_stock_export.csv"
+    return resp
 
 
 @app.route('/material_calculator', methods=['GET', 'POST'])
