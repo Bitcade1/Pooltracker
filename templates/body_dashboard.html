@@ -31,16 +31,16 @@
         display: flex;
         flex-direction: column;
         gap: 0.8rem;
-        max-width: 1200px;
-        margin: 0 auto;
+        width: 100%;
+        max-width: none;
     }
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 180px));
-        gap: 0.4rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.6rem;
         align-items: stretch;
-        justify-content: start;
+        justify-content: stretch;
     }
 
     .stat-card {
