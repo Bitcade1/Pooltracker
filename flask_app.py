@@ -8,6 +8,7 @@ from sqlalchemy import func, extract
 import requests
 import os
 import re  # Add this import at the top of the file
+import csv
 from math import ceil, floor
 from io import StringIO
 
