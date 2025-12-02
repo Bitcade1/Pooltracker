@@ -4670,10 +4670,6 @@ def table_stock():
 
 @app.route('/admin/table_stock_export.csv')
 def table_stock_export_csv():
-    if 'worker' not in session:
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-
     color_codes = {
         "Black": "B",
         "Rustic Oak": "RO",
