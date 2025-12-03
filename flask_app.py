@@ -1297,8 +1297,7 @@ def counting_hardware():
     required_hardware = [
         "7ft Bag of Bolts",
         "6ft Bag of Bolts",
-        "7ft Ply Supports",
-        "6ft Ply Supports"
+        "7ft Ply Supports"
     ]
     created_any = False
     for name in required_hardware:
@@ -2813,7 +2812,6 @@ def bodies():
             parts_to_deduct.pop("7ft Bag of Bolts", None)
             parts_to_deduct.pop("7ft Ply Supports", None)
             parts_to_deduct["6ft Bag of Bolts"] = 1
-            parts_to_deduct["6ft Ply Supports"] = 2
         print(parts_to_deduct)
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
@@ -3705,7 +3703,6 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "7ft Bag of Bolts", "per_body": 1, "sizes": ["7ft"]},
     {"name": "6ft Bag of Bolts", "per_body": 1, "sizes": ["6ft"]},
     {"name": "7ft Ply Supports", "per_body": 2, "sizes": ["7ft"]},
-    {"name": "6ft Ply Supports", "per_body": 2, "sizes": ["6ft"]},
 ]
 
 # Parts that are 3D printed (used to separate dashboard display)
@@ -3724,7 +3721,6 @@ BODY_3D_PRINTED_PARTS = {
 BODY_SUPPORT_PARTS = {
     "Pallet Wrap",
     "7ft Ply Supports",
-    "6ft Ply Supports",
     "7ft Bag of Bolts",
     "6ft Bag of Bolts",
     "Laminate",
