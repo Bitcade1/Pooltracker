@@ -4839,12 +4839,15 @@ def counting_3d_printing_parts():
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
     ]
 
-    parts_counts = {
-        part: db.session.query(db.func.sum(PrintedPartsCount.count))
-            .filter_by(part_name=part)
-            .scalar() or 0
-        for part in parts
-    }
+    def latest_count(part_name):
+        """Return the latest recorded inventory count for a part (not the sum of all historical rows)."""
+        latest_entry = (PrintedPartsCount.query
+                        .filter_by(part_name=part_name)
+                        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                        .first())
+        return latest_entry.count if latest_entry else 0
+
+    parts_counts = {part: latest_count(part) for part in parts}
 
     # Add this line to create inventory_counts from parts_counts
     inventory_counts = parts_counts
@@ -4905,8 +4908,6 @@ def counting_3d_printing_parts():
             still_needed = ((target_7ft + target_6ft) - (bodies_built_7ft + bodies_built_6ft)) * usage
 
         # Current inventory count
-        current_inventory = inventory_counts.get(part, 0)
-
         still_needed = total_required - already_used
         current_inventory = inventory_counts.get(part, 0)
         surplus = current_inventory - still_needed
