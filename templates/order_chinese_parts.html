@@ -143,42 +143,45 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% if gullies_summary %}
-                    <tr>
-                        <td>{{ gullies_summary.name }}</td>
-                        <td>{{ gullies_summary.stock }}</td>
-                        <td>
-                            <label class="gully-label">
-                                Tables' worth on order
-                                <input type="number" name="gullies_on_order_tables" value="{{ gullies_sets_on_order or 0 }}" min="0">
-                            </label>
-                        </td>
-                        <td>{{ gullies_summary.total_available }}</td>
-                        <td>{{ gullies_summary.per_table }}</td>
-                        <td>{{ gullies_summary.can_build }} <span class="subtle">(now: {{ gullies_summary.can_build_now }})</span></td>
-                        <td>-</td>
-                        {% if target_table_count %}
-                        <td>{{ gullies_summary.need_to_order }}</td>
-                        <td>A${{ gullies_summary.order_cost|format_number if gullies_summary.order_cost is not none else "0.00" }}</td>
+                    {% for row in plastic_rows %}
+                        {% if row.type == 'gullies' %}
+                        {% set g = row.data %}
+                        <tr>
+                            <td>{{ g.name }}</td>
+                            <td>{{ g.stock }}</td>
+                            <td>
+                                <label class="gully-label">
+                                    Tables' worth on order
+                                    <input type="number" name="gullies_on_order_tables" value="{{ g.on_order_tables or 0 }}" min="0">
+                                </label>
+                            </td>
+                            <td>{{ g.total_available }}</td>
+                            <td>{{ g.per_table }}</td>
+                            <td>{{ g.can_build }} <span class="subtle">(now: {{ g.can_build_now }})</span></td>
+                            <td>-</td>
+                            {% if target_table_count %}
+                            <td>{{ g.need_to_order }}</td>
+                            <td>A${{ g.order_cost|format_number if g.order_cost is not none else "0.00" }}</td>
+                            {% endif %}
+                        </tr>
+                        {% else %}
+                        {% set p = row.data %}
+                        <tr>
+                            <td>{{ p.display_name }}</td>
+                            <td>{{ p.stock }}</td>
+                            <td>
+                                <input type="number" name="on_order_{{ p.name|slugify_key }}" value="{{ p.on_order }}" min="0">
+                            </td>
+                            <td>{{ p.total_available }}</td>
+                            <td>{{ p.per_table }}</td>
+                            <td>{{ p.can_build }} <span class="subtle">(now: {{ p.can_build_now }})</span></td>
+                            <td>A${{ p.cost_each|format_number }}</td>
+                            {% if target_table_count %}
+                            <td>{{ p.need_to_order }}</td>
+                            <td>A${{ p.order_cost|format_number }}</td>
+                            {% endif %}
+                        </tr>
                         {% endif %}
-                    </tr>
-                    {% endif %}
-                    {% for row in plastic_parts %}
-                    <tr>
-                        <td>{{ row.display_name }}</td>
-                        <td>{{ row.stock }}</td>
-                        <td>
-                            <input type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0">
-                        </td>
-                        <td>{{ row.total_available }}</td>
-                        <td>{{ row.per_table }}</td>
-                        <td>{{ row.can_build }} <span class="subtle">(now: {{ row.can_build_now }})</span></td>
-                        <td>A${{ row.cost_each|format_number }}</td>
-                        {% if target_table_count %}
-                        <td>{{ row.need_to_order }}</td>
-                        <td>A${{ row.order_cost|format_number }}</td>
-                        {% endif %}
-                    </tr>
                     {% endfor %}
                 </tbody>
             </table>

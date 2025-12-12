@@ -9,6 +9,7 @@ import requests
 import os
 import re  # Add this import at the top of the file
 import csv
+import json
 from math import ceil, floor
 from io import StringIO
 
@@ -5932,15 +5933,40 @@ def order_chinese_parts():
 
     gullies_parts = [p for p in chinese_parts if p.lower().startswith("ball gullies")]
     gullies_per_table = sum(chinese_parts.get(p, 0) for p in gullies_parts)
-    gullies_sets_on_order = safe_int(request.form.get('gullies_on_order_tables'), 0)
 
-    # Pull "on order" quantities from the form (default 0), using a single input for gullies (tables' worth)
+    on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
+
+    def load_on_order():
+        if not os.path.exists(on_order_file):
+            return {"parts": {}, "gullies_tables": 0}
+        try:
+            with open(on_order_file, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {"parts": {}, "gullies_tables": 0}
+
+    def save_on_order(data):
+        try:
+            with open(on_order_file, "w") as f:
+                json.dump(data, f)
+        except OSError:
+            pass
+
+    saved_on_order = load_on_order()
+    saved_parts_on_order = saved_on_order.get("parts", {})
+    saved_gullies_tables = saved_on_order.get("gullies_tables", 0)
+    gullies_sets_on_order = saved_gullies_tables if request.method == 'GET' else safe_int(
+        request.form.get('gullies_on_order_tables'), saved_gullies_tables)
+
+    # Pull "on order" quantities from the form (default to saved), using a single input for gullies (tables' worth)
     part_on_order = {}
     for part in chinese_parts:
         if part in gullies_parts:
             part_on_order[part] = gullies_sets_on_order * chinese_parts[part]
         else:
-            part_on_order[part] = safe_int(request.form.get(f"on_order_{slugify_key(part)}"), 0)
+            default_saved = saved_parts_on_order.get(part, 0)
+            part_on_order[part] = default_saved if request.method == 'GET' else safe_int(
+                request.form.get(f"on_order_{slugify_key(part)}"), default_saved)
 
     # Combine on-hand and on-order to get total available
     part_total_available = {
@@ -6025,6 +6051,7 @@ def order_chinese_parts():
         "name": "Ball Gullies (All)",
         "stock": gullies_stock,
         "on_order": gullies_on_order,
+        "on_order_tables": gullies_sets_on_order,
         "total_available": gullies_total_available,
         "per_table": gullies_per_table,
         "can_build": gullies_can_build_total,
@@ -6066,6 +6093,36 @@ def order_chinese_parts():
     metal_parts.sort(key=lambda r: metal_order.index(r["name"]) if r["name"] in metal_order else len(metal_order))
     plastic_parts = [row for row in standard_parts if row["name"] not in metal_supplier_parts]
 
+    plastic_order = [
+        "Table legs",
+        "Corner pockets",
+        "Center pockets",
+        "__GULLIES__",
+        "Chrome handles",
+        "Chrome corner",
+    ]
+
+    plastic_rows = []
+    remaining_plastic = plastic_parts.copy()
+    for name in plastic_order:
+        if name == "__GULLIES__":
+            if gullies_summary:
+                plastic_rows.append({"type": "gullies", "data": gullies_summary})
+            continue
+        for item in list(remaining_plastic):
+            if item["name"] == name:
+                plastic_rows.append({"type": "part", "data": item})
+                remaining_plastic.remove(item)
+                break
+    for item in remaining_plastic:
+        plastic_rows.append({"type": "part", "data": item})
+
+    if request.method == 'POST':
+        save_on_order({
+            "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
+            "gullies_tables": gullies_sets_on_order
+        })
+
     max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
     max_tables_possible_candidates_with_on_order = [row["can_build"] for row in standard_parts]
     if gullies_per_table:
@@ -6091,7 +6148,7 @@ def order_chinese_parts():
         order_costs=order_costs,
         total_order_cost=total_order_cost,
         metal_parts=metal_parts,
-        plastic_parts=plastic_parts,
+        plastic_rows=plastic_rows,
         gullies_summary=gullies_summary
     )
 
@@ -6442,7 +6499,3 @@ def counting_laminate():
         "deducted_uncut": total_deduction,
         "amount": amount
     }), 200
-
-
-
-
