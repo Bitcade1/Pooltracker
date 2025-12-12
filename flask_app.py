@@ -50,6 +50,9 @@ def slugify_key(value):
     slug = re.sub(r'[^a-z0-9]+', '_', value.lower()).strip('_')
     return slug or "item"
 
+# Expose slugify_key to Jinja templates for form field names
+app.jinja_env.filters['slugify_key'] = slugify_key
+
 # Models
 class CompletedTable(db.Model):
     __tablename__ = 'completed_table'
@@ -5875,6 +5878,12 @@ def order_chinese_parts():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    def safe_int(value, default=0):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
     def part_cost_ex_vat(part_name):
         key = f"parts_inventory__{slugify_key(part_name)}"
         entry = StockItemCost.query.filter_by(item_key=key).first()
@@ -5921,9 +5930,25 @@ def order_chinese_parts():
         )
         part_stock[part] = latest_entry[0] if latest_entry else 0
 
+    # Pull "on order" quantities from the form (default 0)
+    part_on_order = {
+        part: safe_int(request.form.get(f"on_order_{slugify_key(part)}"), 0)
+        for part in chinese_parts
+    }
+
+    # Combine on-hand and on-order to get total available
+    part_total_available = {
+        part: part_stock.get(part, 0) + part_on_order.get(part, 0)
+        for part in chinese_parts
+    }
+
     # Calculate how many tables can be built based on current part limits
-    tables_possible_per_part = {
+    tables_possible_per_part_stock = {
         part: part_stock[part] // qty
+        for part, qty in chinese_parts.items()
+    }
+    tables_possible_per_part_total = {
+        part: part_total_available[part] // qty
         for part, qty in chinese_parts.items()
     }
 
@@ -5935,8 +5960,19 @@ def order_chinese_parts():
 
     gullies_parts = [p for p in chinese_parts if p.lower().startswith("ball gullies")]
     gullies_stock = sum(part_stock.get(p, 0) for p in gullies_parts)
+    gullies_on_order = sum(part_on_order.get(p, 0) for p in gullies_parts)
+    gullies_total_available = gullies_stock + gullies_on_order
     gullies_per_table = sum(chinese_parts.get(p, 0) for p in gullies_parts)
     gullies_can_build = (gullies_stock // gullies_per_table) if gullies_per_table else 0
+    gullies_can_build_total = (gullies_total_available // gullies_per_table) if gullies_per_table else 0
+    gullies_inputs = [
+        {
+            "name": part,
+            "slug": slugify_key(part),
+            "on_order": part_on_order.get(part, 0),
+        }
+        for part in gullies_parts
+    ]
 
     if request.method == 'POST':
         try:
@@ -5947,12 +5983,12 @@ def order_chinese_parts():
 
         for part, qty_per_table in chinese_parts.items():
             needed = target_table_count * qty_per_table
-            current = part_stock.get(part, 0)
+            current = part_total_available.get(part, 0)
             parts_to_order[part] = max(0, needed - current)
             order_costs[part] = parts_to_order[part] * part_costs.get(part, 0.0)
             total_order_cost += order_costs[part]
 
-        gullies_need = max(0, target_table_count * gullies_per_table - gullies_stock) if gullies_per_table else 0
+        gullies_need = max(0, target_table_count * gullies_per_table - gullies_total_available) if gullies_per_table else 0
         gullies_order_cost = sum(order_costs.get(p, 0.0) for p in gullies_parts)
     else:
         gullies_need = None
@@ -5965,8 +6001,11 @@ def order_chinese_parts():
         standard_parts.append({
             "name": part,
             "stock": part_stock.get(part, 0),
+            "on_order": part_on_order.get(part, 0),
+            "total_available": part_total_available.get(part, 0),
             "per_table": qty_per_table,
-            "can_build": tables_possible_per_part.get(part, 0),
+            "can_build": tables_possible_per_part_total.get(part, 0),
+            "can_build_now": tables_possible_per_part_stock.get(part, 0),
             "cost_each": part_costs.get(part, 0.0),
             "need_to_order": parts_to_order.get(part, 0) if target_table_count else None,
             "order_cost": order_costs.get(part, 0.0) if target_table_count else None,
@@ -5975,31 +6014,42 @@ def order_chinese_parts():
     gullies_summary = {
         "name": "Ball Gullies (All)",
         "stock": gullies_stock,
+        "on_order": gullies_on_order,
+        "total_available": gullies_total_available,
         "per_table": gullies_per_table,
-        "can_build": gullies_can_build,
+        "can_build": gullies_can_build_total,
+        "can_build_now": gullies_can_build,
         "cost_each": None,
         "need_to_order": gullies_need,
         "order_cost": gullies_order_cost,
     }
 
-    max_tables_possible_candidates = [row["can_build"] for row in standard_parts]
+    max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
+    max_tables_possible_candidates_with_on_order = [row["can_build"] for row in standard_parts]
     if gullies_per_table:
         max_tables_possible_candidates.append(gullies_can_build)
+        max_tables_possible_candidates_with_on_order.append(gullies_can_build_total)
     max_tables_possible = min(max_tables_possible_candidates) if max_tables_possible_candidates else 0
+    max_tables_possible_with_on_order = min(max_tables_possible_candidates_with_on_order) if max_tables_possible_candidates_with_on_order else 0
 
     return render_template(
         'order_chinese_parts.html',
         chinese_parts=chinese_parts,
         part_stock=part_stock,
-        tables_possible_per_part=tables_possible_per_part,
+        part_on_order=part_on_order,
+        part_total_available=part_total_available,
+        tables_possible_per_part=tables_possible_per_part_total,
+        tables_possible_per_part_stock=tables_possible_per_part_stock,
         max_tables_possible=max_tables_possible,
+        max_tables_possible_with_on_order=max_tables_possible_with_on_order,
         parts_to_order=parts_to_order,
         target_table_count=target_table_count,
         part_costs=part_costs,
         order_costs=order_costs,
         total_order_cost=total_order_cost,
         standard_parts=standard_parts,
-        gullies_summary=gullies_summary
+        gullies_summary=gullies_summary,
+        gullies_inputs=gullies_inputs
     )
 
 class LaminatePieceCount(db.Model):

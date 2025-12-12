@@ -30,7 +30,7 @@
         }
         input[type="number"] {
             padding: 5px;
-            width: 80px;
+            width: 90px;
         }
         .btn {
             padding: 8px 16px;
@@ -44,12 +44,30 @@
             margin-top: 10px;
             font-weight: bold;
         }
+        .gully-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 6px;
+            text-align: left;
+        }
+        .gully-label {
+            display: block;
+            font-size: 0.9em;
+        }
+        .gully-label input {
+            width: 100%;
+            margin-top: 4px;
+        }
+        .subtle {
+            font-size: 0.85em;
+            color: #555;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>What Do I Need to Order from China?</h1>
-        <p>Current stock and how many tables you can build. Enter how many tables you're planning to build to see what needs ordering.</p>
+        <p>Current stock and how many tables you can build. Enter target tables and any parts already on order to see combined totals.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -59,64 +77,85 @@
             {% endif %}
         {% endwith %}
 
-        <div class="form-section">
-            <form method="post">
+        <form method="post">
+            <div class="form-section">
                 <label for="target_tables"><strong>Target Tables:</strong></label>
                 <input type="number" id="target_tables" name="target_tables" min="1" required value="{{ target_table_count or '' }}">
                 <button type="submit" class="btn btn-primary">Calculate</button>
-            </form>
-        </div>
+            </div>
 
-        <h3>Tables Buildable from Current Stock: <span class="highlight">{{ max_tables_possible }}</span></h3>
+            <h3>Tables buildable now (stock only): <span class="highlight">{{ max_tables_possible }}</span></h3>
+            <h4>Tables buildable including on-order: <span class="highlight">{{ max_tables_possible_with_on_order }}</span></h4>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Part</th>
-                    <th>Stock</th>
-                    <th>Per Table</th>
-                    <th>Can Build</th>
-                    <th>Cost Each (ex VAT)</th>
-                    {% if target_table_count %}
-                    <th>Need to Order</th>
-                    <th>Order Cost</th>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part</th>
+                        <th>Stock</th>
+                        <th>On Order</th>
+                        <th>Total Available</th>
+                        <th>Per Table</th>
+                        <th>Can Build (stock + on-order)</th>
+                        <th>Cost Each (ex VAT)</th>
+                        {% if target_table_count %}
+                        <th>Need to Order</th>
+                        <th>Order Cost</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if gullies_summary %}
+                    <tr>
+                        <td>{{ gullies_summary.name }}</td>
+                        <td>{{ gullies_summary.stock }}</td>
+                        <td>
+                            <div class="gully-inputs">
+                                {% for g in gullies_inputs %}
+                                <label class="gully-label">
+                                    {{ g.name }}
+                                    <input type="number" name="on_order_{{ g.slug }}" value="{{ g.on_order }}" min="0">
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>{{ gullies_summary.total_available }}</td>
+                        <td>{{ gullies_summary.per_table }}</td>
+                        <td>{{ gullies_summary.can_build }} <span class="subtle">(now: {{ gullies_summary.can_build_now }})</span></td>
+                        <td>-</td>
+                        {% if target_table_count %}
+                        <td>{{ gullies_summary.need_to_order }}</td>
+                        <td>A${{ "%.2f"|format(gullies_summary.order_cost or 0) }}</td>
+                        {% endif %}
+                    </tr>
                     {% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% if gullies_summary %}
-                <tr>
-                    <td>{{ gullies_summary.name }}</td>
-                    <td>{{ gullies_summary.stock }}</td>
-                    <td>{{ gullies_summary.per_table }}</td>
-                    <td>{{ gullies_summary.can_build }}</td>
-                    <td>-</td>
-                    {% if target_table_count %}
-                    <td>{{ gullies_summary.need_to_order }}</td>
-                    <td>£{{ "%.2f"|format(gullies_summary.order_cost or 0) }}</td>
-                    {% endif %}
-                </tr>
-                {% endif %}
-                {% for row in standard_parts %}
-                <tr>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.stock }}</td>
-                    <td>{{ row.per_table }}</td>
-                    <td>{{ row.can_build }}</td>
-                    <td>£{{ "%.2f"|format(row.cost_each) }}</td>
-                    {% if target_table_count %}
-                    <td>{{ row.need_to_order }}</td>
-                    <td>£{{ "%.2f"|format(row.order_cost) }}</td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% if target_table_count %}
-        <div class="total-cost">
-            Total Order Cost (ex VAT): £{{ "%.2f"|format(total_order_cost) }}
-        </div>
-        {% endif %}
+                    {% for row in standard_parts %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.stock }}</td>
+                        <td>
+                            <input type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0">
+                        </td>
+                        <td>{{ row.total_available }}</td>
+                        <td>{{ row.per_table }}</td>
+                        <td>{{ row.can_build }} <span class="subtle">(now: {{ row.can_build_now }})</span></td>
+                        <td>A${{ "%.2f"|format(row.cost_each) }}</td>
+                        {% if target_table_count %}
+                        <td>{{ row.need_to_order }}</td>
+                        <td>A${{ "%.2f"|format(row.order_cost) }}</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if target_table_count %}
+            <div class="total-cost">
+                Total Order Cost (ex VAT): A${{ "%.2f"|format(total_order_cost) }}
+            </div>
+            {% endif %}
+            <div class="form-section">
+                <button type="submit" class="btn btn-primary">Recalculate with On-Order Quantities</button>
+            </div>
+        </form>
 
         <div class="form-section">
             <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
