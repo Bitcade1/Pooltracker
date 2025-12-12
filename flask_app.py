@@ -5954,10 +5954,7 @@ def order_chinese_parts():
 
     saved_on_order = load_on_order()
     saved_parts_on_order = saved_on_order.get("parts", {})
-    saved_gullies_units = saved_on_order.get("gullies_units")
-    # Backwards compatibility if old file stored tables: treat the saved value as units to avoid inflated totals
-    if saved_gullies_units is None:
-        saved_gullies_units = saved_on_order.get("gullies_tables", 0) or 0
+    saved_gullies_units = saved_on_order.get("gullies_units", 0)
 
     if request.method == 'GET':
         gullies_units_on_order = saved_gullies_units
@@ -6020,7 +6017,7 @@ def order_chinese_parts():
     }
 
     gullies_stock = sum(part_stock.get(p, 0) for p in gullies_parts)
-    gullies_on_order = sum(part_on_order.get(p, 0) for p in gullies_parts)
+    gullies_on_order = gullies_units_on_order  # use the exact submitted units, not a multiplied value
     gullies_total_available = gullies_stock + gullies_on_order
     gullies_can_build = (gullies_stock // gullies_per_table) if gullies_per_table else 0
     gullies_can_build_total = (gullies_total_available // gullies_per_table) if gullies_per_table else 0
