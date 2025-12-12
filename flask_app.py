@@ -5955,9 +5955,9 @@ def order_chinese_parts():
     saved_on_order = load_on_order()
     saved_parts_on_order = saved_on_order.get("parts", {})
     saved_gullies_units = saved_on_order.get("gullies_units")
-    # Backwards compatibility if old file stored tables
+    # Backwards compatibility if old file stored tables: treat the saved value as units to avoid inflated totals
     if saved_gullies_units is None:
-        saved_gullies_units = (saved_on_order.get("gullies_tables", 0) or 0) * gullies_per_table
+        saved_gullies_units = saved_on_order.get("gullies_tables", 0) or 0
 
     gullies_units_on_order = saved_gullies_units if request.method == 'GET' else safe_int(
         request.form.get('gullies_on_order_units'), saved_gullies_units)
