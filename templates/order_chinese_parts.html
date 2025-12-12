@@ -87,6 +87,45 @@
             <h3>Tables buildable now (stock only): <span class="highlight">{{ max_tables_possible }}</span></h3>
             <h4>Tables buildable including on-order: <span class="highlight">{{ max_tables_possible_with_on_order }}</span></h4>
 
+            <h3>Metal Supplier</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Part</th>
+                        <th>Stock</th>
+                        <th>On Order</th>
+                        <th>Total Available</th>
+                        <th>Per Table</th>
+                        <th>Can Build (stock + on-order)</th>
+                        <th>Cost Each (ex VAT)</th>
+                        {% if target_table_count %}
+                        <th>Need to Order</th>
+                        <th>Order Cost</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in metal_parts %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.stock }}</td>
+                        <td>
+                            <input type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0">
+                        </td>
+                        <td>{{ row.total_available }}</td>
+                        <td>{{ row.per_table }}</td>
+                        <td>{{ row.can_build }} <span class="subtle">(now: {{ row.can_build_now }})</span></td>
+                        <td>A${{ row.cost_each|format_number }}</td>
+                        {% if target_table_count %}
+                        <td>{{ row.need_to_order }}</td>
+                        <td>A${{ row.order_cost|format_number }}</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <h3>Plastic Supplier</h3>
             <table>
                 <thead>
                     <tr>
@@ -124,7 +163,7 @@
                         {% endif %}
                     </tr>
                     {% endif %}
-                    {% for row in standard_parts %}
+                    {% for row in plastic_parts %}
                     <tr>
                         <td>{{ row.name }}</td>
                         <td>{{ row.stock }}</td>

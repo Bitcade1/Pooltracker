@@ -6020,6 +6020,23 @@ def order_chinese_parts():
         "order_cost": gullies_order_cost,
     }
 
+    metal_supplier_parts = {
+        "Triangle trim",
+        "White ball return trim",
+        "Color ball trim",
+        "Ball window trim",
+        "Aluminum corner",
+        "Top rail trim short length",
+        "Top rail trim long length",
+        "Ramp 170mm",
+        "Ramp 158mm",
+        "Ramp 918mm",
+        "Ramp 376mm",
+    }
+
+    metal_parts = [row for row in standard_parts if row["name"] in metal_supplier_parts]
+    plastic_parts = [row for row in standard_parts if row["name"] not in metal_supplier_parts]
+
     max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
     max_tables_possible_candidates_with_on_order = [row["can_build"] for row in standard_parts]
     if gullies_per_table:
@@ -6044,7 +6061,8 @@ def order_chinese_parts():
         part_costs=part_costs,
         order_costs=order_costs,
         total_order_cost=total_order_cost,
-        standard_parts=standard_parts,
+        metal_parts=metal_parts,
+        plastic_parts=plastic_parts,
         gullies_summary=gullies_summary
     )
 
@@ -6395,7 +6413,6 @@ def counting_laminate():
         "deducted_uncut": total_deduction,
         "amount": amount
     }), 200
-
 
 
 
