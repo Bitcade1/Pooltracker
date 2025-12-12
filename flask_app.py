@@ -6154,7 +6154,7 @@ def order_chinese_parts():
         tables_possible_per_part_stock=tables_possible_per_part_stock,
         max_tables_possible=max_tables_possible,
         max_tables_possible_with_on_order=max_tables_possible_with_on_order,
-        gullies_sets_on_order=gullies_sets_on_order,
+        gullies_units_on_order=gullies_units_on_order,
         parts_to_order=parts_to_order,
         target_table_count=target_table_count,
         part_costs=part_costs,
