@@ -5954,7 +5954,7 @@ def order_chinese_parts():
 
     saved_on_order = load_on_order()
     saved_parts_on_order = saved_on_order.get("parts", {})
-    saved_gullies_units = 0  # restart gullies on-order; ignore previously saved value entirely
+    saved_gullies_units = saved_on_order.get("gullies_units", 0) or 0
 
     if request.method == 'GET':
         gullies_units_on_order = saved_gullies_units
