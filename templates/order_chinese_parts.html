@@ -107,7 +107,7 @@
                 <tbody>
                     {% for row in metal_parts %}
                     <tr>
-                        <td>{{ row.name }}</td>
+                        <td>{{ row.display_name }}</td>
                         <td>{{ row.stock }}</td>
                         <td>
                             <input type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0">
@@ -165,7 +165,7 @@
                     {% endif %}
                     {% for row in plastic_parts %}
                     <tr>
-                        <td>{{ row.name }}</td>
+                        <td>{{ row.display_name }}</td>
                         <td>{{ row.stock }}</td>
                         <td>
                             <input type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0">

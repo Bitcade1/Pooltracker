@@ -5963,6 +5963,19 @@ def order_chinese_parts():
     part_costs = {part: part_cost_ex_vat(part) for part in chinese_parts}
     order_costs = {}
     total_order_cost = 0.0
+    display_name_map = {
+        "Ramp 170mm": "170",
+        "Ramp 918mm": "918",
+        "Ramp 158mm": "158",
+        "Ramp 376mm": "376",
+        "Aluminum corner": "Aluminum Corner",
+        "Top rail trim long length": "Long aluminum Trim",
+        "Top rail trim short length": "Short aluminum Trim",
+        "Ball window trim": "Ball Window Trim",
+        "Color ball trim": "Colour Ball Trim",
+        "White ball return trim": "Cue ball Trim",
+        "Triangle trim": "Triangle holder Trim",
+    }
 
     gullies_stock = sum(part_stock.get(p, 0) for p in gullies_parts)
     gullies_on_order = sum(part_on_order.get(p, 0) for p in gullies_parts)
@@ -5996,6 +6009,7 @@ def order_chinese_parts():
             continue
         standard_parts.append({
             "name": part,
+            "display_name": display_name_map.get(part, part),
             "stock": part_stock.get(part, 0),
             "on_order": part_on_order.get(part, 0),
             "total_available": part_total_available.get(part, 0),
@@ -6034,7 +6048,22 @@ def order_chinese_parts():
         "Ramp 376mm",
     }
 
+    metal_order = [
+        "Ramp 170mm",
+        "Ramp 918mm",
+        "Ramp 158mm",
+        "Ramp 376mm",
+        "Aluminum corner",
+        "Top rail trim long length",
+        "Top rail trim short length",
+        "Ball window trim",
+        "Color ball trim",
+        "White ball return trim",
+        "Triangle trim",
+    ]
+
     metal_parts = [row for row in standard_parts if row["name"] in metal_supplier_parts]
+    metal_parts.sort(key=lambda r: metal_order.index(r["name"]) if r["name"] in metal_order else len(metal_order))
     plastic_parts = [row for row in standard_parts if row["name"] not in metal_supplier_parts]
 
     max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
@@ -6413,7 +6442,6 @@ def counting_laminate():
         "deducted_uncut": total_deduction,
         "amount": amount
     }), 200
-
 
 
 
