@@ -5930,11 +5930,17 @@ def order_chinese_parts():
         )
         part_stock[part] = latest_entry[0] if latest_entry else 0
 
-    # Pull "on order" quantities from the form (default 0)
-    part_on_order = {
-        part: safe_int(request.form.get(f"on_order_{slugify_key(part)}"), 0)
-        for part in chinese_parts
-    }
+    gullies_parts = [p for p in chinese_parts if p.lower().startswith("ball gullies")]
+    gullies_per_table = sum(chinese_parts.get(p, 0) for p in gullies_parts)
+    gullies_sets_on_order = safe_int(request.form.get('gullies_on_order_tables'), 0)
+
+    # Pull "on order" quantities from the form (default 0), using a single input for gullies (tables' worth)
+    part_on_order = {}
+    for part in chinese_parts:
+        if part in gullies_parts:
+            part_on_order[part] = gullies_sets_on_order * chinese_parts[part]
+        else:
+            part_on_order[part] = safe_int(request.form.get(f"on_order_{slugify_key(part)}"), 0)
 
     # Combine on-hand and on-order to get total available
     part_total_available = {
@@ -5958,21 +5964,11 @@ def order_chinese_parts():
     order_costs = {}
     total_order_cost = 0.0
 
-    gullies_parts = [p for p in chinese_parts if p.lower().startswith("ball gullies")]
     gullies_stock = sum(part_stock.get(p, 0) for p in gullies_parts)
     gullies_on_order = sum(part_on_order.get(p, 0) for p in gullies_parts)
     gullies_total_available = gullies_stock + gullies_on_order
-    gullies_per_table = sum(chinese_parts.get(p, 0) for p in gullies_parts)
     gullies_can_build = (gullies_stock // gullies_per_table) if gullies_per_table else 0
     gullies_can_build_total = (gullies_total_available // gullies_per_table) if gullies_per_table else 0
-    gullies_inputs = [
-        {
-            "name": part,
-            "slug": slugify_key(part),
-            "on_order": part_on_order.get(part, 0),
-        }
-        for part in gullies_parts
-    ]
 
     if request.method == 'POST':
         try:
@@ -6042,14 +6038,14 @@ def order_chinese_parts():
         tables_possible_per_part_stock=tables_possible_per_part_stock,
         max_tables_possible=max_tables_possible,
         max_tables_possible_with_on_order=max_tables_possible_with_on_order,
+        gullies_sets_on_order=gullies_sets_on_order,
         parts_to_order=parts_to_order,
         target_table_count=target_table_count,
         part_costs=part_costs,
         order_costs=order_costs,
         total_order_cost=total_order_cost,
         standard_parts=standard_parts,
-        gullies_summary=gullies_summary,
-        gullies_inputs=gullies_inputs
+        gullies_summary=gullies_summary
     )
 
 class LaminatePieceCount(db.Model):
@@ -6399,7 +6395,6 @@ def counting_laminate():
         "deducted_uncut": total_deduction,
         "amount": amount
     }), 200
-
 
 
 

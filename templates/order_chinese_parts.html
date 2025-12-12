@@ -109,14 +109,10 @@
                         <td>{{ gullies_summary.name }}</td>
                         <td>{{ gullies_summary.stock }}</td>
                         <td>
-                            <div class="gully-inputs">
-                                {% for g in gullies_inputs %}
-                                <label class="gully-label">
-                                    {{ g.name }}
-                                    <input type="number" name="on_order_{{ g.slug }}" value="{{ g.on_order }}" min="0">
-                                </label>
-                                {% endfor %}
-                            </div>
+                            <label class="gully-label">
+                                Tables' worth on order
+                                <input type="number" name="gullies_on_order_tables" value="{{ gullies_sets_on_order or 0 }}" min="0">
+                            </label>
                         </td>
                         <td>{{ gullies_summary.total_available }}</td>
                         <td>{{ gullies_summary.per_table }}</td>
@@ -124,7 +120,7 @@
                         <td>-</td>
                         {% if target_table_count %}
                         <td>{{ gullies_summary.need_to_order }}</td>
-                        <td>A${{ "%.2f"|format(gullies_summary.order_cost or 0) }}</td>
+                        <td>A${{ gullies_summary.order_cost|format_number if gullies_summary.order_cost is not none else "0.00" }}</td>
                         {% endif %}
                     </tr>
                     {% endif %}
@@ -138,10 +134,10 @@
                         <td>{{ row.total_available }}</td>
                         <td>{{ row.per_table }}</td>
                         <td>{{ row.can_build }} <span class="subtle">(now: {{ row.can_build_now }})</span></td>
-                        <td>A${{ "%.2f"|format(row.cost_each) }}</td>
+                        <td>A${{ row.cost_each|format_number }}</td>
                         {% if target_table_count %}
                         <td>{{ row.need_to_order }}</td>
-                        <td>A${{ "%.2f"|format(row.order_cost) }}</td>
+                        <td>A${{ row.order_cost|format_number }}</td>
                         {% endif %}
                     </tr>
                     {% endfor %}
@@ -149,7 +145,7 @@
             </table>
             {% if target_table_count %}
             <div class="total-cost">
-                Total Order Cost (ex VAT): A${{ "%.2f"|format(total_order_cost) }}
+                Total Order Cost (ex VAT): A${{ total_order_cost|format_number }}
             </div>
             {% endif %}
             <div class="form-section">
