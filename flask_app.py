@@ -5959,8 +5959,11 @@ def order_chinese_parts():
     if saved_gullies_units is None:
         saved_gullies_units = saved_on_order.get("gullies_tables", 0) or 0
 
-    gullies_units_on_order = saved_gullies_units if request.method == 'GET' else safe_int(
-        request.form.get('gullies_on_order_units'), saved_gullies_units)
+    if request.method == 'GET':
+        gullies_units_on_order = saved_gullies_units
+    else:
+        # On POST, always take the submitted units; if blank/invalid, default to 0 (not the saved value)
+        gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
 
     # Pull "on order" quantities from the form (default to saved), using a single input for gullies (tables' worth)
     part_on_order = {}
