@@ -5954,19 +5954,32 @@ def order_chinese_parts():
 
     saved_on_order = load_on_order()
     saved_parts_on_order = saved_on_order.get("parts", {})
-    saved_gullies_tables = saved_on_order.get("gullies_tables", 0)
-    gullies_sets_on_order = saved_gullies_tables if request.method == 'GET' else safe_int(
-        request.form.get('gullies_on_order_tables'), saved_gullies_tables)
+    saved_gullies_units = saved_on_order.get("gullies_units")
+    # Backwards compatibility if old file stored tables
+    if saved_gullies_units is None:
+        saved_gullies_units = (saved_on_order.get("gullies_tables", 0) or 0) * gullies_per_table
+
+    gullies_units_on_order = saved_gullies_units if request.method == 'GET' else safe_int(
+        request.form.get('gullies_on_order_units'), saved_gullies_units)
 
     # Pull "on order" quantities from the form (default to saved), using a single input for gullies (tables' worth)
     part_on_order = {}
+    if gullies_per_table > 0:
+        remaining = gullies_units_on_order
+        for idx, part in enumerate(gullies_parts):
+            qty = chinese_parts[part]
+            if idx == len(gullies_parts) - 1:
+                alloc = remaining
+            else:
+                alloc = (gullies_units_on_order * qty) // gullies_per_table
+                remaining -= alloc
+            part_on_order[part] = alloc
     for part in chinese_parts:
         if part in gullies_parts:
-            part_on_order[part] = gullies_sets_on_order * chinese_parts[part]
-        else:
-            default_saved = saved_parts_on_order.get(part, 0)
-            part_on_order[part] = default_saved if request.method == 'GET' else safe_int(
-                request.form.get(f"on_order_{slugify_key(part)}"), default_saved)
+            continue
+        default_saved = saved_parts_on_order.get(part, 0)
+        part_on_order[part] = default_saved if request.method == 'GET' else safe_int(
+            request.form.get(f"on_order_{slugify_key(part)}"), default_saved)
 
     # Combine on-hand and on-order to get total available
     part_total_available = {
@@ -6051,7 +6064,7 @@ def order_chinese_parts():
         "name": "Ball Gullies (All)",
         "stock": gullies_stock,
         "on_order": gullies_on_order,
-        "on_order_tables": gullies_sets_on_order,
+        "on_order_units": gullies_units_on_order,
         "total_available": gullies_total_available,
         "per_table": gullies_per_table,
         "can_build": gullies_can_build_total,
@@ -6120,7 +6133,7 @@ def order_chinese_parts():
     if request.method == 'POST':
         save_on_order({
             "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
-            "gullies_tables": gullies_sets_on_order
+            "gullies_units": gullies_units_on_order
         })
 
     max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
