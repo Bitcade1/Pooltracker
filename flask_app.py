@@ -1367,12 +1367,7 @@ def counting_hardware():
                 new_usage = float(new_usage_str)
             except ValueError:
                 flash("Please provide a valid number (integer or decimal) for 'Used Per Table'.", "error")
-                return render_template(
-                    'counting_hardware.html',
-                    hardware_parts=hardware_parts,
-                    hardware_counts=hardware_counts,
-                    selected_part=selected_part
-                )
+                return redirect(url_for('counting_hardware'))
 
             # Find the HardwarePart in the database
             hardware_part = HardwarePart.query.filter_by(name=part_name).first()
@@ -1394,22 +1389,12 @@ def counting_hardware():
                 amount = int(amount_str)
             except ValueError:
                 flash("Amount must be a number.", "error")
-                return render_template(
-                    'counting_hardware.html',
-                    hardware_parts=hardware_parts,
-                    hardware_counts=hardware_counts,
-                    selected_part=selected_part
-                )
+                return redirect(url_for('counting_hardware'))
 
             # Validate the selected part
             if part_name not in hardware_counts:
                 flash(f"Invalid hardware part: {part_name}", "error")
-                return render_template(
-                    'counting_hardware.html',
-                    hardware_parts=hardware_parts,
-                    hardware_counts=hardware_counts,
-                    selected_part=selected_part
-                )
+                return redirect(url_for('counting_hardware'))
 
             current_count = hardware_counts[part_name]
             new_count = current_count
@@ -1419,22 +1404,12 @@ def counting_hardware():
             elif action == 'decrement':
                 if current_count < amount:
                     flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
-                    return render_template(
-                        'counting_hardware.html',
-                        hardware_parts=hardware_parts,
-                        hardware_counts=hardware_counts,
-                        selected_part=selected_part
-                    )
+                    return redirect(url_for('counting_hardware'))
                 new_count -= amount
             elif action == 'bulk':
                 if amount < 0 and current_count < abs(amount):
                     flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
-                    return render_template(
-                        'counting_hardware.html',
-                        hardware_parts=hardware_parts,
-                        hardware_counts=hardware_counts,
-                        selected_part=selected_part
-                    )
+                    return redirect(url_for('counting_hardware'))
                 new_count += amount
 
             # Check for low stock if count is decreasing
@@ -1455,6 +1430,9 @@ def counting_hardware():
             hardware_counts[part_name] = new_count
 
             flash(f"{part_name} updated successfully! New count: {new_count}", "success")
+
+        # Redirect after handling POST to prevent duplicate submissions on refresh
+        return redirect(url_for('counting_hardware'))
 
     # 4. Render the template
     return render_template(
