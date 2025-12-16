@@ -4778,6 +4778,13 @@ def counting_3d_printing_parts():
         return redirect(url_for('login'))
 
     today = datetime.utcnow().date()
+    parts = [
+        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+        "Small Ramp", "Cue Ball Separator", "Bushing",
+        "6ft Cue Ball Separator", "6ft Large Ramp",
+        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
+    ]
+    selected_part = request.form.get('part') or request.args.get('selected') or (parts[0] if parts else None)
 
     if request.method == 'POST':
         part = request.form['part']
@@ -4812,14 +4819,7 @@ def counting_3d_printing_parts():
 
             db.session.commit()
 
-        return redirect(url_for('counting_3d_printing_parts'))
-
-    parts = [
-        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
-        "Small Ramp", "Cue Ball Separator", "Bushing",
-        "6ft Cue Ball Separator", "6ft Large Ramp",
-        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
-    ]
+        return redirect(url_for('counting_3d_printing_parts', selected=part))
 
     def latest_count(part_name):
         """Return the latest recorded inventory count for a part (not the sum of all historical rows)."""
@@ -4902,7 +4902,8 @@ def counting_3d_printing_parts():
     return render_template(
         'counting_3d_printing_parts.html',
         parts_counts=parts_counts,
-        parts_status=parts_status
+        parts_status=parts_status,
+        selected_part=selected_part
     )
 
 

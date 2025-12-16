@@ -102,7 +102,7 @@
                 <label for="part">Select Part:</label>
                 <select name="part" id="part" required>
                     {% for part in parts_counts.keys() %}
-                        <option value="{{ part }}">{{ part }}</option>
+                        <option value="{{ part }}" {% if selected_part == part %}selected{% endif %}>{{ part }}</option>
                     {% endfor %}
                 </select>
 
@@ -120,7 +120,7 @@
                 <label for="part">Select Part:</label>
                 <select name="part" id="part" required>
                     {% for part in parts_counts.keys() %}
-                        <option value="{{ part }}">{{ part }}</option>
+                        <option value="{{ part }}" {% if selected_part == part %}selected{% endif %}>{{ part }}</option>
                     {% endfor %}
                 </select>
 
