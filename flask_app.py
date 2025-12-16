@@ -1314,8 +1314,8 @@ def counting_hardware():
     # 1. Fetch all hardware parts
     hardware_parts = HardwarePart.query.all()
 
-    # Default selected part is first in list (if any)
-    selected_part = hardware_parts[0].name if hardware_parts else None
+    # Default selected part comes from query param if present; otherwise first in list
+    selected_part = request.args.get('selected') if request.args.get('selected') else (hardware_parts[0].name if hardware_parts else None)
 
     # 2. Build a dictionary of the latest known counts (or initial_count if none recorded)
     hardware_counts = {}
@@ -1432,7 +1432,7 @@ def counting_hardware():
             flash(f"{part_name} updated successfully! New count: {new_count}", "success")
 
         # Redirect after handling POST to prevent duplicate submissions on refresh
-        return redirect(url_for('counting_hardware'))
+        return redirect(url_for('counting_hardware', selected=selected_part))
 
     # 4. Render the template
     return render_template(
