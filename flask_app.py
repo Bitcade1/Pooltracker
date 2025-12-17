@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date, time
 from collections import defaultdict  # Ensure defaultdict is imported
 from calendar import monthrange
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, and_, or_
 import requests
 import os
 import re  # Add this import at the top of the file
@@ -1381,10 +1381,19 @@ def counting_hardware():
         # ------------------------------------------------------
         # B) INCREMENT / DECREMENT / BULK UPDATE the count
         # ------------------------------------------------------
-        elif action in ['increment', 'decrement', 'bulk']:
+        elif action in ['increment', 'decrement', 'bulk', 'quick_add']:
             part_name = request.form['hardware_part']
-            # For increment/decrement, default to 1; for bulk, read from 'amount'
-            amount_str = request.form.get('amount', '1')
+            # For increment/decrement, default to 1; for bulk, read from 'amount';
+            # for quick add, use 'quick_amount'
+            if action == 'quick_add':
+                amount_str = request.form.get('quick_amount', '1')
+            elif action == 'bulk':
+                amount_str = request.form.get('amount', '').strip()
+                if not amount_str:
+                    flash("Please enter a bulk amount to adjust stock.", "error")
+                    return redirect(url_for('counting_hardware', selected=selected_part))
+            else:
+                amount_str = request.form.get('amount', '1')
             try:
                 amount = int(amount_str)
             except ValueError:
@@ -1399,7 +1408,7 @@ def counting_hardware():
             current_count = hardware_counts[part_name]
             new_count = current_count
 
-            if action == 'increment':
+            if action in ['increment', 'quick_add']:
                 new_count += amount
             elif action == 'decrement':
                 if current_count < amount:
@@ -1434,12 +1443,48 @@ def counting_hardware():
         # Redirect after handling POST to prevent duplicate submissions on refresh
         return redirect(url_for('counting_hardware', selected=selected_part))
 
-    # 4. Render the template
+    # 4. Build recent change log (adds/removals) for hardware parts
+    hardware_log = []
+    hardware_part_names = [p.name for p in hardware_parts]
+    initial_by_name = {p.name: (p.initial_count or 0) for p in hardware_parts}
+
+    if hardware_part_names:
+        recent_entries = (
+            PrintedPartsCount.query
+            .filter(PrintedPartsCount.part_name.in_(hardware_part_names))
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .limit(50)
+            .all()
+        )
+
+        for entry in recent_entries:
+            previous = (
+                PrintedPartsCount.query
+                .filter(PrintedPartsCount.part_name == entry.part_name)
+                .filter(or_(
+                    PrintedPartsCount.date < entry.date,
+                    and_(PrintedPartsCount.date == entry.date, PrintedPartsCount.time < entry.time),
+                ))
+                .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                .first()
+            )
+            previous_count = previous.count if previous else initial_by_name.get(entry.part_name, 0)
+            delta = (entry.count or 0) - (previous_count or 0)
+            hardware_log.append({
+                "part_name": entry.part_name,
+                "date": entry.date,
+                "time": entry.time,
+                "new_count": entry.count,
+                "delta": delta,
+            })
+
+    # 5. Render the template
     return render_template(
         'counting_hardware.html',
         hardware_parts=hardware_parts,
         hardware_counts=hardware_counts,
-        selected_part=selected_part
+        selected_part=selected_part,
+        hardware_log=hardware_log
     )
 
 
