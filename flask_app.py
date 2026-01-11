@@ -6001,6 +6001,11 @@ def order_chinese_parts():
 
     def safe_float(value, default=0.0):
         try:
+            if isinstance(value, str):
+                cleaned = value.replace(",", "").strip()
+                if cleaned == "":
+                    return default
+                return float(cleaned)
             return float(value)
         except (TypeError, ValueError):
             return default

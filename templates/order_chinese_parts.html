@@ -234,12 +234,12 @@
                         <tr>
                             <td>{{ payment.label }}</td>
                             <td>
-                                <input type="number" name="{{ payment.key }}_order_total" min="0" step="0.01" value="{{ payment.order_total|format_number }}">
+                            <input type="number" name="{{ payment.key }}_order_total" min="0" step="0.01" value="{{ '%.2f'|format(payment.order_total or 0) }}">
                             </td>
                             <td>{{ payment.upfront_percent }}%</td>
                             <td>&pound;{{ payment.upfront_required|format_number }}</td>
                             <td>
-                                <input type="number" name="{{ payment.key }}_paid_so_far" min="0" step="0.01" value="{{ payment.paid_so_far|format_number }}">
+                                <input type="number" name="{{ payment.key }}_paid_so_far" min="0" step="0.01" value="{{ '%.2f'|format(payment.paid_so_far or 0) }}">
                             </td>
                             <td>&pound;{{ payment.balance_due|format_number }}</td>
                             <td>
