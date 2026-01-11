@@ -1268,7 +1268,11 @@ def stock_costs():
             "timestamp": now.isoformat(),
             "week_key": week_key,
             "total_ex_vat": grand_total_ex_vat,
-            "total_inc_vat": grand_total_inc_vat
+            "total_inc_vat": grand_total_inc_vat,
+            "parts_ex_vat": parts_total_ex_vat,
+            "parts_inc_vat": parts_total_inc_vat,
+            "finished_ex_vat": finished_total_ex_vat,
+            "finished_inc_vat": finished_total_inc_vat
         })
         save_stock_snapshots(stock_snapshots)
 

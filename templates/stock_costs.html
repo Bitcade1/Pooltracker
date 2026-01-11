@@ -183,6 +183,33 @@
             height: auto;
             display: block;
         }
+        .snapshot-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: #546e7a;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .legend-total {
+            background: #1976d2;
+        }
+        .legend-parts {
+            background: #2e7d32;
+        }
+        .legend-finished {
+            background: #f57c00;
+        }
         .snapshot-table {
             margin-top: 16px;
         }
@@ -330,6 +357,11 @@
                 <div class="snapshot-chart">
                     <svg id="stock-snapshot-chart" viewBox="0 0 800 260" role="img" aria-label="Weekly stock value trend"></svg>
                 </div>
+                <div class="snapshot-legend">
+                    <span class="legend-item"><span class="legend-swatch legend-total"></span>Total (Ex VAT)</span>
+                    <span class="legend-item"><span class="legend-swatch legend-parts"></span>Parts (Ex VAT)</span>
+                    <span class="legend-item"><span class="legend-swatch legend-finished"></span>Finished (Ex VAT)</span>
+                </div>
                 <div class="table-wrapper snapshot-table">
                     <table>
                         <thead>
@@ -337,6 +369,8 @@
                                 <th>Week</th>
                                 <th>Total (Ex VAT)</th>
                                 <th>Total (Incl VAT)</th>
+                                <th>Parts (Ex VAT)</th>
+                                <th>Finished (Ex VAT)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -346,11 +380,13 @@
                                     <td>{{ snap.week_key }}</td>
                                     <td>&pound;{{ snap.total_ex_vat|format_number }}</td>
                                     <td>&pound;{{ snap.total_inc_vat|format_number }}</td>
+                                    <td>&pound;{{ snap.parts_ex_vat|default(0)|format_number }}</td>
+                                    <td>&pound;{{ snap.finished_ex_vat|default(0)|format_number }}</td>
                                 </tr>
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="3">No snapshots yet.</td>
+                                    <td colspan="5">No snapshots yet.</td>
                                 </tr>
                             {% endif %}
                         </tbody>
@@ -408,9 +444,12 @@
                 return;
             }
 
-            const values = snapshots.map((s) => Number(s.total_ex_vat) || 0);
-            const minValue = Math.min(...values);
-            const maxValue = Math.max(...values);
+            const totalValues = snapshots.map((s) => Number(s.total_ex_vat) || 0);
+            const partsValues = snapshots.map((s) => Number(s.parts_ex_vat) || 0);
+            const finishedValues = snapshots.map((s) => Number(s.finished_ex_vat) || 0);
+            const allValues = [...totalValues, ...partsValues, ...finishedValues];
+            const minValue = Math.min(...allValues);
+            const maxValue = Math.max(...allValues);
             const min = minValue === maxValue ? minValue - 1 : minValue;
             const max = minValue === maxValue ? maxValue + 1 : maxValue;
 
@@ -419,22 +458,30 @@
             const padding = 40;
             const innerWidth = width - (padding * 2);
             const innerHeight = height - (padding * 2);
-            const points = values.map((val, index) => {
+            const buildPoints = (values) => values.map((val, index) => {
                 const ratio = values.length > 1 ? (index / (values.length - 1)) : 0;
                 const x = padding + (ratio * innerWidth);
                 const y = padding + innerHeight - ((val - min) / (max - min)) * innerHeight;
                 return `${x},${y}`;
             }).join(' ');
 
-            const lastPoint = points.split(' ').slice(-1)[0].split(',');
-            const lastX = lastPoint[0];
-            const lastY = lastPoint[1];
+            const totalPoints = buildPoints(totalValues);
+            const partsPoints = buildPoints(partsValues);
+            const finishedPoints = buildPoints(finishedValues);
+
+            const totalLastPoint = totalPoints.split(' ').slice(-1)[0].split(',');
+            const partsLastPoint = partsPoints.split(' ').slice(-1)[0].split(',');
+            const finishedLastPoint = finishedPoints.split(' ').slice(-1)[0].split(',');
 
             chart.innerHTML = `
                 <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#cfd8dc" />
                 <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#cfd8dc" />
-                <polyline fill="none" stroke="#1976d2" stroke-width="3" points="${points}" />
-                <circle cx="${lastX}" cy="${lastY}" r="4" fill="#1976d2" />
+                <polyline fill="none" stroke="#1976d2" stroke-width="3" points="${totalPoints}" />
+                <polyline fill="none" stroke="#2e7d32" stroke-width="3" points="${partsPoints}" />
+                <polyline fill="none" stroke="#f57c00" stroke-width="3" points="${finishedPoints}" />
+                <circle cx="${totalLastPoint[0]}" cy="${totalLastPoint[1]}" r="4" fill="#1976d2" />
+                <circle cx="${partsLastPoint[0]}" cy="${partsLastPoint[1]}" r="4" fill="#2e7d32" />
+                <circle cx="${finishedLastPoint[0]}" cy="${finishedLastPoint[1]}" r="4" fill="#f57c00" />
             `;
         });
     </script>
