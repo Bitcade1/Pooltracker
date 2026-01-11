@@ -115,10 +115,10 @@
                         <td>{{ row.total_available }}</td>
                         <td>{{ row.per_table }}</td>
                         <td>{{ row.can_build }} <span class="subtle">(now: {{ row.can_build_now }})</span></td>
-                        <td>A${{ row.cost_each|format_number }}</td>
+                        <td>£{{ row.cost_each|format_number }}</td>
                         {% if target_table_count %}
                         <td>{{ row.need_to_order }}</td>
-                        <td>A${{ row.order_cost|format_number }}</td>
+                        <td>£{{ row.order_cost|format_number }}</td>
                         {% endif %}
                     </tr>
                     {% endfor %}
@@ -161,7 +161,7 @@
                             <td>-</td>
                             {% if target_table_count %}
                             <td>{{ g.need_to_order }}</td>
-                            <td>A${{ g.order_cost|format_number if g.order_cost is not none else "0.00" }}</td>
+                            <td>£{{ g.order_cost|format_number if g.order_cost is not none else "0.00" }}</td>
                             {% endif %}
                         </tr>
                         {% else %}
@@ -175,10 +175,10 @@
                             <td>{{ p.total_available }}</td>
                             <td>{{ p.per_table }}</td>
                             <td>{{ p.can_build }} <span class="subtle">(now: {{ p.can_build_now }})</span></td>
-                            <td>A${{ p.cost_each|format_number }}</td>
+                            <td>£{{ p.cost_each|format_number }}</td>
                             {% if target_table_count %}
                             <td>{{ p.need_to_order }}</td>
-                            <td>A${{ p.order_cost|format_number }}</td>
+                            <td>£{{ p.order_cost|format_number }}</td>
                             {% endif %}
                         </tr>
                         {% endif %}
@@ -187,7 +187,7 @@
             </table>
             {% if target_table_count %}
             <div class="total-cost">
-                Total Order Cost (ex VAT): A${{ total_order_cost|format_number }}
+                Total Order Cost (ex VAT): £{{ total_order_cost|format_number }}
             </div>
             {% endif %}
             <div class="form-section">
