@@ -413,7 +413,9 @@ def admin():
     all_parts_query2 = db.session.query(PrintedPartsCount.part_name.label("part_name")).distinct()
     all_parts_query3 = db.session.query(TopRailPieceCount.part_key.label("part_name")).distinct()
     all_parts_union = all_parts_query1.union(all_parts_query2, all_parts_query3).all()
-    all_part_names = sorted([name for (name,) in all_parts_union])
+    all_part_names = {name for (name,) in all_parts_union if name}
+    all_part_names.update(LAMINATE_PART_NAMES)
+    all_part_names = sorted(all_part_names, key=lambda n: n.lower())
 
     # Get all current thresholds
     thresholds = PartThreshold.query.all()
