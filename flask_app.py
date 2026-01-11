@@ -6334,7 +6334,7 @@ def order_chinese_parts():
         balance_due_upfront = max(0.0, upfront_required - paid_so_far)
         balance_due_total = max(0.0, order_total - paid_so_far)
         total_paid += paid_so_far
-        total_balance_due += balance_due_upfront
+        total_balance_due += balance_due_total
         payments.append({
             "key": key,
             "label": supplier_labels[key],
