@@ -6076,16 +6076,20 @@ def order_chinese_parts():
     saved_parts_on_order = saved_on_order.get("parts", {})
     saved_gullies_units = saved_on_order.get("gullies_units", 0) or 0
     saved_paid = saved_on_order.get("paid", {})
+    saved_target_tables = safe_int(saved_on_order.get("last_target_tables"), None)
 
+    target_table_count = None
     if request.method == 'GET':
         gullies_units_on_order = saved_gullies_units
         metal_paid_so_far = safe_float(saved_paid.get("metal", 0.0))
         plastic_paid_so_far = safe_float(saved_paid.get("plastic", 0.0))
+        target_table_count = saved_target_tables
     else:
         # On POST, always take the submitted units; if blank/invalid, default to 0
         gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
         metal_paid_so_far = safe_float(request.form.get('metal_paid_so_far'), safe_float(saved_paid.get("metal", 0.0)))
         plastic_paid_so_far = safe_float(request.form.get('plastic_paid_so_far'), safe_float(saved_paid.get("plastic", 0.0)))
+        action = request.form.get('action')
 
     # Pull "on order" quantities from the form (default to saved), using a single input for gullies (tables' worth)
     part_on_order = {}
@@ -6148,13 +6152,6 @@ def order_chinese_parts():
     gullies_can_build_total = (gullies_total_available // gullies_per_table) if gullies_per_table else 0
 
     if request.method == 'POST':
-        # Save on-order state immediately (gullies overwrite any old value)
-        save_on_order({
-            "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
-            "gullies_units": gullies_units_on_order,
-            "paid": {"metal": metal_paid_so_far, "plastic": plastic_paid_so_far}
-        })
-
         target_tables_raw = request.form.get('target_tables')
         try:
             target_table_count = int(target_tables_raw) if target_tables_raw not in [None, ""] else None
@@ -6163,18 +6160,28 @@ def order_chinese_parts():
             flash("Please enter a valid number for target tables.", "error")
 
         if target_table_count is not None:
-            for part, qty_per_table in chinese_parts.items():
-                needed = target_table_count * qty_per_table
-                current = part_total_available.get(part, 0)
-                parts_to_order[part] = max(0, needed - current)
-                order_costs[part] = parts_to_order[part] * part_costs.get(part, 0.0)
-                total_order_cost += order_costs[part]
+            saved_target_tables = target_table_count
+        elif action == 'save_paid' and saved_target_tables is not None:
+            target_table_count = saved_target_tables
 
-            gullies_need = max(0, target_table_count * gullies_per_table - gullies_total_available) if gullies_per_table else 0
-            gullies_order_cost = sum(order_costs.get(p, 0.0) for p in gullies_parts)
-        else:
-            gullies_need = None
-            gullies_order_cost = None
+        # Save on-order state immediately (gullies overwrite any old value)
+        save_on_order({
+            "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
+            "gullies_units": gullies_units_on_order,
+            "paid": {"metal": metal_paid_so_far, "plastic": plastic_paid_so_far},
+            "last_target_tables": saved_target_tables
+        })
+
+    if target_table_count is not None:
+        for part, qty_per_table in chinese_parts.items():
+            needed = target_table_count * qty_per_table
+            current = part_total_available.get(part, 0)
+            parts_to_order[part] = max(0, needed - current)
+            order_costs[part] = parts_to_order[part] * part_costs.get(part, 0.0)
+            total_order_cost += order_costs[part]
+
+        gullies_need = max(0, target_table_count * gullies_per_table - gullies_total_available) if gullies_per_table else 0
+        gullies_order_cost = sum(order_costs.get(p, 0.0) for p in gullies_parts)
     else:
         gullies_need = None
         gullies_order_cost = None
@@ -6271,7 +6278,8 @@ def order_chinese_parts():
         save_on_order({
             "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
             "gullies_units": gullies_units_on_order,
-            "paid": {"metal": metal_paid_so_far, "plastic": plastic_paid_so_far}
+            "paid": {"metal": metal_paid_so_far, "plastic": plastic_paid_so_far},
+            "last_target_tables": saved_target_tables
         })
 
     max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
