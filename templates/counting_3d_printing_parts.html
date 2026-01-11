@@ -230,14 +230,15 @@
                     </thead>
                     <tbody>
                         {% for part in printed_parts %}
+                        {% set status_value = parts_status.get(part, 'N/A') %}
                         <tr>
                             <td class="part-name-cell">{{ part }}</td>
                             <td>{{ parts_counts.get(part, 0) }}</td>
                             <td>
-                                {% if 'extras' in parts_status.get(part, '') %}
-                                    <span class="delta-add">{{ parts_status.get(part, '') }}</span>
+                                {% if 'extras' in status_value %}
+                                    <span class="delta-add">{{ status_value }}</span>
                                 {% else %}
-                                    <span class="delta-remove">{{ parts_status.get(part, '') }}</span>
+                                    <span class="delta-remove">{{ status_value }}</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -261,14 +262,15 @@
                     </thead>
                     <tbody>
                         {% for part in carpet_felt_parts %}
+                        {% set status_value = parts_status.get(part, 'N/A') %}
                         <tr>
                             <td class="part-name-cell">{{ part }}</td>
                             <td>{{ parts_counts.get(part, 0) }}</td>
                             <td>
-                                {% if 'extras' in parts_status.get(part, '') %}
-                                    <span class="delta-add">{{ parts_status.get(part, '') }}</span>
+                                {% if 'extras' in status_value %}
+                                    <span class="delta-add">{{ status_value }}</span>
                                 {% else %}
-                                    <span class="delta-remove">{{ parts_status.get(part, '') }}</span>
+                                    <span class="delta-remove">{{ status_value }}</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -292,14 +294,15 @@
                     </thead>
                     <tbody>
                         {% for part in laminate_parts %}
+                        {% set status_value = parts_status.get(part, 'N/A') %}
                         <tr>
                             <td class="part-name-cell">{{ part }}</td>
                             <td>{{ parts_counts.get(part, 0) }}</td>
                             <td>
-                                {% if 'extras' in parts_status.get(part, '') %}
-                                    <span class="delta-add">{{ parts_status.get(part, '') }}</span>
+                                {% if 'extras' in status_value %}
+                                    <span class="delta-add">{{ status_value }}</span>
                                 {% else %}
-                                    <span class="delta-remove">{{ parts_status.get(part, '') }}</span>
+                                    <span class="delta-remove">{{ status_value }}</span>
                                 {% endif %}
                             </td>
                         </tr>
