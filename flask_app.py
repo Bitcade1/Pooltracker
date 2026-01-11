@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date, time
@@ -1238,13 +1238,14 @@ def stock_costs():
     finished_total_ex_vat = sum(category_totals.get(cat, {}).get('ex_vat', 0.0) for cat in finished_categories)
     finished_total_inc_vat = sum(category_totals.get(cat, {}).get('inc_vat', 0.0) for cat in finished_categories)
 
-    snapshot_file = os.path.join(basedir, "stock_costs_snapshots.json")
+    snapshot_index_file = os.path.join(basedir, "stock_costs_snapshots.json")
+    snapshot_dir = os.path.join(basedir, "stock_costs_snapshots")
 
     def load_stock_snapshots():
-        if not os.path.exists(snapshot_file):
+        if not os.path.exists(snapshot_index_file):
             return []
         try:
-            with open(snapshot_file, "r") as f:
+            with open(snapshot_index_file, "r") as f:
                 data = json.load(f)
             return data if isinstance(data, list) else []
         except (json.JSONDecodeError, OSError):
@@ -1252,10 +1253,46 @@ def stock_costs():
 
     def save_stock_snapshots(snapshots):
         try:
-            with open(snapshot_file, "w") as f:
+            with open(snapshot_index_file, "w") as f:
                 json.dump(snapshots, f)
         except OSError:
             pass
+
+    def write_stock_snapshot_file(items, filename):
+        try:
+            os.makedirs(snapshot_dir, exist_ok=True)
+            filepath = os.path.join(snapshot_dir, filename)
+            with open(filepath, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "Category",
+                    "Item",
+                    "Count",
+                    "Unit Cost",
+                    "Shipping Cost",
+                    "Labour Cost",
+                    "Cost / Item (Ex VAT)",
+                    "Cost / Item (Incl VAT)",
+                    "Stock Value (Ex VAT)",
+                    "Stock Value (Incl VAT)",
+                ])
+                for item in items:
+                    count_display = item.get("count_display", item.get("count", 0))
+                    writer.writerow([
+                        item.get("category", ""),
+                        item.get("label", ""),
+                        count_display,
+                        item.get("unit_cost", 0),
+                        item.get("shipping_cost", 0),
+                        item.get("labour_cost", 0),
+                        item.get("per_item_total", 0),
+                        item.get("per_item_with_vat", 0),
+                        item.get("stock_value_ex_vat", 0),
+                        item.get("stock_value_inc_vat", 0),
+                    ])
+            return True
+        except OSError:
+            return False
 
     stock_snapshots = load_stock_snapshots()
     stock_snapshots.sort(key=lambda s: s.get("timestamp", ""))
@@ -1265,6 +1302,7 @@ def stock_costs():
     is_after_trigger = now.weekday() > 0 or now.time() >= time(9, 0)
     if is_after_trigger:
         existing_snapshot = next((s for s in stock_snapshots if s.get("week_key") == week_key), None)
+        snapshot_filename = f"stock_snapshot_{week_key}.csv"
         snapshot_payload = {
             "timestamp": now.isoformat(),
             "week_key": week_key,
@@ -1276,6 +1314,8 @@ def stock_costs():
             "finished_inc_vat": finished_total_inc_vat
         }
         if not existing_snapshot:
+            if write_stock_snapshot_file(stock_items, snapshot_filename):
+                snapshot_payload["snapshot_file"] = snapshot_filename
             stock_snapshots.append(snapshot_payload)
             save_stock_snapshots(stock_snapshots)
         else:
@@ -1290,6 +1330,10 @@ def stock_costs():
                 if "finished_inc_vat" not in existing_snapshot:
                     existing_snapshot["finished_inc_vat"] = finished_total_inc_vat
                 save_stock_snapshots(stock_snapshots)
+            if "snapshot_file" not in existing_snapshot:
+                if write_stock_snapshot_file(stock_items, snapshot_filename):
+                    existing_snapshot["snapshot_file"] = snapshot_filename
+                save_stock_snapshots(stock_snapshots)
 
     return render_template(
         'stock_costs.html',
@@ -1303,6 +1347,15 @@ def stock_costs():
         finished_total_inc_vat=finished_total_inc_vat,
         stock_snapshots=stock_snapshots
     )
+
+
+@app.route('/stock_costs_snapshot/<path:filename>')
+def download_stock_snapshot(filename):
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+    snapshot_dir = os.path.join(basedir, "stock_costs_snapshots")
+    return send_from_directory(snapshot_dir, filename, as_attachment=True)
 
 
 @app.route('/counting_chinese_parts', methods=['GET', 'POST'])

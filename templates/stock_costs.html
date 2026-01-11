@@ -213,6 +213,19 @@
         .snapshot-table {
             margin-top: 16px;
         }
+        .snapshot-download {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 4px;
+            background: #eceff1;
+            color: #37474f;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .snapshot-download:hover {
+            background: #cfd8dc;
+        }
         .primary-button, .secondary-button {
             padding: 12px 24px;
             border-radius: 6px;
@@ -371,6 +384,7 @@
                                 <th>Total (Incl VAT)</th>
                                 <th>Parts (Ex VAT)</th>
                                 <th>Finished (Ex VAT)</th>
+                                <th>Snapshot</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -382,11 +396,18 @@
                                     <td>&pound;{{ snap.total_inc_vat|format_number }}</td>
                                     <td>&pound;{{ snap.parts_ex_vat|default(0)|format_number }}</td>
                                     <td>&pound;{{ snap.finished_ex_vat|default(0)|format_number }}</td>
+                                    <td>
+                                        {% if snap.snapshot_file %}
+                                            <a class="snapshot-download" href="{{ url_for('download_stock_snapshot', filename=snap.snapshot_file) }}">Download</a>
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="5">No snapshots yet.</td>
+                                    <td colspan="6">No snapshots yet.</td>
                                 </tr>
                             {% endif %}
                         </tbody>
