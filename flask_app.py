@@ -1367,6 +1367,10 @@ def counting_hardware():
     if request.method == 'POST':
         selected_part = request.form.get('hardware_part', selected_part)
         action = request.form.get('action')
+        paid_all_supplier = None
+        if action and action.startswith('paid_all:'):
+            paid_all_supplier = action.split(':', 1)[1]
+            action = 'paid_all'
 
         # ------------------------------------------------------
         # A) UPDATE "USED PER TABLE" for a hardware part (as float)
@@ -6162,7 +6166,7 @@ def order_chinese_parts():
 
         if target_table_count is not None:
             saved_target_tables = target_table_count
-        elif action == 'save_paid' and saved_target_tables is not None:
+        elif action in {'save_payments', 'paid_all'} and saved_target_tables is not None:
             target_table_count = saved_target_tables
 
     if target_table_count is not None:
@@ -6315,15 +6319,16 @@ def order_chinese_parts():
     total_balance_due = 0.0
     for key in ["metal", "plastic", "feet", "filament", "sticker"]:
         saved_entry = saved_payments.get(key, {})
-        order_total = safe_float(
-            request.form.get(f"{key}_order_total") if request.method == 'POST' else saved_entry.get("order_total"),
-            supplier_defaults.get(key, 0.0),
-        )
+        order_total = supplier_defaults.get(key, 0.0)
+        if key not in {"metal", "plastic"} and saved_entry.get("order_total") is not None:
+            order_total = safe_float(saved_entry.get("order_total"), order_total)
         paid_so_far = safe_float(
             request.form.get(f"{key}_paid_so_far") if request.method == 'POST' else saved_entry.get("paid_so_far"),
             0.0,
         )
-        if request.method == 'POST' and action == 'paid_all' and request.form.get('paid_all_supplier') == key:
+        if order_total <= 0 and paid_so_far > 0 and supplier_upfront[key] > 0:
+            order_total = paid_so_far / supplier_upfront[key]
+        if request.method == 'POST' and action == 'paid_all' and paid_all_supplier == key:
             paid_so_far = order_total
         upfront_required = order_total * supplier_upfront[key]
         balance_due = max(0.0, upfront_required - paid_so_far)
