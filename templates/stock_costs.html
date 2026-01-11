@@ -131,6 +131,37 @@
             justify-content: flex-end;
             margin-top: 20px;
         }
+        .snapshot-panel {
+            margin-top: 28px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            padding: 10px 16px 16px;
+        }
+        .snapshot-panel summary {
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: #1a237e;
+            padding: 8px 0;
+        }
+        .snapshot-content {
+            margin-top: 12px;
+        }
+        .snapshot-chart {
+            background: #f5f7fb;
+            border: 1px solid #e0e6ef;
+            border-radius: 10px;
+            padding: 12px;
+        }
+        .snapshot-chart svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .snapshot-table {
+            margin-top: 16px;
+        }
         .primary-button, .secondary-button {
             padding: 12px 24px;
             border-radius: 6px;
@@ -256,6 +287,41 @@
                 <a href="{{ url_for('home') }}" class="secondary-button">Back to Main Menu</a>
             </div>
         </form>
+
+        <details class="snapshot-panel">
+            <summary>Weekly Stock Snapshots</summary>
+            <div class="snapshot-content">
+                <div class="snapshot-chart">
+                    <svg id="stock-snapshot-chart" viewBox="0 0 800 260" role="img" aria-label="Weekly stock value trend"></svg>
+                </div>
+                <div class="table-wrapper snapshot-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Week</th>
+                                <th>Total (Ex VAT)</th>
+                                <th>Total (Incl VAT)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if stock_snapshots and stock_snapshots|length > 0 %}
+                                {% for snap in stock_snapshots|reverse %}
+                                <tr>
+                                    <td>{{ snap.week_key }}</td>
+                                    <td>&pound;{{ snap.total_ex_vat|format_number }}</td>
+                                    <td>&pound;{{ snap.total_inc_vat|format_number }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3">No snapshots yet.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -297,6 +363,43 @@
                     }, 800);
                 });
             });
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const snapshots = {{ stock_snapshots|tojson }};
+            const chart = document.getElementById('stock-snapshot-chart');
+            if (!chart || !snapshots || snapshots.length === 0) {
+                return;
+            }
+
+            const values = snapshots.map((s) => Number(s.total_ex_vat) || 0);
+            const minValue = Math.min(...values);
+            const maxValue = Math.max(...values);
+            const min = minValue === maxValue ? minValue - 1 : minValue;
+            const max = minValue === maxValue ? maxValue + 1 : maxValue;
+
+            const width = 800;
+            const height = 260;
+            const padding = 40;
+            const innerWidth = width - (padding * 2);
+            const innerHeight = height - (padding * 2);
+            const points = values.map((val, index) => {
+                const ratio = values.length > 1 ? (index / (values.length - 1)) : 0;
+                const x = padding + (ratio * innerWidth);
+                const y = padding + innerHeight - ((val - min) / (max - min)) * innerHeight;
+                return `${x},${y}`;
+            }).join(' ');
+
+            const lastPoint = points.split(' ').slice(-1)[0].split(',');
+            const lastX = lastPoint[0];
+            const lastY = lastPoint[1];
+
+            chart.innerHTML = `
+                <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#cfd8dc" />
+                <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#cfd8dc" />
+                <polyline fill="none" stroke="#1976d2" stroke-width="3" points="${points}" />
+                <circle cx="${lastX}" cy="${lastY}" r="4" fill="#1976d2" />
+            `;
         });
     </script>
 </body>

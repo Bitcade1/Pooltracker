@@ -1218,12 +1218,47 @@ def stock_costs():
 
     category_totals = {k: v for k, v in category_totals.items()}
 
+    snapshot_file = os.path.join(basedir, "stock_costs_snapshots.json")
+
+    def load_stock_snapshots():
+        if not os.path.exists(snapshot_file):
+            return []
+        try:
+            with open(snapshot_file, "r") as f:
+                data = json.load(f)
+            return data if isinstance(data, list) else []
+        except (json.JSONDecodeError, OSError):
+            return []
+
+    def save_stock_snapshots(snapshots):
+        try:
+            with open(snapshot_file, "w") as f:
+                json.dump(snapshots, f)
+        except OSError:
+            pass
+
+    stock_snapshots = load_stock_snapshots()
+    stock_snapshots.sort(key=lambda s: s.get("timestamp", ""))
+    now = datetime.now()
+    week_start = now - timedelta(days=now.weekday())
+    week_key = week_start.strftime("%Y-%m-%d")
+    is_after_trigger = now.weekday() > 0 or now.time() >= time(9, 0)
+    if is_after_trigger and not any(s.get("week_key") == week_key for s in stock_snapshots):
+        stock_snapshots.append({
+            "timestamp": now.isoformat(),
+            "week_key": week_key,
+            "total_ex_vat": grand_total_ex_vat,
+            "total_inc_vat": grand_total_inc_vat
+        })
+        save_stock_snapshots(stock_snapshots)
+
     return render_template(
         'stock_costs.html',
         category_blocks=category_blocks,
         category_totals=category_totals,
         grand_total_ex_vat=grand_total_ex_vat,
-        grand_total_inc_vat=grand_total_inc_vat
+        grand_total_inc_vat=grand_total_inc_vat,
+        stock_snapshots=stock_snapshots
     )
 
 
