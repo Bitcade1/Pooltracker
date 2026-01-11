@@ -35,6 +35,7 @@
         .log-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.95em; }
         .log-table th, .log-table td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
         .log-table th { font-weight: bold; background: #f7f7f7; }
+        .log-table .part-name-cell { font-size: 1.05em; font-weight: 600; }
         .delta-add { color: #1b7f2a; font-weight: bold; }
         .delta-remove { color: #b00020; font-weight: bold; }
         .delta-none { color: #666; font-weight: bold; }
@@ -194,7 +195,7 @@
                     <tbody>
                         {% for part, count in parts_counts.items() %}
                         <tr>
-                            <td><strong>{{ part }}</strong></td>
+                            <td class="part-name-cell">{{ part }}</td>
                             <td>{{ count }}</td>
                             <td>
                                 {% if 'extras' in parts_status[part] %}
@@ -212,9 +213,9 @@
             <div class="panel log-section">
                 <div class="panel-header">
                     <h2 style="margin: 0;">Log</h2>
-                    <button type="button" class="btn btn-primary" id="parts-log-toggle" onclick="toggleSection('parts-log-content', 'parts-log-toggle')">Hide Log</button>
+                    <button type="button" class="btn btn-primary" id="parts-log-toggle" onclick="toggleSection('parts-log-content', 'parts-log-toggle')">Show Log</button>
                 </div>
-                <div id="parts-log-content" style="margin-top: 10px;">
+                <div id="parts-log-content" style="margin-top: 10px; display: none;">
                     {% if parts_log and parts_log|length > 0 %}
                         <table class="log-table">
                             <thead>

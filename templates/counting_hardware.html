@@ -177,9 +177,9 @@
             <div class="panel log-section">
                 <div class="panel-header">
                     <h2 style="margin: 0;">Log</h2>
-                    <button type="button" class="btn btn-primary" id="hardware-log-toggle" onclick="toggleSection('hardware-log-content', 'hardware-log-toggle')">Hide Log</button>
+                    <button type="button" class="btn btn-primary" id="hardware-log-toggle" onclick="toggleSection('hardware-log-content', 'hardware-log-toggle')">Show Log</button>
                 </div>
-                <div id="hardware-log-content" style="margin-top: 10px;">
+                <div id="hardware-log-content" style="margin-top: 10px; display: none;">
                     {% if hardware_log and hardware_log|length > 0 %}
                         <table class="log-table">
                             <thead>
