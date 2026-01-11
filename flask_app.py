@@ -1263,8 +1263,9 @@ def stock_costs():
     week_start = now - timedelta(days=now.weekday())
     week_key = week_start.strftime("%Y-%m-%d")
     is_after_trigger = now.weekday() > 0 or now.time() >= time(9, 0)
-    if is_after_trigger and not any(s.get("week_key") == week_key for s in stock_snapshots):
-        stock_snapshots.append({
+    if is_after_trigger:
+        existing_snapshot = next((s for s in stock_snapshots if s.get("week_key") == week_key), None)
+        snapshot_payload = {
             "timestamp": now.isoformat(),
             "week_key": week_key,
             "total_ex_vat": grand_total_ex_vat,
@@ -1273,8 +1274,22 @@ def stock_costs():
             "parts_inc_vat": parts_total_inc_vat,
             "finished_ex_vat": finished_total_ex_vat,
             "finished_inc_vat": finished_total_inc_vat
-        })
-        save_stock_snapshots(stock_snapshots)
+        }
+        if not existing_snapshot:
+            stock_snapshots.append(snapshot_payload)
+            save_stock_snapshots(stock_snapshots)
+        else:
+            missing_fields = ("parts_ex_vat", "parts_inc_vat", "finished_ex_vat", "finished_inc_vat")
+            if any(key not in existing_snapshot for key in missing_fields):
+                if "parts_ex_vat" not in existing_snapshot:
+                    existing_snapshot["parts_ex_vat"] = parts_total_ex_vat
+                if "parts_inc_vat" not in existing_snapshot:
+                    existing_snapshot["parts_inc_vat"] = parts_total_inc_vat
+                if "finished_ex_vat" not in existing_snapshot:
+                    existing_snapshot["finished_ex_vat"] = finished_total_ex_vat
+                if "finished_inc_vat" not in existing_snapshot:
+                    existing_snapshot["finished_inc_vat"] = finished_total_inc_vat
+                save_stock_snapshots(stock_snapshots)
 
     return render_template(
         'stock_costs.html',
