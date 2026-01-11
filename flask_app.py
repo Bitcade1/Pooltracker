@@ -983,6 +983,34 @@ def build_stock_snapshot():
 
         add_item(display_category, part_name, part_name, count, key_category="Parts Inventory")
 
+    parts_on_water_total = 0.0
+    on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
+    if os.path.exists(on_order_file):
+        try:
+            with open(on_order_file, "r") as f:
+                on_order_data = json.load(f)
+            payments = on_order_data.get("payments", {})
+            for entry in payments.values():
+                try:
+                    parts_on_water_total += float(entry.get("paid_so_far", 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    add_item(
+        "Chinese Parts",
+        "parts_on_water",
+        "Parts on the water",
+        1,
+        key_category="Parts Inventory",
+        unit_cost=parts_on_water_total,
+        shipping_cost=0.0,
+        labour_cost=0.0,
+        cost_locked=True,
+        count_display="-",
+    )
+
     wood_sections = [
         ("Body Wood Sets", "Body"),
         ("Pod Sides", "Pod Sides"),
@@ -1092,6 +1120,8 @@ def stock_costs():
 
     if request.method == 'POST':
         for item in stock_items:
+            if item.get('cost_locked'):
+                continue
             unit_value = parse_currency(request.form.get(f"unit_cost_{item['key']}", 0))
             shipping_value = parse_currency(request.form.get(f"shipping_cost_{item['key']}", 0))
             labour_value = parse_currency(request.form.get(f"labour_cost_{item['key']}", 0))
@@ -1120,15 +1150,20 @@ def stock_costs():
 
     for item in stock_items:
         entry = cost_entries.get(item['key'])
-        unit_cost = entry.unit_cost if entry else 0.0
-        shipping_cost = entry.shipping_cost if entry else 0.0
-        labour_cost = entry.labour_cost if entry else 0.0
+        if item.get('cost_locked'):
+            unit_cost = item.get('unit_cost', 0.0)
+            shipping_cost = item.get('shipping_cost', 0.0)
+            labour_cost = item.get('labour_cost', 0.0)
+        else:
+            unit_cost = entry.unit_cost if entry else 0.0
+            shipping_cost = entry.shipping_cost if entry else 0.0
+            labour_cost = entry.labour_cost if entry else 0.0
         material_cost = unit_cost + shipping_cost
         per_item_total = material_cost + labour_cost  # Ex VAT total (labour is VAT exempt)
         per_item_with_vat = (material_cost * (1 + vat_rate)) + labour_cost
         stock_value_ex_vat = per_item_total * item['count']
         stock_value_inc_vat = per_item_with_vat * item['count']
-        has_cost = any([unit_cost, shipping_cost, labour_cost])
+        has_cost = any([unit_cost, shipping_cost, labour_cost]) or item.get('cost_locked')
 
         item['unit_cost'] = unit_cost
         item['shipping_cost'] = shipping_cost
