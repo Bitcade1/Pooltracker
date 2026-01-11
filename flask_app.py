@@ -4846,49 +4846,12 @@ def counting_3d_printing_parts():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    today = datetime.utcnow().date()
     parts = [
         "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
     ]
-    selected_part = request.form.get('part') or request.args.get('selected') or (parts[0] if parts else None)
-
-    if request.method == 'POST':
-        part = request.form['part']
-
-        if 'reject' in request.form:
-            reject_amount = int(request.form['reject_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(
-                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-
-            if current_count and current_count.count >= reject_amount:
-                old_count = current_count.count
-                current_count.count -= reject_amount
-                check_and_notify_low_stock(part, old_count, current_count.count)
-                flash(f"Rejected {reject_amount} of {part} from inventory.", "success")
-                db.session.commit()
-            else:
-                flash(f"Not enough inventory to reject {reject_amount} of {part}.", "error")
-        else:
-            increment_amount = int(request.form['increment_amount'])
-            current_count = PrintedPartsCount.query.filter_by(part_name=part).order_by(
-                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-
-            if current_count:
-                current_count.count += increment_amount
-                current_count.date = today
-                current_count.time = datetime.utcnow().time()
-                flash(f"Incremented {part} count by {increment_amount}!", "success")
-            else:
-                new_count = PrintedPartsCount(part_name=part, count=increment_amount, date=today, time=datetime.utcnow().time())
-                db.session.add(new_count)
-                flash(f"Added {increment_amount} to {part} as a new entry!", "success")
-
-            db.session.commit()
-
-        return redirect(url_for('counting_3d_printing_parts', selected=part))
 
     def latest_count(part_name):
         """Return the latest recorded inventory count for a part (not the sum of all historical rows)."""
@@ -4897,6 +4860,67 @@ def counting_3d_printing_parts():
                         .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                         .first())
         return latest_entry.count if latest_entry else 0
+
+    selected_part = request.form.get('part') or request.args.get('selected') or (parts[0] if parts else None)
+
+    if request.method == 'POST':
+        part = request.form.get('part') or selected_part
+        action = request.form.get('action')
+
+        if not part or part not in parts:
+            flash("Invalid part selected.", "error")
+            return redirect(url_for('counting_3d_printing_parts'))
+
+        try:
+            if action == 'quick_add':
+                amount_str = request.form.get('quick_amount', '1')
+            elif action == 'reject':
+                amount_str = request.form.get('reject_amount', '1')
+            elif action == 'bulk':
+                amount_str = request.form.get('amount', '').strip()
+                if not amount_str:
+                    flash("Please enter a bulk amount to adjust stock.", "error")
+                    return redirect(url_for('counting_3d_printing_parts', selected=part))
+            else:
+                amount_str = request.form.get('increment_amount', '1')
+
+            amount = int(amount_str)
+        except ValueError:
+            flash("Amount must be a number.", "error")
+            return redirect(url_for('counting_3d_printing_parts', selected=part))
+
+        current_count = latest_count(part)
+        new_count = current_count
+
+        if action == 'reject':
+            if current_count < amount:
+                flash(f"Not enough inventory to reject {amount} of {part}.", "error")
+                return redirect(url_for('counting_3d_printing_parts', selected=part))
+            new_count -= amount
+            flash(f"Rejected {amount} of {part} from inventory.", "success")
+        elif action == 'bulk':
+            if amount < 0 and current_count < abs(amount):
+                flash(f"Not enough inventory to remove. Current count for '{part}': {current_count}", "error")
+                return redirect(url_for('counting_3d_printing_parts', selected=part))
+            new_count += amount
+            flash(f"{part} adjusted by {amount}. New count: {new_count}", "success")
+        else:
+            new_count += amount
+            flash(f"Added {amount} to {part}. New count: {new_count}", "success")
+
+        if new_count < current_count:
+            check_and_notify_low_stock(part, current_count, new_count)
+
+        new_entry = PrintedPartsCount(
+            part_name=part,
+            count=new_count,
+            date=datetime.utcnow().date(),
+            time=datetime.utcnow().time()
+        )
+        db.session.add(new_entry)
+        db.session.commit()
+
+        return redirect(url_for('counting_3d_printing_parts', selected=part))
 
     parts_counts = {part: latest_count(part) for part in parts}
 
@@ -4968,11 +4992,43 @@ def counting_3d_printing_parts():
         else:
             parts_status[part] = f"{surplus} extras"
 
+    parts_log = []
+    if parts:
+        recent_entries = (
+            PrintedPartsCount.query
+            .filter(PrintedPartsCount.part_name.in_(parts))
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .limit(50)
+            .all()
+        )
+
+        for entry in recent_entries:
+            previous = (
+                PrintedPartsCount.query
+                .filter(PrintedPartsCount.part_name == entry.part_name)
+                .filter(or_(
+                    PrintedPartsCount.date < entry.date,
+                    and_(PrintedPartsCount.date == entry.date, PrintedPartsCount.time < entry.time),
+                ))
+                .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                .first()
+            )
+            previous_count = previous.count if previous else 0
+            delta = (entry.count or 0) - (previous_count or 0)
+            parts_log.append({
+                "part_name": entry.part_name,
+                "date": entry.date,
+                "time": entry.time,
+                "new_count": entry.count,
+                "delta": delta,
+            })
+
     return render_template(
         'counting_3d_printing_parts.html',
         parts_counts=parts_counts,
         parts_status=parts_status,
-        selected_part=selected_part
+        selected_part=selected_part,
+        parts_log=parts_log
     )
 
 

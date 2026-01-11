@@ -6,82 +6,92 @@
     <title>Counting 3D Printing Parts</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        /* Collapsible Styles */
-        .collapsible {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 1.2em;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
+        .printing-container { max-width: 950px; }
+        .printing-layout { text-align: left; }
+        .panel { background: #ffffff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 16px; }
+        .panel + .panel { margin-top: 14px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+        .stat { background: #f7f7fb; border: 1px solid #e7e7ee; border-radius: 10px; padding: 12px; }
+        .stat-label { font-size: 0.9em; color: #555; margin-bottom: 6px; }
+        .stat-value { font-size: 1.4em; font-weight: bold; color: #111; }
+        .status-good { color: #1b7f2a; }
+        .status-bad { color: #b00020; }
 
-        .collapsible:hover {
-            background-color: #0056b3;
-        }
+        .actions-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .quick-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { padding: 12px 14px; border-radius: 8px; border: none; cursor: pointer; }
+        .btn-primary { background-color: #007bff; color: #fff; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; color: #fff; }
+        .btn-success:hover { background-color: #1f8a38; }
+        .btn-danger { background-color: #c62828; color: #fff; }
+        .btn-danger:hover { background-color: #a61f1f; }
 
-        .collapsible-content {
-            padding: 15px;
-            display: none;
-            overflow: hidden;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        
-        /* Table styles */
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-top: 20px; 
-        }
-        
-        th, td { 
-            padding: 12px; 
-            border: 1px solid #ddd; 
-            text-align: center; 
-        }
-        
-        th { 
-            background-color: #f2f2f2; 
-        }
-        
-        /* Status indicators */
-        .extra { 
-            color: green; 
-            font-weight: bold; 
-        }
-        
-        .shortage { 
-            color: red; 
-            font-weight: bold; 
-        }
-        
-        /* Special style for inventory section that should be open by default */
-        #inventory3D.collapsible-content {
-            display: block;
+        .menu-link { margin-top: 18px; }
+        .log-section { margin-top: 20px; }
+        .log-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.95em; }
+        .log-table th, .log-table td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
+        .log-table th { font-weight: bold; background: #f7f7f7; }
+        .delta-add { color: #1b7f2a; font-weight: bold; }
+        .delta-remove { color: #b00020; font-weight: bold; }
+        .delta-none { color: #666; font-weight: bold; }
+
+        @media (max-width: 720px) {
+            .form-row, .stat-row { grid-template-columns: 1fr; }
         }
     </style>
     <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
+        const counts = {{ parts_counts|tojson }};
+        const statusMap = {{ parts_status|tojson }};
+        const initialSelection = {{ selected_part|tojson }};
+
+        function updateUrlSelected(selectedPart) {
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set("selected", selectedPart);
+                window.history.replaceState({}, "", url);
+            } catch (e) {
+                // ignore
+            }
         }
-        
-        // Ensure inventory section is open when page loads
-        window.onload = function() {
-            document.getElementById('inventory3D').style.display = "block";
+
+        function syncSelectedPartFields() {
+            const selectedPart = document.getElementById("part_select").value;
+            document.querySelectorAll(".selected-part-field").forEach((el) => {
+                el.value = selectedPart;
+            });
+            updateUrlSelected(selectedPart);
+        }
+
+        function updatePartDisplay() {
+            const selectedPart = document.getElementById("part_select").value;
+            const countDisplay = document.getElementById("count-display");
+            const statusDisplay = document.getElementById("status-display");
+            const statusText = statusMap[selectedPart] || "";
+
+            countDisplay.innerText = counts[selectedPart] || 0;
+            statusDisplay.innerText = statusText;
+            statusDisplay.classList.remove("status-good", "status-bad");
+            if (statusText.includes("left to make")) {
+                statusDisplay.classList.add("status-bad");
+            } else {
+                statusDisplay.classList.add("status-good");
+            }
+        }
+
+        function initializePartsForm() {
+            const select = document.getElementById("part_select");
+            if (select && initialSelection) {
+                select.value = initialSelection;
+            }
+            syncSelectedPartFields();
+            updatePartDisplay();
         }
     </script>
 </head>
-<body>
-    <div class="container">
+<body onload="initializePartsForm()">
+    <div class="container printing-container">
         <h1>Counting 3D Printing Parts</h1>
 
         <!-- Flash Messages for Success and Error Notifications -->
@@ -95,73 +105,139 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Add Part to Inventory (Collapsible) -->
-        <button class="collapsible" onclick="toggleCollapsible('addPart')">Add 3D Printed Part to Inventory</button>
-        <div id="addPart" class="collapsible-content">
-            <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
-                <label for="part">Select Part:</label>
-                <select name="part" id="part" required>
-                    {% for part in parts_counts.keys() %}
-                        <option value="{{ part }}" {% if selected_part == part %}selected{% endif %}>{{ part }}</option>
-                    {% endfor %}
-                </select>
+        <div class="printing-layout">
+            <div class="panel">
+                <div class="form-row">
+                    <div>
+                        <label for="part_select">Select Part:</label>
+                        <select id="part_select" onchange="syncSelectedPartFields(); updatePartDisplay();" required>
+                            {% for part in parts_counts.keys() %}
+                                <option value="{{ part }}" {% if part == selected_part %}selected{% endif %}>{{ part }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat">
+                            <div class="stat-label">Current Stock</div>
+                            <div class="stat-value"><span id="count-display">0</span></div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">Status</div>
+                            <div class="stat-value"><span id="status-display"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                <label for="increment_amount">Amount:</label>
-                <input type="number" id="increment_amount" name="increment_amount" min="1" value="1" required>
+            <div class="panel">
+                <h2 style="margin: 0 0 10px 0;">Quick Add</h2>
+                <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
+                    <input type="hidden" name="action" value="quick_add">
+                    <input type="hidden" name="part" class="selected-part-field" value="{{ selected_part }}">
+                    <div class="quick-buttons">
+                        <button type="submit" class="btn btn-success" name="quick_amount" value="1">Add +1</button>
+                        <button type="submit" class="btn btn-success" name="quick_amount" value="5">Add +5</button>
+                        <button type="submit" class="btn btn-success" name="quick_amount" value="10">Add +10</button>
+                    </div>
+                </form>
+            </div>
 
-                <button type="submit" class="button">Add to Inventory</button>
-            </form>
-        </div>
+            <div class="panel">
+                <h2 style="margin: 0 0 10px 0;">Adjust Stock</h2>
+                <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
+                    <input type="hidden" name="action" value="bulk">
+                    <input type="hidden" name="part" class="selected-part-field" value="{{ selected_part }}">
+                    <label for="amount">Bulk Adjustment (positive to add, negative to reduce):</label>
+                    <input type="number" name="amount" id="amount" placeholder="e.g. 25 or -3" required>
+                    <div class="actions-row">
+                        <button type="submit" class="btn btn-primary">Apply Adjustment</button>
+                    </div>
+                </form>
+            </div>
 
-        <!-- Reject Part from Inventory (Collapsible) -->
-        <button class="collapsible" onclick="toggleCollapsible('rejectPart')">Reject Part</button>
-        <div id="rejectPart" class="collapsible-content">
-            <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
-                <label for="part">Select Part:</label>
-                <select name="part" id="part" required>
-                    {% for part in parts_counts.keys() %}
-                        <option value="{{ part }}" {% if selected_part == part %}selected{% endif %}>{{ part }}</option>
-                    {% endfor %}
-                </select>
+            <div class="panel">
+                <h2 style="margin: 0 0 10px 0;">Reject Parts</h2>
+                <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
+                    <input type="hidden" name="action" value="reject">
+                    <input type="hidden" name="part" class="selected-part-field" value="{{ selected_part }}">
+                    <label for="reject_amount">Reject Amount:</label>
+                    <input type="number" name="reject_amount" id="reject_amount" min="1" value="1" required>
+                    <div class="actions-row">
+                        <button type="submit" class="btn btn-danger">Reject</button>
+                    </div>
+                </form>
+            </div>
 
-                <label for="reject_amount">Reject Amount:</label>
-                <input type="number" id="reject_amount" name="reject_amount" min="1" value="1" required>
+            <div class="panel">
+                <h2 style="margin: 0 0 10px 0;">3D Printed Parts Inventory</h2>
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Part</th>
+                            <th>Current Stock</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for part, count in parts_counts.items() %}
+                        <tr>
+                            <td><strong>{{ part }}</strong></td>
+                            <td>{{ count }}</td>
+                            <td>
+                                {% if 'extras' in parts_status[part] %}
+                                    <span class="delta-add">{{ parts_status[part] }}</span>
+                                {% else %}
+                                    <span class="delta-remove">{{ parts_status[part] }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
-                <button type="submit" name="reject" class="button">Reject Part</button>
-            </form>
-        </div>
-
-        <!-- 3D Printed Inventory Section -->
-        <button class="collapsible" onclick="toggleCollapsible('inventory3D')">3D Printed Parts Inventory</button>
-        <div id="inventory3D" class="collapsible-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Part</th>
-                        <th>Current Stock</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for part, count in parts_counts.items() %}
-                    <tr>
-                        <td><strong>{{ part }}</strong></td>
-                        <td>{{ count }}</td>
-                        <td>
-                            {% if 'extras' in parts_status[part] %}
-                                <span class="extra">{{ parts_status[part] }}</span>
-                            {% else %}
-                                <span class="shortage">{{ parts_status[part] }}</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="panel log-section">
+                <h2 style="margin: 0 0 10px 0;">Log</h2>
+                {% if parts_log and parts_log|length > 0 %}
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Part</th>
+                                <th>Change</th>
+                                <th>New Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in parts_log %}
+                                <tr>
+                                    <td>
+                                        {{ entry.date.strftime('%d/%m/%Y') }}
+                                        {{ entry.time.strftime('%H:%M') }}
+                                    </td>
+                                    <td>{{ entry.part_name }}</td>
+                                    <td>
+                                        {% if entry.delta > 0 %}
+                                            <span class="delta-add">Added +{{ entry.delta }}</span>
+                                        {% elif entry.delta < 0 %}
+                                            <span class="delta-remove">Removed -{{ entry.delta|abs }}</span>
+                                        {% else %}
+                                            <span class="delta-none">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ entry.new_count }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No 3D printing part changes logged yet.</p>
+                {% endif %}
+            </div>
         </div>
 
         <!-- Link Back to Main Menu -->
-        <div class="menu-link" style="margin-top: 30px;">
+        <div class="menu-link">
             <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
         </div>
     </div>
