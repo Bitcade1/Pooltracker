@@ -6067,12 +6067,12 @@ def order_chinese_parts():
 
     def load_on_order():
         if not os.path.exists(on_order_file):
-            return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None}
+            return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None, "arrivals": []}
         try:
             with open(on_order_file, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
-            return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None}
+            return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None, "arrivals": []}
 
     def save_on_order(data):
         try:
@@ -6085,6 +6085,7 @@ def order_chinese_parts():
     saved_parts_on_order = saved_on_order.get("parts", {})
     saved_gullies_units = saved_on_order.get("gullies_units", 0) or 0
     saved_payments = saved_on_order.get("payments", {})
+    saved_arrivals = saved_on_order.get("arrivals", [])
     saved_target_tables = safe_int(saved_on_order.get("last_target_tables"), None)
 
     target_table_count = None
@@ -6311,7 +6312,7 @@ def order_chinese_parts():
         "feet": 0.50,
         "filament": 0.50,
         "sticker": 0.50,
-        "shipper": 0.50,
+        "shipper": 1.00,
     }
     supplier_labels = {
         "metal": "Metal Supplier",
@@ -6356,12 +6357,46 @@ def order_chinese_parts():
         })
         saved_payments[key] = {"order_total": order_total, "paid_so_far": paid_so_far}
 
+    if request.method == 'POST' and action == 'parts_arrived':
+        arrival_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "total_paid": total_paid,
+            "total_balance_due": total_balance_due,
+            "payments": [
+                {
+                    "key": item["key"],
+                    "label": item["label"],
+                    "order_total": item["order_total"],
+                    "paid_so_far": item["paid_so_far"],
+                    "balance_due": item["balance_due"],
+                    "upfront_percent": item["upfront_percent"],
+                }
+                for item in payments
+            ],
+        }
+        saved_arrivals.append(arrival_entry)
+
+    arrivals = []
+    for entry in saved_arrivals:
+        display_time = entry.get("timestamp", "")
+        try:
+            display_time = datetime.fromisoformat(display_time).strftime("%d/%m/%Y %H:%M")
+        except (TypeError, ValueError):
+            pass
+        arrivals.append({
+            "display_time": display_time,
+            "total_paid": entry.get("total_paid", 0.0),
+            "total_balance_due": entry.get("total_balance_due", 0.0),
+            "payments": entry.get("payments", []),
+        })
+
     if request.method == 'POST':
         save_on_order({
             "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
             "gullies_units": gullies_units_on_order,
             "payments": saved_payments,
-            "last_target_tables": saved_target_tables
+            "last_target_tables": saved_target_tables,
+            "arrivals": saved_arrivals
         })
 
     return render_template(
@@ -6385,7 +6420,8 @@ def order_chinese_parts():
         gullies_summary=gullies_summary,
         payments=payments,
         total_paid=total_paid,
-        total_balance_due=total_balance_due
+        total_balance_due=total_balance_due,
+        arrivals=arrivals
     )
 
 class LaminatePieceCount(db.Model):
