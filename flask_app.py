@@ -6088,6 +6088,8 @@ def order_chinese_parts():
     saved_target_tables = safe_int(saved_on_order.get("last_target_tables"), None)
 
     target_table_count = None
+    action = None
+    paid_all_supplier = None
     if request.method == 'GET':
         gullies_units_on_order = saved_gullies_units
         target_table_count = saved_target_tables
@@ -6095,6 +6097,9 @@ def order_chinese_parts():
         # On POST, always take the submitted units; if blank/invalid, default to 0
         gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
         action = request.form.get('action')
+        if action and action.startswith('paid_all:'):
+            paid_all_supplier = action.split(':', 1)[1]
+            action = 'paid_all'
 
     # Pull "on order" quantities from the form (default to saved), using a single input for gullies (tables' worth)
     part_on_order = {}
