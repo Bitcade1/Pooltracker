@@ -157,6 +157,19 @@
             </div>
 
             <div class="panel">
+                <h2 style="margin: 0 0 10px 0;">Quick Reject</h2>
+                <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
+                    <input type="hidden" name="action" value="reject">
+                    <input type="hidden" name="part" class="selected-part-field" value="{{ selected_part }}">
+                    <div class="quick-buttons">
+                        <button type="submit" class="btn btn-danger" name="reject_amount" value="1">Reject -1</button>
+                        <button type="submit" class="btn btn-danger" name="reject_amount" value="5">Reject -5</button>
+                        <button type="submit" class="btn btn-danger" name="reject_amount" value="10">Reject -10</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="panel">
                 <h2 style="margin: 0 0 10px 0;">Adjust Stock</h2>
                 <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}">
                     <input type="hidden" name="action" value="bulk">
