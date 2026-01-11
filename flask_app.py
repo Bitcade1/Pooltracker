@@ -6331,9 +6331,10 @@ def order_chinese_parts():
         if request.method == 'POST' and action == 'paid_all' and paid_all_supplier == key:
             paid_so_far = order_total
         upfront_required = order_total * supplier_upfront[key]
-        balance_due = max(0.0, upfront_required - paid_so_far)
+        balance_due_upfront = max(0.0, upfront_required - paid_so_far)
+        balance_due_total = max(0.0, order_total - paid_so_far)
         total_paid += paid_so_far
-        total_balance_due += balance_due
+        total_balance_due += balance_due_upfront
         payments.append({
             "key": key,
             "label": supplier_labels[key],
@@ -6341,7 +6342,8 @@ def order_chinese_parts():
             "order_total": order_total,
             "paid_so_far": paid_so_far,
             "upfront_required": upfront_required,
-            "balance_due": balance_due,
+            "balance_due": balance_due_total,
+            "balance_due_upfront": balance_due_upfront,
             "show_paid_all": key in {"feet", "filament", "sticker"},
         })
         saved_payments[key] = {"order_total": order_total, "paid_so_far": paid_so_far}
