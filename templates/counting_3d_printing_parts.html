@@ -130,9 +130,21 @@
                     <div>
                         <label for="part_select">Select Part:</label>
                         <select id="part_select" onchange="syncSelectedPartFields(); updatePartDisplay();" required>
-                            {% for part in parts_counts.keys() %}
-                                <option value="{{ part }}" {% if part == selected_part %}selected{% endif %}>{{ part }}</option>
-                            {% endfor %}
+                            <optgroup label="3D Printed Parts">
+                                {% for part in printed_parts %}
+                                    <option value="{{ part }}" {% if part == selected_part %}selected{% endif %}>{{ part }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="Carpet & Felt">
+                                {% for part in carpet_felt_parts %}
+                                    <option value="{{ part }}" {% if part == selected_part %}selected{% endif %}>{{ part }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="Laminate">
+                                {% for part in laminate_parts %}
+                                    <option value="{{ part }}" {% if part == selected_part %}selected{% endif %}>{{ part }}</option>
+                                {% endfor %}
+                            </optgroup>
                         </select>
                     </div>
                     <div class="stat-row">
