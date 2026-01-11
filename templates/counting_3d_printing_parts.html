@@ -36,6 +36,7 @@
         .log-table th, .log-table td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
         .log-table th { font-weight: bold; background: #f7f7f7; }
         .log-table .part-name-cell { font-size: 1.05em; font-weight: 600; }
+        .section-title { margin: 0 0 8px 0; font-size: 1.05em; color: #333; }
         .delta-add { color: #1b7f2a; font-weight: bold; }
         .delta-remove { color: #b00020; font-weight: bold; }
         .delta-none { color: #666; font-weight: bold; }
@@ -197,6 +198,7 @@
 
             <div class="panel inventory-panel">
                 <h2 style="margin: 0 0 10px 0;">3D Printed Parts Inventory</h2>
+                <h3 class="section-title">3D Printed Parts</h3>
                 <table class="log-table">
                     <thead>
                         <tr>
@@ -206,15 +208,67 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for part, count in parts_counts.items() %}
+                        {% for part in printed_parts %}
                         <tr>
                             <td class="part-name-cell">{{ part }}</td>
-                            <td>{{ count }}</td>
+                            <td>{{ parts_counts.get(part, 0) }}</td>
                             <td>
-                                {% if 'extras' in parts_status[part] %}
-                                    <span class="delta-add">{{ parts_status[part] }}</span>
+                                {% if 'extras' in parts_status.get(part, '') %}
+                                    <span class="delta-add">{{ parts_status.get(part, '') }}</span>
                                 {% else %}
-                                    <span class="delta-remove">{{ parts_status[part] }}</span>
+                                    <span class="delta-remove">{{ parts_status.get(part, '') }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <h3 class="section-title" style="margin-top: 16px;">Carpet & Felt</h3>
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Part</th>
+                            <th>Current Stock</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for part in carpet_felt_parts %}
+                        <tr>
+                            <td class="part-name-cell">{{ part }}</td>
+                            <td>{{ parts_counts.get(part, 0) }}</td>
+                            <td>
+                                {% if 'extras' in parts_status.get(part, '') %}
+                                    <span class="delta-add">{{ parts_status.get(part, '') }}</span>
+                                {% else %}
+                                    <span class="delta-remove">{{ parts_status.get(part, '') }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <h3 class="section-title" style="margin-top: 16px;">Laminate</h3>
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Part</th>
+                            <th>Current Stock</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for part in laminate_parts %}
+                        <tr>
+                            <td class="part-name-cell">{{ part }}</td>
+                            <td>{{ parts_counts.get(part, 0) }}</td>
+                            <td>
+                                {% if 'extras' in parts_status.get(part, '') %}
+                                    <span class="delta-add">{{ parts_status.get(part, '') }}</span>
+                                {% else %}
+                                    <span class="delta-remove">{{ parts_status.get(part, '') }}</span>
                                 {% endif %}
                             </td>
                         </tr>

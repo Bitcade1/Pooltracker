@@ -4987,10 +4987,17 @@ def counting_3d_printing_parts():
         current_inventory = inventory_counts.get(part, 0)
         surplus = current_inventory - still_needed
 
-        if surplus < 0:
-            parts_status[part] = f"{-surplus} left to make"
-        else:
-            parts_status[part] = f"{surplus} extras"
+    if surplus < 0:
+        parts_status[part] = f"{-surplus} left to make"
+    else:
+        parts_status[part] = f"{surplus} extras"
+
+    carpet_felt_parts = ["6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"]
+    laminate_parts = list(LAMINATE_PART_NAMES)
+    printed_parts = [
+        part for part in parts
+        if part not in carpet_felt_parts and part not in laminate_parts
+    ]
 
     parts_log = []
     if parts:
@@ -5028,7 +5035,10 @@ def counting_3d_printing_parts():
         parts_counts=parts_counts,
         parts_status=parts_status,
         selected_part=selected_part,
-        parts_log=parts_log
+        parts_log=parts_log,
+        printed_parts=printed_parts,
+        carpet_felt_parts=carpet_felt_parts,
+        laminate_parts=laminate_parts
     )
 
 
