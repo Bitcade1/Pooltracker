@@ -6303,6 +6303,7 @@ def order_chinese_parts():
         "feet": order_costs.get("Feet", 0.0),
         "filament": 0.0,
         "sticker": order_costs.get("Sticker Set", 0.0),
+        "shipper": 0.0,
     }
     supplier_upfront = {
         "metal": 0.30,
@@ -6310,6 +6311,7 @@ def order_chinese_parts():
         "feet": 0.50,
         "filament": 0.50,
         "sticker": 0.50,
+        "shipper": 0.50,
     }
     supplier_labels = {
         "metal": "Metal Supplier",
@@ -6317,12 +6319,13 @@ def order_chinese_parts():
         "feet": "Feet Supplier",
         "filament": "3D Printing Filament Supplier",
         "sticker": "Sticker Supplier",
+        "shipper": "Container Shipper",
     }
 
     payments = []
     total_paid = 0.0
     total_balance_due = 0.0
-    for key in ["metal", "plastic", "feet", "filament", "sticker"]:
+    for key in ["metal", "plastic", "feet", "filament", "sticker", "shipper"]:
         saved_entry = saved_payments.get(key, {})
         order_total = supplier_defaults.get(key, 0.0)
         if key not in {"metal", "plastic"} and saved_entry.get("order_total") is not None:
@@ -6349,7 +6352,7 @@ def order_chinese_parts():
             "upfront_required": upfront_required,
             "balance_due": balance_due_total,
             "balance_due_upfront": balance_due_upfront,
-            "show_paid_all": key in {"feet", "filament", "sticker"},
+            "show_paid_all": key in {"feet", "filament", "sticker", "shipper"},
         })
         saved_payments[key] = {"order_total": order_total, "paid_so_far": paid_so_far}
 
