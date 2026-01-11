@@ -10,6 +10,8 @@
         .hardware-layout { text-align: left; }
         .panel { background: #ffffff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 16px; }
         .panel + .panel { margin-top: 14px; }
+        .inventory-panel { background: #f7f7fb; border-color: #dfe3eb; }
+        .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
         .stat { background: #f7f7fb; border: 1px solid #e7e7ee; border-radius: 10px; padding: 12px; }
@@ -74,6 +76,17 @@
             usageDisplay.innerText = usage[selectedPart] || 0;
         }
 
+        function toggleSection(sectionId, buttonId) {
+            const section = document.getElementById(sectionId);
+            const button = document.getElementById(buttonId);
+            if (!section || !button) {
+                return;
+            }
+            const isHidden = section.style.display === "none";
+            section.style.display = isHidden ? "block" : "none";
+            button.innerText = isHidden ? "Hide Log" : "Show Log";
+        }
+
         function initializeHardwareForm() {
             const select = document.getElementById("hardware_part_select");
             if (select && initialSelection) {
@@ -99,7 +112,7 @@
         {% endwith %}
 
         <div class="hardware-layout">
-            <div class="panel">
+            <div class="panel inventory-panel">
                 <div class="form-row">
                     <div>
                         <label for="hardware_part_select">Select Hardware Part:</label>
@@ -162,42 +175,47 @@
             </div>
 
             <div class="panel log-section">
-                <h2 style="margin: 0 0 10px 0;">Log</h2>
-                {% if hardware_log and hardware_log|length > 0 %}
-                    <table class="log-table">
-                        <thead>
-                            <tr>
-                                <th>When</th>
-                                <th>Part</th>
-                                <th>Change</th>
-                                <th>New Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for entry in hardware_log %}
+                <div class="panel-header">
+                    <h2 style="margin: 0;">Log</h2>
+                    <button type="button" class="btn btn-primary" id="hardware-log-toggle" onclick="toggleSection('hardware-log-content', 'hardware-log-toggle')">Hide Log</button>
+                </div>
+                <div id="hardware-log-content" style="margin-top: 10px;">
+                    {% if hardware_log and hardware_log|length > 0 %}
+                        <table class="log-table">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        {{ entry.date.strftime('%d/%m/%Y') }}
-                                        {{ entry.time.strftime('%H:%M') }}
-                                    </td>
-                                    <td>{{ entry.part_name }}</td>
-                                    <td>
-                                        {% if entry.delta > 0 %}
-                                            <span class="delta-add">Added +{{ entry.delta }}</span>
-                                        {% elif entry.delta < 0 %}
-                                            <span class="delta-remove">Removed -{{ entry.delta|abs }}</span>
-                                        {% else %}
-                                            <span class="delta-none">0</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ entry.new_count }}</td>
+                                    <th>When</th>
+                                    <th>Part</th>
+                                    <th>Change</th>
+                                    <th>New Stock</th>
                                 </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p>No hardware changes logged yet.</p>
-                {% endif %}
+                            </thead>
+                            <tbody>
+                                {% for entry in hardware_log %}
+                                    <tr>
+                                        <td>
+                                            {{ entry.date.strftime('%d/%m/%Y') }}
+                                            {{ entry.time.strftime('%H:%M') }}
+                                        </td>
+                                        <td>{{ entry.part_name }}</td>
+                                        <td>
+                                            {% if entry.delta > 0 %}
+                                                <span class="delta-add">Added +{{ entry.delta }}</span>
+                                            {% elif entry.delta < 0 %}
+                                                <span class="delta-remove">Removed -{{ entry.delta|abs }}</span>
+                                            {% else %}
+                                                <span class="delta-none">0</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ entry.new_count }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No hardware changes logged yet.</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
@@ -207,4 +225,3 @@
     </div>
 </body>
 </html>
-

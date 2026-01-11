@@ -10,6 +10,8 @@
         .printing-layout { text-align: left; }
         .panel { background: #ffffff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 16px; }
         .panel + .panel { margin-top: 14px; }
+        .inventory-panel { background: #f7f7fb; border-color: #dfe3eb; }
+        .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
         .stat { background: #f7f7fb; border: 1px solid #e7e7ee; border-radius: 10px; padding: 12px; }
@@ -80,6 +82,17 @@
             }
         }
 
+        function toggleSection(sectionId, buttonId) {
+            const section = document.getElementById(sectionId);
+            const button = document.getElementById(buttonId);
+            if (!section || !button) {
+                return;
+            }
+            const isHidden = section.style.display === "none";
+            section.style.display = isHidden ? "block" : "none";
+            button.innerText = isHidden ? "Hide Log" : "Show Log";
+        }
+
         function initializePartsForm() {
             const select = document.getElementById("part_select");
             if (select && initialSelection) {
@@ -106,7 +119,7 @@
         {% endwith %}
 
         <div class="printing-layout">
-            <div class="panel">
+            <div class="panel inventory-panel">
                 <div class="form-row">
                     <div>
                         <label for="part_select">Select Part:</label>
@@ -168,7 +181,7 @@
                 </form>
             </div>
 
-            <div class="panel">
+            <div class="panel inventory-panel">
                 <h2 style="margin: 0 0 10px 0;">3D Printed Parts Inventory</h2>
                 <table class="log-table">
                     <thead>
@@ -197,42 +210,47 @@
             </div>
 
             <div class="panel log-section">
-                <h2 style="margin: 0 0 10px 0;">Log</h2>
-                {% if parts_log and parts_log|length > 0 %}
-                    <table class="log-table">
-                        <thead>
-                            <tr>
-                                <th>When</th>
-                                <th>Part</th>
-                                <th>Change</th>
-                                <th>New Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for entry in parts_log %}
+                <div class="panel-header">
+                    <h2 style="margin: 0;">Log</h2>
+                    <button type="button" class="btn btn-primary" id="parts-log-toggle" onclick="toggleSection('parts-log-content', 'parts-log-toggle')">Hide Log</button>
+                </div>
+                <div id="parts-log-content" style="margin-top: 10px;">
+                    {% if parts_log and parts_log|length > 0 %}
+                        <table class="log-table">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        {{ entry.date.strftime('%d/%m/%Y') }}
-                                        {{ entry.time.strftime('%H:%M') }}
-                                    </td>
-                                    <td>{{ entry.part_name }}</td>
-                                    <td>
-                                        {% if entry.delta > 0 %}
-                                            <span class="delta-add">Added +{{ entry.delta }}</span>
-                                        {% elif entry.delta < 0 %}
-                                            <span class="delta-remove">Removed -{{ entry.delta|abs }}</span>
-                                        {% else %}
-                                            <span class="delta-none">0</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ entry.new_count }}</td>
+                                    <th>When</th>
+                                    <th>Part</th>
+                                    <th>Change</th>
+                                    <th>New Stock</th>
                                 </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p>No 3D printing part changes logged yet.</p>
-                {% endif %}
+                            </thead>
+                            <tbody>
+                                {% for entry in parts_log %}
+                                    <tr>
+                                        <td>
+                                            {{ entry.date.strftime('%d/%m/%Y') }}
+                                            {{ entry.time.strftime('%H:%M') }}
+                                        </td>
+                                        <td>{{ entry.part_name }}</td>
+                                        <td>
+                                            {% if entry.delta > 0 %}
+                                                <span class="delta-add">Added +{{ entry.delta }}</span>
+                                            {% elif entry.delta < 0 %}
+                                                <span class="delta-remove">Removed -{{ entry.delta|abs }}</span>
+                                            {% else %}
+                                                <span class="delta-none">0</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ entry.new_count }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No 3D printing part changes logged yet.</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
