@@ -115,27 +115,6 @@
             <h4>Tables buildable including on-order: <span class="highlight">{{ max_tables_possible_with_on_order }}</span></h4>
 
             <h3>Metal Supplier</h3>
-            <div class="supplier-summary">
-                <div>
-                    <label>Order Total (ex VAT)</label>
-                    <div class="supplier-value">£{{ metal_total_order_cost|format_number }}</div>
-                </div>
-                <div>
-                    <label>Upfront (30%)</label>
-                    <div class="supplier-value">£{{ metal_upfront_required|format_number }}</div>
-                </div>
-                <div>
-                    <label for="metal_paid_so_far">Paid so far</label>
-                    <input type="number" id="metal_paid_so_far" name="metal_paid_so_far" min="0" step="0.01" value="{{ metal_paid_so_far or 0 }}">
-                </div>
-                <div>
-                    <label>Balance due</label>
-                    <div class="supplier-value">£{{ metal_balance_due|format_number }}</div>
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary" name="action" value="save_paid" formnovalidate>Save Paid Amount</button>
-                </div>
-            </div>
             <table>
                 <thead>
                     <tr>
@@ -163,10 +142,10 @@
                         <td>{{ row.total_available }}</td>
                         <td>{{ row.per_table }}</td>
                         <td>{{ row.can_build }} <span class="subtle">(now: {{ row.can_build_now }})</span></td>
-                        <td>£{{ row.cost_each|format_number }}</td>
+                        <td>&pound;{{ row.cost_each|format_number }}</td>
                         {% if target_table_count %}
                         <td>{{ row.need_to_order }}</td>
-                        <td>£{{ row.order_cost|format_number }}</td>
+                        <td>&pound;{{ row.order_cost|format_number }}</td>
                         {% endif %}
                     </tr>
                     {% endfor %}
@@ -174,27 +153,6 @@
             </table>
 
             <h3>Plastic Supplier</h3>
-            <div class="supplier-summary">
-                <div>
-                    <label>Order Total (ex VAT)</label>
-                    <div class="supplier-value">£{{ plastic_total_order_cost|format_number }}</div>
-                </div>
-                <div>
-                    <label>Upfront (70%)</label>
-                    <div class="supplier-value">£{{ plastic_upfront_required|format_number }}</div>
-                </div>
-                <div>
-                    <label for="plastic_paid_so_far">Paid so far</label>
-                    <input type="number" id="plastic_paid_so_far" name="plastic_paid_so_far" min="0" step="0.01" value="{{ plastic_paid_so_far or 0 }}">
-                </div>
-                <div>
-                    <label>Balance due</label>
-                    <div class="supplier-value">£{{ plastic_balance_due|format_number }}</div>
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary" name="action" value="save_paid" formnovalidate>Save Paid Amount</button>
-                </div>
-            </div>
             <table>
                 <thead>
                     <tr>
@@ -227,7 +185,7 @@
                             <td>-</td>
                             {% if target_table_count %}
                             <td>{{ g.need_to_order }}</td>
-                            <td>£{{ g.order_cost|format_number if g.order_cost is not none else "0.00" }}</td>
+                            <td>&pound;{{ g.order_cost|format_number if g.order_cost is not none else "0.00" }}</td>
                             {% endif %}
                         </tr>
                         {% else %}
@@ -241,10 +199,10 @@
                             <td>{{ p.total_available }}</td>
                             <td>{{ p.per_table }}</td>
                             <td>{{ p.can_build }} <span class="subtle">(now: {{ p.can_build_now }})</span></td>
-                            <td>£{{ p.cost_each|format_number }}</td>
+                            <td>&pound;{{ p.cost_each|format_number }}</td>
                             {% if target_table_count %}
                             <td>{{ p.need_to_order }}</td>
-                            <td>£{{ p.order_cost|format_number }}</td>
+                            <td>&pound;{{ p.order_cost|format_number }}</td>
                             {% endif %}
                         </tr>
                         {% endif %}
@@ -253,9 +211,57 @@
             </table>
             {% if target_table_count %}
             <div class="total-cost">
-                Total Order Cost (ex VAT): £{{ total_order_cost|format_number }}
+                Total Order Cost (ex VAT): &pound;{{ total_order_cost|format_number }}
             </div>
             {% endif %}
+
+            <div class="payments-section">
+                <h3>Payment Tracking</h3>
+                <table class="payments-table">
+                    <thead>
+                        <tr>
+                            <th>Supplier</th>
+                            <th>Order Total (ex VAT)</th>
+                            <th>Upfront %</th>
+                            <th>Upfront Amount</th>
+                            <th>Paid so far</th>
+                            <th>Balance due</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td>{{ payment.label }}</td>
+                            <td>
+                                <input type="number" name="{{ payment.key }}_order_total" min="0" step="0.01" value="{{ payment.order_total|format_number }}">
+                            </td>
+                            <td>{{ payment.upfront_percent }}%</td>
+                            <td>&pound;{{ payment.upfront_required|format_number }}</td>
+                            <td>
+                                <input type="number" name="{{ payment.key }}_paid_so_far" min="0" step="0.01" value="{{ payment.paid_so_far|format_number }}">
+                            </td>
+                            <td>&pound;{{ payment.balance_due|format_number }}</td>
+                            <td>
+                                {% if payment.show_paid_all %}
+                                    <button type="submit" class="btn btn-primary" name="action" value="paid_all" formnovalidate>Paid All</button>
+                                    <input type="hidden" name="paid_all_supplier" value="{{ payment.key }}">
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="total-cost">
+                    Total Paid: &pound;{{ total_paid|format_number }} | Total to Pay Now: &pound;{{ total_balance_due|format_number }}
+                </div>
+                <div class="form-section">
+                    <button type="submit" class="btn btn-primary" name="action" value="save_payments" formnovalidate>Save Payments</button>
+                </div>
+            </div>
+
             <div class="form-section">
                 <button type="submit" class="btn btn-primary">Recalculate with On-Order Quantities</button>
             </div>
