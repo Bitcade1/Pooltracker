@@ -1218,6 +1218,26 @@ def stock_costs():
 
     category_totals = {k: v for k, v in category_totals.items()}
 
+    part_categories = {
+        "Chinese Parts",
+        "Hardware Parts",
+        "3D Printed Parts",
+        "Cut Laminate",
+        "Wood Shop",
+        "MDF Boards",
+    }
+    finished_categories = {
+        "Finished Tables",
+        "Top Rails",
+        "Cushion Sets",
+        "Table Stock",
+    }
+
+    parts_total_ex_vat = sum(category_totals.get(cat, {}).get('ex_vat', 0.0) for cat in part_categories)
+    parts_total_inc_vat = sum(category_totals.get(cat, {}).get('inc_vat', 0.0) for cat in part_categories)
+    finished_total_ex_vat = sum(category_totals.get(cat, {}).get('ex_vat', 0.0) for cat in finished_categories)
+    finished_total_inc_vat = sum(category_totals.get(cat, {}).get('inc_vat', 0.0) for cat in finished_categories)
+
     snapshot_file = os.path.join(basedir, "stock_costs_snapshots.json")
 
     def load_stock_snapshots():
@@ -1258,6 +1278,10 @@ def stock_costs():
         category_totals=category_totals,
         grand_total_ex_vat=grand_total_ex_vat,
         grand_total_inc_vat=grand_total_inc_vat,
+        parts_total_ex_vat=parts_total_ex_vat,
+        parts_total_inc_vat=parts_total_inc_vat,
+        finished_total_ex_vat=finished_total_ex_vat,
+        finished_total_inc_vat=finished_total_inc_vat,
         stock_snapshots=stock_snapshots
     )
 

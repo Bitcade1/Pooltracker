@@ -52,6 +52,30 @@
             font-weight: 700;
             margin-top: 8px;
         }
+        .sub-total-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+        }
+        .sub-total-card .label {
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #546e7a;
+        }
+        .sub-total-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-top: 6px;
+            color: #263238;
+        }
+        .sub-total-card .sub-value {
+            margin-top: 4px;
+            font-size: 0.95rem;
+            color: #455a64;
+        }
         .category-card {
             background: #fff;
             border-radius: 10px;
@@ -211,6 +235,18 @@
             <div class="grand-total-card vat-card">
                 <div class="label">Grand Total (Incl. VAT)</div>
                 <div class="value">&pound;{{ grand_total_inc_vat|format_number }}</div>
+            </div>
+        </div>
+        <div class="totals-grid">
+            <div class="sub-total-card">
+                <div class="label">Total Parts (Ex VAT)</div>
+                <div class="value">&pound;{{ parts_total_ex_vat|format_number }}</div>
+                <div class="sub-value">Incl VAT: &pound;{{ parts_total_inc_vat|format_number }}</div>
+            </div>
+            <div class="sub-total-card">
+                <div class="label">Total Finished Product (Ex VAT)</div>
+                <div class="value">&pound;{{ finished_total_ex_vat|format_number }}</div>
+                <div class="sub-value">Incl VAT: &pound;{{ finished_total_inc_vat|format_number }}</div>
             </div>
         </div>
 
