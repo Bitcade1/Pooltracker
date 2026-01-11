@@ -381,7 +381,6 @@
                             <tr>
                                 <th>Week</th>
                                 <th>Total (Ex VAT)</th>
-                                <th>Total (Incl VAT)</th>
                                 <th>Parts (Ex VAT)</th>
                                 <th>Finished (Ex VAT)</th>
                                 <th>Snapshot</th>
@@ -393,7 +392,6 @@
                                 <tr>
                                     <td>{{ snap.week_key }}</td>
                                     <td>&pound;{{ snap.total_ex_vat|format_number }}</td>
-                                    <td>&pound;{{ snap.total_inc_vat|format_number }}</td>
                                     <td>&pound;{{ snap.parts_ex_vat|default(0)|format_number }}</td>
                                     <td>&pound;{{ snap.finished_ex_vat|default(0)|format_number }}</td>
                                     <td>
@@ -407,7 +405,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="6">No snapshots yet.</td>
+                                    <td colspan="5">No snapshots yet.</td>
                                 </tr>
                             {% endif %}
                         </tbody>
