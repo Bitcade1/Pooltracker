@@ -54,6 +54,16 @@ def slugify_key(value):
 # Expose slugify_key to Jinja templates for form field names
 app.jinja_env.filters['slugify_key'] = slugify_key
 
+LAMINATE_COLOR_LABELS = ["Black", "Rustic Oak", "Grey Oak", "Stone", "Rustic Black"]
+LAMINATE_PART_NAMES = [f"Laminate - {label}" for label in LAMINATE_COLOR_LABELS]
+LAMINATE_COLOR_KEY_TO_LABEL = {
+    "black": "Black",
+    "rustic_oak": "Rustic Oak",
+    "grey_oak": "Grey Oak",
+    "stone": "Stone",
+    "rustic_black": "Rustic Black",
+}
+
 # Models
 class CompletedTable(db.Model):
     __tablename__ = 'completed_table'
@@ -706,7 +716,7 @@ def inventory():
     # 1) 3D PRINTED PARTS
     # ---------------------------------------------------------------------
     parts = [
-        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+        "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
@@ -779,7 +789,7 @@ def inventory():
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
-        "Laminate": 4,
+        **{name: 4 for name in LAMINATE_PART_NAMES},
         "Spring Mount": 1,
         "Spring Holder": 1,
         "Small Ramp": 1,
@@ -925,8 +935,9 @@ def build_stock_snapshot():
         return 0, False
 
     core_parts = [
-        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
-        "Small Ramp", "Cue Ball Separator", "Bushing",
+        "Large Ramp", "Paddle", *LAMINATE_PART_NAMES,
+        "Spring Mount", "Spring Holder", "Small Ramp",
+        "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"
     ]
@@ -1809,10 +1820,27 @@ def manage_raw_data():
                 # Revert inventory if deleting a table or top rail entry.
                 if table == 'bodies':
                     # Parts used for a completed table
+                    def body_color_key(serial):
+                        norm = serial.replace(" ", "").upper()
+                        if "-GO" in norm:
+                            return "grey_oak"
+                        if "-O" in norm and "-GO" not in norm:
+                            return "rustic_oak"
+                        if "-C" in norm:
+                            return "stone"
+                        if "-RB" in norm:
+                            return "rustic_black"
+                        return "black"
+
+                    laminate_label = LAMINATE_COLOR_KEY_TO_LABEL.get(
+                        body_color_key(entry.serial_number),
+                        "Black"
+                    )
+                    laminate_part_name = f"Laminate - {laminate_label}"
                     parts_used = {
                         "Large Ramp": 1,
                         "Paddle": 1,
-                        "Laminate": 4,
+                        laminate_part_name: 4,
                         "Spring Mount": 1,
                         "Spring Holder": 1,
                         "Small Ramp": 1,
@@ -1894,18 +1922,6 @@ def manage_raw_data():
                 if table == 'bodies':
                     def body_is_6ft(serial):
                         return serial.replace(" ", "").endswith("-6")
-
-                    def body_color_key(serial):
-                        norm = serial.replace(" ", "").upper()
-                        if "-GO" in norm:
-                            return "grey_oak"
-                        if "-O" in norm and "-GO" not in norm:
-                            return "rustic_oak"
-                        if "-C" in norm:
-                            return "stone"
-                        if "-RB" in norm:
-                            return "rustic_black"
-                        return "black"
 
                     size = "6ft" if body_is_6ft(entry.serial_number) else "7ft"
                     color_key = body_color_key(entry.serial_number)
@@ -2787,10 +2803,13 @@ def bodies():
         # PARTS DEDUCTION LOGIC
         # ---------------------------
         low_stock_messages = []
+        laminate_color_key = get_color(serial_number)
+        laminate_label = LAMINATE_COLOR_KEY_TO_LABEL.get(laminate_color_key, "Black")
+        laminate_part_name = f"Laminate - {laminate_label}"
         parts_to_deduct = {
             "Large Ramp": 1,
             "Paddle": 1,
-            "Laminate": 4,
+            laminate_part_name: 4,
             "Spring Mount": 1,
             "Spring Holder": 1,
             "Small Ramp": 1,
@@ -3694,7 +3713,10 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "Large Ramp", "per_body": 1, "sizes": ["7ft"]},
     {"name": "6ft Large Ramp", "per_body": 1, "sizes": ["6ft"]},
     {"name": "Paddle", "per_body": 1, "sizes": ["7ft", "6ft"]},
-    {"name": "Laminate", "per_body": 4, "sizes": ["7ft", "6ft"]},
+    *[
+        {"name": name, "per_body": 4, "sizes": ["7ft", "6ft"]}
+        for name in LAMINATE_PART_NAMES
+    ],
     {"name": "Spring Mount", "per_body": 1, "sizes": ["7ft", "6ft"]},
     {"name": "Spring Holder", "per_body": 1, "sizes": ["7ft", "6ft"]},
     {"name": "Small Ramp", "per_body": 1, "sizes": ["7ft"]},
@@ -3750,7 +3772,7 @@ BODY_SUPPORT_PARTS = {
     "7ft Ply Supports",
     "7ft Bag of Bolts",
     "6ft Bag of Bolts",
-    "Laminate",
+    *LAMINATE_PART_NAMES,
     "Spring",
     "Handle Tube",
     "4.2 x 16 No2 Self Tapping Screw",
@@ -4824,7 +4846,7 @@ def counting_3d_printing_parts():
 
     today = datetime.utcnow().date()
     parts = [
-        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+        "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
@@ -4903,7 +4925,7 @@ def counting_3d_printing_parts():
     parts_usage_per_body = {
         "Large Ramp": 1,
         "Paddle": 1,
-        "Laminate": 4,
+        **{name: 4 for name in LAMINATE_PART_NAMES},
         "Spring Mount": 1,
         "Spring Holder": 1,
         "Small Ramp": 1,

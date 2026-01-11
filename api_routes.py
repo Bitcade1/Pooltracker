@@ -16,6 +16,9 @@ api = Blueprint('api', __name__, url_prefix='/api')
 # --- API Authentication ---
 API_TOKENS = ["bitcade_api_key_1", "mobile_app_token_2"] # Example tokens
 
+LAMINATE_COLOR_LABELS = ["Black", "Rustic Oak", "Grey Oak", "Stone", "Rustic Black"]
+LAMINATE_PART_NAMES = [f"Laminate - {label}" for label in LAMINATE_COLOR_LABELS]
+
 def require_api_token(view_function):
     @wraps(view_function)
     def decorated(*args, **kwargs):
@@ -436,7 +439,7 @@ def inventory_summary():
         table_parts_counts[part_name_def] = latest_entry[0] if latest_entry else 0
     
     printed_parts_definitions = [
-        "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+        "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
         "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt",  # Added new carpet and felt parts
@@ -628,7 +631,7 @@ def get_production_schedule_for_month(year, month):
 
 # --- Valid parts list for inventory tracking ---
 VALID_PARTS = [
-    "Large Ramp", "Paddle", "Laminate", "Spring Mount", "Spring Holder",
+    "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
     "Small Ramp", "Cue Ball Separator", "Bushing",
     "6ft Cue Ball Separator", "6ft Large Ramp", 
     "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt",

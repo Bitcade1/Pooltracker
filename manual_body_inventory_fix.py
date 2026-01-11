@@ -20,10 +20,18 @@ import sqlite3
 from typing import Dict
 
 
+LAMINATE_COLOR_KEY_TO_LABEL = {
+    "black": "Black",
+    "rustic_oak": "Rustic Oak",
+    "grey_oak": "Grey Oak",
+    "stone": "Stone",
+    "rustic_black": "Rustic Black",
+}
+
+
 BASE_PARTS: Dict[str, int] = {
     "Large Ramp": 1,
     "Paddle": 1,
-    "Laminate": 4,
     "Spring Mount": 1,
     "Spring Holder": 1,
     "Small Ramp": 1,
@@ -77,6 +85,8 @@ def color_key(serial: str) -> str:
 
 def apply_adjustments(parts: Dict[str, int], serial: str) -> Dict[str, int]:
     adjusted = dict(parts)
+    laminate_label = LAMINATE_COLOR_KEY_TO_LABEL.get(color_key(serial), "Black")
+    adjusted[f"Laminate - {laminate_label}"] = 4
     if is_6ft(serial):
         adjusted.pop("Large Ramp", None)
         adjusted.pop("Cue Ball Separator", None)
