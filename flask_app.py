@@ -5999,6 +5999,12 @@ def order_chinese_parts():
         except (TypeError, ValueError):
             return default
 
+    def safe_float(value, default=0.0):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     def part_cost_ex_vat(part_name):
         key = f"parts_inventory__{slugify_key(part_name)}"
         entry = StockItemCost.query.filter_by(item_key=key).first()
@@ -6052,12 +6058,12 @@ def order_chinese_parts():
 
     def load_on_order():
         if not os.path.exists(on_order_file):
-            return {"parts": {}, "gullies_tables": 0}
+            return {"parts": {}, "gullies_units": 0, "paid": {}}
         try:
             with open(on_order_file, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
-            return {"parts": {}, "gullies_tables": 0}
+            return {"parts": {}, "gullies_units": 0, "paid": {}}
 
     def save_on_order(data):
         try:
@@ -6069,12 +6075,17 @@ def order_chinese_parts():
     saved_on_order = load_on_order()
     saved_parts_on_order = saved_on_order.get("parts", {})
     saved_gullies_units = saved_on_order.get("gullies_units", 0) or 0
+    saved_paid = saved_on_order.get("paid", {})
 
     if request.method == 'GET':
         gullies_units_on_order = saved_gullies_units
+        metal_paid_so_far = safe_float(saved_paid.get("metal", 0.0))
+        plastic_paid_so_far = safe_float(saved_paid.get("plastic", 0.0))
     else:
         # On POST, always take the submitted units; if blank/invalid, default to 0
         gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
+        metal_paid_so_far = safe_float(request.form.get('metal_paid_so_far'), safe_float(saved_paid.get("metal", 0.0)))
+        plastic_paid_so_far = safe_float(request.form.get('plastic_paid_so_far'), safe_float(saved_paid.get("plastic", 0.0)))
 
     # Pull "on order" quantities from the form (default to saved), using a single input for gullies (tables' worth)
     part_on_order = {}
@@ -6140,7 +6151,8 @@ def order_chinese_parts():
         # Save on-order state immediately (gullies overwrite any old value)
         save_on_order({
             "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
-            "gullies_units": gullies_units_on_order
+            "gullies_units": gullies_units_on_order,
+            "paid": {"metal": metal_paid_so_far, "plastic": plastic_paid_so_far}
         })
 
         target_tables_raw = request.form.get('target_tables')
@@ -6258,7 +6270,8 @@ def order_chinese_parts():
     if request.method == 'POST':
         save_on_order({
             "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
-            "gullies_units": gullies_units_on_order
+            "gullies_units": gullies_units_on_order,
+            "paid": {"metal": metal_paid_so_far, "plastic": plastic_paid_so_far}
         })
 
     max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
@@ -6268,6 +6281,16 @@ def order_chinese_parts():
         max_tables_possible_candidates_with_on_order.append(gullies_can_build_total)
     max_tables_possible = min(max_tables_possible_candidates) if max_tables_possible_candidates else 0
     max_tables_possible_with_on_order = min(max_tables_possible_candidates_with_on_order) if max_tables_possible_candidates_with_on_order else 0
+    metal_total_order_cost = sum(row.get("order_cost") or 0.0 for row in metal_parts)
+    plastic_total_order_cost = 0.0
+    for row in plastic_rows:
+        data = row.get("data", {})
+        plastic_total_order_cost += data.get("order_cost") or 0.0
+
+    metal_upfront_required = metal_total_order_cost * 0.30
+    plastic_upfront_required = plastic_total_order_cost * 0.70
+    metal_balance_due = max(0.0, metal_upfront_required - metal_paid_so_far)
+    plastic_balance_due = max(0.0, plastic_upfront_required - plastic_paid_so_far)
 
     return render_template(
         'order_chinese_parts.html',
@@ -6287,7 +6310,15 @@ def order_chinese_parts():
         total_order_cost=total_order_cost,
         metal_parts=metal_parts,
         plastic_rows=plastic_rows,
-        gullies_summary=gullies_summary
+        gullies_summary=gullies_summary,
+        metal_total_order_cost=metal_total_order_cost,
+        plastic_total_order_cost=plastic_total_order_cost,
+        metal_upfront_required=metal_upfront_required,
+        plastic_upfront_required=plastic_upfront_required,
+        metal_paid_so_far=metal_paid_so_far,
+        plastic_paid_so_far=plastic_paid_so_far,
+        metal_balance_due=metal_balance_due,
+        plastic_balance_due=plastic_balance_due
     )
 
 class LaminatePieceCount(db.Model):

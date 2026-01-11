@@ -62,6 +62,21 @@
             font-size: 0.85em;
             color: #555;
         }
+        .supplier-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            align-items: end;
+            margin: 8px 0 12px;
+        }
+        .supplier-summary label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .supplier-value {
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -88,6 +103,24 @@
             <h4>Tables buildable including on-order: <span class="highlight">{{ max_tables_possible_with_on_order }}</span></h4>
 
             <h3>Metal Supplier</h3>
+            <div class="supplier-summary">
+                <div>
+                    <label>Order Total (ex VAT)</label>
+                    <div class="supplier-value">£{{ metal_total_order_cost|format_number }}</div>
+                </div>
+                <div>
+                    <label>Upfront (30%)</label>
+                    <div class="supplier-value">£{{ metal_upfront_required|format_number }}</div>
+                </div>
+                <div>
+                    <label for="metal_paid_so_far">Paid so far</label>
+                    <input type="number" id="metal_paid_so_far" name="metal_paid_so_far" min="0" step="0.01" value="{{ metal_paid_so_far or 0 }}">
+                </div>
+                <div>
+                    <label>Balance due</label>
+                    <div class="supplier-value">£{{ metal_balance_due|format_number }}</div>
+                </div>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -126,6 +159,24 @@
             </table>
 
             <h3>Plastic Supplier</h3>
+            <div class="supplier-summary">
+                <div>
+                    <label>Order Total (ex VAT)</label>
+                    <div class="supplier-value">£{{ plastic_total_order_cost|format_number }}</div>
+                </div>
+                <div>
+                    <label>Upfront (70%)</label>
+                    <div class="supplier-value">£{{ plastic_upfront_required|format_number }}</div>
+                </div>
+                <div>
+                    <label for="plastic_paid_so_far">Paid so far</label>
+                    <input type="number" id="plastic_paid_so_far" name="plastic_paid_so_far" min="0" step="0.01" value="{{ plastic_paid_so_far or 0 }}">
+                </div>
+                <div>
+                    <label>Balance due</label>
+                    <div class="supplier-value">£{{ plastic_balance_due|format_number }}</div>
+                </div>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -150,10 +201,7 @@
                             <td>{{ g.name }}</td>
                             <td>{{ g.stock }}</td>
                             <td>
-                                <label class="gully-label">
-                                    Units on order
-                                    <input type="number" name="gullies_on_order_units" value="{{ g.on_order_units or 0 }}" min="0">
-                                </label>
+                                <input type="number" name="gullies_on_order_units" value="{{ g.on_order_units or 0 }}" min="0">
                             </td>
                             <td>{{ g.total_available }}</td>
                             <td>{{ g.per_table }}</td>
