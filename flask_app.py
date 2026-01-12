@@ -70,6 +70,8 @@ LAMINATE_COLOR_KEY_TO_LABEL = {
     "stone": "Stone",
     "rustic_black": "Rustic Black",
 }
+FELT_PART_NAME = "Felt"
+LEGACY_FELT_PART_NAMES = ("7ft Felt", "6ft Felt")
 
 # Models
 class CompletedTable(db.Model):
@@ -192,6 +194,25 @@ class PartThreshold(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_name = db.Column(db.String(100), unique=True, nullable=False)
     threshold = db.Column(db.Integer, default=0, nullable=False)
+
+# Shared helper to read felt counts (uses legacy felt names if needed).
+def get_latest_part_entry(part_name):
+    return (PrintedPartsCount.query
+            .filter_by(part_name=part_name)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first())
+
+
+def get_felt_count():
+    entry = get_latest_part_entry(FELT_PART_NAME)
+    if entry:
+        return entry.count
+    total = 0
+    for legacy_name in LEGACY_FELT_PART_NAMES:
+        legacy_entry = get_latest_part_entry(legacy_name)
+        if legacy_entry:
+            total += legacy_entry.count
+    return total
 
 # Track last time we alerted for a given part to throttle repeats
 LOW_STOCK_LAST_ALERT = {}
@@ -422,6 +443,8 @@ def admin():
     all_parts_union = all_parts_query1.union(all_parts_query2, all_parts_query3).all()
     all_part_names = {name for (name,) in all_parts_union if name}
     all_part_names.update(LAMINATE_PART_NAMES)
+    all_part_names.difference_update(LEGACY_FELT_PART_NAMES)
+    all_part_names.add(FELT_PART_NAME)
     all_part_names = sorted(all_part_names, key=lambda n: n.lower())
 
     # Get all current thresholds
@@ -443,17 +466,17 @@ def admin():
                     is_6ft = serial_is_6ft(pod.serial_number)
                     
                     # Determine which felt and carpet to restore
-                    felt_part = "6ft Felt" if is_6ft else "7ft Felt"
+                    felt_part = FELT_PART_NAME
                     carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
                     
                     # Restore felt
-                    felt_entry = PrintedPartsCount.query.filter_by(part_name=felt_part).order_by(
-                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+                    felt_entry = get_latest_part_entry(felt_part)
                     if felt_entry:
                         felt_entry.count += 2
                     else:
-                        new_felt = PrintedPartsCount(part_name=felt_part, count=2, 
-                                                   date=datetime.utcnow().date(), 
+                        fallback_count = get_felt_count()
+                        new_felt = PrintedPartsCount(part_name=felt_part, count=fallback_count + 2,
+                                                   date=datetime.utcnow().date(),
                                                    time=datetime.utcnow().time())
                         db.session.add(new_felt)
                     
@@ -728,11 +751,14 @@ def inventory():
         "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
-        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
+        "6ft Carpet", "7ft Carpet", FELT_PART_NAME
     ]
 
     inventory_counts = {}
     for part in parts:
+        if part == FELT_PART_NAME:
+            inventory_counts[part] = get_felt_count()
+            continue
         latest_entry = (
             db.session.query(PrintedPartsCount.count)
             .filter_by(part_name=part)
@@ -807,9 +833,8 @@ def inventory():
         "6ft Cue Ball Separator": 1,
         "6ft Large Ramp": 1,
         "6ft Carpet": 1,
-        "6ft Felt": 2,
-        "7ft Carpet": 1,
-        "7ft Felt": 2
+        FELT_PART_NAME: 2,
+        "7ft Carpet": 1
     }
 
     # Calculate how many of each part have been used this month.
@@ -825,11 +850,11 @@ def inventory():
     # Determine the required total for each part based on production targets.
     parts_status = {}
     for part, usage in parts_usage_per_body.items():
-        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
+        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet"]:  # Added 7ft items
             required_total = target_7ft * usage
             completed_total = bodies_built_7ft * usage
 
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet"]:  # Added 6ft items
             required_total = target_6ft * usage
             completed_total = bodies_built_6ft * usage
 
@@ -933,6 +958,19 @@ def build_stock_snapshot():
         stock_items.append(item_data)
 
     def fetch_part_count(part_name):
+        if part_name == FELT_PART_NAME:
+            felt_entry = get_latest_part_entry(FELT_PART_NAME)
+            if felt_entry:
+                return felt_entry.count, True
+            legacy_total = 0
+            has_legacy = False
+            for legacy_name in LEGACY_FELT_PART_NAMES:
+                legacy_entry = get_latest_part_entry(legacy_name)
+                if legacy_entry:
+                    legacy_total += legacy_entry.count
+                    has_legacy = True
+            return legacy_total, has_legacy
+
         entry = (
             PrintedPartsCount.query
             .filter_by(part_name=part_name)
@@ -948,7 +986,7 @@ def build_stock_snapshot():
         "Spring Mount", "Spring Holder", "Small Ramp",
         "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
-        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"
+        "6ft Carpet", "7ft Carpet", FELT_PART_NAME
     ]
 
     table_parts = {
@@ -967,9 +1005,10 @@ def build_stock_snapshot():
 
     part_names = set()
     distinct_parts = db.session.query(PrintedPartsCount.part_name).distinct().all()
+    legacy_felt_parts = set(LEGACY_FELT_PART_NAMES)
     for part_tuple in distinct_parts:
         part_name = part_tuple[0]
-        if part_name:
+        if part_name and part_name not in legacy_felt_parts:
             part_names.add(part_name)
 
     part_names.update(core_parts)
@@ -1720,14 +1759,13 @@ def pods():
         is_6ft = size_selector == '6ft' or serial_is_6ft(serial_number)
         
         # Determine which felt and carpet to deduct
-        felt_part = "6ft Felt" if is_6ft else "7ft Felt"
+        felt_part = FELT_PART_NAME
         carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
         
         low_stock_messages = []
         # Check and deduct felt
-        felt_entry = PrintedPartsCount.query.filter_by(part_name=felt_part).order_by(
-            PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        if not felt_entry or felt_entry.count < 2:
+        felt_count = get_felt_count()
+        if felt_count < 2:
             flash(f"Not enough {felt_part} in stock!", "error")
             return redirect(url_for('pods'))
         
@@ -1781,7 +1819,7 @@ def pods():
                 )
 
             # Record deductions as new inventory entries so history and UI stay in sync
-            record_part_usage(felt_part, felt_entry.count, 2)
+            record_part_usage(felt_part, felt_count, 2)
             record_part_usage(carpet_part, carpet_entry.count, 1)
             record_part_usage("M10x13mm Tee Nut", tee_nuts_entry.count, 16)
             record_part_usage("Rows of Black Staples", black_staples_entry.count, 2)
@@ -3880,8 +3918,7 @@ def top_rails():
     )
 
 POD_PARTS_REQUIREMENTS = [
-    {"name": "7ft Felt", "per_pod": 2, "sizes": ["7ft"]},
-    {"name": "6ft Felt", "per_pod": 2, "sizes": ["6ft"]},
+    {"name": FELT_PART_NAME, "per_pod": 2, "sizes": ["7ft", "6ft"]},
     {"name": "7ft Carpet", "per_pod": 1, "sizes": ["7ft"]},
     {"name": "6ft Carpet", "per_pod": 1, "sizes": ["6ft"]},
     {"name": "M10x13mm Tee Nut", "per_pod": 16, "sizes": ["7ft", "6ft"]},
@@ -5027,11 +5064,13 @@ def counting_3d_printing_parts():
         "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
-        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"  # Added new parts
+        "6ft Carpet", "7ft Carpet", FELT_PART_NAME
     ]
 
     def latest_count(part_name):
         """Return the latest recorded inventory count for a part (not the sum of all historical rows)."""
+        if part_name == FELT_PART_NAME:
+            return get_felt_count()
         latest_entry = (PrintedPartsCount.query
                         .filter_by(part_name=part_name)
                         .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
@@ -5137,20 +5176,19 @@ def counting_3d_printing_parts():
         "6ft Cue Ball Separator": 1,
         "6ft Large Ramp": 1,
         "6ft Carpet": 1,
-        "6ft Felt": 2,
-        "7ft Carpet": 1,
-        "7ft Felt": 2
+        FELT_PART_NAME: 2,
+        "7ft Carpet": 1
     }
 
     # FIXED: Calculate parts status more accurately
     parts_status = {}
     for part, usage in parts_usage_per_body.items():
         # Determine required quantities based on table size
-        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet", "7ft Felt"]:  # Added 7ft items
+        if part in ["Large Ramp", "Cue Ball Separator", "7ft Carpet"]:  # Added 7ft items
             total_required = target_7ft * usage
             already_used = bodies_built_7ft * usage
             still_needed = (target_7ft - bodies_built_7ft) * usage
-        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet", "6ft Felt"]:  # Added 6ft items
+        elif part in ["6ft Large Ramp", "6ft Cue Ball Separator", "6ft Carpet"]:  # Added 6ft items
             total_required = target_6ft * usage
             already_used = bodies_built_6ft * usage
             still_needed = (target_6ft - bodies_built_6ft) * usage
@@ -5169,7 +5207,7 @@ def counting_3d_printing_parts():
         else:
             parts_status[part] = f"{surplus} extras"
 
-    carpet_felt_parts = ["6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt"]
+    carpet_felt_parts = ["6ft Carpet", "7ft Carpet", FELT_PART_NAME]
     laminate_parts = list(LAMINATE_PART_NAMES)
     printed_parts = [
         part for part in parts

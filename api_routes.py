@@ -18,6 +18,26 @@ API_TOKENS = ["bitcade_api_key_1", "mobile_app_token_2"] # Example tokens
 
 LAMINATE_COLOR_LABELS = ["Black", "Rustic Oak", "Grey Oak", "Stone", "Rustic Black"]
 LAMINATE_PART_NAMES = [f"Laminate - {label}" for label in LAMINATE_COLOR_LABELS]
+FELT_PART_NAME = "Felt"
+LEGACY_FELT_PART_NAMES = ("7ft Felt", "6ft Felt")
+
+def get_latest_part_entry(part_name):
+    return (PrintedPartsCount.query
+            .filter_by(part_name=part_name)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first())
+
+
+def get_felt_count():
+    entry = get_latest_part_entry(FELT_PART_NAME)
+    if entry:
+        return entry.count
+    total = 0
+    for legacy_name in LEGACY_FELT_PART_NAMES:
+        legacy_entry = get_latest_part_entry(legacy_name)
+        if legacy_entry:
+            total += legacy_entry.count
+    return total
 
 def require_api_token(view_function):
     @wraps(view_function)
@@ -442,10 +462,13 @@ def inventory_summary():
         "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
         "6ft Cue Ball Separator", "6ft Large Ramp",
-        "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt",  # Added new carpet and felt parts
+        "6ft Carpet", "7ft Carpet", FELT_PART_NAME,
     ]
     printed_parts_counts = {}
     for part_name_def in printed_parts_definitions:
+        if part_name_def == FELT_PART_NAME:
+            printed_parts_counts[part_name_def] = get_felt_count()
+            continue
         latest_entry = (
             db.session.query(PrintedPartsCount.count)
             .filter_by(part_name=part_name_def)
@@ -634,7 +657,7 @@ VALID_PARTS = [
     "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
     "Small Ramp", "Cue Ball Separator", "Bushing",
     "6ft Cue Ball Separator", "6ft Large Ramp", 
-    "6ft Carpet", "7ft Carpet", "6ft Felt", "7ft Felt",
+    "6ft Carpet", "7ft Carpet", FELT_PART_NAME,
     "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2",
     "Ball Gullies 3", "Ball Gullies 4", "Ball Gullies 5",
     "Feet", "Triangle trim", "White ball return trim",
