@@ -450,9 +450,9 @@ def admin():
                     felt_entry = PrintedPartsCount.query.filter_by(part_name=felt_part).order_by(
                         PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
                     if felt_entry:
-                        felt_entry.count += 1
+                        felt_entry.count += 2
                     else:
-                        new_felt = PrintedPartsCount(part_name=felt_part, count=1, 
+                        new_felt = PrintedPartsCount(part_name=felt_part, count=2, 
                                                    date=datetime.utcnow().date(), 
                                                    time=datetime.utcnow().time())
                         db.session.add(new_felt)
@@ -490,7 +490,7 @@ def admin():
                                                        time=datetime.utcnow().time())
                         db.session.add(new_staples)
                     
-                    flash(f"Stock restored: +1 {felt_part}, +1 {carpet_part}, +16 Tee Nuts, +2 Rows of Black Staples", "success")
+                    flash(f"Stock restored: +2 {felt_part}, +1 {carpet_part}, +16 Tee Nuts, +2 Rows of Black Staples", "success")
         elif table == 'top rails':
             model = TopRail
         elif table == 'bodies':
@@ -807,7 +807,7 @@ def inventory():
         "6ft Cue Ball Separator": 1,
         "6ft Large Ramp": 1,
         "6ft Carpet": 1,
-        "6ft Felt": 1,
+        "6ft Felt": 2,
         "7ft Carpet": 1,
         "7ft Felt": 2
     }
@@ -1727,7 +1727,7 @@ def pods():
         # Check and deduct felt
         felt_entry = PrintedPartsCount.query.filter_by(part_name=felt_part).order_by(
             PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        if not felt_entry or felt_entry.count < 1:
+        if not felt_entry or felt_entry.count < 2:
             flash(f"Not enough {felt_part} in stock!", "error")
             return redirect(url_for('pods'))
         
@@ -1781,7 +1781,7 @@ def pods():
                 )
 
             # Record deductions as new inventory entries so history and UI stay in sync
-            record_part_usage(felt_part, felt_entry.count, 1)
+            record_part_usage(felt_part, felt_entry.count, 2)
             record_part_usage(carpet_part, carpet_entry.count, 1)
             record_part_usage("M10x13mm Tee Nut", tee_nuts_entry.count, 16)
             record_part_usage("Rows of Black Staples", black_staples_entry.count, 2)
@@ -1789,7 +1789,7 @@ def pods():
             db.session.add(new_pod)
             db.session.commit()
             flash(
-                f"Pod entry added successfully! Deducted 1 {felt_part}, 1 {carpet_part}, 16 M10x13mm Tee Nuts, and 2 Rows of Black Staples",
+                f"Pod entry added successfully! Deducted 2 {felt_part}, 1 {carpet_part}, 16 M10x13mm Tee Nuts, and 2 Rows of Black Staples",
                 "success"
             )
 
@@ -3880,8 +3880,8 @@ def top_rails():
     )
 
 POD_PARTS_REQUIREMENTS = [
-    {"name": "7ft Felt", "per_pod": 1, "sizes": ["7ft"]},
-    {"name": "6ft Felt", "per_pod": 1, "sizes": ["6ft"]},
+    {"name": "7ft Felt", "per_pod": 2, "sizes": ["7ft"]},
+    {"name": "6ft Felt", "per_pod": 2, "sizes": ["6ft"]},
     {"name": "7ft Carpet", "per_pod": 1, "sizes": ["7ft"]},
     {"name": "6ft Carpet", "per_pod": 1, "sizes": ["6ft"]},
     {"name": "M10x13mm Tee Nut", "per_pod": 16, "sizes": ["7ft", "6ft"]},
@@ -5137,7 +5137,7 @@ def counting_3d_printing_parts():
         "6ft Cue Ball Separator": 1,
         "6ft Large Ramp": 1,
         "6ft Carpet": 1,
-        "6ft Felt": 1,
+        "6ft Felt": 2,
         "7ft Carpet": 1,
         "7ft Felt": 2
     }
