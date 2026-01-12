@@ -51,6 +51,13 @@ def slugify_key(value):
     slug = re.sub(r'[^a-z0-9]+', '_', value.lower()).strip('_')
     return slug or "item"
 
+# Shared serial parsing helper (works with formats like "1059 - 6 - RB").
+def serial_is_6ft(serial):
+    if not serial:
+        return False
+    normalized = serial.replace(" ", "").upper()
+    return normalized.endswith("-6") or "-6-" in normalized
+
 # Expose slugify_key to Jinja templates for form field names
 app.jinja_env.filters['slugify_key'] = slugify_key
 
@@ -433,7 +440,7 @@ def admin():
                 pod = CompletedPods.query.get(entry_id)
                 if pod:
                     # Determine if it's a 6ft pod
-                    is_6ft = ' - 6' in pod.serial_number or '-6' in pod.serial_number
+                    is_6ft = serial_is_6ft(pod.serial_number)
                     
                     # Determine which felt and carpet to restore
                     felt_part = "6ft Felt" if is_6ft else "7ft Felt"
@@ -784,8 +791,8 @@ def inventory():
     ).all()
 
     # Separate completed tables by size based on serial number.
-    bodies_built_7ft = sum(1 for table in completed_tables if " - 6" not in table.serial_number)
-    bodies_built_6ft = sum(1 for table in completed_tables if " - 6" in table.serial_number)
+    bodies_built_7ft = sum(1 for table in completed_tables if not serial_is_6ft(table.serial_number))
+    bodies_built_6ft = sum(1 for table in completed_tables if serial_is_6ft(table.serial_number))
 
     # Define usage per table for each part.
     parts_usage_per_body = {
@@ -1696,7 +1703,7 @@ def pods():
         size_selector = request.form.get('size_selector', '7ft')  # Get the size from dropdown
         
         # Ensure serial number has proper format
-        if size_selector == '6ft' and ' - 6' not in serial_number and '-6' not in serial_number:
+        if size_selector == '6ft' and not serial_is_6ft(serial_number):
             # Add the 6ft suffix if not already present
             serial_number = serial_number + ' - 6'
         
@@ -1710,7 +1717,7 @@ def pods():
             finish_time = datetime.strptime(request.form['finish_time'], "%H:%M:%S").time()
         
         # Determine if it's a 6ft pod based on serial number or size selector
-        is_6ft = size_selector == '6ft' or ' - 6' in serial_number or '-6' in serial_number
+        is_6ft = size_selector == '6ft' or serial_is_6ft(serial_number)
         
         # Determine which felt and carpet to deduct
         felt_part = "6ft Felt" if is_6ft else "7ft Felt"
@@ -1849,7 +1856,7 @@ def pods():
     
     # Helper function: classify a pod as 6ft if its serial number (with spaces removed) ends with "-6"
     def is_6ft(serial):
-        return serial.replace(" ", "").endswith("-6")
+        return serial_is_6ft(serial)
     
     current_production_pods_6ft = sum(1 for pod in all_pods_this_month if is_6ft(pod.serial_number))
     current_production_pods_7ft = pods_this_month - current_production_pods_6ft
@@ -2038,7 +2045,7 @@ def manage_raw_data():
                         "Sticker Set": 1
                     }
                     # If the table was a 6ft table, adjust the parts used.
-                    if " - 6" in entry.serial_number:
+                    if serial_is_6ft(entry.serial_number):
                         parts_used.pop("Large Ramp", None)
                         parts_used.pop("Cue Ball Separator", None)
                         parts_used["6ft Large Ramp"] = 1
@@ -2093,7 +2100,7 @@ def manage_raw_data():
                 # If deleting a body, also update the table stock
                 if table == 'bodies':
                     def body_is_6ft(serial):
-                        return serial.replace(" ", "").endswith("-6")
+                        return serial_is_6ft(serial)
 
                     size = "6ft" if body_is_6ft(entry.serial_number) else "7ft"
                     color_key = body_color_key(entry.serial_number)
@@ -2106,7 +2113,7 @@ def manage_raw_data():
                 # If deleting a top rail, also update the table stock
                 elif table == 'top_rails':
                     def rail_is_6ft(serial):
-                        return serial.replace(" ", "").endswith("-6")
+                        return serial_is_6ft(serial)
 
                     def rail_color_key(serial):
                         norm = serial.replace(" ", "").upper()
@@ -2925,7 +2932,7 @@ def bodies():
 
         # Helper function to determine if it's a 6ft table
         def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6")
+            return serial_is_6ft(serial)
 
         worker = session['worker']
         start_time = request.form['start_time']
@@ -3246,7 +3253,7 @@ def bodies():
 
     # Helper: determine table size based on serial number
     def is_6ft(serial):
-        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+        return serial_is_6ft(serial)
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
@@ -3450,7 +3457,7 @@ def top_rails():
         clean_serial = serial_number
         
         # Check if size suffix is already in the serial number
-        has_size_suffix = ' - 6' in clean_serial or '-6' in clean_serial
+        has_size_suffix = serial_is_6ft(clean_serial)
         if not has_size_suffix and size_selector == '6ft':
             # Add size suffix if not present
             clean_serial = f"{clean_serial} - 6"
@@ -3638,7 +3645,7 @@ def top_rails():
             # --- Update Table Stock for Top Rails ---
             # Determine size and color from serial number
             def is_6ft(serial):
-                return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+                return serial_is_6ft(serial)
             
             def get_color(serial):
                 norm_serial = serial.replace(" ", "").upper()
@@ -3720,7 +3727,7 @@ def top_rails():
     if last_entry:
         # Helper function to determine size and color from serial
         def is_6ft(serial):
-            return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+            return serial_is_6ft(serial)
             
         def get_color(serial):
             norm_serial = serial.replace(" ", "").upper()
@@ -3841,7 +3848,7 @@ def top_rails():
 
     # Helper function for classification:
     def is_6ft(serial):
-        return serial.replace(" ", "").endswith("-6") or "-6-" in serial.replace(" ", "") or " - 6 - " in serial
+        return serial_is_6ft(serial)
     
     current_top_rails_6ft = sum(1 for rail in all_top_rails_this_month if is_6ft(rail.serial_number))
     current_top_rails_7ft = sum(1 for rail in all_top_rails_this_month if not is_6ft(rail.serial_number))
@@ -4021,13 +4028,13 @@ def _table_stock_count(stock_key):
 def _is_6ft_table(serial):
     if not serial:
         return False
-    return serial.replace(" ", "").endswith("-6")
+    return serial_is_6ft(serial)
 
 
 def _is_6ft_pod(serial):
     if not serial:
         return False
-    return serial.replace(" ", "").endswith("-6")
+    return serial_is_6ft(serial)
 
 
 def _next_pod_serial_and_size():
@@ -5112,7 +5119,7 @@ def counting_3d_printing_parts():
 
     # Clearly identify built tables
     def is_6ft(serial):
-        return serial.replace(" ", "").endswith("-6")
+        return serial_is_6ft(serial)
 
     bodies_built_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
     bodies_built_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
