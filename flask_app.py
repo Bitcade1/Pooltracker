@@ -311,6 +311,8 @@ def admin():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    BodyPieceCount.__table__.create(db.engine, checkfirst=True)
+
     threshold_section_open = False
 
     # Add new worker
@@ -947,6 +949,8 @@ def inventory():
 def build_stock_snapshot():
     stock_items = []
 
+    BodyPieceCount.__table__.create(db.engine, checkfirst=True)
+
     def add_item(category, identifier, label, count, key_category=None, **extra_fields):
         key_source = identifier or label
         storage_category = key_category or category
@@ -1166,6 +1170,30 @@ def build_stock_snapshot():
                     **laminate_meta_base
                 )
 
+    body_piece_counts = {part.part_key: part.count for part in BodyPieceCount.query.all()}
+    body_piece_colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+    body_piece_sizes = ['6', '7']
+    body_piece_types = [
+        ('window_side', 'Window Side'),
+        ('blank_side', 'Blank Side'),
+        ('triangle_end', 'Triangle End'),
+        ('color_ball_end', 'White Ball End'),
+    ]
+    for color in body_piece_colors:
+        pretty_color = color.replace('_', ' ').title()
+        for size in body_piece_sizes:
+            for piece_key, piece_label in body_piece_types:
+                part_key = f"{color}_{size}_{piece_key}"
+                label = f"{pretty_color} {size}ft {piece_label}"
+                count = body_piece_counts.get(part_key, 0)
+                add_item(
+                    "Body Pieces",
+                    part_key,
+                    label,
+                    count,
+                    key_category="Parts Inventory"
+                )
+
     return stock_items
 
 
@@ -1339,6 +1367,7 @@ def stock_costs():
         "Hardware Parts",
         "3D Printed Parts",
         "Cut Laminate",
+        "Body Pieces",
         "Wood Shop",
         "MDF Boards",
         "Packaging",
