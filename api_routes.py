@@ -20,6 +20,14 @@ LAMINATE_COLOR_LABELS = ["Black", "Rustic Oak", "Grey Oak", "Stone", "Rustic Bla
 LAMINATE_PART_NAMES = [f"Laminate - {label}" for label in LAMINATE_COLOR_LABELS]
 FELT_PART_NAME = "Felt"
 LEGACY_FELT_PART_NAMES = ("7ft Felt", "6ft Felt")
+PACKAGING_PART_NAMES = [
+    "Straps",
+    "Metal Poles",
+    "Body Pallets",
+    "Top Rail Pallets 7ft",
+    "Top Rail Pallets 6ft",
+    "Blue Pallets",
+]
 
 def get_latest_part_entry(part_name):
     return (PrintedPartsCount.query
@@ -669,7 +677,8 @@ VALID_PARTS = [
     "M5 x 18 x 1.25 Penny Mudguard Washer",  # Added new hardware
     "M5 x 20 Socket Cap Screw",              # Added new hardware
     "Catch Plate",                           # Added new hardware
-    "4.8x32mm Self Tapping Screw"            # Added new hardware
+    "4.8x32mm Self Tapping Screw",           # Added new hardware
+    *PACKAGING_PART_NAMES
 ]
 
 

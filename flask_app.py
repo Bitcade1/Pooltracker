@@ -72,6 +72,14 @@ LAMINATE_COLOR_KEY_TO_LABEL = {
 }
 FELT_PART_NAME = "Felt"
 LEGACY_FELT_PART_NAMES = ("7ft Felt", "6ft Felt")
+PACKAGING_PART_NAMES = [
+    "Straps",
+    "Metal Poles",
+    "Body Pallets",
+    "Top Rail Pallets 7ft",
+    "Top Rail Pallets 6ft",
+    "Blue Pallets",
+]
 
 # Models
 class CompletedTable(db.Model):
@@ -445,6 +453,7 @@ def admin():
     all_part_names.update(LAMINATE_PART_NAMES)
     all_part_names.difference_update(LEGACY_FELT_PART_NAMES)
     all_part_names.add(FELT_PART_NAME)
+    all_part_names.update(PACKAGING_PART_NAMES)
     all_part_names = sorted(all_part_names, key=lambda n: n.lower())
 
     # Get all current thresholds
@@ -1000,6 +1009,8 @@ def build_stock_snapshot():
         "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
     }
 
+    packaging_parts = list(PACKAGING_PART_NAMES)
+
     hardware_parts = HardwarePart.query.all()
     hardware_defaults = {hp.name: hp.initial_count for hp in hardware_parts}
 
@@ -1013,6 +1024,7 @@ def build_stock_snapshot():
 
     part_names.update(core_parts)
     part_names.update(table_parts.keys())
+    part_names.update(packaging_parts)
     part_names.update(hardware_defaults.keys())
 
     for part_name in sorted(part_names, key=lambda x: x.lower()):
@@ -1020,7 +1032,9 @@ def build_stock_snapshot():
         if not has_record and part_name in hardware_defaults:
             count = hardware_defaults[part_name]
 
-        if part_name in hardware_defaults:
+        if part_name in packaging_parts:
+            display_category = "Packaging"
+        elif part_name in hardware_defaults:
             display_category = "Hardware Parts"
         elif part_name in table_parts:
             display_category = "Chinese Parts"
@@ -1271,6 +1285,7 @@ def stock_costs():
         "Cut Laminate",
         "Wood Shop",
         "MDF Boards",
+        "Packaging",
     }
     finished_categories = {
         "Finished Tables",
