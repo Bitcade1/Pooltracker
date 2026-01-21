@@ -1176,7 +1176,7 @@ def build_stock_snapshot():
     body_piece_types = [
         ('window_side', 'Window Side'),
         ('blank_side', 'Blank Side'),
-        ('triangle_end', 'Triangle End'),
+        ('triangle_end', 'Colour End'),
         ('color_ball_end', 'White Ball End'),
     ]
     for color_index, color in enumerate(body_piece_colors):
