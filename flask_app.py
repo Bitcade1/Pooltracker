@@ -6901,7 +6901,7 @@ def body_pieces():
         ("window_side", "Window Side"),
         ("blank_side", "Blank Side"),
         ("triangle_end", "Triangle End"),
-        ("color_ball_end", "Colour Ball End"),
+        ("color_ball_end", "White Ball End"),
     ]
     key_codes = [
         "KeyA", "KeyB", "KeyC", "KeyD", "KeyE",
@@ -6998,18 +6998,27 @@ def body_pieces():
         counts[f"piece_{part.part_key}"] = part.count
 
     max_bodies = 0
+    max_6ft = 0
+    max_7ft = 0
     for color_key, _ in color_defs:
         for size_key, _ in size_defs:
             window = counts.get(f"piece_{color_key}_{size_key}_window_side", 0)
             blank = counts.get(f"piece_{color_key}_{size_key}_blank_side", 0)
             triangle = counts.get(f"piece_{color_key}_{size_key}_triangle_end", 0)
             color_ball = counts.get(f"piece_{color_key}_{size_key}_color_ball_end", 0)
-            max_bodies += min(window, blank, triangle, color_ball)
+            size_total = min(window, blank, triangle, color_ball)
+            max_bodies += size_total
+            if size_key == "6":
+                max_6ft += size_total
+            else:
+                max_7ft += size_total
 
     return render_template(
         'body_pieces.html',
         counts=counts,
         max_bodies=max_bodies,
+        max_6ft=max_6ft,
+        max_7ft=max_7ft,
         shortcut_groups=shortcut_groups,
         key_map=key_map
     )

@@ -133,7 +133,12 @@
 </head>
 <body>
     <div class="container">
-        <h1 style="font-size: 3em;">Count Body Pieces - Max: <strong style="color: red;">{{ max_bodies }}</strong></h1>
+        <h1 style="font-size: 3em;">Count Body Pieces</h1>
+        <p style="font-size: 1.6em;">
+            Max 6ft: <strong style="color: red;">{{ max_6ft }}</strong>
+            | Max 7ft: <strong style="color: red;">{{ max_7ft }}</strong>
+            | Max Total: <strong style="color: red;">{{ max_bodies }}</strong>
+        </p>
         <p style="font-size: 1.5em;">Enter the current stock for each body piece. The values represent individual pieces.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -152,7 +157,7 @@
                     {'key': 'window_side', 'label': 'Window Side'},
                     {'key': 'blank_side', 'label': 'Blank Side'},
                     {'key': 'triangle_end', 'label': 'Triangle End'},
-                    {'key': 'color_ball_end', 'label': 'Colour Ball End'}
+                    {'key': 'color_ball_end', 'label': 'White Ball End'}
                 ] %}
 
                 {% for color in colors %}
