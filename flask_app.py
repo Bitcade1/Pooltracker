@@ -1041,7 +1041,15 @@ def build_stock_snapshot():
         else:
             display_category = "3D Printed Parts"
 
-        add_item(display_category, part_name, part_name, count, key_category="Parts Inventory")
+        count_editable = part_name in packaging_parts
+        add_item(
+            display_category,
+            part_name,
+            part_name,
+            count,
+            key_category="Parts Inventory",
+            count_editable=count_editable
+        )
 
     parts_on_water_total = 0.0
     on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
@@ -1178,7 +1186,54 @@ def stock_costs():
         except (TypeError, ValueError):
             return 0.0
 
+    def parse_count(value):
+        if value is None or value == '':
+            return None, None
+        try:
+            count_value = float(value)
+        except (TypeError, ValueError):
+            return None, "Count must be a whole number."
+        if count_value < 0:
+            return None, "Count cannot be negative."
+        if not count_value.is_integer():
+            return None, "Count must be a whole number."
+        return int(count_value), None
+
     if request.method == 'POST':
+        count_updates = {}
+        for item in stock_items:
+            if not item.get('count_editable'):
+                continue
+            raw_value = request.form.get(f"count_{item['key']}")
+            if raw_value is None:
+                continue
+            new_count, error = parse_count(raw_value)
+            if error:
+                flash(f"Invalid stock count for {item.get('label', 'item')}: {error}", "error")
+                return redirect(url_for('stock_costs'))
+            if new_count is not None:
+                count_updates[item['key']] = new_count
+
+        for item in stock_items:
+            if not item.get('count_editable'):
+                continue
+            if item['key'] not in count_updates:
+                continue
+            new_count = count_updates[item['key']]
+            old_count = int(item.get('count') or 0)
+            if new_count == old_count:
+                continue
+            part_name = item.get('identifier') or item.get('label')
+            if new_count < old_count:
+                check_and_notify_low_stock(part_name, old_count, new_count)
+            new_entry = PrintedPartsCount(
+                part_name=part_name,
+                count=new_count,
+                date=datetime.utcnow().date(),
+                time=datetime.utcnow().time()
+            )
+            db.session.add(new_entry)
+
         for item in stock_items:
             if item.get('cost_locked'):
                 continue
