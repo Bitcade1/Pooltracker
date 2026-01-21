@@ -149,6 +149,15 @@
             text-align: left;
             font-size: 1.05rem;
         }
+        .body-piece-zone-header {
+            background: #e8f2ff;
+            font-weight: 700;
+            color: #0d47a1;
+        }
+        .body-piece-zone-header td {
+            text-align: left;
+            font-size: 1.05rem;
+        }
         .actions {
             display: flex;
             gap: 12px;
@@ -320,6 +329,10 @@
                             {% if item.is_laminate_header %}
                             <tr class="laminate-zone-header">
                                 <td colspan="9">{{ item.laminate_color_label }}</td>
+                            </tr>
+                            {% elif item.is_body_piece_header %}
+                            <tr class="body-piece-zone-header">
+                                <td colspan="9">{{ item.body_piece_color_label }}</td>
                             </tr>
                             {% else %}
                             <tr class="{{ 'cost-entered' if item.has_cost else '' }}">

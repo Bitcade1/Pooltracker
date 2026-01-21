@@ -1179,8 +1179,14 @@ def build_stock_snapshot():
         ('triangle_end', 'Triangle End'),
         ('color_ball_end', 'White Ball End'),
     ]
-    for color in body_piece_colors:
+    for color_index, color in enumerate(body_piece_colors):
         pretty_color = color.replace('_', ' ').title()
+        body_piece_meta_base = {
+            'body_piece_color': color,
+            'body_piece_color_label': pretty_color,
+            'body_piece_color_index': color_index,
+            'body_piece_zone': True
+        }
         for size in body_piece_sizes:
             for piece_key, piece_label in body_piece_types:
                 part_key = f"{color}_{size}_{piece_key}"
@@ -1191,7 +1197,10 @@ def build_stock_snapshot():
                     part_key,
                     label,
                     count,
-                    key_category="Parts Inventory"
+                    key_category="Parts Inventory",
+                    body_piece_size=size,
+                    body_piece_type=piece_key,
+                    **body_piece_meta_base
                 )
 
     return stock_items
@@ -1355,6 +1364,39 @@ def stock_costs():
                 zoned_entries.append({
                     'is_laminate_header': True,
                     'laminate_color_label': entry.get('laminate_color_label', '').title()
+                })
+                current_color = color_key
+            zoned_entries.append(entry)
+        category['entries'] = zoned_entries
+
+    for category in category_blocks:
+        entries = category['entries']
+        if not entries:
+            continue
+        if not any(entry.get('body_piece_zone') for entry in entries):
+            continue
+        piece_order = {
+            'window_side': 0,
+            'blank_side': 1,
+            'triangle_end': 2,
+            'color_ball_end': 3
+        }
+        sorted_entries = sorted(
+            [entry for entry in entries if not entry.get('is_body_piece_header')],
+            key=lambda e: (
+                e.get('body_piece_color_index', 0),
+                e.get('body_piece_size') or '',
+                piece_order.get(e.get('body_piece_type', ''), 99)
+            )
+        )
+        zoned_entries = []
+        current_color = None
+        for entry in sorted_entries:
+            color_key = entry.get('body_piece_color')
+            if color_key != current_color:
+                zoned_entries.append({
+                    'is_body_piece_header': True,
+                    'body_piece_color_label': entry.get('body_piece_color_label', '').title()
                 })
                 current_color = color_key
             zoned_entries.append(entry)
