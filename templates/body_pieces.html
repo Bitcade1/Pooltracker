@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Count Body Pieces</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-size: 1.8em;
+        }
+        .container {
+            width: 100%;
+            padding: 20px 20px;
+            margin: 0 auto;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        fieldset {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        legend {
+            font-weight: bold;
+            font-size: 2em;
+            padding: 0 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        label {
+            font-weight: 600;
+        }
+        input[type="number"] {
+            width: 100px;
+            padding: 10px;
+            font-size: 1.5em;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+        .button-container {
+            text-align: center;
+            margin-top: 30px;
+        }
+        button, .btn {
+            font-size: 1.5em;
+            padding: 10px 25px;
+            border-radius: 8px;
+        }
+        .key-helper {
+            margin-top: 50px;
+            font-size: 1em;
+            color: #222;
+            display: none;
+        }
+        .key-helper.show {
+            display: block;
+        }
+        .key-helper code {
+            background: #eee;
+            padding: 5px 10px;
+            margin: 5px;
+            display: inline-block;
+            font-size: 1.2em;
+        }
+        .shortcut-row {
+            margin: 8px 0;
+        }
+        .shortcut-label {
+            font-weight: 700;
+            margin-right: 10px;
+        }
+
+        input.highlight-add {
+            animation: highlightAdd 3s ease;
+            border: 3px solid limegreen;
+            background-color: #c6f7c6;
+        }
+
+        input.highlight-remove {
+            animation: highlightRemove 3s ease;
+            border: 3px solid #d9534f;
+            background-color: #f8d7da;
+        }
+
+        @keyframes highlightAdd {
+            0%   { background-color: #c6f7c6; }
+            100% { background-color: white; }
+        }
+
+        @keyframes highlightRemove {
+            0%   { background-color: #f8d7da; }
+            100% { background-color: white; }
+        }
+    </style>
+</head>
+<meta http-equiv="refresh" content="10">
+<body>
+    <div class="container">
+        <h1 style="font-size: 3em;">Count Body Pieces - Max: <strong style="color: red;">{{ max_bodies }}</strong></h1>
+        <p style="font-size: 1.5em;">Enter the current stock for each body piece. The values represent individual pieces.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('body_pieces') }}" method="post">
+            <div class="grid-container">
+                {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
+                {% set sizes = ['6ft', '7ft'] %}
+                {% set piece_types = [
+                    {'key': 'window_side', 'label': 'Window Side'},
+                    {'key': 'blank_side', 'label': 'Blank Side'},
+                    {'key': 'triangle_end', 'label': 'Triangle End'},
+                    {'key': 'color_ball_end', 'label': 'Colour Ball End'}
+                ] %}
+
+                {% for color in colors %}
+                <fieldset>
+                    <legend>{{ color }}</legend>
+                    {% for size in sizes %}
+                        {% for piece in piece_types %}
+                            {% set part_name = size ~ ' ' ~ piece.label %}
+                            {% set input_name = 'piece_' ~ color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ piece.key %}
+                            <div class="form-group">
+                                <label for="{{ input_name }}">{{ part_name }}</label>
+                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
+                            </div>
+                        {% endfor %}
+                    {% endfor %}
+                </fieldset>
+                {% endfor %}
+            </div>
+            <div class="button-container">
+                <button type="submit" class="btn btn-primary">Update Counts</button>
+            </div>
+        </form>
+        <div class="button-container">
+            <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
+        </div>
+        <div class="button-container">
+            <button type="button" class="btn" id="toggleShortcuts">Show Quick Add Shortcuts</button>
+        </div>
+
+        <div class="key-helper" id="keyHelper">
+            <h3 style="font-size: 2em;">Quick Add (Keyboard Shortcuts)</h3>
+            <p>Press a key to add 1. Hold <strong>Shift</strong> and press a key to remove 1.</p>
+            {% for size_group in shortcut_groups %}
+                <strong>{{ size_group.size }}:</strong><br>
+                {% for piece_group in size_group.pieces %}
+                    <div class="shortcut-row">
+                        <span class="shortcut-label">{{ piece_group.label }}:</span>
+                        {% for item in piece_group.items %}
+                            <code>{{ item.key }}</code> {{ item.color }}
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+                <br>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+    const keyMap = {{ key_map|tojson }};
+    const keyHelper = document.getElementById('keyHelper');
+    const toggleButton = document.getElementById('toggleShortcuts');
+
+    toggleButton.addEventListener('click', function() {
+        const isVisible = keyHelper.classList.toggle('show');
+        toggleButton.textContent = isVisible ? 'Hide Quick Add Shortcuts' : 'Show Quick Add Shortcuts';
+    });
+
+    document.addEventListener('keydown', function(event) {
+        const activeTag = document.activeElement.tagName;
+        if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
+            return;
+        }
+        const code = event.code;
+        if (!keyMap[code]) {
+            return;
+        }
+        event.preventDefault();
+        const action = event.shiftKey ? 'remove' : 'add';
+        fetch("/body_pieces", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ key_code: code, action: action })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success && data.part_key) {
+                const inputId = 'piece_' + data.part_key;
+                const inputField = document.getElementById(inputId);
+                if (inputField) {
+                    inputField.value = data.new_count;
+                    const highlightClass = action === 'remove' ? 'highlight-remove' : 'highlight-add';
+                    inputField.classList.add(highlightClass);
+                    inputField.addEventListener('animationend', function() {
+                        inputField.classList.remove(highlightClass);
+                    }, { once: true });
+                }
+            }
+        }).catch(error => {
+            console.error("Error updating count:", error);
+        });
+    });
+    </script>
+</body>
+</html>

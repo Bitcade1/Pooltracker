@@ -448,7 +448,8 @@ def admin():
     all_parts_query1 = db.session.query(HardwarePart.name.label("part_name")).distinct()
     all_parts_query2 = db.session.query(PrintedPartsCount.part_name.label("part_name")).distinct()
     all_parts_query3 = db.session.query(TopRailPieceCount.part_key.label("part_name")).distinct()
-    all_parts_union = all_parts_query1.union(all_parts_query2, all_parts_query3).all()
+    all_parts_query4 = db.session.query(BodyPieceCount.part_key.label("part_name")).distinct()
+    all_parts_union = all_parts_query1.union(all_parts_query2, all_parts_query3, all_parts_query4).all()
     all_part_names = {name for (name,) in all_parts_union if name}
     all_part_names.update(LAMINATE_PART_NAMES)
     all_part_names.difference_update(LEGACY_FELT_PART_NAMES)
@@ -3145,6 +3146,39 @@ def bodies():
             parts_to_deduct.pop("7ft Bag of Bolts", None)
             parts_to_deduct.pop("7ft Ply Supports", None)
             parts_to_deduct["6ft Bag of Bolts"] = 1
+        # Deduct body pieces based on size and color
+        size_key = "6" if is_6ft(serial_number) else "7"
+        color_key = get_color(serial_number)
+        body_piece_keys = [
+            f"{color_key}_{size_key}_window_side",
+            f"{color_key}_{size_key}_blank_side",
+            f"{color_key}_{size_key}_triangle_end",
+            f"{color_key}_{size_key}_color_ball_end",
+        ]
+        body_piece_entries = []
+        for part_key in body_piece_keys:
+            part_entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
+            if not part_entry:
+                flash(f"No inventory set up for body piece {part_key}!", "error")
+                db.session.rollback()
+                return redirect(url_for('bodies'))
+            if part_entry.count < 1:
+                flash(
+                    f"Not enough inventory for body piece {part_key}! Need 1, have {part_entry.count}",
+                    "error"
+                )
+                db.session.rollback()
+                return redirect(url_for('bodies'))
+            body_piece_entries.append(part_entry)
+        for part_entry in body_piece_entries:
+            old_count = part_entry.count
+            part_entry.count -= 1
+            check_and_notify_low_stock(
+                part_entry.part_key,
+                old_count,
+                part_entry.count,
+                collected_warnings=low_stock_messages
+            )
         print(parts_to_deduct)
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
@@ -6171,6 +6205,12 @@ class TopRailPieceCount(db.Model):
     count = db.Column(db.Integer, default=0, nullable=False)
 
 
+class BodyPieceCount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    part_key = db.Column(db.String(60), unique=True, nullable=False)  # e.g., 'black_6_window_side'
+    count = db.Column(db.Integer, default=0, nullable=False)
+
+
 @app.route('/fastest_leaderboard')
 def fastest_leaderboard():
     if 'worker' not in session:
@@ -6844,6 +6884,129 @@ def top_rail_pieces():
         max_top_rails += max_6ft + max_7ft
     
     return render_template('top_rail_pieces.html', counts=counts, max_top_rails=max_top_rails)
+
+
+@app.route('/body_pieces', methods=['GET', 'POST'])
+def body_pieces():
+    BodyPieceCount.__table__.create(db.engine, checkfirst=True)
+    color_defs = [
+        ("black", "Black"),
+        ("rustic_oak", "Rustic Oak"),
+        ("grey_oak", "Grey Oak"),
+        ("stone", "Stone"),
+        ("rustic_black", "Rustic Black"),
+    ]
+    size_defs = [("6", "6ft"), ("7", "7ft")]
+    piece_defs = [
+        ("window_side", "Window Side"),
+        ("blank_side", "Blank Side"),
+        ("triangle_end", "Triangle End"),
+        ("color_ball_end", "Colour Ball End"),
+    ]
+    key_codes = [
+        "KeyA", "KeyB", "KeyC", "KeyD", "KeyE",
+        "KeyF", "KeyG", "KeyH", "KeyI", "KeyJ",
+        "KeyK", "KeyL", "KeyM", "KeyN", "KeyO",
+        "KeyP", "KeyQ", "KeyR", "KeyS", "KeyT",
+        "KeyU", "KeyV", "KeyW", "KeyX", "KeyY",
+        "KeyZ", "Digit1", "Digit2", "Digit3", "Digit4",
+        "Digit5", "Digit6", "Digit7", "Digit8", "Digit9",
+        "Digit0", "BracketLeft", "BracketRight", "Semicolon", "Quote",
+    ]
+    key_display_map = {
+        "BracketLeft": "[",
+        "BracketRight": "]",
+        "Semicolon": ";",
+        "Quote": "'",
+    }
+    key_map = {}
+    shortcut_groups = []
+    part_keys = []
+    key_index = 0
+
+    def display_key(code):
+        if code.startswith("Key"):
+            return code[3:]
+        if code.startswith("Digit"):
+            return code[5:]
+        return key_display_map.get(code, code)
+
+    for size_key, size_label in size_defs:
+        size_group = {"size": size_label, "pieces": []}
+        for piece_key, piece_label in piece_defs:
+            items = []
+            for color_key, color_label in color_defs:
+                part_key = f"{color_key}_{size_key}_{piece_key}"
+                code = key_codes[key_index]
+                key_index += 1
+                key_map[code] = part_key
+                part_keys.append(part_key)
+                items.append({
+                    "key": display_key(code),
+                    "color": color_label,
+                    "part_key": part_key
+                })
+            size_group["pieces"].append({"label": piece_label, "items": items})
+        shortcut_groups.append(size_group)
+
+    if request.method == 'POST':
+        key_code = request.form.get('key_code')
+        action = request.form.get('action', 'add')
+        if key_code and key_code in key_map:
+            part_key = key_map[key_code]
+            delta = -1 if action == 'remove' else 1
+            part = BodyPieceCount.query.filter_by(part_key=part_key).first()
+            if not part:
+                part = BodyPieceCount(part_key=part_key, count=0)
+                db.session.add(part)
+            part.count = max(part.count + delta, 0)
+            db.session.commit()
+            return jsonify({
+                "success": True,
+                "part_key": part_key,
+                "new_count": part.count,
+                "action": action
+            }), 200
+
+        for part_key in part_keys:
+            input_value = request.form.get(f"piece_{part_key}")
+            if input_value is not None:
+                try:
+                    count = int(input_value)
+                    part = BodyPieceCount.query.filter_by(part_key=part_key).first()
+                    if not part:
+                        part = BodyPieceCount(part_key=part_key, count=count)
+                        db.session.add(part)
+                    else:
+                        part.count = count
+                except ValueError:
+                    flash(f"Invalid number for {part_key}", "error")
+
+        db.session.commit()
+        flash("Body piece counts updated successfully.", "success")
+        return redirect(url_for('body_pieces'))
+
+    counts = {}
+    all_parts = BodyPieceCount.query.all()
+    for part in all_parts:
+        counts[f"piece_{part.part_key}"] = part.count
+
+    max_bodies = 0
+    for color_key, _ in color_defs:
+        for size_key, _ in size_defs:
+            window = counts.get(f"piece_{color_key}_{size_key}_window_side", 0)
+            blank = counts.get(f"piece_{color_key}_{size_key}_blank_side", 0)
+            triangle = counts.get(f"piece_{color_key}_{size_key}_triangle_end", 0)
+            color_ball = counts.get(f"piece_{color_key}_{size_key}_color_ball_end", 0)
+            max_bodies += min(window, blank, triangle, color_ball)
+
+    return render_template(
+        'body_pieces.html',
+        counts=counts,
+        max_bodies=max_bodies,
+        shortcut_groups=shortcut_groups,
+        key_map=key_map
+    )
 
 
 @app.route('/counting_laminate', methods=['GET', 'POST'])
