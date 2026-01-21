@@ -6971,7 +6971,7 @@ def body_pieces():
     piece_defs = [
         ("window_side", "Window Side"),
         ("blank_side", "Blank Side"),
-        ("triangle_end", "Triangle End"),
+        ("triangle_end", "Colour End"),
         ("color_ball_end", "White Ball End"),
     ]
     key_codes = [
@@ -6982,12 +6982,12 @@ def body_pieces():
         "KeyU", "KeyV", "KeyW", "KeyX", "KeyY",
         "KeyZ", "Digit1", "Digit2", "Digit3", "Digit4",
         "Digit5", "Digit6", "Digit7", "Digit8", "Digit9",
-        "Digit0", "BracketLeft", "BracketRight", "Semicolon", "Quote",
+        "Digit0", "BracketLeft", "BracketRight", "Comma", "Quote",
     ]
     key_display_map = {
         "BracketLeft": "[",
         "BracketRight": "]",
-        "Semicolon": ";",
+        "Comma": ",",
         "Quote": "'",
     }
     key_map = {}
@@ -7002,18 +7002,26 @@ def body_pieces():
             return code[5:]
         return key_display_map.get(code, code)
 
+    for size_key, size_label in size_defs:
+        for piece_key, piece_label in piece_defs:
+            for color_key, color_label in color_defs:
+                part_key = f"{color_key}_{size_key}_{piece_key}"
+                code = key_codes[key_index]
+                key_index += 1
+                key_map[code] = part_key
+                part_keys.append(part_key)
+
+    part_key_to_code = {part: code for code, part in key_map.items()}
+
     for color_key, color_label in color_defs:
         color_group = {"color": color_label, "sizes": []}
         for size_key, size_label in size_defs:
             items = []
             for piece_key, piece_label in piece_defs:
                 part_key = f"{color_key}_{size_key}_{piece_key}"
-                code = key_codes[key_index]
-                key_index += 1
-                key_map[code] = part_key
-                part_keys.append(part_key)
+                code = part_key_to_code.get(part_key, "")
                 items.append({
-                    "key": display_key(code),
+                    "key": display_key(code) if code else "",
                     "label": piece_label,
                     "part_key": part_key
                 })
