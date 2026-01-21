@@ -6967,7 +6967,9 @@ def body_pieces():
         ("stone", "Stone"),
         ("rustic_black", "Rustic Black"),
     ]
-    size_defs = [("7", "7ft"), ("6", "6ft")]
+    size_defs_for_keys = [("6", "6ft"), ("7", "7ft")]
+    size_defs_for_display = [("7", "7ft"), ("6", "6ft")]
+    size_defs = size_defs_for_keys
     piece_defs = [
         ("window_side", "Window Side"),
         ("blank_side", "Blank Side"),
@@ -7002,7 +7004,7 @@ def body_pieces():
             return code[5:]
         return key_display_map.get(code, code)
 
-    for size_key, size_label in size_defs:
+    for size_key, size_label in size_defs_for_keys:
         for piece_key, piece_label in piece_defs:
             for color_key, color_label in color_defs:
                 part_key = f"{color_key}_{size_key}_{piece_key}"
@@ -7015,7 +7017,7 @@ def body_pieces():
 
     for color_key, color_label in color_defs:
         color_group = {"color": color_label, "sizes": []}
-        for size_key, size_label in size_defs:
+        for size_key, size_label in size_defs_for_display:
             items = []
             for piece_key, piece_label in piece_defs:
                 part_key = f"{color_key}_{size_key}_{piece_key}"
