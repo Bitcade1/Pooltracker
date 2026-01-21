@@ -202,7 +202,7 @@
                 {% for size_group in color_group.sizes %}
                     <div class="shortcut-row">
                         <span class="shortcut-label">{{ size_group.size }}:</span>
-                        {% for item in size_group.items %}
+                        {% for item in size_group.entries %}
                             <code>{{ item.key }}</code> {{ item.label }}
                         {% endfor %}
                     </div>

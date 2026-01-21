@@ -7017,7 +7017,7 @@ def body_pieces():
                     "label": piece_label,
                     "part_key": part_key
                 })
-            color_group["sizes"].append({"size": size_label, "items": items})
+            color_group["sizes"].append({"size": size_label, "entries": items})
         shortcut_groups.append(color_group)
 
     if request.method == 'POST':
