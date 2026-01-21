@@ -152,7 +152,7 @@
         <form action="{{ url_for('body_pieces') }}" method="post">
             <div class="grid-container">
                 {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
-                {% set sizes = ['6ft', '7ft'] %}
+                {% set sizes = ['7ft', '6ft'] %}
                 {% set piece_types = [
                     {'key': 'window_side', 'label': 'Window Side'},
                     {'key': 'blank_side', 'label': 'Blank Side'},
@@ -197,13 +197,13 @@
         <div class="key-helper" id="keyHelper">
             <h3 style="font-size: 2em;">Quick Add (Keyboard Shortcuts)</h3>
             <p>Press a key to add 1. Hold <strong>Shift</strong> and press a key to remove 1.</p>
-            {% for size_group in shortcut_groups %}
-                <strong>{{ size_group.size }}:</strong><br>
-                {% for piece_group in size_group.pieces %}
+            {% for color_group in shortcut_groups %}
+                <strong>{{ color_group.color }}:</strong><br>
+                {% for size_group in color_group.sizes %}
                     <div class="shortcut-row">
-                        <span class="shortcut-label">{{ piece_group.label }}:</span>
-                        {% for item in piece_group.entries %}
-                            <code>{{ item.key }}</code> {{ item.color }}
+                        <span class="shortcut-label">{{ size_group.size }}:</span>
+                        {% for item in size_group.items %}
+                            <code>{{ item.key }}</code> {{ item.label }}
                         {% endfor %}
                     </div>
                 {% endfor %}

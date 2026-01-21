@@ -6967,7 +6967,7 @@ def body_pieces():
         ("stone", "Stone"),
         ("rustic_black", "Rustic Black"),
     ]
-    size_defs = [("6", "6ft"), ("7", "7ft")]
+    size_defs = [("7", "7ft"), ("6", "6ft")]
     piece_defs = [
         ("window_side", "Window Side"),
         ("blank_side", "Blank Side"),
@@ -7002,11 +7002,11 @@ def body_pieces():
             return code[5:]
         return key_display_map.get(code, code)
 
-    for size_key, size_label in size_defs:
-        size_group = {"size": size_label, "pieces": []}
-        for piece_key, piece_label in piece_defs:
+    for color_key, color_label in color_defs:
+        color_group = {"color": color_label, "sizes": []}
+        for size_key, size_label in size_defs:
             items = []
-            for color_key, color_label in color_defs:
+            for piece_key, piece_label in piece_defs:
                 part_key = f"{color_key}_{size_key}_{piece_key}"
                 code = key_codes[key_index]
                 key_index += 1
@@ -7014,11 +7014,11 @@ def body_pieces():
                 part_keys.append(part_key)
                 items.append({
                     "key": display_key(code),
-                    "color": color_label,
+                    "label": piece_label,
                     "part_key": part_key
                 })
-            size_group["pieces"].append({"label": piece_label, "entries": items})
-        shortcut_groups.append(size_group)
+            color_group["sizes"].append({"size": size_label, "items": items})
+        shortcut_groups.append(color_group)
 
     if request.method == 'POST':
         key_code = request.form.get('key_code')
