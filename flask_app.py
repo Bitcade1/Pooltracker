@@ -6952,8 +6952,14 @@ def body_pieces():
     if request.method == 'POST':
         key_code = request.form.get('key_code')
         action = request.form.get('action', 'add')
+        part_key = None
         if key_code and key_code in key_map:
             part_key = key_map[key_code]
+        else:
+            direct_key = request.form.get('part_key')
+            if direct_key in part_keys:
+                part_key = direct_key
+        if part_key:
             delta = -1 if action == 'remove' else 1
             part = BodyPieceCount.query.filter_by(part_key=part_key).first()
             if not part:

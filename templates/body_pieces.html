@@ -101,9 +101,36 @@
             0%   { background-color: #f8d7da; }
             100% { background-color: white; }
         }
+        .size-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 14px;
+        }
+        .size-6ft {
+            background-color: #f7f7fb;
+        }
+        .size-7ft {
+            background-color: #f3f8f3;
+        }
+        .size-title {
+            font-size: 1.4em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+        .piece-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .piece-controls .btn-add {
+            font-size: 1.1em;
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
     </style>
 </head>
-<meta http-equiv="refresh" content="10">
 <body>
     <div class="container">
         <h1 style="font-size: 3em;">Count Body Pieces - Max: <strong style="color: red;">{{ max_bodies }}</strong></h1>
@@ -132,14 +159,21 @@
                 <fieldset>
                     <legend>{{ color }}</legend>
                     {% for size in sizes %}
-                        {% for piece in piece_types %}
-                            {% set part_name = size ~ ' ' ~ piece.label %}
-                            {% set input_name = 'piece_' ~ color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ piece.key %}
-                            <div class="form-group">
-                                <label for="{{ input_name }}">{{ part_name }}</label>
-                                <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
-                            </div>
-                        {% endfor %}
+                        <div class="size-section {% if size == '6ft' %}size-6ft{% else %}size-7ft{% endif %}">
+                            <div class="size-title">{{ size }}</div>
+                            {% for piece in piece_types %}
+                                {% set part_name = piece.label %}
+                                {% set part_key = color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ piece.key %}
+                                {% set input_name = 'piece_' ~ part_key %}
+                                <div class="form-group">
+                                    <label for="{{ input_name }}">{{ part_name }}</label>
+                                    <div class="piece-controls">
+                                        <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
+                                        <button type="button" class="btn btn-add piece-add" data-part-key="{{ part_key }}">+1</button>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
                     {% endfor %}
                 </fieldset>
                 {% endfor %}
@@ -183,6 +217,43 @@
         toggleButton.textContent = isVisible ? 'Hide Quick Add Shortcuts' : 'Show Quick Add Shortcuts';
     });
 
+    function applyCountUpdate(partKey, newCount, action) {
+        const inputId = 'piece_' + partKey;
+        const inputField = document.getElementById(inputId);
+        if (!inputField) {
+            return;
+        }
+        inputField.value = newCount;
+        const highlightClass = action === 'remove' ? 'highlight-remove' : 'highlight-add';
+        inputField.classList.add(highlightClass);
+        inputField.addEventListener('animationend', function() {
+            inputField.classList.remove(highlightClass);
+        }, { once: true });
+    }
+
+    document.addEventListener('click', function(event) {
+        const button = event.target.closest('.piece-add');
+        if (!button) {
+            return;
+        }
+        const partKey = button.getAttribute('data-part-key');
+        if (!partKey) {
+            return;
+        }
+        fetch("/body_pieces", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ part_key: partKey, action: 'add' })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success && data.part_key) {
+                applyCountUpdate(data.part_key, data.new_count, data.action);
+            }
+        }).catch(error => {
+            console.error("Error updating count:", error);
+        });
+    });
+
     document.addEventListener('keydown', function(event) {
         const activeTag = document.activeElement.tagName;
         if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
@@ -201,16 +272,7 @@
         }).then(response => response.json())
         .then(data => {
             if (data.success && data.part_key) {
-                const inputId = 'piece_' + data.part_key;
-                const inputField = document.getElementById(inputId);
-                if (inputField) {
-                    inputField.value = data.new_count;
-                    const highlightClass = action === 'remove' ? 'highlight-remove' : 'highlight-add';
-                    inputField.classList.add(highlightClass);
-                    inputField.addEventListener('animationend', function() {
-                        inputField.classList.remove(highlightClass);
-                    }, { once: true });
-                }
+                applyCountUpdate(data.part_key, data.new_count, data.action);
             }
         }).catch(error => {
             console.error("Error updating count:", error);
