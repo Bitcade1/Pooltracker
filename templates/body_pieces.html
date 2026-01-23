@@ -19,12 +19,12 @@
         .grid-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+            gap: 14px;
         }
         fieldset {
             border: 1px solid #ccc;
             border-radius: 8px;
-            padding: 20px;
+            padding: 12px;
         }
         legend {
             font-weight: bold;
@@ -106,7 +106,7 @@
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 12px;
-            margin-bottom: 14px;
+            margin-bottom: 10px;
         }
         .size-6ft {
             background-color: #f7f7fb;
@@ -158,6 +158,10 @@
 </head>
 <body>
     <div class="container">
+        <div style="text-align: center; margin-bottom: 6px; font-size: 1.3em;">
+            Max 7ft: <strong style="color: red;">{{ max_7ft }}</strong>
+            | Max 6ft: <strong style="color: red;">{{ max_6ft }}</strong>
+        </div>
         <div class="action-status hidden" id="actionStatus"></div>
         <div class="remove-mode-indicator" id="removeModeIndicator">Remove mode: Home key held</div>
 
