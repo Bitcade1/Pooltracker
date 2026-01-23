@@ -154,7 +154,7 @@
                     <input type="hidden" name="action" value="bulk">
                     <input type="hidden" name="hardware_part" class="selected-part-field" value="{{ selected_part }}">
                     <label for="amount">Bulk Adjustment (positive to add, negative to reduce):</label>
-                    <input type="number" name="amount" id="amount" placeholder="e.g. 25 or -3" required>
+                    <input type="number" name="amount" id="amount" step="any" placeholder="e.g. 25 or -3" required>
                     <div class="actions-row">
                         <button type="submit" class="btn btn-primary">Apply Adjustment</button>
                     </div>

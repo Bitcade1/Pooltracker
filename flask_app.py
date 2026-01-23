@@ -1748,6 +1748,19 @@ def counting_hardware():
         display_count = max(0.0, roll_count + fraction_remaining)
         return round(display_count, 2), part_name
 
+    def pallet_wrap_state():
+        target_name = "Pallet Wrap"
+        wrap_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == target_name.lower()).first()
+        part_name = wrap_part.name if wrap_part else target_name
+        latest_entry = (PrintedPartsCount.query
+                        .filter(func.lower(PrintedPartsCount.part_name) == part_name.lower())
+                        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                        .first())
+        roll_count = latest_entry.count if latest_entry else (wrap_part.initial_count if wrap_part else 0)
+        remainder_entry = TableStock.query.filter_by(type="pallet_wrap_remainder").first()
+        used_in_current_roll = remainder_entry.count if remainder_entry else 0
+        return part_name, roll_count, used_in_current_roll, remainder_entry
+
     # Align pallet wrap display with fractional rolls remaining
     wrap_count, wrap_name = pallet_wrap_display_count()
     if wrap_name in hardware_counts:
@@ -1801,11 +1814,27 @@ def counting_hardware():
                     return redirect(url_for('counting_hardware', selected=selected_part))
             else:
                 amount_str = request.form.get('amount', '1')
-            try:
-                amount = int(amount_str)
-            except ValueError:
-                flash("Amount must be a number.", "error")
-                return redirect(url_for('counting_hardware'))
+            wrap_part_name, roll_count, used_in_current_roll, remainder_entry = pallet_wrap_state()
+            is_pallet_wrap = part_name and wrap_part_name and part_name.lower() == wrap_part_name.lower()
+            if is_pallet_wrap:
+                try:
+                    amount = float(amount_str)
+                except ValueError:
+                    flash("Amount must be a number.", "error")
+                    return redirect(url_for('counting_hardware'))
+                if action in ['increment', 'quick_add']:
+                    amount = abs(amount)
+                elif action == 'decrement':
+                    amount = -abs(amount)
+                if amount == 0:
+                    flash("Pallet Wrap adjustment must be non-zero.", "error")
+                    return redirect(url_for('counting_hardware'))
+            else:
+                try:
+                    amount = int(amount_str)
+                except ValueError:
+                    flash("Amount must be a number.", "error")
+                    return redirect(url_for('counting_hardware'))
 
             # Validate the selected part
             if part_name not in hardware_counts_raw:
@@ -1815,18 +1844,64 @@ def counting_hardware():
             current_count = hardware_counts_raw.get(part_name, hardware_counts.get(part_name, 0))
             new_count = current_count
 
-            if action in ['increment', 'quick_add']:
-                new_count += amount
-            elif action == 'decrement':
-                if current_count < amount:
+            if is_pallet_wrap:
+                bodies_per_wrap_roll = 7
+                bodies_delta = int(round(amount * bodies_per_wrap_roll))
+                if bodies_delta == 0:
+                    flash("Pallet Wrap adjustments must be at least 1/7 of a roll.", "error")
+                    return redirect(url_for('counting_hardware'))
+
+                bodies_available = (roll_count * bodies_per_wrap_roll) - used_in_current_roll
+                new_bodies_available = bodies_available + bodies_delta
+                if new_bodies_available < 0:
                     flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
                     return redirect(url_for('counting_hardware'))
-                new_count -= amount
-            elif action == 'bulk':
-                if amount < 0 and current_count < abs(amount):
-                    flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
-                    return redirect(url_for('counting_hardware'))
-                new_count += amount
+
+                new_count = ceil(new_bodies_available / bodies_per_wrap_roll) if new_bodies_available > 0 else 0
+                new_used_in_current_roll = 0 if new_bodies_available <= 0 else (
+                    (bodies_per_wrap_roll - (new_bodies_available % bodies_per_wrap_roll)) % bodies_per_wrap_roll
+                )
+                if new_count < current_count:
+                    check_and_notify_low_stock(part_name, current_count, new_count)
+
+                new_entry = PrintedPartsCount(
+                    part_name=part_name,
+                    count=new_count,
+                    date=datetime.utcnow().date(),
+                    time=datetime.utcnow().time()
+                )
+                db.session.add(new_entry)
+                if remainder_entry:
+                    remainder_entry.count = new_used_in_current_roll
+                else:
+                    db.session.add(TableStock(type="pallet_wrap_remainder", count=new_used_in_current_roll))
+                db.session.commit()
+
+                hardware_counts[part_name] = new_count
+                hardware_counts_raw[part_name] = new_count
+
+                applied_rolls = round(bodies_delta / bodies_per_wrap_roll, 2)
+                if round(amount, 2) != applied_rolls:
+                    flash(
+                        f"{part_name} adjusted by {applied_rolls} rolls (rounded to 1/7 roll increments). New count: {new_count}",
+                        "success"
+                    )
+                else:
+                    flash(f"{part_name} updated successfully! New count: {new_count}", "success")
+                return redirect(url_for('counting_hardware', selected=selected_part))
+            else:
+                if action in ['increment', 'quick_add']:
+                    new_count += amount
+                elif action == 'decrement':
+                    if current_count < amount:
+                        flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
+                        return redirect(url_for('counting_hardware'))
+                    new_count -= amount
+                elif action == 'bulk':
+                    if amount < 0 and current_count < abs(amount):
+                        flash(f"Not enough stock to remove. Current count for '{part_name}': {current_count}", "error")
+                        return redirect(url_for('counting_hardware'))
+                    new_count += amount
 
             # Check for low stock if count is decreasing
             if new_count < current_count:
