@@ -1215,6 +1215,7 @@ def stock_costs():
     stock_items = build_stock_snapshot()
     item_keys = [item['key'] for item in stock_items]
     vat_rate = 0.20
+    manual_snapshot = request.method == 'POST' and request.form.get('snapshot_action') == 'create_snapshot'
 
     def parse_currency(value):
         if value is None or value == '':
@@ -1237,7 +1238,7 @@ def stock_costs():
             return None, "Count must be a whole number."
         return int(count_value), None
 
-    if request.method == 'POST':
+    if request.method == 'POST' and not manual_snapshot:
         count_updates = {}
         for item in stock_items:
             if not item.get('count_editable'):
@@ -1488,6 +1489,29 @@ def stock_costs():
     week_start = now - timedelta(days=now.weekday())
     week_key = week_start.strftime("%Y-%m-%d")
     is_after_trigger = now.weekday() > 0 or now.time() >= time(9, 0)
+    if manual_snapshot:
+        existing_snapshot = next((s for s in stock_snapshots if s.get("week_key") == week_key), None)
+        snapshot_filename = f"stock_snapshot_{week_key}.csv"
+        snapshot_payload = {
+            "timestamp": now.isoformat(),
+            "week_key": week_key,
+            "total_ex_vat": grand_total_ex_vat,
+            "total_inc_vat": grand_total_inc_vat,
+            "parts_ex_vat": parts_total_ex_vat,
+            "parts_inc_vat": parts_total_inc_vat,
+            "finished_ex_vat": finished_total_ex_vat,
+            "finished_inc_vat": finished_total_inc_vat
+        }
+        if write_stock_snapshot_file(stock_items, snapshot_filename):
+            snapshot_payload["snapshot_file"] = snapshot_filename
+        if existing_snapshot:
+            existing_snapshot.update(snapshot_payload)
+        else:
+            stock_snapshots.append(snapshot_payload)
+        save_stock_snapshots(stock_snapshots)
+        flash("Snapshot created successfully.", "success")
+        return redirect(url_for('stock_costs'))
+
     if is_after_trigger:
         existing_snapshot = next((s for s in stock_snapshots if s.get("week_key") == week_key), None)
         snapshot_filename = f"stock_snapshot_{week_key}.csv"

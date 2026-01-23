@@ -129,6 +129,40 @@
             padding: 6px 12px;
             border-radius: 6px;
         }
+        .action-status {
+            margin-top: 10px;
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 1.1em;
+            border: 1px solid transparent;
+        }
+        .action-status.hidden {
+            display: none;
+        }
+        .action-status.add {
+            background: #e8f5e9;
+            color: #1b5e20;
+            border-color: #c8e6c9;
+        }
+        .action-status.remove {
+            background: #fbe9e7;
+            color: #b71c1c;
+            border-color: #ffccbc;
+        }
+        .remove-mode-indicator {
+            display: none;
+            margin-top: 8px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: #fbe9e7;
+            color: #b71c1c;
+            font-weight: 700;
+            font-size: 1em;
+        }
+        .remove-mode-indicator.show {
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -140,6 +174,8 @@
             | Max Total: <strong style="color: red;">{{ max_bodies }}</strong>
         </p>
         <p style="font-size: 1.5em;">Enter the current stock for each body piece. The values represent individual pieces.</p>
+        <div class="action-status hidden" id="actionStatus"></div>
+        <div class="remove-mode-indicator" id="removeModeIndicator">Remove mode: Home key held</div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -196,7 +232,7 @@
 
         <div class="key-helper" id="keyHelper">
             <h3 style="font-size: 2em;">Quick Add (Keyboard Shortcuts)</h3>
-            <p>Press a key to add 1. Hold <strong>Shift</strong> and press a key to remove 1.</p>
+            <p>Press a key to add 1. Hold <strong>Shift</strong> or <strong>Home</strong> to remove 1.</p>
             {% for color_group in shortcut_groups %}
                 <strong>{{ color_group.color }}:</strong><br>
                 {% for size_group in color_group.sizes %}
@@ -216,6 +252,42 @@
     const keyMap = {{ key_map|tojson }};
     const keyHelper = document.getElementById('keyHelper');
     const toggleButton = document.getElementById('toggleShortcuts');
+    const removeModeIndicator = document.getElementById('removeModeIndicator');
+    const actionStatus = document.getElementById('actionStatus');
+    let homeRemoveActive = false;
+
+    function setRemoveMode(active) {
+        homeRemoveActive = active;
+        if (removeModeIndicator) {
+            removeModeIndicator.classList.toggle('show', active);
+        }
+    }
+
+    function buildActionLabel(partKey) {
+        const inputId = 'piece_' + partKey;
+        const inputField = document.getElementById(inputId);
+        if (!inputField) {
+            return partKey;
+        }
+        const label = document.querySelector('label[for="' + inputId + '"]');
+        const sizeSection = inputField.closest('.size-section');
+        const fieldset = inputField.closest('fieldset');
+        const color = fieldset ? fieldset.querySelector('legend')?.textContent.trim() : '';
+        const size = sizeSection ? sizeSection.querySelector('.size-title')?.textContent.trim() : '';
+        const piece = label ? label.textContent.trim() : '';
+        return [color, size, piece].filter(Boolean).join(' ');
+    }
+
+    function updateActionStatus(partKey, action) {
+        if (!actionStatus) {
+            return;
+        }
+        const label = buildActionLabel(partKey);
+        const verb = action === 'remove' ? 'Removed 1' : 'Added 1';
+        actionStatus.textContent = label ? `${verb}: ${label}` : `${verb}.`;
+        actionStatus.classList.remove('hidden', 'add', 'remove');
+        actionStatus.classList.add(action === 'remove' ? 'remove' : 'add');
+    }
 
     toggleButton.addEventListener('click', function() {
         const isVisible = keyHelper.classList.toggle('show');
@@ -245,14 +317,16 @@
         if (!partKey) {
             return;
         }
+        const action = homeRemoveActive ? 'remove' : 'add';
         fetch("/body_pieces", {
             method: "POST",
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ part_key: partKey, action: 'add' })
+            body: new URLSearchParams({ part_key: partKey, action: action })
         }).then(response => response.json())
         .then(data => {
             if (data.success && data.part_key) {
                 applyCountUpdate(data.part_key, data.new_count, data.action);
+                updateActionStatus(data.part_key, data.action);
             }
         }).catch(error => {
             console.error("Error updating count:", error);
@@ -260,6 +334,11 @@
     });
 
     document.addEventListener('keydown', function(event) {
+        if (event.code === 'Home') {
+            setRemoveMode(true);
+            event.preventDefault();
+            return;
+        }
         const activeTag = document.activeElement.tagName;
         if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
             return;
@@ -269,7 +348,7 @@
             return;
         }
         event.preventDefault();
-        const action = event.shiftKey ? 'remove' : 'add';
+        const action = homeRemoveActive || event.shiftKey ? 'remove' : 'add';
         fetch("/body_pieces", {
             method: "POST",
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -278,10 +357,21 @@
         .then(data => {
             if (data.success && data.part_key) {
                 applyCountUpdate(data.part_key, data.new_count, data.action);
+                updateActionStatus(data.part_key, data.action);
             }
         }).catch(error => {
             console.error("Error updating count:", error);
         });
+    });
+
+    document.addEventListener('keyup', function(event) {
+        if (event.code === 'Home') {
+            setRemoveMode(false);
+        }
+    });
+
+    window.addEventListener('blur', function() {
+        setRemoveMode(false);
     });
     </script>
 </body>

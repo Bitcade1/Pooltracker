@@ -181,6 +181,11 @@
         .snapshot-content {
             margin-top: 12px;
         }
+        .snapshot-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
         .snapshot-chart {
             background: #f5f7fb;
             border: 1px solid #e0e6ef;
@@ -386,6 +391,10 @@
         <details class="snapshot-panel">
             <summary>Weekly Stock Snapshots</summary>
             <div class="snapshot-content">
+                <form method="POST" class="snapshot-actions">
+                    <input type="hidden" name="snapshot_action" value="create_snapshot">
+                    <button type="submit" class="secondary-button">Create Snapshot Now</button>
+                </form>
                 <div class="snapshot-chart">
                     <svg id="stock-snapshot-chart" viewBox="0 0 800 260" role="img" aria-label="Weekly stock value trend"></svg>
                 </div>
