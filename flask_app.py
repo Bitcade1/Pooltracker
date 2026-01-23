@@ -1727,6 +1727,7 @@ def counting_hardware():
                         .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                         .first())
         hardware_counts[part.name] = latest_entry[0] if latest_entry else part.initial_count
+    hardware_counts_raw = dict(hardware_counts)
 
     def pallet_wrap_display_count():
         target_name = "Pallet Wrap"
@@ -1807,11 +1808,11 @@ def counting_hardware():
                 return redirect(url_for('counting_hardware'))
 
             # Validate the selected part
-            if part_name not in hardware_counts:
+            if part_name not in hardware_counts_raw:
                 flash(f"Invalid hardware part: {part_name}", "error")
                 return redirect(url_for('counting_hardware'))
 
-            current_count = hardware_counts[part_name]
+            current_count = hardware_counts_raw.get(part_name, hardware_counts.get(part_name, 0))
             new_count = current_count
 
             if action in ['increment', 'quick_add']:
@@ -1843,6 +1844,7 @@ def counting_hardware():
 
             # Ensure the rendered page reflects the updated count immediately
             hardware_counts[part_name] = new_count
+            hardware_counts_raw[part_name] = new_count
 
             flash(f"{part_name} updated successfully! New count: {new_count}", "success")
 
