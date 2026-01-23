@@ -119,16 +119,6 @@
             margin-bottom: 10px;
             text-align: left;
         }
-        .piece-controls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .piece-controls .btn-add {
-            font-size: 1.1em;
-            padding: 6px 12px;
-            border-radius: 6px;
-        }
         .action-status {
             margin-top: 10px;
             display: inline-block;
@@ -167,13 +157,6 @@
 </head>
 <body>
     <div class="container">
-        <h1 style="font-size: 3em;">Count Body Pieces</h1>
-        <p style="font-size: 1.6em;">
-            Max 6ft: <strong style="color: red;">{{ max_6ft }}</strong>
-            | Max 7ft: <strong style="color: red;">{{ max_7ft }}</strong>
-            | Max Total: <strong style="color: red;">{{ max_bodies }}</strong>
-        </p>
-        <p style="font-size: 1.5em;">Enter the current stock for each body piece. The values represent individual pieces.</p>
         <div class="action-status hidden" id="actionStatus"></div>
         <div class="remove-mode-indicator" id="removeModeIndicator">Remove mode: Home key held</div>
 
@@ -209,10 +192,7 @@
                                 {% set input_name = 'piece_' ~ part_key %}
                                 <div class="form-group">
                                     <label for="{{ input_name }}">{{ part_name }}</label>
-                                    <div class="piece-controls">
-                                        <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
-                                        <button type="button" class="btn btn-add piece-add" data-part-key="{{ part_key }}">+1</button>
-                                    </div>
+                                    <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
                                 </div>
                             {% endfor %}
                         </div>
@@ -310,31 +290,6 @@
             inputField.classList.remove(highlightClass);
         }, { once: true });
     }
-
-    document.addEventListener('click', function(event) {
-        const button = event.target.closest('.piece-add');
-        if (!button) {
-            return;
-        }
-        const partKey = button.getAttribute('data-part-key');
-        if (!partKey) {
-            return;
-        }
-        const action = homeRemoveActive ? 'remove' : 'add';
-        fetch("/body_pieces", {
-            method: "POST",
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ part_key: partKey, action: action })
-        }).then(response => response.json())
-        .then(data => {
-            if (data.success && data.part_key) {
-                applyCountUpdate(data.part_key, data.new_count, data.action);
-                updateActionStatus(data.part_key, data.action);
-            }
-        }).catch(error => {
-            console.error("Error updating count:", error);
-        });
-    });
 
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Shift') {
