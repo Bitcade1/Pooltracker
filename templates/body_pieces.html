@@ -196,11 +196,12 @@
                     {'key': 'color_ball_end', 'label': 'White Ball End'}
                 ] %}
 
+                {% set ns = namespace(first_six=true) %}
                 {% for color in colors %}
                 <fieldset>
                     <legend>{{ color }}</legend>
                     {% for size in sizes %}
-                        <div class="size-section {% if size == '6ft' %}size-6ft{% else %}size-7ft{% endif %}">
+                        <div class="size-section {% if size == '6ft' %}size-6ft{% else %}size-7ft{% endif %}"{% if size == '6ft' and ns.first_six %} id="sixFtAnchor"{% set ns.first_six = false %}{% endif %}>
                             <div class="size-title">{{ size }}</div>
                             {% for piece in piece_types %}
                                 {% set part_name = piece.label %}
@@ -255,6 +256,8 @@
     const removeModeIndicator = document.getElementById('removeModeIndicator');
     const actionStatus = document.getElementById('actionStatus');
     let homeRemoveActive = false;
+    let shiftScrollDone = false;
+    let shiftOriginalScroll = null;
 
     function setRemoveMode(active) {
         homeRemoveActive = active;
@@ -334,6 +337,18 @@
     });
 
     document.addEventListener('keydown', function(event) {
+        if (event.key === 'Shift') {
+            if (!shiftScrollDone) {
+                if (shiftOriginalScroll === null) {
+                    shiftOriginalScroll = window.scrollY || 0;
+                }
+                const anchor = document.getElementById('sixFtAnchor');
+                if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                shiftScrollDone = true;
+            }
+        }
         if (event.code === 'Home') {
             setRemoveMode(true);
             event.preventDefault();
@@ -367,6 +382,13 @@
     document.addEventListener('keyup', function(event) {
         if (event.code === 'Home') {
             setRemoveMode(false);
+        }
+        if (event.key === 'Shift') {
+            shiftScrollDone = false;
+            if (shiftOriginalScroll !== null) {
+                window.scrollTo({ top: shiftOriginalScroll, behavior: 'smooth' });
+                shiftOriginalScroll = null;
+            }
         }
     });
 
