@@ -1403,6 +1403,13 @@ def stock_costs():
             zoned_entries.append(entry)
         category['entries'] = zoned_entries
 
+    ordered_snapshot_items = [
+        entry
+        for category in category_blocks
+        for entry in category.get('entries', [])
+        if not entry.get('is_laminate_header')
+    ]
+
     category_totals = {k: v for k, v in category_totals.items()}
 
     part_categories = {
@@ -1447,7 +1454,7 @@ def stock_costs():
         except OSError:
             pass
 
-    def write_stock_snapshot_file(items, filename):
+    def write_stock_snapshot_file(items, filename, include_category_headers=False):
         try:
             os.makedirs(snapshot_dir, exist_ok=True)
             filepath = os.path.join(snapshot_dir, filename)
@@ -1465,7 +1472,13 @@ def stock_costs():
                     "Stock Value (Ex VAT)",
                     "Stock Value (Incl VAT)",
                 ])
+                last_category = None
                 for item in items:
+                    if include_category_headers:
+                        category_label = item.get("category", "")
+                        if category_label and category_label != last_category:
+                            writer.writerow([category_label] + [""] * 9)
+                            last_category = category_label
                     count_display = item.get("count_display", item.get("count", 0))
                     writer.writerow([
                         item.get("category", ""),
@@ -1503,7 +1516,7 @@ def stock_costs():
             "finished_ex_vat": finished_total_ex_vat,
             "finished_inc_vat": finished_total_inc_vat
         }
-        if write_stock_snapshot_file(stock_items, snapshot_filename):
+        if write_stock_snapshot_file(ordered_snapshot_items, snapshot_filename, include_category_headers=True):
             snapshot_payload["snapshot_file"] = snapshot_filename
         stock_snapshots.append(snapshot_payload)
         save_stock_snapshots(stock_snapshots)
@@ -1524,7 +1537,7 @@ def stock_costs():
             "finished_inc_vat": finished_total_inc_vat
         }
         if not existing_snapshot:
-            if write_stock_snapshot_file(stock_items, snapshot_filename):
+            if write_stock_snapshot_file(ordered_snapshot_items, snapshot_filename, include_category_headers=True):
                 snapshot_payload["snapshot_file"] = snapshot_filename
             stock_snapshots.append(snapshot_payload)
             save_stock_snapshots(stock_snapshots)
@@ -1541,7 +1554,7 @@ def stock_costs():
                     existing_snapshot["finished_inc_vat"] = finished_total_inc_vat
                 save_stock_snapshots(stock_snapshots)
             if "snapshot_file" not in existing_snapshot:
-                if write_stock_snapshot_file(stock_items, snapshot_filename):
+                if write_stock_snapshot_file(ordered_snapshot_items, snapshot_filename, include_category_headers=True):
                     existing_snapshot["snapshot_file"] = snapshot_filename
                 save_stock_snapshots(stock_snapshots)
 
