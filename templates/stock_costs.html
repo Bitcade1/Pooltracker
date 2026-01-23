@@ -418,7 +418,7 @@
                             {% if stock_snapshots and stock_snapshots|length > 0 %}
                                 {% for snap in stock_snapshots|reverse %}
                                 <tr>
-                                    <td>{{ snap.week_key }}</td>
+                                    <td>{{ snap.snapshot_label|default(snap.week_key) }}</td>
                                     <td>&pound;{{ snap.total_ex_vat|format_number }}</td>
                                     <td>&pound;{{ snap.parts_ex_vat|default(0)|format_number }}</td>
                                     <td>&pound;{{ snap.finished_ex_vat|default(0)|format_number }}</td>

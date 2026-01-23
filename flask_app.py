@@ -1490,11 +1490,12 @@ def stock_costs():
     week_key = week_start.strftime("%Y-%m-%d")
     is_after_trigger = now.weekday() > 0 or now.time() >= time(9, 0)
     if manual_snapshot:
-        existing_snapshot = next((s for s in stock_snapshots if s.get("week_key") == week_key), None)
-        snapshot_filename = f"stock_snapshot_{week_key}.csv"
+        snapshot_label = now.strftime("%Y-%m-%d %H:%M")
+        snapshot_filename = f"stock_snapshot_{now.strftime('%Y-%m-%d_%H%M')}.csv"
         snapshot_payload = {
             "timestamp": now.isoformat(),
             "week_key": week_key,
+            "snapshot_label": snapshot_label,
             "total_ex_vat": grand_total_ex_vat,
             "total_inc_vat": grand_total_inc_vat,
             "parts_ex_vat": parts_total_ex_vat,
@@ -1504,10 +1505,7 @@ def stock_costs():
         }
         if write_stock_snapshot_file(stock_items, snapshot_filename):
             snapshot_payload["snapshot_file"] = snapshot_filename
-        if existing_snapshot:
-            existing_snapshot.update(snapshot_payload)
-        else:
-            stock_snapshots.append(snapshot_payload)
+        stock_snapshots.append(snapshot_payload)
         save_stock_snapshots(stock_snapshots)
         flash("Snapshot created successfully.", "success")
         return redirect(url_for('stock_costs'))
