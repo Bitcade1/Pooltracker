@@ -105,12 +105,7 @@
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 12px;
-            margin-bottom: 12px;
-        }
-        .size-sections {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 12px;
+            margin-bottom: 14px;
         }
         .size-6ft {
             background-color: #f7f7fb;
@@ -168,20 +163,6 @@
         .remove-mode-indicator.show {
             display: inline-block;
         }
-        @media (min-width: 1200px) {
-            .size-sections {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-            .size-section {
-                margin-bottom: 0;
-            }
-            .form-group {
-                margin-bottom: 14px;
-            }
-            input[type="number"] {
-                width: 90px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -218,25 +199,23 @@
                 {% for color in colors %}
                 <fieldset>
                     <legend>{{ color }}</legend>
-                    <div class="size-sections">
-                        {% for size in sizes %}
-                            <div class="size-section {% if size == '6ft' %}size-6ft{% else %}size-7ft{% endif %}">
-                                <div class="size-title">{{ size }}</div>
-                                {% for piece in piece_types %}
-                                    {% set part_name = piece.label %}
-                                    {% set part_key = color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ piece.key %}
-                                    {% set input_name = 'piece_' ~ part_key %}
-                                    <div class="form-group">
-                                        <label for="{{ input_name }}">{{ part_name }}</label>
-                                        <div class="piece-controls">
-                                            <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
-                                            <button type="button" class="btn btn-add piece-add" data-part-key="{{ part_key }}">+1</button>
-                                        </div>
+                    {% for size in sizes %}
+                        <div class="size-section {% if size == '6ft' %}size-6ft{% else %}size-7ft{% endif %}">
+                            <div class="size-title">{{ size }}</div>
+                            {% for piece in piece_types %}
+                                {% set part_name = piece.label %}
+                                {% set part_key = color|lower|replace(' ', '_') ~ '_' ~ size|replace('ft','') ~ '_' ~ piece.key %}
+                                {% set input_name = 'piece_' ~ part_key %}
+                                <div class="form-group">
+                                    <label for="{{ input_name }}">{{ part_name }}</label>
+                                    <div class="piece-controls">
+                                        <input type="number" id="{{ input_name }}" name="{{ input_name }}" value="{{ counts.get(input_name, 0) }}" min="0" required>
+                                        <button type="button" class="btn btn-add piece-add" data-part-key="{{ part_key }}">+1</button>
                                     </div>
-                                {% endfor %}
-                            </div>
-                        {% endfor %}
-                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
                 </fieldset>
                 {% endfor %}
             </div>
