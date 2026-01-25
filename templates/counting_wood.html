@@ -156,18 +156,12 @@
     <div class="flex items-center">
       <h1>Counting Wood</h1>
       <div class="dust-extractor-buttons">
-        <form method="POST" action="{{ url_for('turn_on_dust_extractor') }}">
-          <input type="hidden" name="action" value="on">
-          <button type="submit" class="button dust-extractor-on">
-            Dust Extractor On
-          </button>
-        </form>
-        <form method="POST" action="{{ url_for('turn_on_dust_extractor') }}">
-          <input type="hidden" name="action" value="off">
-          <button type="submit" class="button dust-extractor-off">
-            Dust Extractor Off
-          </button>
-        </form>
+        <button type="button" id="extractorOn" class="button dust-extractor-on">
+          Dust Extractor On
+        </button>
+        <button type="button" id="extractorOff" class="button dust-extractor-off">
+          Dust Extractor Off
+        </button>
       </div>
     </div>
 
@@ -450,10 +444,34 @@
         overlay.style.display = 'none';
       }
     }
+    function setExtractor(mode) {
+      var extractorUrl = "http://192.168.0.141";
+      fetch(extractorUrl + "/mode?m=" + mode)
+        .then(function() {
+          console.log("Extractor mode set to " + mode);
+        })
+        .catch(function(err) {
+          console.error("Extractor control failed", err);
+        });
+    }
     window.addEventListener('load', function() {
       var overlay = document.getElementById('bodyPopupOverlay');
       if (overlay) {
         overlay.style.display = 'flex';
+      }
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+      var onButton = document.getElementById('extractorOn');
+      var offButton = document.getElementById('extractorOff');
+      if (onButton) {
+        onButton.addEventListener('click', function() {
+          setExtractor("on");
+        });
+      }
+      if (offButton) {
+        offButton.addEventListener('click', function() {
+          setExtractor("off");
+        });
       }
     });
   </script>
