@@ -7050,13 +7050,17 @@ def top_rail_pieces():
     
     # Calculate total pieces and max top rails we can make
     colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
-    total_6ft_pieces = 0
-    total_7ft_pieces = 0
+    total_6ft_short = 0
+    total_6ft_long = 0
+    total_7ft_short = 0
+    total_7ft_long = 0
     for color in colors:
-        total_6ft_pieces += counts.get(f'piece_{color}_6_short', 0)
-        total_6ft_pieces += counts.get(f'piece_{color}_6_long', 0)
-        total_7ft_pieces += counts.get(f'piece_{color}_7_short', 0)
-        total_7ft_pieces += counts.get(f'piece_{color}_7_long', 0)
+        total_6ft_short += counts.get(f'piece_{color}_6_short', 0)
+        total_6ft_long += counts.get(f'piece_{color}_6_long', 0)
+        total_7ft_short += counts.get(f'piece_{color}_7_short', 0)
+        total_7ft_long += counts.get(f'piece_{color}_7_long', 0)
+    total_6ft_pieces = total_6ft_short + total_6ft_long
+    total_7ft_pieces = total_7ft_short + total_7ft_long
 
     max_top_rails = 0
     for color in colors:
@@ -7079,7 +7083,11 @@ def top_rail_pieces():
         counts=counts,
         max_top_rails=max_top_rails,
         total_6ft_pieces=total_6ft_pieces,
-        total_7ft_pieces=total_7ft_pieces
+        total_7ft_pieces=total_7ft_pieces,
+        total_6ft_short=total_6ft_short,
+        total_6ft_long=total_6ft_long,
+        total_7ft_short=total_7ft_short,
+        total_7ft_long=total_7ft_long
     )
 
 
