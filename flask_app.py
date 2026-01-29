@@ -7048,8 +7048,16 @@ def top_rail_pieces():
     for part in all_parts:
         counts[f"piece_{part.part_key}"] = part.count
     
-    # Calculate max top rails we can make
+    # Calculate total pieces and max top rails we can make
     colors = ['black', 'rustic_oak', 'grey_oak', 'stone', 'rustic_black']
+    total_6ft_pieces = 0
+    total_7ft_pieces = 0
+    for color in colors:
+        total_6ft_pieces += counts.get(f'piece_{color}_6_short', 0)
+        total_6ft_pieces += counts.get(f'piece_{color}_6_long', 0)
+        total_7ft_pieces += counts.get(f'piece_{color}_7_short', 0)
+        total_7ft_pieces += counts.get(f'piece_{color}_7_long', 0)
+
     max_top_rails = 0
     for color in colors:
         # For 6ft
@@ -7066,7 +7074,13 @@ def top_rail_pieces():
         
         max_top_rails += max_6ft + max_7ft
     
-    return render_template('top_rail_pieces.html', counts=counts, max_top_rails=max_top_rails)
+    return render_template(
+        'top_rail_pieces.html',
+        counts=counts,
+        max_top_rails=max_top_rails,
+        total_6ft_pieces=total_6ft_pieces,
+        total_7ft_pieces=total_7ft_pieces
+    )
 
 
 @app.route('/body_pieces', methods=['GET', 'POST'])

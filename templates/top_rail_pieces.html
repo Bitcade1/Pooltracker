@@ -68,6 +68,28 @@
             display: inline-block;
             font-size: 1.2em;
         }
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin: 20px 0 30px;
+        }
+        .summary-card {
+            background: #f7f7fb;
+            border: 1px solid #dfe3eb;
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .summary-label {
+            font-size: 0.9em;
+            color: #444;
+            margin-bottom: 8px;
+        }
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #111;
+        }
 
         /* Highlight animation */
         input.highlight {
@@ -87,6 +109,17 @@
     <div class="container">
         <h1 style="font-size: 3em;">Count Top Rail Pieces - Max: <strong style="color: red;">{{ max_top_rails }}</strong></h1>
         <p style="font-size: 1.5em;">Enter the current stock for each top rail piece. The values represent individual pieces, not pairs.</p>
+
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="summary-label">Total 6ft pieces in stock</div>
+                <div class="summary-value">{{ total_6ft_pieces }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Total 7ft pieces in stock</div>
+                <div class="summary-value">{{ total_7ft_pieces }}</div>
+            </div>
+        </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
