@@ -5172,7 +5172,11 @@ def table_stock():
 
     # Pre-calculate totals for the section headers
     total_bodies = sum(value for key, value in table_data.items() if key.startswith('body_'))
-    total_rails = sum(value for key, value in top_rail_data.items() if key.startswith('top_rail_'))
+    total_rails = sum(
+        top_rail_data.get(f"top_rail_{size.lower()}_{color.lower().replace(' ', '_')}", 0)
+        for size in sizes
+        for color in colors
+    )
     total_cushions = sum(value for key, value in cushion_data.items() if key.startswith('cushion_set_'))
 
     # Calculate costs for stock value panel
