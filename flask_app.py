@@ -80,6 +80,8 @@ PACKAGING_PART_NAMES = [
     "Top Rail Pallets 6ft",
     "Blue Pallets",
 ]
+BRAD_NAILS_PART_NAME = "18G 10mm Brad Nails"
+BRAD_NAILS_UNITS_PER_STRIP = 4  # Track quarter-strip usage (0.25 = 1 unit, 0.5 = 2 units)
 
 # Models
 class CompletedTable(db.Model):
@@ -263,6 +265,76 @@ def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnin
                     print(f"Ntfy notification failed for low stock: {e}")
         return message
     return None
+
+
+def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4, collected_warnings=None):
+    target_units = strip_delta * units_per_strip
+    units_delta = int(round(target_units))
+    if abs(target_units - units_delta) > 1e-6:
+        return False, part_name, 0.0
+
+    hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
+    canonical_name = hardware_part.name if hardware_part else part_name
+    latest_entry = (PrintedPartsCount.query
+                    .filter(func.lower(PrintedPartsCount.part_name) == canonical_name.lower())
+                    .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                    .first())
+    current_strips = latest_entry.count if latest_entry else (hardware_part.initial_count if hardware_part else 0)
+
+    remainder_key = f"{slugify_key(canonical_name)}_remainder"
+    remainder_entry = TableStock.query.filter_by(type=remainder_key).first()
+    used_units = remainder_entry.count if remainder_entry else 0
+    used_units = int(used_units or 0)
+
+    available_units = (current_strips * units_per_strip) - used_units
+    available_strips = available_units / units_per_strip if units_per_strip else 0.0
+    new_available_units = available_units + units_delta
+    if new_available_units < 0:
+        return False, canonical_name, available_strips
+
+    new_strips = ceil(new_available_units / units_per_strip) if new_available_units > 0 else 0
+    new_used_units = 0 if new_available_units <= 0 else (
+        (units_per_strip - (new_available_units % units_per_strip)) % units_per_strip
+    )
+
+    new_entry = PrintedPartsCount(
+        part_name=canonical_name,
+        count=new_strips,
+        date=date.today(),
+        time=datetime.utcnow().time()
+    )
+    db.session.add(new_entry)
+    if remainder_entry:
+        remainder_entry.count = new_used_units
+    else:
+        db.session.add(TableStock(type=remainder_key, count=new_used_units))
+
+    if new_strips < current_strips:
+        check_and_notify_low_stock(
+            canonical_name,
+            current_strips,
+            new_strips,
+            collected_warnings=collected_warnings
+        )
+
+    return True, canonical_name, available_strips
+
+
+def fractional_strip_display_count(part_name, units_per_strip=4):
+    hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
+    canonical_name = hardware_part.name if hardware_part else part_name
+    latest_entry = (PrintedPartsCount.query
+                    .filter(func.lower(PrintedPartsCount.part_name) == canonical_name.lower())
+                    .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                    .first())
+    strips = latest_entry.count if latest_entry else (hardware_part.initial_count if hardware_part else 0)
+    remainder_entry = TableStock.query.filter_by(type=f"{slugify_key(canonical_name)}_remainder").first()
+    used_units = remainder_entry.count if remainder_entry else 0
+    used_units = int(used_units or 0)
+
+    total_units = (strips * units_per_strip) - used_units
+    display_count = max(0.0, total_units / units_per_strip) if units_per_strip else 0.0
+    return round(display_count, 2), canonical_name
 
 
 @app.route('/logout')
@@ -1765,6 +1837,12 @@ def counting_hardware():
     wrap_count, wrap_name = pallet_wrap_display_count()
     if wrap_name in hardware_counts:
         hardware_counts[wrap_name] = wrap_count
+    brad_display, brad_name = fractional_strip_display_count(
+        BRAD_NAILS_PART_NAME,
+        BRAD_NAILS_UNITS_PER_STRIP
+    )
+    if brad_name in hardware_counts:
+        hardware_counts[brad_name] = brad_display
 
     # 3. Handle POST actions
     if request.method == 'POST':
@@ -2334,7 +2412,8 @@ def manage_raw_data():
                         "Ramp 918mm": 1,
                         "Ramp 376mm": 1,
                         "Chrome handles": 1,
-                        "Sticker Set": 1
+                        "Sticker Set": 1,
+                        BRAD_NAILS_PART_NAME: 0.25
                     }
                     # If the table was a 6ft table, adjust the parts used.
                     if serial_is_6ft(entry.serial_number):
@@ -2345,6 +2424,13 @@ def manage_raw_data():
 
                     # Revert each part's inventory.
                     for part_name, qty in parts_used.items():
+                        if part_name == BRAD_NAILS_PART_NAME:
+                            adjust_fractional_strip_inventory(
+                                part_name,
+                                qty,
+                                units_per_strip=BRAD_NAILS_UNITS_PER_STRIP
+                            )
+                            continue
                         inventory_entry = PrintedPartsCount.query.filter_by(
                             part_name=part_name
                         ).order_by(PrintedPartsCount.date.desc(),
@@ -2368,10 +2454,18 @@ def manage_raw_data():
                         "Top rail trim short length": 4,
                         "Chrome corner": 4,
                         "Center pockets": 2,
-                        "Corner pockets": 4
+                        "Corner pockets": 4,
+                        BRAD_NAILS_PART_NAME: 0.5
                     }
                     # Revert each part's inventory for the top rail.
                     for part_name, qty in parts_used.items():
+                        if part_name == BRAD_NAILS_PART_NAME:
+                            adjust_fractional_strip_inventory(
+                                part_name,
+                                qty,
+                                units_per_strip=BRAD_NAILS_UNITS_PER_STRIP
+                            )
+                            continue
                         inventory_entry = PrintedPartsCount.query.filter_by(
                             part_name=part_name
                         ).order_by(PrintedPartsCount.date.desc(),
@@ -3313,7 +3407,8 @@ def bodies():
             "Handle Tube": 1,
             "Latch": 12,
             "7ft Bag of Bolts": 1,
-            "7ft Ply Supports": 2
+            "7ft Ply Supports": 2,
+            BRAD_NAILS_PART_NAME: 0.25
         }
 
         # Adjust parts for 6ft tables
@@ -3365,6 +3460,21 @@ def bodies():
         print(parts_to_deduct)
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
+            if part_name == BRAD_NAILS_PART_NAME:
+                ok, canonical_name, available_strips = adjust_fractional_strip_inventory(
+                    part_name,
+                    -quantity_needed,
+                    units_per_strip=BRAD_NAILS_UNITS_PER_STRIP,
+                    collected_warnings=low_stock_messages
+                )
+                if not ok:
+                    flash(
+                        f"Not enough inventory for {canonical_name} (need {quantity_needed}, have {available_strips:.2f}) to complete the body!",
+                        "error"
+                    )
+                    db.session.rollback()
+                    return redirect(url_for('bodies'))
+                continue
             part_entry = (PrintedPartsCount.query
                             .filter_by(part_name=part_name)
                             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
@@ -3825,7 +3935,8 @@ def top_rails():
             "M5 x 20 Socket Cap Screw": 16,
             "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
             "LAMELLO CLAMEX P-14 CONNECTOR": 18,
-            "4.8x32mm Self Tapping Screw": 24
+            "4.8x32mm Self Tapping Screw": 24,
+            BRAD_NAILS_PART_NAME: 0.5
         }
 
         # Add top rail pieces to deduct based on color and size
@@ -3841,6 +3952,22 @@ def top_rails():
 
         # Check inventory and deduct all required parts
         for part_name, quantity_needed in parts_to_deduct.items():
+            if part_name == BRAD_NAILS_PART_NAME:
+                ok, canonical_name, available_strips = adjust_fractional_strip_inventory(
+                    part_name,
+                    -quantity_needed,
+                    units_per_strip=BRAD_NAILS_UNITS_PER_STRIP,
+                    collected_warnings=low_stock_messages
+                )
+                if not ok:
+                    flash(
+                        f"Not enough inventory for {canonical_name}! Need {quantity_needed}, have {available_strips:.2f}",
+                        "error"
+                    )
+                    db.session.rollback()
+                    return redirect(url_for('top_rails'))
+                db.session.commit()
+                continue
             if part_name in [short_piece_name, long_piece_name]:
                 # Get the top rail piece count
                 part_entry = TopRailPieceCount.query.filter_by(part_key=part_name).first()
