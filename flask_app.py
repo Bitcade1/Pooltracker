@@ -292,6 +292,7 @@ def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4,
     if new_available_units < 0:
         return False, canonical_name, available_strips
 
+    new_available_strips = new_available_units / units_per_strip if units_per_strip else 0.0
     new_strips = ceil(new_available_units / units_per_strip) if new_available_units > 0 else 0
     new_used_units = 0 if new_available_units <= 0 else (
         (units_per_strip - (new_available_units % units_per_strip)) % units_per_strip
@@ -309,13 +310,12 @@ def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4,
     else:
         db.session.add(TableStock(type=remainder_key, count=new_used_units))
 
-    if new_strips < current_strips:
-        check_and_notify_low_stock(
-            canonical_name,
-            current_strips,
-            new_strips,
-            collected_warnings=collected_warnings
-        )
+    check_and_notify_low_stock(
+        canonical_name,
+        available_strips,
+        new_available_strips,
+        collected_warnings=collected_warnings
+    )
 
     return True, canonical_name, available_strips
 
@@ -463,6 +463,11 @@ def admin():
                 hardware_part = HardwarePart.query.filter_by(name=part_name).first()
                 if hardware_part:
                     current_stock = hardware_part.initial_count
+            if part_name and part_name.lower() == BRAD_NAILS_PART_NAME.lower():
+                current_stock, _ = fractional_strip_display_count(
+                    BRAD_NAILS_PART_NAME,
+                    BRAD_NAILS_UNITS_PER_STRIP
+                )
 
             # If stock is already below the new threshold, notify
             if threshold > 0 and current_stock <= threshold:
