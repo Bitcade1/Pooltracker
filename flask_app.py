@@ -1899,6 +1899,7 @@ def counting_hardware():
                 amount_str = request.form.get('amount', '1')
             wrap_part_name, roll_count, used_in_current_roll, remainder_entry = pallet_wrap_state()
             is_pallet_wrap = part_name and wrap_part_name and part_name.lower() == wrap_part_name.lower()
+            is_brad_nails = part_name and part_name.lower() == BRAD_NAILS_PART_NAME.lower()
             if is_pallet_wrap:
                 try:
                     amount = float(amount_str)
@@ -1911,6 +1912,23 @@ def counting_hardware():
                     amount = -abs(amount)
                 if amount == 0:
                     flash("Pallet Wrap adjustment must be non-zero.", "error")
+                    return redirect(url_for('counting_hardware'))
+            elif is_brad_nails:
+                try:
+                    amount = float(amount_str)
+                except ValueError:
+                    flash("Amount must be a number.", "error")
+                    return redirect(url_for('counting_hardware'))
+                if action in ['increment', 'quick_add']:
+                    amount = abs(amount)
+                elif action == 'decrement':
+                    amount = -abs(amount)
+                if amount == 0:
+                    flash("Brad Nails adjustment must be non-zero.", "error")
+                    return redirect(url_for('counting_hardware'))
+                units_target = amount * BRAD_NAILS_UNITS_PER_STRIP
+                if abs(units_target - round(units_target)) > 1e-6:
+                    flash("Brad Nails adjustments must be in 0.25 strip increments.", "error")
                     return redirect(url_for('counting_hardware'))
             else:
                 try:
@@ -1971,6 +1989,31 @@ def counting_hardware():
                     )
                 else:
                     flash(f"{part_name} updated successfully! New count: {new_count}", "success")
+                return redirect(url_for('counting_hardware', selected=selected_part))
+            elif is_brad_nails:
+                ok, canonical_name, available_strips = adjust_fractional_strip_inventory(
+                    part_name,
+                    amount,
+                    units_per_strip=BRAD_NAILS_UNITS_PER_STRIP
+                )
+                if not ok:
+                    if amount < 0:
+                        flash(
+                            f"Not enough stock to remove. Current count for '{canonical_name}': {available_strips:.2f}",
+                            "error"
+                        )
+                    else:
+                        flash("Unable to update Brad Nails stock.", "error")
+                    return redirect(url_for('counting_hardware', selected=selected_part))
+
+                db.session.commit()
+                brad_display, brad_name = fractional_strip_display_count(
+                    canonical_name,
+                    BRAD_NAILS_UNITS_PER_STRIP
+                )
+                hardware_counts[brad_name] = brad_display
+                hardware_counts_raw[brad_name] = brad_display
+                flash(f"{brad_name} updated successfully! New count: {brad_display}", "success")
                 return redirect(url_for('counting_hardware', selected=selected_part))
             else:
                 if action in ['increment', 'quick_add']:
