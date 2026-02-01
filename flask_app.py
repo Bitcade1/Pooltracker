@@ -1158,7 +1158,7 @@ def build_stock_snapshot():
         unit_cost=parts_on_water_total,
         shipping_cost=0.0,
         labour_cost=0.0,
-        cost_locked=True,
+        cost_locked=False,
         count_display="-",
     )
 
@@ -1387,9 +1387,9 @@ def stock_costs():
             shipping_cost = item.get('shipping_cost', 0.0)
             labour_cost = item.get('labour_cost', 0.0)
         else:
-            unit_cost = entry.unit_cost if entry else 0.0
-            shipping_cost = entry.shipping_cost if entry else 0.0
-            labour_cost = entry.labour_cost if entry else 0.0
+            unit_cost = entry.unit_cost if entry else item.get('unit_cost', 0.0)
+            shipping_cost = entry.shipping_cost if entry else item.get('shipping_cost', 0.0)
+            labour_cost = entry.labour_cost if entry else item.get('labour_cost', 0.0)
         material_cost = unit_cost + shipping_cost
         per_item_total = material_cost + labour_cost  # Ex VAT total (labour is VAT exempt)
         per_item_with_vat = (material_cost * (1 + vat_rate)) + labour_cost
