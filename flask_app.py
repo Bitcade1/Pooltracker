@@ -6320,7 +6320,17 @@ def turn_on_dust_extractor():
     try:
         # Determine action from form submission
         action = request.form.get('action', 'on')
-        
+
+        local_error = None
+        try:
+            local_url = f"http://DustExtractorMiddleUnit/mode?m={action}"
+            response = requests.get(local_url, timeout=5)
+            response.raise_for_status()
+            flash(f"Dust extractor turned {action} (local)!", "success")
+            return redirect(request.referrer or url_for('counting_wood'))
+        except Exception as e:
+            local_error = e
+
         # Cloud API configuration
         cloud = tinytuya.Cloud(
             apiRegion="eu",  # Based on your region
@@ -6328,23 +6338,29 @@ def turn_on_dust_extractor():
             apiSecret="55bec326c6e3466db6c1a3374c4d88ec",  # Your API Secret
             apiDeviceID="bfcf09124259fcecdd6ied"  # Your Hub/Gateway ID
         )
-        
+
         # Device IDs
         ON_FINGERBOT_ID = "bfdbd2ybbo1zwocd"  # Original Fingerbot (first one)
         OFF_FINGERBOT_ID = "bf8f805498a758d70epago"  # New Fingerbot (second one)
-        
+
         # Select the appropriate device ID based on action
         device_id = ON_FINGERBOT_ID if action == 'on' else OFF_FINGERBOT_ID
-        
+
         # Send command to turn on/off
         commands = {"commands": [{"code": "switch", "value": True}]}
-        result = cloud.sendcommand(device_id, commands)
-        
+        cloud.sendcommand(device_id, commands)
+
         # Flash a success message
-        flash(f"Dust extractor turned {action}!", "success")
+        flash(f"Dust extractor turned {action} (cloud)!", "success")
     except Exception as e:
         # Flash an error message if something goes wrong
-        flash(f"Error turning {action} dust extractor: {str(e)}", "error")
+        if local_error:
+            flash(
+                f"Error turning {action} dust extractor. Local error: {local_error}. Cloud error: {e}",
+                "error"
+            )
+        else:
+            flash(f"Error turning {action} dust extractor: {str(e)}", "error")
     
     # Redirect back to the previous page
     return redirect(request.referrer or url_for('counting_wood'))
