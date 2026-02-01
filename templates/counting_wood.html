@@ -432,6 +432,7 @@
         </div>
       </div>
     {% endif %}
+    <iframe id="extractorFrame" title="Dust Extractor Control" style="display:none;"></iframe>
   </div>
   <script>
     function closeBodyPopup() {
@@ -442,16 +443,14 @@
     }
     function openExtractor(mode) {
       var url = "http://DustExtractorMiddleUnit/mode?m=" + mode;
-      var popup = window.open(url, "_blank", "noopener,noreferrer");
-      if (popup) {
-        setTimeout(function() {
-          try {
-            popup.close();
-          } catch (e) {
-            // ignore
-          }
-        }, 800);
+      var frame = document.getElementById('extractorFrame');
+      if (!frame) {
+        return;
       }
+      frame.src = url;
+      setTimeout(function() {
+        frame.src = "about:blank";
+      }, 800);
     }
     window.addEventListener('load', function() {
       var overlay = document.getElementById('bodyPopupOverlay');
