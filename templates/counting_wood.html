@@ -156,8 +156,12 @@
     <div class="flex items-center">
       <h1>Counting Wood</h1>
       <div class="dust-extractor-buttons">
-        <button type="button" id="extractorOn" class="button dust-extractor-on">Dust Extractor On</button>
-        <button type="button" id="extractorOff" class="button dust-extractor-off">Dust Extractor Off</button>
+        <button type="button" id="extractorOn" class="button dust-extractor-on">
+          Dust Extractor On
+        </button>
+        <button type="button" id="extractorOff" class="button dust-extractor-off">
+          Dust Extractor Off
+        </button>
       </div>
     </div>
 
@@ -440,22 +444,15 @@
         overlay.style.display = 'none';
       }
     }
-    function openExtractor(mode) {
-      var url = "http://DustExtractorMiddleUnit/mode?m=" + mode;
-      var popup = window.open(
-        url,
-        "dustExtractor",
-        "width=420,height=240,menubar=no,toolbar=no,location=no,status=no,noopener,noreferrer"
-      );
-      if (popup) {
-        setTimeout(function() {
-          try {
-            popup.close();
-          } catch (e) {
-            // ignore
-          }
-        }, 800);
-      }
+    function setExtractor(mode) {
+      var extractorUrl = "http://192.168.0.141";
+      fetch(extractorUrl + "/mode?m=" + mode)
+        .then(function() {
+          console.log("Extractor mode set to " + mode);
+        })
+        .catch(function(err) {
+          console.error("Extractor control failed", err);
+        });
     }
     window.addEventListener('load', function() {
       var overlay = document.getElementById('bodyPopupOverlay');
@@ -468,12 +465,12 @@
       var offButton = document.getElementById('extractorOff');
       if (onButton) {
         onButton.addEventListener('click', function() {
-          openExtractor("on");
+          setExtractor("on");
         });
       }
       if (offButton) {
         offButton.addEventListener('click', function() {
-          openExtractor("off");
+          setExtractor("off");
         });
       }
     });
