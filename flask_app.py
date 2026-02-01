@@ -6321,15 +6321,33 @@ def turn_on_dust_extractor():
         # Determine action from form submission
         action = request.form.get('action', 'on')
 
-        local_error = None
-        try:
-            local_url = f"http://192.168.0.134/mode?m={action}"
-            response = requests.get(local_url, timeout=5)
-            response.raise_for_status()
-            flash(f"Dust extractor turned {action} (local)!", "success")
+        local_errors = []
+        local_urls = [
+            "http://DustExtractorMiddleUnit/mode",
+            "http://192.168.0.134/mode",
+            "http://192.168.0.141/mode"
+        ]
+        local_success = False
+        for base_url in local_urls:
+            for mode_value in (action, action.upper()):
+                for method in ("get", "post"):
+                    try:
+                        if method == "get":
+                            response = requests.get(base_url, params={"m": mode_value}, timeout=5)
+                        else:
+                            response = requests.post(base_url, data={"m": mode_value}, timeout=5)
+                        response.raise_for_status()
+                        flash(f"Dust extractor turned {action} (local: {base_url})!", "success")
+                        local_success = True
+                        break
+                    except Exception as e:
+                        local_errors.append(f"{base_url} {method.upper()} m={mode_value}: {e}")
+                if local_success:
+                    break
+            if local_success:
+                break
+        if local_success:
             return redirect(request.referrer or url_for('counting_wood'))
-        except Exception as e:
-            local_error = e
 
         # Cloud API configuration
         cloud = tinytuya.Cloud(
@@ -6351,12 +6369,14 @@ def turn_on_dust_extractor():
         cloud.sendcommand(device_id, commands)
 
         # Flash a success message
+        if local_errors:
+            flash(f"Local control failed, cloud used instead. Last error: {local_errors[-1]}", "warning")
         flash(f"Dust extractor turned {action} (cloud)!", "success")
     except Exception as e:
         # Flash an error message if something goes wrong
-        if local_error:
+        if local_errors:
             flash(
-                f"Error turning {action} dust extractor. Local error: {local_error}. Cloud error: {e}",
+                f"Error turning {action} dust extractor. Last local error: {local_errors[-1]}. Cloud error: {e}",
                 "error"
             )
         else:
