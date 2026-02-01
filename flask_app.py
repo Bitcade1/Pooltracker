@@ -6323,7 +6323,7 @@ def turn_on_dust_extractor():
 
         local_error = None
         try:
-            local_url = f"http://DustExtractorMiddleUnit/mode?m={action}"
+            local_url = f"http://192.168.0.134/mode?m={action}"
             response = requests.get(local_url, timeout=5)
             response.raise_for_status()
             flash(f"Dust extractor turned {action} (local)!", "success")
