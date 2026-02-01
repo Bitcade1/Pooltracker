@@ -445,7 +445,7 @@
       }
     }
     function setExtractor(mode) {
-      var extractorUrl = "http://DustExtractorMiddleUnit";
+      var extractorUrl = "http://192.168.0.134";
       fetch(extractorUrl + "/mode?m=" + mode)
         .then(function() {
           console.log("Extractor mode set to " + mode);
