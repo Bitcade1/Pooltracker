@@ -6321,47 +6321,28 @@ def turn_on_dust_extractor():
     try:
         # Determine action from form submission
         action = request.form.get('action', 'on')
-        def control_extractor_async():
-            local_urls = [
-                "http://DustExtractorMiddleUnit/mode",
-                "http://192.168.0.134/mode",
-                "http://192.168.0.141/mode"
-            ]
-            for base_url in local_urls:
-                for mode_value in (action, action.upper()):
-                    for method in ("get", "post"):
-                        try:
-                            if method == "get":
-                                response = requests.get(base_url, params={"m": mode_value}, timeout=2)
-                            else:
-                                response = requests.post(base_url, data={"m": mode_value}, timeout=2)
-                            response.raise_for_status()
-                            return
-                        except Exception as e:
-                            print(f"Dust extractor local control failed: {base_url} {method.upper()} m={mode_value}: {e}")
-
-            try:
-                cloud = tinytuya.Cloud(
-                    apiRegion="eu",  # Based on your region
-                    apiKey="5gcttjq87ffjvvk84a54",  # Your API Key
-                    apiSecret="55bec326c6e3466db6c1a3374c4d88ec",  # Your API Secret
-                    apiDeviceID="bfcf09124259fcecdd6ied"  # Your Hub/Gateway ID
-                )
-
-                # Device IDs
-                on_fingerbot_id = "bfdbd2ybbo1zwocd"
-                off_fingerbot_id = "bf8f805498a758d70epago"
-                device_id = on_fingerbot_id if action == 'on' else off_fingerbot_id
-
-                commands = {"commands": [{"code": "switch", "value": True}]}
-                cloud.sendcommand(device_id, commands)
-            except Exception as e:
-                print(f"Dust extractor cloud control failed: {e}")
-
-        thread = threading.Thread(target=control_extractor_async, daemon=True)
-        thread.start()
-
-        flash(f"Dust extractor command sent ({action}).", "success")
+        
+        # Cloud API configuration
+        cloud = tinytuya.Cloud(
+            apiRegion="eu",  # Based on your region
+            apiKey="5gcttjq87ffjvvk84a54",  # Your API Key
+            apiSecret="55bec326c6e3466db6c1a3374c4d88ec",  # Your API Secret
+            apiDeviceID="bfcf09124259fcecdd6ied"  # Your Hub/Gateway ID
+        )
+        
+        # Device IDs
+        ON_FINGERBOT_ID = "bfdbd2ybbo1zwocd"  # Original Fingerbot (first one)
+        OFF_FINGERBOT_ID = "bf8f805498a758d70epago"  # New Fingerbot (second one)
+        
+        # Select the appropriate device ID based on action
+        device_id = ON_FINGERBOT_ID if action == 'on' else OFF_FINGERBOT_ID
+        
+        # Send command to turn on/off
+        commands = {"commands": [{"code": "switch", "value": True}]}
+        result = cloud.sendcommand(device_id, commands)
+        
+        # Flash a success message
+        flash(f"Dust extractor turned {action}!", "success")
     except Exception as e:
         # Flash an error message if something goes wrong
         flash(f"Error turning {action} dust extractor: {str(e)}", "error")
@@ -6370,7 +6351,6 @@ def turn_on_dust_extractor():
     return redirect(request.referrer or url_for('counting_wood'))
 
 # Add this route with your other routes in flask_app.py
-
 @app.route('/api/docs')
 def api_documentation():
     """Render the API documentation page"""
