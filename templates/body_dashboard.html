@@ -341,6 +341,21 @@
             </div>
         </div>
     </section>
+    <section class="panel">
+        <h3>Average Time By Table Type (This Month)</h3>
+        <div class="avg-times">
+            <div class="avg-card">
+                <span class="label">Champion</span>
+                <span class="value">{{ avg_champion_current_month }}</span>
+                <span class="label">Last body time: {{ last_champion_duration }}</span>
+            </div>
+            <div class="avg-card">
+                <span class="label">Lite</span>
+                <span class="value">{{ avg_lite_current_month }}</span>
+                <span class="label">Last body time: {{ last_lite_duration }}</span>
+            </div>
+        </div>
+    </section>
 
     <div class="dashboard-body">
         <section class="panel parts-panel">

@@ -59,6 +59,200 @@ def serial_is_6ft(serial):
     normalized = serial.replace(" ", "").upper()
     return normalized.endswith("-6") or "-6-" in normalized
 
+
+def serial_is_lite(serial):
+    if not serial:
+        return False
+    normalized = serial.replace(" ", "").upper()
+    return normalized.endswith("-L")
+
+
+TABLE_TYPE_CHAMPION = "champion"
+TABLE_TYPE_LITE = "lite"
+BODY_TABLE_TYPE_CODES = {
+    TABLE_TYPE_CHAMPION: 1,
+    TABLE_TYPE_LITE: 2,
+}
+BODY_TABLE_TYPE_FROM_CODE = {code: key for key, code in BODY_TABLE_TYPE_CODES.items()}
+BODY_COLOR_CODES = {
+    "black": 1,
+    "rustic_oak": 2,
+    "grey_oak": 3,
+    "stone": 4,
+    "rustic_black": 5,
+}
+BODY_COLOR_FROM_CODE = {code: key for key, code in BODY_COLOR_CODES.items()}
+COLOR_SELECTOR_TO_KEY = {
+    "Black": "black",
+    "Rustic Oak": "rustic_oak",
+    "Grey Oak": "grey_oak",
+    "Stone": "stone",
+    "Rustic Black": "rustic_black",
+}
+
+
+def table_type_from_serial(serial):
+    return TABLE_TYPE_LITE if serial_is_lite(serial) else TABLE_TYPE_CHAMPION
+
+
+def color_key_from_selector(color_name):
+    return COLOR_SELECTOR_TO_KEY.get(color_name, "black")
+
+
+def color_key_from_serial(serial):
+    norm = (serial or "").replace(" ", "").upper()
+    if "-GO" in norm:
+        return "grey_oak"
+    if "-O" in norm and "-GO" not in norm:
+        return "rustic_oak"
+    if "-C" in norm:
+        return "stone"
+    if "-RB" in norm:
+        return "rustic_black"
+    return "black"
+
+
+def strip_table_serial_suffixes(serial, remove_color=True, remove_lite=True):
+    cleaned = (serial or "").strip()
+    if not cleaned:
+        return cleaned
+
+    if remove_color:
+        # Remove one trailing color suffix (if present).
+        cleaned = re.sub(r"\s*-\s*(GO|RB|O|C|B)\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+    if remove_lite:
+        cleaned = re.sub(r"\s*-\s*L\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned
+
+
+def base_serial_for_pod_matching(serial):
+    cleaned = strip_table_serial_suffixes(serial, remove_color=True, remove_lite=True)
+    # Lite 7ft serials are stored like "<num> - 7 - L"; pods remain "<num>".
+    cleaned = re.sub(r"\s*-\s*7\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned
+
+
+def _body_meta_type_key(body_id):
+    return f"meta_body_type_{body_id}"
+
+
+def _body_meta_color_key(body_id):
+    return f"meta_body_color_{body_id}"
+
+
+def save_body_build_metadata(body_id, table_type, color_key):
+    type_code = BODY_TABLE_TYPE_CODES.get(table_type, BODY_TABLE_TYPE_CODES[TABLE_TYPE_CHAMPION])
+    color_code = BODY_COLOR_CODES.get(color_key, BODY_COLOR_CODES["black"])
+    payload = (
+        (_body_meta_type_key(body_id), type_code),
+        (_body_meta_color_key(body_id), color_code),
+    )
+    for meta_key, meta_count in payload:
+        entry = TableStock.query.filter_by(type=meta_key).first()
+        if not entry:
+            entry = TableStock(type=meta_key, count=meta_count)
+            db.session.add(entry)
+        else:
+            entry.count = meta_count
+
+
+def get_body_build_metadata(body_entry):
+    table_type = table_type_from_serial(body_entry.serial_number)
+    color_key = color_key_from_serial(body_entry.serial_number)
+
+    type_entry = TableStock.query.filter_by(type=_body_meta_type_key(body_entry.id)).first()
+    color_entry = TableStock.query.filter_by(type=_body_meta_color_key(body_entry.id)).first()
+
+    if type_entry:
+        table_type = BODY_TABLE_TYPE_FROM_CODE.get(type_entry.count, table_type)
+    if color_entry:
+        color_key = BODY_COLOR_FROM_CODE.get(color_entry.count, color_key)
+
+    return table_type, color_key
+
+
+def delete_body_build_metadata(body_id):
+    for meta_key in (_body_meta_type_key(body_id), _body_meta_color_key(body_id)):
+        entry = TableStock.query.filter_by(type=meta_key).first()
+        if entry:
+            db.session.delete(entry)
+
+
+def body_parts_for_completion(serial_number, table_type, laminate_color_key):
+    laminate_label = LAMINATE_COLOR_KEY_TO_LABEL.get(laminate_color_key, "Black")
+    laminate_part_name = f"Laminate - {laminate_label}"
+
+    if table_type == TABLE_TYPE_LITE:
+        return {
+            laminate_part_name: 4,
+            "Table legs": 4,
+            "Ball Gullies 1 (Untouched)": 2,
+            "Ball Gullies 2": 1,
+            "Ball Gullies 3": 1,
+            "Ball Gullies 4": 1,
+            "Ball Gullies 5": 1,
+            "Feet": 4,
+            "Color ball trim": 1,
+            "Aluminum corner": 4,
+            "4.2 x 16 No2 Self Tapping Screw": 19,
+            "Latch": 12,
+            "7ft Bag of Bolts": 1,
+            "7ft Ply Supports": 2,
+        }
+
+    parts_to_deduct = {
+        "Large Ramp": 1,
+        "Paddle": 1,
+        laminate_part_name: 4,
+        "Spring Mount": 1,
+        "Spring Holder": 1,
+        "Small Ramp": 1,
+        "Cue Ball Separator": 1,
+        "Bushing": 2,
+        "Table legs": 4,
+        "Ball Gullies 1 (Untouched)": 2,
+        "Ball Gullies 2": 1,
+        "Ball Gullies 3": 1,
+        "Ball Gullies 4": 1,
+        "Ball Gullies 5": 1,
+        "Feet": 4,
+        "Triangle trim": 1,
+        "White ball return trim": 1,
+        "Color ball trim": 1,
+        "Ball window trim": 1,
+        "Aluminum corner": 4,
+        "Ramp 170mm": 1,
+        "Ramp 158mm": 1,
+        "Ramp 918mm": 1,
+        "Ramp 376mm": 1,
+        "Chrome handles": 1,
+        "Sticker Set": 1,
+        "4.8x16mm Self Tapping Screw": 37,
+        "4.0 x 50mm Wood Screw": 4,
+        "Plastic Window": 1,
+        "4.2 x 16 No2 Self Tapping Screw": 19,
+        "Spring": 1,
+        "Handle Tube": 1,
+        "Latch": 12,
+        "7ft Bag of Bolts": 1,
+        "7ft Ply Supports": 2,
+        BRAD_NAILS_PART_NAME: 0.25
+    }
+
+    if serial_is_6ft(serial_number):
+        parts_to_deduct.pop("Large Ramp", None)
+        parts_to_deduct.pop("Cue Ball Separator", None)
+        parts_to_deduct.pop("Small Ramp", None)
+        parts_to_deduct.pop("Ramp 170mm", None)
+        parts_to_deduct.pop("Ramp 158mm", None)
+        parts_to_deduct["6ft Large Ramp"] = 1
+        parts_to_deduct["6ft Cue Ball Separator"] = 1
+        parts_to_deduct.pop("7ft Bag of Bolts", None)
+        parts_to_deduct.pop("7ft Ply Supports", None)
+        parts_to_deduct["6ft Bag of Bolts"] = 1
+
+    return parts_to_deduct
+
 # Expose slugify_key to Jinja templates for form field names
 app.jinja_env.filters['slugify_key'] = slugify_key
 
@@ -2414,62 +2608,17 @@ def manage_raw_data():
             entry = CompletedTable.query.get(entry_id)
 
         if entry:
+            body_color_key_for_stock = None
             if 'delete' in request.form:
                 # Revert inventory if deleting a table or top rail entry.
                 if table == 'bodies':
-                    # Parts used for a completed table
-                    def body_color_key(serial):
-                        norm = serial.replace(" ", "").upper()
-                        if "-GO" in norm:
-                            return "grey_oak"
-                        if "-O" in norm and "-GO" not in norm:
-                            return "rustic_oak"
-                        if "-C" in norm:
-                            return "stone"
-                        if "-RB" in norm:
-                            return "rustic_black"
-                        return "black"
-
-                    laminate_label = LAMINATE_COLOR_KEY_TO_LABEL.get(
-                        body_color_key(entry.serial_number),
-                        "Black"
+                    body_table_type, body_color_key = get_body_build_metadata(entry)
+                    body_color_key_for_stock = body_color_key
+                    parts_used = body_parts_for_completion(
+                        entry.serial_number,
+                        body_table_type,
+                        body_color_key
                     )
-                    laminate_part_name = f"Laminate - {laminate_label}"
-                    parts_used = {
-                        "Large Ramp": 1,
-                        "Paddle": 1,
-                        laminate_part_name: 4,
-                        "Spring Mount": 1,
-                        "Spring Holder": 1,
-                        "Small Ramp": 1,
-                        "Cue Ball Separator": 1,
-                        "Bushing": 2,
-                        "Table legs": 4,
-                        "Ball Gullies 1 (Untouched)": 2,
-                        "Ball Gullies 2": 1,
-                        "Ball Gullies 3": 1,
-                        "Ball Gullies 4": 1,
-                        "Ball Gullies 5": 1,
-                        "Feet": 4,
-                        "Triangle trim": 1,
-                        "White ball return trim": 1,
-                        "Color ball trim": 1,
-                        "Ball window trim": 1,
-                        "Aluminum corner": 4,
-                        "Ramp 170mm": 1,
-                        "Ramp 158mm": 1,
-                        "Ramp 918mm": 1,
-                        "Ramp 376mm": 1,
-                        "Chrome handles": 1,
-                        "Sticker Set": 1,
-                        BRAD_NAILS_PART_NAME: 0.25
-                    }
-                    # If the table was a 6ft table, adjust the parts used.
-                    if serial_is_6ft(entry.serial_number):
-                        parts_used.pop("Large Ramp", None)
-                        parts_used.pop("Cue Ball Separator", None)
-                        parts_used["6ft Large Ramp"] = 1
-                        parts_used["6ft Cue Ball Separator"] = 1
 
                     # Revert each part's inventory.
                     for part_name, qty in parts_used.items():
@@ -2494,6 +2643,21 @@ def manage_raw_data():
                                 time=datetime.utcnow().time()
                             )
                             db.session.add(new_inv)
+
+                    if body_table_type == TABLE_TYPE_CHAMPION:
+                        size_key = "6" if serial_is_6ft(entry.serial_number) else "7"
+                        body_piece_keys = [
+                            f"{body_color_key}_{size_key}_window_side",
+                            f"{body_color_key}_{size_key}_blank_side",
+                            f"{body_color_key}_{size_key}_triangle_end",
+                            f"{body_color_key}_{size_key}_color_ball_end",
+                        ]
+                        for part_key in body_piece_keys:
+                            part_entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
+                            if not part_entry:
+                                part_entry = BodyPieceCount(part_key=part_key, count=0)
+                                db.session.add(part_entry)
+                            part_entry.count += 1
                     db.session.commit()
 
                 elif table == 'top_rails':
@@ -2534,17 +2698,15 @@ def manage_raw_data():
                 # Now delete the entry.
                 # If deleting a body, also update the table stock
                 if table == 'bodies':
-                    def body_is_6ft(serial):
-                        return serial_is_6ft(serial)
-
-                    size = "6ft" if body_is_6ft(entry.serial_number) else "7ft"
-                    color_key = body_color_key(entry.serial_number)
+                    size = "6ft" if serial_is_6ft(entry.serial_number) else "7ft"
+                    color_key = body_color_key_for_stock or color_key_from_serial(entry.serial_number)
                     stock_type = f'body_{size}_{color_key}'
 
                     stock_entry = TableStock.query.filter_by(type=stock_type).first()
                     if stock_entry and stock_entry.count > 0:
                         stock_entry.count -= 1
                         db.session.commit()
+                    delete_body_build_metadata(entry.id)
                 # If deleting a top rail, also update the table stock
                 elif table == 'top_rails':
                     def rail_is_6ft(serial):
@@ -3325,18 +3487,12 @@ def bodies():
     # Retrieve issues and any pods not yet converted
     issues = [issue.description for issue in Issue.query.all()]
     
-    # Get the base serial numbers of all completed tables (without color suffixes)
+    # Get the base serial numbers of all completed tables (without color/Lite suffixes)
     completed_table_serials = db.session.query(CompletedTable.serial_number).all()
     completed_base_serials = []
     
     for (serial,) in completed_table_serials:
-        # Strip any color suffixes to get the base serial - including RB
-        base_serial = serial
-        for suffix in [' - GO', '-GO', ' - O', '-O', ' - C', '-C', ' - B', '-B', ' - RB', '-RB']:
-            if suffix in base_serial:
-                base_serial = base_serial.split(suffix, 1)[0].strip()
-                break  # Only remove the first matching suffix
-        completed_base_serials.append(base_serial)
+        completed_base_serials.append(base_serial_for_pod_matching(serial))
     
     # Find pods that haven't been converted to tables (considering base serial numbers)
     unconverted_pods = []
@@ -3347,55 +3503,41 @@ def bodies():
             pod_serial = pod_serial.replace("**Pod Serial Number:", "").strip()
             
         # Check if the base serial is not in completed tables
-        if pod_serial not in completed_base_serials:
+        if base_serial_for_pod_matching(pod_serial) not in completed_base_serials:
             unconverted_pods.append(pod)
 
     if request.method == 'POST':
-        # Helper function to determine color from serial number
-        def get_color(serial):
-            norm_serial = serial.replace(" ", "")
-            if "-GO" in norm_serial or "-go" in norm_serial:
-                return "grey_oak"
-            elif "-O" in norm_serial and not "-GO" in norm_serial:
-                return "rustic_oak"
-            elif "-C" in norm_serial or "-c" in norm_serial:
-                return "stone"
-            elif "-RB" in norm_serial or "-rb" in norm_serial:
-                return "rustic_black"
-            else:
-                return "black"  # Default if no color suffix or has -B
-
-        # Helper function to determine if it's a 6ft table
-        def is_6ft(serial):
-            return serial_is_6ft(serial)
-
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
         color_selector = request.form.get('color_selector', 'Black')
+        table_type_selector = request.form.get('table_type', 'Champion')
+        selected_table_type = (
+            TABLE_TYPE_LITE
+            if table_type_selector.strip().lower() == "lite"
+            else TABLE_TYPE_CHAMPION
+        )
         issue_text = request.form['issue']
         lunch = request.form['lunch']
 
-        # Get the formatted serial number if it exists, otherwise use the original
         formatted_serial = request.form.get('formatted_serial_number', '').strip()
-        
-        # If formatted_serial_number is empty or not provided, format the serial number manually
-        if not formatted_serial:
-            # Clean any existing color suffix from the serial number, but preserve size suffix
-            clean_serial = serial_number
-            
-            # Remove "**Pod Serial Number:" prefix if present
-            if "**Pod Serial Number:" in clean_serial:
-                clean_serial = clean_serial.replace("**Pod Serial Number:", "").strip()
-            
-            # Check for and remove existing color suffixes - including RB
-            for suffix in [' - GO', '-GO', ' - O', '-O', ' - C', '-C', ' - B', '-B', ' - RB', '-RB']:
-                if suffix in clean_serial:
-                    clean_serial = clean_serial.replace(suffix, '').strip()
-                    break  # Only remove the first matching suffix
-            
-            # Add color suffix based on selection
+        raw_serial = formatted_serial if formatted_serial else serial_number
+
+        if "**Pod Serial Number:" in raw_serial:
+            raw_serial = raw_serial.replace("**Pod Serial Number:", "").strip()
+
+        clean_serial = strip_table_serial_suffixes(raw_serial, remove_color=True, remove_lite=True)
+        normalized_serial = clean_serial.replace(" ", "").upper()
+        has_6 = serial_is_6ft(clean_serial)
+        has_7 = normalized_serial.endswith("-7") or "-7-" in normalized_serial
+
+        if selected_table_type == TABLE_TYPE_LITE:
+            if not has_6 and not has_7:
+                clean_serial = f"{clean_serial} - 7"
+            clean_serial = re.sub(r"\s*-\s*L\s*$", "", clean_serial, flags=re.IGNORECASE).strip()
+            serial_number = f"{clean_serial} - L"
+        else:
             if color_selector == 'Grey Oak':
                 clean_serial += ' - GO'
             elif color_selector == 'Rustic Oak':
@@ -3404,11 +3546,7 @@ def bodies():
                 clean_serial += ' - C'
             elif color_selector == 'Rustic Black':
                 clean_serial += ' - RB'
-            # Black is default, so no suffix needed
-            
             serial_number = clean_serial
-        else:
-            serial_number = formatted_serial
 
         issue_text = request.form['issue']
         lunch = request.form['lunch']
@@ -3417,96 +3555,52 @@ def bodies():
         # PARTS DEDUCTION LOGIC
         # ---------------------------
         low_stock_messages = []
-        laminate_color_key = get_color(serial_number)
-        laminate_label = LAMINATE_COLOR_KEY_TO_LABEL.get(laminate_color_key, "Black")
-        laminate_part_name = f"Laminate - {laminate_label}"
-        parts_to_deduct = {
-            "Large Ramp": 1,
-            "Paddle": 1,
-            laminate_part_name: 4,
-            "Spring Mount": 1,
-            "Spring Holder": 1,
-            "Small Ramp": 1,
-            "Cue Ball Separator": 1,
-            "Bushing": 2,
-            # Additional parts for the table build:
-            "Table legs": 4,
-            "Ball Gullies 1 (Untouched)": 2,
-            "Ball Gullies 2": 1,
-            "Ball Gullies 3": 1,
-            "Ball Gullies 4": 1,
-            "Ball Gullies 5": 1,
-            "Feet": 4,
-            "Triangle trim": 1,
-            "White ball return trim": 1,
-            "Color ball trim": 1,
-            "Ball window trim": 1,
-            "Aluminum corner": 4,
-            "Ramp 170mm": 1,
-            "Ramp 158mm": 1,
-            "Ramp 918mm": 1,
-            "Ramp 376mm": 1,
-            "Chrome handles": 1,
-            "Sticker Set": 1,
-            "4.8x16mm Self Tapping Screw": 37,
-            "4.0 x 50mm Wood Screw": 4,
-            "Plastic Window": 1,
-            "4.2 x 16 No2 Self Tapping Screw": 19,
-            "Spring": 1,
-            "Handle Tube": 1,
-            "Latch": 12,
-            "7ft Bag of Bolts": 1,
-            "7ft Ply Supports": 2,
-            BRAD_NAILS_PART_NAME: 0.25
-        }
-
-        # Adjust parts for 6ft tables
-        if is_6ft(serial_number):
-            # For a 6ft table, remove standard parts and add the 6ft-specific ones.
-            parts_to_deduct.pop("Large Ramp", None)
-            parts_to_deduct.pop("Cue Ball Separator", None)
-            parts_to_deduct.pop("Small Ramp", None)  # Remove Small Ramp for 6ft tables
-            parts_to_deduct.pop("Ramp 170mm", None)  # Also remove Ramp 170mm for 6ft tables
-            parts_to_deduct.pop("Ramp 158mm", None)  # Also remove Ramp 158mm for 6ft tables
-            parts_to_deduct["6ft Large Ramp"] = 1
-            parts_to_deduct["6ft Cue Ball Separator"] = 1
-            parts_to_deduct.pop("7ft Bag of Bolts", None)
-            parts_to_deduct.pop("7ft Ply Supports", None)
-            parts_to_deduct["6ft Bag of Bolts"] = 1
-        # Deduct body pieces based on size and color
-        size_key = "6" if is_6ft(serial_number) else "7"
-        color_key = get_color(serial_number)
-        body_piece_keys = [
-            f"{color_key}_{size_key}_window_side",
-            f"{color_key}_{size_key}_blank_side",
-            f"{color_key}_{size_key}_triangle_end",
-            f"{color_key}_{size_key}_color_ball_end",
-        ]
-        body_piece_entries = []
-        for part_key in body_piece_keys:
-            part_entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
-            if not part_entry:
-                flash(f"No inventory set up for body piece {part_key}!", "error")
-                db.session.rollback()
-                return redirect(url_for('bodies'))
-            if part_entry.count < 1:
-                flash(
-                    f"Not enough inventory for body piece {part_key}! Need 1, have {part_entry.count}",
-                    "error"
+        actual_table_type = table_type_from_serial(serial_number)
+        selected_color_key = color_key_from_selector(color_selector)
+        laminate_color_key = (
+            selected_color_key
+            if actual_table_type == TABLE_TYPE_LITE
+            else color_key_from_serial(serial_number)
+        )
+        parts_to_deduct = body_parts_for_completion(
+            serial_number,
+            actual_table_type,
+            laminate_color_key
+        )
+        if actual_table_type == TABLE_TYPE_CHAMPION:
+            size_key = "6" if serial_is_6ft(serial_number) else "7"
+            color_key = color_key_from_serial(serial_number)
+            body_piece_keys = [
+                f"{color_key}_{size_key}_window_side",
+                f"{color_key}_{size_key}_blank_side",
+                f"{color_key}_{size_key}_triangle_end",
+                f"{color_key}_{size_key}_color_ball_end",
+            ]
+            body_piece_entries = []
+            for part_key in body_piece_keys:
+                part_entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
+                if not part_entry:
+                    flash(f"No inventory set up for body piece {part_key}!", "error")
+                    db.session.rollback()
+                    return redirect(url_for('bodies'))
+                if part_entry.count < 1:
+                    flash(
+                        f"Not enough inventory for body piece {part_key}! Need 1, have {part_entry.count}",
+                        "error"
+                    )
+                    db.session.rollback()
+                    return redirect(url_for('bodies'))
+                body_piece_entries.append(part_entry)
+            for part_entry in body_piece_entries:
+                old_count = part_entry.count
+                part_entry.count -= 1
+                check_and_notify_low_stock(
+                    part_entry.part_key,
+                    old_count,
+                    part_entry.count,
+                    collected_warnings=low_stock_messages
                 )
-                db.session.rollback()
-                return redirect(url_for('bodies'))
-            body_piece_entries.append(part_entry)
-        for part_entry in body_piece_entries:
-            old_count = part_entry.count
-            part_entry.count -= 1
-            check_and_notify_low_stock(
-                part_entry.part_key,
-                old_count,
-                part_entry.count,
-                collected_warnings=low_stock_messages
-            )
-        print(parts_to_deduct)
+
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
             if part_name == BRAD_NAILS_PART_NAME:
@@ -3666,8 +3760,9 @@ def bodies():
 
 
             # --- NTFY Notification ---
-            size = "6ft" if is_6ft(serial_number) else "7ft"
-            color = get_color(serial_number).replace('_', ' ').title()
+            size = "6ft" if serial_is_6ft(serial_number) else "7ft"
+            color = laminate_color_key.replace('_', ' ').title()
+            type_label = "Lite" if actual_table_type == TABLE_TYPE_LITE else "Champion"
             message_lines = []
             if low_stock_messages:
                 message_lines.append("LOW STOCK WARNING")
@@ -3679,9 +3774,9 @@ def bodies():
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
             if low_stock_messages:
-                title = f"[LOW STOCK] Body Completed: {size} {color}"
+                title = f"[LOW STOCK] Body Completed: {type_label} {size} {color}"
             else:
-                title = f"Body Completed: {size} {color}"
+                title = f"Body Completed: {type_label} {size} {color}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
                               data=message,
@@ -3694,9 +3789,12 @@ def bodies():
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
             return redirect(url_for('bodies'))
 
+        # Persist body metadata (type/color) so Lite rows stay reversible without color in serial.
+        save_body_build_metadata(new_table.id, actual_table_type, laminate_color_key)
+
         # Update table stock based on size and color
-        size = "6ft" if is_6ft(serial_number) else "7ft"
-        color = get_color(serial_number)
+        size = "6ft" if serial_is_6ft(serial_number) else "7ft"
+        color = laminate_color_key
         stock_type = f'body_{size.lower()}_{color}'
         
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
@@ -3719,28 +3817,21 @@ def bodies():
     ).all()
     current_month_bodies_count = len(all_bodies_this_month)
 
-    # Helper: determine table color based on serial number
-    def get_color(serial):
-        norm_serial = serial.replace(" ", "")
-        if "-GO" in norm_serial or "-go" in norm_serial:
-            return "Grey Oak"
-        elif "-O" in norm_serial and not "-GO" in norm_serial:
-            return "Rustic Oak"
-        elif "-C" in norm_serial or "-c" in norm_serial:
-            return "Stone"
-        else:
-            return "Black"  # Default if no color suffix or has -B
+    def body_color_label(body_entry):
+        _, color_key = get_body_build_metadata(body_entry)
+        return LAMINATE_COLOR_KEY_TO_LABEL.get(color_key, "Black")
 
     # Determine default color based on the last completed table
     last_table = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
-    default_color = get_color(last_table.serial_number) if last_table else 'Black'
+    default_color = body_color_label(last_table) if last_table else 'Black'
+    default_table_type = (
+        "Lite"
+        if last_table and table_type_from_serial(last_table.serial_number) == TABLE_TYPE_LITE
+        else "Champion"
+    )
 
-    # Helper: determine table size based on serial number
-    def is_6ft(serial):
-        return serial_is_6ft(serial)
-
-    current_production_6ft = sum(1 for table in all_bodies_this_month if is_6ft(table.serial_number))
-    current_production_7ft = sum(1 for table in all_bodies_this_month if not is_6ft(table.serial_number))
+    current_production_6ft = sum(1 for table in all_bodies_this_month if serial_is_6ft(table.serial_number))
+    current_production_7ft = sum(1 for table in all_bodies_this_month if not serial_is_6ft(table.serial_number))
 
     # Daily history (last 5 working days)
     def get_last_n_working_days(n, reference_date):
@@ -3863,12 +3954,20 @@ def bodies():
         total_duration_seconds = 0
         counted_bodies = 0
         worker_stats = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
+        type_stats = {
+            TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
+            TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
+        }
         for body in month_bodies:
             duration = calculate_body_duration(body)
             if duration is None:
                 continue
             total_duration_seconds += duration.total_seconds()
             counted_bodies += 1
+            body_type = table_type_from_serial(body.serial_number)
+            if body_type in type_stats:
+                type_stats[body_type]["seconds"] += duration.total_seconds()
+                type_stats[body_type]["count"] += 1
             mapped_worker = map_to_worker(body.worker)
             if mapped_worker in worker_stats:
                 worker_stats[mapped_worker]["seconds"] += duration.total_seconds()
@@ -3885,7 +3984,15 @@ def bodies():
             "count": total_bodies,
             "average_hours_per_body": avg_hours_per_body_formatted,
             "avg_hours_jack": worker_avg_formatted.get("Jack B", "N/A"),
-            "avg_hours_tom": worker_avg_formatted.get("Tom", "N/A")
+            "avg_hours_tom": worker_avg_formatted.get("Tom", "N/A"),
+            "avg_hours_champion": format_avg_duration(
+                type_stats[TABLE_TYPE_CHAMPION]["seconds"],
+                type_stats[TABLE_TYPE_CHAMPION]["count"]
+            ),
+            "avg_hours_lite": format_avg_duration(
+                type_stats[TABLE_TYPE_LITE]["seconds"],
+                type_stats[TABLE_TYPE_LITE]["count"]
+            )
         })
     
     # Retrieve production targets for the current month
@@ -3914,7 +4021,8 @@ def bodies():
         target_6ft=target_6ft,
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft,
-        default_color=default_color
+        default_color=default_color,
+        default_table_type=default_table_type
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
@@ -5038,16 +5146,36 @@ def body_dashboard_view():
     worker_stats_current = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
     latest_body_time = {worker: None for worker in workers_of_interest}
     latest_body_duration = {worker: None for worker in workers_of_interest}
+    type_stats_current = {
+        TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
+        TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
+    }
+    latest_type_time = {
+        TABLE_TYPE_CHAMPION: None,
+        TABLE_TYPE_LITE: None,
+    }
+    latest_type_duration = {
+        TABLE_TYPE_CHAMPION: None,
+        TABLE_TYPE_LITE: None,
+    }
     for body in current_month_bodies:
         duration = calculate_body_duration(body)
         if duration is None:
             continue
+        body_type = table_type_from_serial(body.serial_number)
+        completed_dt = datetime.combine(body.date, parse_time_string(body.finish_time) or datetime.min.time())
+        if body_type in type_stats_current:
+            type_stats_current[body_type]["seconds"] += duration.total_seconds()
+            type_stats_current[body_type]["count"] += 1
+            if latest_type_time[body_type] is None or completed_dt > latest_type_time[body_type]:
+                latest_type_time[body_type] = completed_dt
+                latest_type_duration[body_type] = duration
+
         mapped = map_to_worker(body.worker)
         if mapped in worker_stats_current:
             worker_stats_current[mapped]["seconds"] += duration.total_seconds()
             worker_stats_current[mapped]["count"] += 1
             # track latest completion timestamp and duration for the worker
-            completed_dt = datetime.combine(body.date, parse_time_string(body.finish_time) or datetime.min.time())
             if latest_body_time[mapped] is None or completed_dt > latest_body_time[mapped]:
                 latest_body_time[mapped] = completed_dt
                 latest_body_duration[mapped] = duration
@@ -5059,6 +5187,25 @@ def body_dashboard_view():
     for worker in workers_of_interest:
         dur = latest_body_duration.get(worker)
         last_duration_display[worker] = format_avg_duration(dur.total_seconds(), 1) if dur else "N/A"
+
+    avg_champion_current_month = format_avg_duration(
+        type_stats_current[TABLE_TYPE_CHAMPION]["seconds"],
+        type_stats_current[TABLE_TYPE_CHAMPION]["count"]
+    )
+    avg_lite_current_month = format_avg_duration(
+        type_stats_current[TABLE_TYPE_LITE]["seconds"],
+        type_stats_current[TABLE_TYPE_LITE]["count"]
+    )
+    last_champion_duration = (
+        format_avg_duration(latest_type_duration[TABLE_TYPE_CHAMPION].total_seconds(), 1)
+        if latest_type_duration[TABLE_TYPE_CHAMPION]
+        else "N/A"
+    )
+    last_lite_duration = (
+        format_avg_duration(latest_type_duration[TABLE_TYPE_LITE].total_seconds(), 1)
+        if latest_type_duration[TABLE_TYPE_LITE]
+        else "N/A"
+    )
 
     parts_data = []
     for part in BODY_PARTS_REQUIREMENTS:
@@ -5130,6 +5277,10 @@ def body_dashboard_view():
         avg_tom_current_month=avg_times_current_month.get("Tom", "N/A"),
         last_jack_duration=last_duration_display.get("Jack B", "N/A"),
         last_tom_duration=last_duration_display.get("Tom", "N/A"),
+        avg_champion_current_month=avg_champion_current_month,
+        avg_lite_current_month=avg_lite_current_month,
+        last_champion_duration=last_champion_duration,
+        last_lite_duration=last_lite_duration,
         printed_parts_data=printed_parts_data,
         support_parts_data=support_parts_data,
         other_parts_data=other_parts_data
