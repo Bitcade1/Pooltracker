@@ -5556,6 +5556,61 @@ def api_cnc_queue_move():
     return jsonify({"success": True}), 200
 
 
+@app.route('/api/cnc/queue/reorder', methods=['POST'])
+def api_cnc_queue_reorder():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+
+    try:
+        item_id = int(data.get('item_id', 0))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid queue item."}), 400
+
+    direction = (data.get('direction') or '').strip().lower()
+    if direction not in ('up', 'down'):
+        return jsonify({"success": False, "error": "Direction must be 'up' or 'down'."}), 400
+
+    item = CncQueueItem.query.get(item_id)
+    if not item or item.status != CNC_STATUS_QUEUED:
+        return jsonify({"success": False, "error": "Queue item not found."}), 404
+
+    machine_items = (
+        CncQueueItem.query
+        .filter_by(machine_number=item.machine_number, status=CNC_STATUS_QUEUED)
+        .order_by(CncQueueItem.position.asc(), CncQueueItem.id.asc())
+        .all()
+    )
+    if len(machine_items) <= 1:
+        return jsonify({"success": True}), 200
+
+    target_index = None
+    for idx, machine_item in enumerate(machine_items):
+        if machine_item.id == item.id:
+            target_index = idx
+            break
+
+    if target_index is None:
+        return jsonify({"success": False, "error": "Queue item not found in machine queue."}), 404
+
+    if direction == 'up':
+        swap_index = target_index - 1
+    else:
+        swap_index = target_index + 1
+
+    if swap_index < 0 or swap_index >= len(machine_items):
+        return jsonify({"success": True}), 200
+
+    swap_item = machine_items[swap_index]
+    item.position, swap_item.position = swap_item.position, item.position
+    _cnc_reindex_machine(item.machine_number)
+    db.session.commit()
+
+    return jsonify({"success": True}), 200
+
+
 @app.route('/api/cnc/queue/bulk_copy', methods=['POST'])
 def api_cnc_bulk_copy_queue_items():
     if 'worker' not in session:
