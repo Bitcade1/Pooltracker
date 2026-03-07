@@ -156,6 +156,12 @@
         gap: 6px;
     }
 
+    .pool-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     .small-btn,
     .danger-btn,
     .secondary-btn,
@@ -257,7 +263,10 @@
                     <article class="job-card" draggable="true" data-drag-type="job" data-job-id="{{ job.id }}">
                         <div class="select-line">
                             <label><input type="checkbox" class="job-select" value="{{ job.id }}"> Select</label>
-                            <span>Job ID {{ job.id }}</span>
+                            <div class="pool-actions">
+                                <span>Job ID {{ job.id }}</span>
+                                <button type="button" class="small-btn edit-job-name" data-job-id="{{ job.id }}">Rename</button>
+                            </div>
                         </div>
                         <div class="job-name">{{ job.name }}</div>
                         <div class="job-meta">Qty {{ job.quantity }} | In queues {{ queued_counts.get(job.id, 0) }}</div>
@@ -375,6 +384,31 @@
             return;
         }
         await withReload(postJson("/api/cnc/jobs/bulk_delete", { job_ids: jobIds }));
+    });
+
+    document.querySelectorAll(".edit-job-name").forEach((button) => {
+        button.addEventListener("click", async function () {
+            const jobId = parseInt(button.getAttribute("data-job-id"), 10);
+            if (!Number.isInteger(jobId)) {
+                return;
+            }
+            const card = button.closest(".job-card");
+            const currentNameNode = card ? card.querySelector(".job-name") : null;
+            const currentName = currentNameNode ? currentNameNode.textContent.trim() : "";
+            const nextNameRaw = window.prompt("Rename job:", currentName);
+            if (nextNameRaw === null) {
+                return;
+            }
+            const nextName = nextNameRaw.trim();
+            if (!nextName) {
+                alert("Job name cannot be empty.");
+                return;
+            }
+            await withReload(postJson("/api/cnc/jobs/update", {
+                job_id: jobId,
+                name: nextName
+            }));
+        });
     });
 
     document.getElementById("remove-selected-queue").addEventListener("click", async function () {

@@ -5449,6 +5449,32 @@ def api_cnc_create_job():
     return jsonify({"success": True, "job_id": new_job.id}), 200
 
 
+@app.route('/api/cnc/jobs/update', methods=['POST'])
+def api_cnc_update_job():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+
+    try:
+        job_id = int(data.get('job_id', 0))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid job ID."}), 400
+
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"success": False, "error": "Job name is required."}), 400
+
+    job = CncJob.query.get(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job not found."}), 404
+
+    job.name = name
+    db.session.commit()
+    return jsonify({"success": True}), 200
+
+
 @app.route('/api/cnc/jobs/bulk_delete', methods=['POST'])
 def api_cnc_bulk_delete_jobs():
     if 'worker' not in session:
