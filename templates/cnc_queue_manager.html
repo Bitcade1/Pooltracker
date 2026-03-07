@@ -163,6 +163,7 @@
         display: flex;
         align-items: center;
         gap: 6px;
+        flex-wrap: wrap;
     }
 
     .job-name {
@@ -383,6 +384,8 @@
                                     <div class="queue-actions">
                                         <button type="button" class="btn btn-small move-up" data-item-id="{{ item.id }}">Up</button>
                                         <button type="button" class="btn btn-small move-down" data-item-id="{{ item.id }}">Down</button>
+                                        <button type="button" class="btn btn-small duplicate-one" data-item-id="{{ item.id }}" data-copies="1">+1</button>
+                                        <button type="button" class="btn btn-small duplicate-one" data-item-id="{{ item.id }}" data-copies="5">+5</button>
                                         <button type="button" class="btn btn-small remove-one" data-item-id="{{ item.id }}">Remove</button>
                                     </div>
                                 </div>
@@ -532,6 +535,20 @@
             await withReload(postJson("/api/cnc/queue/bulk_remove", {
                 item_ids: [itemId],
                 suppress_low_queue_notification: true
+            }));
+            return;
+        }
+
+        const duplicateOneButton = event.target.closest(".duplicate-one");
+        if (duplicateOneButton) {
+            const itemId = parseInt(duplicateOneButton.getAttribute("data-item-id"), 10);
+            const copies = parseInt(duplicateOneButton.getAttribute("data-copies"), 10);
+            if (!Number.isInteger(itemId) || !Number.isInteger(copies) || copies < 1) {
+                return;
+            }
+            await withReload(postJson("/api/cnc/queue/bulk_duplicate_same_queue", {
+                item_ids: [itemId],
+                copies: copies
             }));
             return;
         }
