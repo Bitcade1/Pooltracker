@@ -75,6 +75,7 @@
         flex-direction: column;
         gap: 8px;
         background-image: linear-gradient(180deg, var(--machine-soft) 0%, #ffffff 90px);
+        text-align: center;
     }
 
     .queue-heading {
@@ -106,6 +107,8 @@
         display: flex;
         flex-direction: column;
         gap: 7px;
+        align-items: center;
+        text-align: center;
     }
 
     .queue-card .name {
@@ -251,7 +254,6 @@
                     {% for item in queues[machine] %}
                         <div class="queue-card">
                             <div class="name">{{ item.job.name }}</div>
-                            <div class="meta">Qty {{ item.job.quantity }} | Queue #{{ item.position }}</div>
                             {% if item.job.notes %}
                                 <div class="notes">{{ item.job.notes }}</div>
                             {% endif %}
