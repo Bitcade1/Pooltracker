@@ -126,6 +126,17 @@
         line-height: 1.25;
     }
 
+    .queue-card .waiting-label {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #475569;
+        padding: 8px 10px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        background: #f8fafc;
+        text-align: center;
+    }
+
     .complete-btn {
         border: none;
         border-radius: 8px;
@@ -244,7 +255,11 @@
                             {% if item.job.notes %}
                                 <div class="notes">{{ item.job.notes }}</div>
                             {% endif %}
-                            <button type="button" class="complete-btn" data-item-id="{{ item.id }}">Complete</button>
+                            {% if loop.first %}
+                                <button type="button" class="complete-btn" data-item-id="{{ item.id }}">Complete</button>
+                            {% else %}
+                                <div class="waiting-label">Waiting</div>
+                            {% endif %}
                         </div>
                     {% else %}
                         <div class="empty-text">No queued jobs.</div>
