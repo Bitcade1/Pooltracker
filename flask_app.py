@@ -428,6 +428,7 @@ class CncQueueItem(db.Model):
 CNC_MACHINE_NUMBERS = [1, 2, 3, 4]
 CNC_STATUS_QUEUED = "queued"
 CNC_STATUS_COMPLETED = "completed"
+CNC_QUEUE_LOW_NOTIFY_THRESHOLD = 3
 
 
 def ensure_cnc_tables():
@@ -471,6 +472,44 @@ def _cnc_queue_snapshot():
         if item.machine_number in queues:
             queues[item.machine_number].append(item)
     return queues
+
+
+def _cnc_queue_count(machine_number):
+    return (
+        db.session.query(func.count(CncQueueItem.id))
+        .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
+        .scalar() or 0
+    )
+
+
+def _cnc_capture_queue_counts(machine_numbers=None):
+    target_machines = machine_numbers or CNC_MACHINE_NUMBERS
+    return {
+        machine_number: _cnc_queue_count(machine_number)
+        for machine_number in target_machines
+        if machine_number in CNC_MACHINE_NUMBERS
+    }
+
+
+def _send_cnc_low_queue_notification(machine_number, new_count):
+    message = f"CNC {machine_number} queue is low ({new_count} queued jobs)."
+    try:
+        requests.post(
+            "https://ntfy.sh/PoolTableTracker",
+            data=message,
+            headers={"Title": "CNC Queue Warning", "Priority": "high"}
+        )
+    except requests.RequestException as error:
+        print(f"Ntfy notification failed for CNC queue warning: {error}")
+
+
+def _cnc_notify_low_queue_transitions(previous_counts):
+    for machine_number, old_count in (previous_counts or {}).items():
+        if machine_number not in CNC_MACHINE_NUMBERS:
+            continue
+        new_count = _cnc_queue_count(machine_number)
+        if old_count >= CNC_QUEUE_LOW_NOTIFY_THRESHOLD and new_count < CNC_QUEUE_LOW_NOTIFY_THRESHOLD:
+            _send_cnc_low_queue_notification(machine_number, new_count)
 
 # Shared helper to read felt counts (uses legacy felt names if needed).
 def get_latest_part_entry(part_name):
@@ -5490,6 +5529,8 @@ def api_cnc_bulk_delete_jobs():
     if not jobs:
         return jsonify({"success": False, "error": "Selected jobs not found."}), 404
 
+    previous_counts = _cnc_capture_queue_counts()
+
     for job in jobs:
         db.session.delete(job)
 
@@ -5497,6 +5538,7 @@ def api_cnc_bulk_delete_jobs():
         _cnc_reindex_machine(machine_number)
 
     db.session.commit()
+    _cnc_notify_low_queue_transitions(previous_counts)
     return jsonify({"success": True, "deleted_jobs": len(jobs)}), 200
 
 
@@ -5561,6 +5603,7 @@ def api_cnc_queue_move():
         return jsonify({"success": False, "error": "Queue item not found."}), 404
 
     original_machine = item.machine_number
+    previous_counts = _cnc_capture_queue_counts([original_machine, machine_number])
     next_position = (
         db.session.query(func.count(CncQueueItem.id))
         .filter(
@@ -5579,6 +5622,7 @@ def api_cnc_queue_move():
         _cnc_reindex_machine(original_machine)
 
     db.session.commit()
+    _cnc_notify_low_queue_transitions(previous_counts)
     return jsonify({"success": True}), 200
 
 
@@ -5703,6 +5747,7 @@ def api_cnc_bulk_remove_queue_items():
         return jsonify({"success": False, "error": "Selected queue items not found."}), 404
 
     affected_machines = sorted({item.machine_number for item in selected_items})
+    previous_counts = _cnc_capture_queue_counts(affected_machines)
     for item in selected_items:
         db.session.delete(item)
 
@@ -5710,6 +5755,7 @@ def api_cnc_bulk_remove_queue_items():
         _cnc_reindex_machine(machine_number)
 
     db.session.commit()
+    _cnc_notify_low_queue_transitions(previous_counts)
     return jsonify({"success": True, "removed_items": len(selected_items)}), 200
 
 
@@ -5731,11 +5777,13 @@ def api_cnc_complete_queue_item():
         return jsonify({"success": False, "error": "Queue item not found."}), 404
 
     machine_number = item.machine_number
+    previous_counts = _cnc_capture_queue_counts([machine_number])
     item.status = CNC_STATUS_COMPLETED
     item.completed_at = datetime.utcnow()
     item.completed_by = session.get('worker', 'Unknown')
     _cnc_reindex_machine(machine_number)
     db.session.commit()
+    _cnc_notify_low_queue_transitions(previous_counts)
 
     return jsonify({"success": True}), 200
 
