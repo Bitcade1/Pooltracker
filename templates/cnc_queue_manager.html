@@ -361,6 +361,7 @@
                 <input type="number" id="same-queue-copies" min="1" max="100" step="1" value="1">
                 <button type="button" id="duplicate-selected-same-queue" class="btn btn-secondary">Duplicate</button>
                 <button type="button" id="remove-selected-queue" class="btn btn-danger">Remove Selected From Queues</button>
+                <button type="button" id="clear-all-queues" class="btn btn-danger">Clear All Queues</button>
             </div>
             <div class="copy-targets">
                 <span>Copy selected to:</span>
@@ -587,6 +588,16 @@
         }
         await withReload(postJson("/api/cnc/queue/bulk_remove", {
             item_ids: itemIds,
+            suppress_low_queue_notification: true
+        }));
+    });
+
+    document.getElementById("clear-all-queues").addEventListener("click", async function () {
+        const confirmed = window.confirm("Are you sure you want to clear all CNC queues?");
+        if (!confirmed) {
+            return;
+        }
+        await withReload(postJson("/api/cnc/queue/clear_all", {
             suppress_low_queue_notification: true
         }));
     });

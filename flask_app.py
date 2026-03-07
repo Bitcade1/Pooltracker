@@ -5824,6 +5824,29 @@ def api_cnc_bulk_remove_queue_items():
     return jsonify({"success": True, "removed_items": len(selected_items)}), 200
 
 
+@app.route('/api/cnc/queue/clear_all', methods=['POST'])
+def api_cnc_clear_all_queues():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+
+    queued_items = CncQueueItem.query.filter(CncQueueItem.status == CNC_STATUS_QUEUED).all()
+    if not queued_items:
+        return jsonify({"success": True, "removed_items": 0}), 200
+
+    previous_counts = _cnc_capture_queue_counts()
+    removed_items = len(queued_items)
+    for item in queued_items:
+        db.session.delete(item)
+
+    db.session.commit()
+    if not _payload_bool(data.get('suppress_low_queue_notification')):
+        _cnc_notify_low_queue_transitions(previous_counts)
+    return jsonify({"success": True, "removed_items": removed_items}), 200
+
+
 @app.route('/api/cnc/queue/complete', methods=['POST'])
 def api_cnc_complete_queue_item():
     if 'worker' not in session:
