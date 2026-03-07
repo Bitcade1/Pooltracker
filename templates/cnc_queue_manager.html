@@ -66,6 +66,26 @@
         gap: 10px;
     }
 
+    .pool-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .pool-controls label {
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .pool-controls select {
+        padding: 7px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #ffffff;
+    }
+
     .add-job-form {
         margin-top: 10px;
         display: grid;
@@ -288,11 +308,19 @@
     <section class="panel">
         <div class="panel-head">
             <h2>Job Pool</h2>
-            <button type="button" id="delete-selected-jobs" class="btn btn-danger">Delete Selected Jobs</button>
+            <div class="pool-controls">
+                <label for="job-pool-filter">Filter:</label>
+                <select id="job-pool-filter">
+                    <option value="all">All Jobs</option>
+                    <option value="7ft">7ft Only</option>
+                    <option value="6ft">6ft Only</option>
+                </select>
+                <button type="button" id="delete-selected-jobs" class="btn btn-danger">Delete Selected Jobs</button>
+            </div>
         </div>
         <div id="job-pool" class="job-pool-list">
             {% for job in jobs %}
-                <article class="job-card" draggable="true" data-drag-type="job" data-job-id="{{ job.id }}">
+                <article class="job-card" draggable="true" data-drag-type="job" data-job-id="{{ job.id }}" data-job-name="{{ job.name|lower }}">
                     <div class="line-top">
                         <label><input type="checkbox" class="job-select" value="{{ job.id }}"> Select</label>
                         <div class="pool-actions">
@@ -399,6 +427,24 @@
                 event.preventDefault();
                 event.stopPropagation();
             });
+        });
+    }
+
+    function applyPoolFilter() {
+        const filterSelect = document.getElementById("job-pool-filter");
+        if (!filterSelect) {
+            return;
+        }
+        const selected = filterSelect.value;
+        document.querySelectorAll(".job-card").forEach((card) => {
+            const jobName = (card.getAttribute("data-job-name") || "").toLowerCase();
+            let show = true;
+            if (selected === "7ft") {
+                show = jobName.includes("7ft");
+            } else if (selected === "6ft") {
+                show = jobName.includes("6ft");
+            }
+            card.style.display = show ? "" : "none";
         });
     }
 
@@ -516,6 +562,12 @@
         }));
     });
 
+    const poolFilter = document.getElementById("job-pool-filter");
+    if (poolFilter) {
+        poolFilter.addEventListener("change", applyPoolFilter);
+        applyPoolFilter();
+    }
+
     document.querySelectorAll("[draggable='true'][data-drag-type]").forEach((card) => {
         card.addEventListener("dragstart", function (event) {
             const dragType = card.getAttribute("data-drag-type");
@@ -578,5 +630,17 @@
     });
 
     blockDragFromControls();
+
+    setInterval(function () {
+        if (document.hidden) {
+            return;
+        }
+        const active = document.activeElement;
+        const activeTag = active ? active.tagName : "";
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") {
+            return;
+        }
+        window.location.reload();
+    }, 5000);
 </script>
 {% endblock %}
