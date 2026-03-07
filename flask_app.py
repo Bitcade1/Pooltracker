@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date, time
 from collections import defaultdict  # Ensure defaultdict is imported
 from calendar import monthrange
 from sqlalchemy import func, extract, and_, or_
+from sqlalchemy.orm import joinedload
 import requests
 import threading
 import os
@@ -399,6 +400,77 @@ class PartThreshold(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_name = db.Column(db.String(100), unique=True, nullable=False)
     threshold = db.Column(db.Integer, default=0, nullable=False)
+
+
+class CncJob(db.Model):
+    __tablename__ = 'cnc_job'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(140), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    queue_items = db.relationship('CncQueueItem', backref='job', lazy=True, cascade='all, delete-orphan')
+
+
+class CncQueueItem(db.Model):
+    __tablename__ = 'cnc_queue_item'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('cnc_job.id'), nullable=False)
+    machine_number = db.Column(db.Integer, nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=1)
+    status = db.Column(db.String(20), nullable=False, default='queued')
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    completed_by = db.Column(db.String(50), nullable=True)
+
+
+CNC_MACHINE_NUMBERS = [1, 2, 3, 4]
+CNC_STATUS_QUEUED = "queued"
+CNC_STATUS_COMPLETED = "completed"
+
+
+def ensure_cnc_tables():
+    CncJob.__table__.create(db.engine, checkfirst=True)
+    CncQueueItem.__table__.create(db.engine, checkfirst=True)
+
+
+def _coerce_positive_int_list(values):
+    parsed = []
+    for value in values or []:
+        try:
+            as_int = int(value)
+        except (TypeError, ValueError):
+            continue
+        if as_int > 0:
+            parsed.append(as_int)
+    return sorted(set(parsed))
+
+
+def _cnc_reindex_machine(machine_number):
+    queued_items = (
+        CncQueueItem.query
+        .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
+        .order_by(CncQueueItem.position.asc(), CncQueueItem.id.asc())
+        .all()
+    )
+    for index, item in enumerate(queued_items, start=1):
+        item.position = index
+
+
+def _cnc_queue_snapshot():
+    queues = {machine: [] for machine in CNC_MACHINE_NUMBERS}
+    queued_items = (
+        CncQueueItem.query
+        .options(joinedload(CncQueueItem.job))
+        .filter(CncQueueItem.status == CNC_STATUS_QUEUED)
+        .order_by(CncQueueItem.machine_number.asc(), CncQueueItem.position.asc(), CncQueueItem.id.asc())
+        .all()
+    )
+    for item in queued_items:
+        if item.machine_number in queues:
+            queues[item.machine_number].append(item)
+    return queues
 
 # Shared helper to read felt counts (uses legacy felt names if needed).
 def get_latest_part_entry(part_name):
@@ -5285,6 +5357,306 @@ def body_dashboard_view():
         support_parts_data=support_parts_data,
         other_parts_data=other_parts_data
     )
+
+
+@app.route('/cnc_queue_manager')
+def cnc_queue_manager():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_cnc_tables()
+
+    jobs = (
+        CncJob.query
+        .order_by(CncJob.created_at.desc(), CncJob.id.desc())
+        .all()
+    )
+    queue_counts_rows = (
+        db.session.query(CncQueueItem.job_id, func.count(CncQueueItem.id))
+        .filter(CncQueueItem.status == CNC_STATUS_QUEUED)
+        .group_by(CncQueueItem.job_id)
+        .all()
+    )
+    queued_counts = {job_id: count for job_id, count in queue_counts_rows}
+    queues = _cnc_queue_snapshot()
+
+    return render_template(
+        'cnc_queue_manager.html',
+        jobs=jobs,
+        queued_counts=queued_counts,
+        queues=queues,
+        machine_numbers=CNC_MACHINE_NUMBERS
+    )
+
+
+@app.route('/cnc_dashboard')
+def cnc_dashboard():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_cnc_tables()
+    queues = _cnc_queue_snapshot()
+    today = date.today()
+    completed_today = (
+        CncQueueItem.query
+        .options(joinedload(CncQueueItem.job))
+        .filter(
+            CncQueueItem.status == CNC_STATUS_COMPLETED,
+            CncQueueItem.completed_at.isnot(None),
+            extract('year', CncQueueItem.completed_at) == today.year,
+            extract('month', CncQueueItem.completed_at) == today.month,
+            extract('day', CncQueueItem.completed_at) == today.day
+        )
+        .order_by(CncQueueItem.completed_at.desc(), CncQueueItem.id.desc())
+        .limit(200)
+        .all()
+    )
+
+    return render_template(
+        'cnc_dashboard.html',
+        queues=queues,
+        machine_numbers=CNC_MACHINE_NUMBERS,
+        completed_today=completed_today,
+        render_time=datetime.now().strftime("%d/%m/%Y %H:%M")
+    )
+
+
+@app.route('/api/cnc/jobs', methods=['POST'])
+def api_cnc_create_job():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    notes = (data.get('notes') or '').strip()
+
+    if not name:
+        return jsonify({"success": False, "error": "Job name is required."}), 400
+
+    try:
+        quantity = int(data.get('quantity', 1))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Quantity must be a whole number."}), 400
+    quantity = max(quantity, 1)
+
+    new_job = CncJob(name=name, quantity=quantity, notes=notes)
+    db.session.add(new_job)
+    db.session.commit()
+
+    return jsonify({"success": True, "job_id": new_job.id}), 200
+
+
+@app.route('/api/cnc/jobs/bulk_delete', methods=['POST'])
+def api_cnc_bulk_delete_jobs():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+    job_ids = _coerce_positive_int_list(data.get('job_ids', []))
+    if not job_ids:
+        return jsonify({"success": False, "error": "No jobs selected."}), 400
+
+    jobs = CncJob.query.filter(CncJob.id.in_(job_ids)).all()
+    if not jobs:
+        return jsonify({"success": False, "error": "Selected jobs not found."}), 404
+
+    for job in jobs:
+        db.session.delete(job)
+
+    for machine_number in CNC_MACHINE_NUMBERS:
+        _cnc_reindex_machine(machine_number)
+
+    db.session.commit()
+    return jsonify({"success": True, "deleted_jobs": len(jobs)}), 200
+
+
+@app.route('/api/cnc/queue/add', methods=['POST'])
+def api_cnc_queue_add():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+
+    try:
+        job_id = int(data.get('job_id', 0))
+        machine_number = int(data.get('machine_number', 0))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid job or machine."}), 400
+
+    if machine_number not in CNC_MACHINE_NUMBERS:
+        return jsonify({"success": False, "error": "Machine must be between 1 and 4."}), 400
+
+    job = CncJob.query.get(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job not found."}), 404
+
+    next_position = (
+        db.session.query(func.count(CncQueueItem.id))
+        .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
+        .scalar() or 0
+    ) + 1
+
+    queue_item = CncQueueItem(
+        job_id=job.id,
+        machine_number=machine_number,
+        position=next_position,
+        status=CNC_STATUS_QUEUED
+    )
+    db.session.add(queue_item)
+    db.session.commit()
+
+    return jsonify({"success": True, "queue_item_id": queue_item.id}), 200
+
+
+@app.route('/api/cnc/queue/move', methods=['POST'])
+def api_cnc_queue_move():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+
+    try:
+        item_id = int(data.get('item_id', 0))
+        machine_number = int(data.get('machine_number', 0))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid move payload."}), 400
+
+    if machine_number not in CNC_MACHINE_NUMBERS:
+        return jsonify({"success": False, "error": "Machine must be between 1 and 4."}), 400
+
+    item = CncQueueItem.query.get(item_id)
+    if not item or item.status != CNC_STATUS_QUEUED:
+        return jsonify({"success": False, "error": "Queue item not found."}), 404
+
+    original_machine = item.machine_number
+    next_position = (
+        db.session.query(func.count(CncQueueItem.id))
+        .filter(
+            CncQueueItem.machine_number == machine_number,
+            CncQueueItem.status == CNC_STATUS_QUEUED,
+            CncQueueItem.id != item.id
+        )
+        .scalar() or 0
+    ) + 1
+
+    item.machine_number = machine_number
+    item.position = next_position
+
+    _cnc_reindex_machine(machine_number)
+    if original_machine != machine_number:
+        _cnc_reindex_machine(original_machine)
+
+    db.session.commit()
+    return jsonify({"success": True}), 200
+
+
+@app.route('/api/cnc/queue/bulk_copy', methods=['POST'])
+def api_cnc_bulk_copy_queue_items():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+    item_ids = _coerce_positive_int_list(data.get('item_ids', []))
+    machine_numbers = _coerce_positive_int_list(data.get('machine_numbers', []))
+
+    machine_numbers = [m for m in machine_numbers if m in CNC_MACHINE_NUMBERS]
+    if not item_ids:
+        return jsonify({"success": False, "error": "No queue items selected."}), 400
+    if not machine_numbers:
+        return jsonify({"success": False, "error": "Select at least one CNC machine to copy to."}), 400
+
+    selected_items = (
+        CncQueueItem.query
+        .filter(CncQueueItem.id.in_(item_ids), CncQueueItem.status == CNC_STATUS_QUEUED)
+        .order_by(CncQueueItem.id.asc())
+        .all()
+    )
+    if not selected_items:
+        return jsonify({"success": False, "error": "Selected queue items not found."}), 404
+
+    created_count = 0
+    for machine_number in machine_numbers:
+        next_position = (
+            db.session.query(func.count(CncQueueItem.id))
+            .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
+            .scalar() or 0
+        )
+        for selected_item in selected_items:
+            next_position += 1
+            db.session.add(CncQueueItem(
+                job_id=selected_item.job_id,
+                machine_number=machine_number,
+                position=next_position,
+                status=CNC_STATUS_QUEUED
+            ))
+            created_count += 1
+
+    db.session.commit()
+    return jsonify({"success": True, "created_items": created_count}), 200
+
+
+@app.route('/api/cnc/queue/bulk_remove', methods=['POST'])
+def api_cnc_bulk_remove_queue_items():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+    item_ids = _coerce_positive_int_list(data.get('item_ids', []))
+    if not item_ids:
+        return jsonify({"success": False, "error": "No queue items selected."}), 400
+
+    selected_items = (
+        CncQueueItem.query
+        .filter(CncQueueItem.id.in_(item_ids), CncQueueItem.status == CNC_STATUS_QUEUED)
+        .all()
+    )
+    if not selected_items:
+        return jsonify({"success": False, "error": "Selected queue items not found."}), 404
+
+    affected_machines = sorted({item.machine_number for item in selected_items})
+    for item in selected_items:
+        db.session.delete(item)
+
+    for machine_number in affected_machines:
+        _cnc_reindex_machine(machine_number)
+
+    db.session.commit()
+    return jsonify({"success": True, "removed_items": len(selected_items)}), 200
+
+
+@app.route('/api/cnc/queue/complete', methods=['POST'])
+def api_cnc_complete_queue_item():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+
+    try:
+        item_id = int(data.get('item_id', 0))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid queue item."}), 400
+
+    item = CncQueueItem.query.get(item_id)
+    if not item or item.status != CNC_STATUS_QUEUED:
+        return jsonify({"success": False, "error": "Queue item not found."}), 404
+
+    machine_number = item.machine_number
+    item.status = CNC_STATUS_COMPLETED
+    item.completed_at = datetime.utcnow()
+    item.completed_by = session.get('worker', 'Unknown')
+    _cnc_reindex_machine(machine_number)
+    db.session.commit()
+
+    return jsonify({"success": True}), 200
 
 
 def fetch_uk_bank_holidays():

@@ -1,0 +1,302 @@
+{% extends 'base.html' %}
+
+{% block title %}CNC Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        display: block;
+        justify-content: flex-start;
+        align-items: stretch;
+        background: #f2f4f8;
+    }
+
+    .site-header,
+    .site-footer {
+        display: none;
+    }
+
+    .container {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        text-align: left;
+    }
+
+    .cnc-dashboard {
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .dashboard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 12px;
+        padding: 12px 16px;
+    }
+
+    .dashboard-title {
+        margin: 0;
+        font-size: clamp(2rem, 3vw, 3rem);
+        color: #0f172a;
+        letter-spacing: 0.02em;
+    }
+
+    .dashboard-time {
+        font-size: clamp(1.2rem, 2vw, 1.8rem);
+        color: #334155;
+        font-weight: 700;
+    }
+
+    .queues-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .queue-column {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .queue-heading {
+        margin: 0;
+        font-size: clamp(1.5rem, 2.5vw, 2.2rem);
+        color: #0f172a;
+    }
+
+    .queue-count {
+        color: #475569;
+        font-size: 1.1rem;
+        margin-bottom: 2px;
+    }
+
+    .queue-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        overflow: auto;
+    }
+
+    .queue-card {
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .queue-card .name {
+        font-size: clamp(1.3rem, 2.1vw, 2rem);
+        font-weight: 800;
+        color: #0b1c34;
+        line-height: 1.1;
+    }
+
+    .queue-card .meta {
+        font-size: 1.15rem;
+        color: #334155;
+    }
+
+    .queue-card .notes {
+        font-size: 1.05rem;
+        color: #1f2937;
+        line-height: 1.25;
+    }
+
+    .complete-btn {
+        border: none;
+        border-radius: 8px;
+        background: #15803d;
+        color: #ffffff;
+        padding: 10px;
+        font-size: 1.15rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .complete-btn:hover {
+        background: #166534;
+    }
+
+    .empty-text {
+        color: #5d6470;
+        font-size: 1.1rem;
+    }
+
+    .completed-panel {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 12px;
+        padding: 10px;
+    }
+
+    .toggle-completed {
+        border: none;
+        border-radius: 8px;
+        background: #1f6feb;
+        color: #ffffff;
+        padding: 10px 14px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .completed-list {
+        margin-top: 10px;
+        display: none;
+        max-height: 32vh;
+        overflow: auto;
+    }
+
+    .completed-row {
+        display: grid;
+        grid-template-columns: 90px 120px 1fr 120px;
+        gap: 8px;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 7px 2px;
+        font-size: 0.95rem;
+        align-items: center;
+    }
+
+    .completed-header {
+        font-weight: 800;
+        color: #0f172a;
+        background: #f1f5f9;
+    }
+
+    @media (max-width: 1400px) {
+        .queues-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 760px) {
+        .queues-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .completed-row {
+            grid-template-columns: 1fr;
+            gap: 2px;
+        }
+    }
+</style>
+
+<div class="cnc-dashboard">
+    <header class="dashboard-header">
+        <h1 class="dashboard-title">CNC Cutting Dashboard</h1>
+        <div class="dashboard-time">Updated {{ render_time }}</div>
+    </header>
+
+    <section class="queues-grid">
+        {% for machine in machine_numbers %}
+            <article class="queue-column">
+                <h2 class="queue-heading">CNC {{ machine }}</h2>
+                <div class="queue-count">{{ queues[machine]|length }} queued</div>
+                <div class="queue-list">
+                    {% for item in queues[machine] %}
+                        <div class="queue-card">
+                            <div class="name">{{ item.job.name }}</div>
+                            <div class="meta">Qty {{ item.job.quantity }} | Queue #{{ item.position }}</div>
+                            {% if item.job.notes %}
+                                <div class="notes">{{ item.job.notes }}</div>
+                            {% endif %}
+                            <button type="button" class="complete-btn" data-item-id="{{ item.id }}">Complete</button>
+                        </div>
+                    {% else %}
+                        <div class="empty-text">No queued jobs.</div>
+                    {% endfor %}
+                </div>
+            </article>
+        {% endfor %}
+    </section>
+
+    <section class="completed-panel">
+        <button type="button" class="toggle-completed" id="toggle-completed">Show Completed Today ({{ completed_today|length }})</button>
+        <div class="completed-list" id="completed-list">
+            <div class="completed-row completed-header">
+                <div>Time</div>
+                <div>Machine</div>
+                <div>Job</div>
+                <div>Worker</div>
+            </div>
+            {% for item in completed_today %}
+                <div class="completed-row">
+                    <div>{{ item.completed_at.strftime('%H:%M') if item.completed_at else '-' }}</div>
+                    <div>CNC {{ item.machine_number }}</div>
+                    <div>{{ item.job.name }} (Qty {{ item.job.quantity }})</div>
+                    <div>{{ item.completed_by or '-' }}</div>
+                </div>
+            {% else %}
+                <div class="completed-row">
+                    <div>No completed jobs yet today.</div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<script>
+    async function postJson(url, payload) {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || "Request failed.");
+        }
+        return data;
+    }
+
+    document.getElementById("toggle-completed").addEventListener("click", function () {
+        const list = document.getElementById("completed-list");
+        const showing = list.style.display === "block";
+        list.style.display = showing ? "none" : "block";
+        this.textContent = (showing ? "Show" : "Hide") + " Completed Today ({{ completed_today|length }})";
+    });
+
+    document.querySelectorAll(".complete-btn").forEach((button) => {
+        button.addEventListener("click", async function () {
+            const itemId = parseInt(button.getAttribute("data-item-id"), 10);
+            if (!Number.isInteger(itemId)) {
+                return;
+            }
+            button.disabled = true;
+            try {
+                await postJson("/api/cnc/queue/complete", { item_id: itemId });
+                window.location.reload();
+            } catch (error) {
+                button.disabled = false;
+                alert(error.message || "Unable to complete job.");
+            }
+        });
+    });
+
+    setInterval(function () {
+        window.location.reload();
+    }, 15000);
+</script>
+{% endblock %}
