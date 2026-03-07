@@ -511,6 +511,16 @@ def _cnc_notify_low_queue_transitions(previous_counts):
         if old_count >= CNC_QUEUE_LOW_NOTIFY_THRESHOLD and new_count < CNC_QUEUE_LOW_NOTIFY_THRESHOLD:
             _send_cnc_low_queue_notification(machine_number, new_count)
 
+
+def _payload_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return False
+
 # Shared helper to read felt counts (uses legacy felt names if needed).
 def get_latest_part_entry(part_name):
     return (PrintedPartsCount.query
@@ -5538,7 +5548,8 @@ def api_cnc_bulk_delete_jobs():
         _cnc_reindex_machine(machine_number)
 
     db.session.commit()
-    _cnc_notify_low_queue_transitions(previous_counts)
+    if not _payload_bool(data.get('suppress_low_queue_notification')):
+        _cnc_notify_low_queue_transitions(previous_counts)
     return jsonify({"success": True, "deleted_jobs": len(jobs)}), 200
 
 
@@ -5622,7 +5633,8 @@ def api_cnc_queue_move():
         _cnc_reindex_machine(original_machine)
 
     db.session.commit()
-    _cnc_notify_low_queue_transitions(previous_counts)
+    if not _payload_bool(data.get('suppress_low_queue_notification')):
+        _cnc_notify_low_queue_transitions(previous_counts)
     return jsonify({"success": True}), 200
 
 
@@ -5727,6 +5739,58 @@ def api_cnc_bulk_copy_queue_items():
     return jsonify({"success": True, "created_items": created_count}), 200
 
 
+@app.route('/api/cnc/queue/bulk_duplicate_same_queue', methods=['POST'])
+def api_cnc_bulk_duplicate_same_queue_items():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+    item_ids = _coerce_positive_int_list(data.get('item_ids', []))
+
+    try:
+        copies = int(data.get('copies', 1))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Copies must be a whole number."}), 400
+
+    if copies < 1:
+        return jsonify({"success": False, "error": "Copies must be at least 1."}), 400
+    if copies > 100:
+        return jsonify({"success": False, "error": "Copies per item cannot exceed 100."}), 400
+    if not item_ids:
+        return jsonify({"success": False, "error": "No queue items selected."}), 400
+
+    selected_items = (
+        CncQueueItem.query
+        .filter(CncQueueItem.id.in_(item_ids), CncQueueItem.status == CNC_STATUS_QUEUED)
+        .order_by(CncQueueItem.machine_number.asc(), CncQueueItem.position.asc(), CncQueueItem.id.asc())
+        .all()
+    )
+    if not selected_items:
+        return jsonify({"success": False, "error": "Selected queue items not found."}), 404
+
+    next_positions = {}
+    created_count = 0
+
+    for selected_item in selected_items:
+        machine_number = selected_item.machine_number
+        if machine_number not in next_positions:
+            next_positions[machine_number] = _cnc_queue_count(machine_number)
+
+        for _ in range(copies):
+            next_positions[machine_number] += 1
+            db.session.add(CncQueueItem(
+                job_id=selected_item.job_id,
+                machine_number=machine_number,
+                position=next_positions[machine_number],
+                status=CNC_STATUS_QUEUED
+            ))
+            created_count += 1
+
+    db.session.commit()
+    return jsonify({"success": True, "created_items": created_count}), 200
+
+
 @app.route('/api/cnc/queue/bulk_remove', methods=['POST'])
 def api_cnc_bulk_remove_queue_items():
     if 'worker' not in session:
@@ -5755,7 +5819,8 @@ def api_cnc_bulk_remove_queue_items():
         _cnc_reindex_machine(machine_number)
 
     db.session.commit()
-    _cnc_notify_low_queue_transitions(previous_counts)
+    if not _payload_bool(data.get('suppress_low_queue_notification')):
+        _cnc_notify_low_queue_transitions(previous_counts)
     return jsonify({"success": True, "removed_items": len(selected_items)}), 200
 
 

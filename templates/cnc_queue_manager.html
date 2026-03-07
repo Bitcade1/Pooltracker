@@ -195,6 +195,21 @@
         gap: 8px;
     }
 
+    .same-queue-copy {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .same-queue-copy input {
+        width: 80px;
+        padding: 6px 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.95rem;
+    }
+
     .queues-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -340,7 +355,12 @@
     <section class="panel">
         <h2>CNC Queues</h2>
         <div class="queue-toolbar">
-            <button type="button" id="remove-selected-queue" class="btn btn-danger">Remove Selected From Queues</button>
+            <div class="same-queue-copy">
+                <span>Repeat selected in same queue:</span>
+                <input type="number" id="same-queue-copies" min="1" max="100" step="1" value="1">
+                <button type="button" id="duplicate-selected-same-queue" class="btn btn-secondary">Duplicate</button>
+                <button type="button" id="remove-selected-queue" class="btn btn-danger">Remove Selected From Queues</button>
+            </div>
             <div class="copy-targets">
                 <span>Copy selected to:</span>
                 {% for machine in machine_numbers %}
@@ -469,7 +489,10 @@
         if (!confirm("Delete selected jobs and their queue entries?")) {
             return;
         }
-        await withReload(postJson("/api/cnc/jobs/bulk_delete", { job_ids: jobIds }));
+        await withReload(postJson("/api/cnc/jobs/bulk_delete", {
+            job_ids: jobIds,
+            suppress_low_queue_notification: true
+        }));
     });
 
     document.addEventListener("click", async function (event) {
@@ -506,7 +529,10 @@
             if (!Number.isInteger(itemId)) {
                 return;
             }
-            await withReload(postJson("/api/cnc/queue/bulk_remove", { item_ids: [itemId] }));
+            await withReload(postJson("/api/cnc/queue/bulk_remove", {
+                item_ids: [itemId],
+                suppress_low_queue_notification: true
+            }));
             return;
         }
 
@@ -542,7 +568,10 @@
             alert("Select at least one queue item.");
             return;
         }
-        await withReload(postJson("/api/cnc/queue/bulk_remove", { item_ids: itemIds }));
+        await withReload(postJson("/api/cnc/queue/bulk_remove", {
+            item_ids: itemIds,
+            suppress_low_queue_notification: true
+        }));
     });
 
     document.getElementById("copy-selected-queue").addEventListener("click", async function () {
@@ -559,6 +588,28 @@
         await withReload(postJson("/api/cnc/queue/bulk_copy", {
             item_ids: itemIds,
             machine_numbers: machineNumbers
+        }));
+    });
+
+    document.getElementById("duplicate-selected-same-queue").addEventListener("click", async function () {
+        const itemIds = selectedValues(".queue-select");
+        const copiesInput = document.getElementById("same-queue-copies");
+        const copiesValue = copiesInput ? parseInt(copiesInput.value, 10) : 1;
+        if (!itemIds.length) {
+            alert("Select at least one queue item to duplicate.");
+            return;
+        }
+        if (!Number.isInteger(copiesValue) || copiesValue < 1) {
+            alert("Copies must be at least 1.");
+            return;
+        }
+        if (copiesValue > 100) {
+            alert("Copies cannot exceed 100.");
+            return;
+        }
+        await withReload(postJson("/api/cnc/queue/bulk_duplicate_same_queue", {
+            item_ids: itemIds,
+            copies: copiesValue
         }));
     });
 
@@ -623,7 +674,8 @@
             if (payload.type === "queue_item" && Number.isInteger(payload.item_id)) {
                 await withReload(postJson("/api/cnc/queue/move", {
                     item_id: payload.item_id,
-                    machine_number: machineNumber
+                    machine_number: machineNumber,
+                    suppress_low_queue_notification: true
                 }));
             }
         });
