@@ -4,7 +4,30 @@
 
 {% block content %}
 <style>
+    body {
+        display: block;
+        justify-content: flex-start;
+        align-items: stretch;
+        background: #f2f4f8;
+    }
+
+    .site-header,
+    .site-footer {
+        display: none;
+    }
+
+    .container {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        text-align: left;
+    }
+
     .cnc-manager {
+        padding: 14px;
         text-align: left;
         display: flex;
         flex-direction: column;
@@ -122,8 +145,15 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
         font-size: 0.85rem;
         color: #223;
+    }
+
+    .queue-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
     .small-btn,
@@ -263,7 +293,11 @@
                                 <article class="queue-item" draggable="true" data-drag-type="queue_item" data-item-id="{{ item.id }}">
                                     <div class="select-line">
                                         <label><input type="checkbox" class="queue-select" value="{{ item.id }}"> Select</label>
-                                        <button type="button" class="small-btn remove-one" data-item-id="{{ item.id }}">Remove</button>
+                                        <div class="queue-actions">
+                                            <button type="button" class="small-btn move-up" data-item-id="{{ item.id }}">Up</button>
+                                            <button type="button" class="small-btn move-down" data-item-id="{{ item.id }}">Down</button>
+                                            <button type="button" class="small-btn remove-one" data-item-id="{{ item.id }}">Remove</button>
+                                        </div>
                                     </div>
                                     <div class="job-name">{{ item.job.name }}</div>
                                     <div class="job-meta">Qty {{ item.job.quantity }} | Position {{ item.position }}</div>
@@ -376,6 +410,32 @@
                 return;
             }
             await withReload(postJson("/api/cnc/queue/bulk_remove", { item_ids: [itemId] }));
+        });
+    });
+
+    document.querySelectorAll(".move-up").forEach((button) => {
+        button.addEventListener("click", async function () {
+            const itemId = parseInt(button.getAttribute("data-item-id"), 10);
+            if (!Number.isInteger(itemId)) {
+                return;
+            }
+            await withReload(postJson("/api/cnc/queue/reorder", {
+                item_id: itemId,
+                direction: "up"
+            }));
+        });
+    });
+
+    document.querySelectorAll(".move-down").forEach((button) => {
+        button.addEventListener("click", async function () {
+            const itemId = parseInt(button.getAttribute("data-item-id"), 10);
+            if (!Number.isInteger(itemId)) {
+                return;
+            }
+            await withReload(postJson("/api/cnc/queue/reorder", {
+                item_id: itemId,
+                direction: "down"
+            }));
         });
     });
 
