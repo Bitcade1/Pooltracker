@@ -360,6 +360,22 @@
         }
     }
 
+    function blockDragFromControls() {
+        document.querySelectorAll(".job-card button, .job-card input, .queue-item button, .queue-item input").forEach((el) => {
+            el.setAttribute("draggable", "false");
+            el.addEventListener("mousedown", function (event) {
+                event.stopPropagation();
+            });
+            el.addEventListener("touchstart", function (event) {
+                event.stopPropagation();
+            }, { passive: true });
+            el.addEventListener("dragstart", function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            });
+        });
+    }
+
     document.getElementById("add-job-form").addEventListener("submit", async function (event) {
         event.preventDefault();
         const payload = {
@@ -386,29 +402,33 @@
         await withReload(postJson("/api/cnc/jobs/bulk_delete", { job_ids: jobIds }));
     });
 
-    document.querySelectorAll(".edit-job-name").forEach((button) => {
-        button.addEventListener("click", async function () {
-            const jobId = parseInt(button.getAttribute("data-job-id"), 10);
-            if (!Number.isInteger(jobId)) {
-                return;
-            }
-            const card = button.closest(".job-card");
-            const currentNameNode = card ? card.querySelector(".job-name") : null;
-            const currentName = currentNameNode ? currentNameNode.textContent.trim() : "";
-            const nextNameRaw = window.prompt("Rename job:", currentName);
-            if (nextNameRaw === null) {
-                return;
-            }
-            const nextName = nextNameRaw.trim();
-            if (!nextName) {
-                alert("Job name cannot be empty.");
-                return;
-            }
-            await withReload(postJson("/api/cnc/jobs/update", {
-                job_id: jobId,
-                name: nextName
-            }));
-        });
+    document.addEventListener("click", async function (event) {
+        const button = event.target.closest(".edit-job-name");
+        if (!button) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const jobId = parseInt(button.getAttribute("data-job-id"), 10);
+        if (!Number.isInteger(jobId)) {
+            return;
+        }
+        const card = button.closest(".job-card");
+        const currentNameNode = card ? card.querySelector(".job-name") : null;
+        const currentName = currentNameNode ? currentNameNode.textContent.trim() : "";
+        const nextNameRaw = window.prompt("Rename job:", currentName);
+        if (nextNameRaw === null) {
+            return;
+        }
+        const nextName = nextNameRaw.trim();
+        if (!nextName) {
+            alert("Job name cannot be empty.");
+            return;
+        }
+        await withReload(postJson("/api/cnc/jobs/update", {
+            job_id: jobId,
+            name: nextName
+        }));
     });
 
     document.getElementById("remove-selected-queue").addEventListener("click", async function () {
@@ -533,5 +553,7 @@
             }
         });
     });
+
+    blockDragFromControls();
 </script>
 {% endblock %}

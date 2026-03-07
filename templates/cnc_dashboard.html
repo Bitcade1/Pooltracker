@@ -64,26 +64,30 @@
     }
 
     .queue-column {
+        --machine-accent: #334155;
+        --machine-soft: #eef2f7;
         background: #ffffff;
-        border: 1px solid #dfe3eb;
+        border: 2px solid var(--machine-accent);
         border-radius: 12px;
         padding: 10px;
         min-height: 70vh;
         display: flex;
         flex-direction: column;
         gap: 8px;
+        background-image: linear-gradient(180deg, var(--machine-soft) 0%, #ffffff 90px);
     }
 
     .queue-heading {
         margin: 0;
         font-size: clamp(1.5rem, 2.5vw, 2.2rem);
-        color: #0f172a;
+        color: var(--machine-accent);
     }
 
     .queue-count {
-        color: #475569;
+        color: var(--machine-accent);
         font-size: 1.1rem;
         margin-bottom: 2px;
+        font-weight: 700;
     }
 
     .queue-list {
@@ -95,8 +99,9 @@
 
     .queue-card {
         border: 1px solid #cbd5e1;
+        border-left: 10px solid var(--machine-accent);
         border-radius: 10px;
-        background: #f8fafc;
+        background: #ffffff;
         padding: 10px;
         display: flex;
         flex-direction: column;
@@ -182,6 +187,26 @@
         background: #f1f5f9;
     }
 
+    .queue-column.machine-1 {
+        --machine-accent: #b42318;
+        --machine-soft: #fff0ee;
+    }
+
+    .queue-column.machine-2 {
+        --machine-accent: #005cc5;
+        --machine-soft: #eef5ff;
+    }
+
+    .queue-column.machine-3 {
+        --machine-accent: #0f7b6c;
+        --machine-soft: #ecfffb;
+    }
+
+    .queue-column.machine-4 {
+        --machine-accent: #7a4d00;
+        --machine-soft: #fff7eb;
+    }
+
     @media (max-width: 1400px) {
         .queues-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -208,7 +233,7 @@
 
     <section class="queues-grid">
         {% for machine in machine_numbers %}
-            <article class="queue-column">
+            <article class="queue-column machine-{{ machine }}">
                 <h2 class="queue-heading">CNC {{ machine }}</h2>
                 <div class="queue-count">{{ queues[machine]|length }} queued</div>
                 <div class="queue-list">
