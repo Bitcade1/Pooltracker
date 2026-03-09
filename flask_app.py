@@ -254,6 +254,14 @@ def body_parts_for_completion(serial_number, table_type, laminate_color_key):
 
     return parts_to_deduct
 
+
+def body_stock_type_key(size_label, table_type, color_key):
+    normalized_size = (size_label or "7ft").lower()
+    normalized_color = (color_key or "black").lower().replace(" ", "_")
+    if table_type == TABLE_TYPE_LITE:
+        return f"body_{normalized_size}_lite"
+    return f"body_{normalized_size}_{normalized_color}"
+
 # Expose slugify_key to Jinja templates for form field names
 app.jinja_env.filters['slugify_key'] = slugify_key
 
@@ -2821,7 +2829,7 @@ def manage_raw_data():
                 if table == 'bodies':
                     size = "6ft" if serial_is_6ft(entry.serial_number) else "7ft"
                     color_key = body_color_key_for_stock or color_key_from_serial(entry.serial_number)
-                    stock_type = f'body_{size}_{color_key}'
+                    stock_type = body_stock_type_key(size, body_table_type, color_key)
 
                     stock_entry = TableStock.query.filter_by(type=stock_type).first()
                     if stock_entry and stock_entry.count > 0:
@@ -3915,8 +3923,7 @@ def bodies():
 
         # Update table stock based on size and color
         size = "6ft" if serial_is_6ft(serial_number) else "7ft"
-        color = laminate_color_key
-        stock_type = f'body_{size.lower()}_{color}'
+        stock_type = body_stock_type_key(size, actual_table_type, laminate_color_key)
         
         stock_entry = TableStock.query.filter_by(type=stock_type).first()
         if not stock_entry:
@@ -6052,6 +6059,7 @@ def table_stock():
 
     # Initialize dictionaries for each stock category
     table_data = {}
+    lite_body_data = {}
     top_rail_data = {}
     cushion_data = {}
     other_data = {}
@@ -6061,6 +6069,7 @@ def table_stock():
     
     # Process each stock entry into appropriate category
     legacy_keys = {"body_6ft", "body_7ft", "top_rail_6ft", "top_rail_7ft"}
+    lite_body_keys = {"body_7ft_lite", "body_6ft_lite"}
 
     for entry in all_stock:
         stock_type = entry.type
@@ -6071,7 +6080,9 @@ def table_stock():
             continue
         
         # Handle body stock
-        if stock_type.startswith('body_'):
+        if stock_type in lite_body_keys:
+            lite_body_data[stock_type] = entry.count
+        elif stock_type.startswith('body_'):
             table_data[stock_type] = entry.count
         
         # Handle top rail stock
@@ -6087,7 +6098,9 @@ def table_stock():
             other_data[stock_type] = entry.count
 
     # Pre-calculate totals for the section headers
-    total_bodies = sum(value for key, value in table_data.items() if key.startswith('body_'))
+    total_champion_bodies = sum(value for key, value in table_data.items() if key.startswith('body_'))
+    total_lite_bodies = sum(value for key, value in lite_body_data.items() if key in lite_body_keys)
+    total_bodies = total_champion_bodies + total_lite_bodies
     total_rails = sum(
         top_rail_data.get(f"top_rail_{size.lower()}_{color.lower().replace(' ', '_')}", 0)
         for size in sizes
@@ -6098,6 +6111,7 @@ def table_stock():
     # Calculate costs for stock value panel
     stock_costs = {size: {} for size in sizes}
     stock_costs_raw = {size: {} for size in sizes}  # Store raw numeric values
+    stock_costs_lite = {}
     grand_total = 0
     
     # Calculate body costs by size and color
@@ -6117,6 +6131,17 @@ def table_stock():
             
             grand_total += item_cost
 
+        lite_key = f'body_{size.lower()}_lite'
+        lite_count = lite_body_data.get(lite_key, 0)
+        lite_unit_cost = 993.6
+        lite_cost = lite_count * lite_unit_cost
+        stock_costs_lite[size] = {
+            "count": lite_count,
+            "cost": f"£{lite_cost:,.2f}",
+            "raw_cost": lite_cost
+        }
+        grand_total += lite_cost
+
     # Format the grand total
     formatted_grand_total = f"£{grand_total:,.2f} (incl. VAT)"
 
@@ -6125,13 +6150,16 @@ def table_stock():
         sizes=sizes,
         colors=colors,
         table_data=table_data,
+        lite_body_data=lite_body_data,
         top_rail_data=top_rail_data,
         cushion_data=cushion_data,
         other_data=other_data,
         stock_costs=stock_costs,
         stock_costs_raw=stock_costs_raw,
+        stock_costs_lite=stock_costs_lite,
         grand_total=formatted_grand_total,
         total_bodies=total_bodies,
+        total_lite_bodies=total_lite_bodies,
         total_rails=total_rails,
         total_cushions=total_cushions
     )
@@ -6169,6 +6197,10 @@ def table_stock_export_csv():
         cfg = next((c for c in TOP_RAIL_TABLE_STOCK_CONFIGS if c["size"] == size and c["color"] == color), None)
         body_count = _table_stock_count(cfg["body_key"]) if cfg else 0
         rows.append((f"{size} - {color}", "", body_count, ""))
+    for size in ["6ft", "7ft"]:
+        lite_key = f"body_{size.lower()}_lite"
+        lite_count = _table_stock_count(lite_key)
+        rows.append((f"{size} - Lite", "", lite_count, ""))
 
     output = StringIO()
     writer = csv.writer(output)

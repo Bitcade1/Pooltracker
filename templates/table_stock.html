@@ -264,6 +264,24 @@
                 </td>
               </tr>
             {% endfor %}
+
+            {% set lite_key = 'body_' + size.lower() + '_lite' %}
+            {% set lite_count = lite_body_data.get(lite_key, 0) %}
+            {% set ns.total = ns.total + lite_count %}
+            <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
+              <td>{{ size }}</td>
+              <td class="color-cell">Lite</td>
+              <td>{{ lite_count }}</td>
+              <td>
+                <form method="post" class="stock-form" id="form-{{ lite_key }}">
+                  <input type="hidden" name="stock_type" value="{{ lite_key }}">
+                  <input type="hidden" name="current_section" value="bodies-content">
+                  <input type="number" name="amount" placeholder="Amount" min="1" required>
+                  <button type="submit" name="action" value="add" class="button">Add</button>
+                  <button type="submit" name="action" value="remove" class="button">Remove</button>
+                </form>
+              </td>
+            </tr>
             
             <!-- Row for size subtotal with enhanced styling -->
             <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
@@ -500,7 +518,7 @@
               <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
                 <td>{{ size }}</td>
                 <td>{{ color }}</td>
-                <td>{{ table_data[stock_key] }}</td>
+                <td>{{ table_data.get(stock_key, 0) }}</td>
                 <td>
                   {% if color|lower == 'black' %}
                     £993.60
@@ -511,12 +529,20 @@
                 <td>{{ cost }}</td>
               </tr>
             {% endfor %}
-            
+            {% set lite_key = 'body_' ~ size|lower ~ '_lite' %}
+            {% set lite_info = stock_costs_lite.get(size, {'count': 0, 'cost': '£0.00'}) %}
+            <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
+              <td>{{ size }}</td>
+              <td>Lite</td>
+              <td>{{ lite_body_data.get(lite_key, 0) }}</td>
+              <td>£993.60</td>
+              <td>{{ lite_info.cost }}</td>
+            </tr>
             <!-- Size subtotal row -->
             <tr class="{% if size == '7ft' %}subtotal-7ft{% else %}subtotal-6ft{% endif %}">
               <td colspan="4">Total {{ size }} Cost</td>
               <td>
-                £{{ "%.2f"|format((stock_costs_raw[size].values()|sum)) }}
+                £{{ "%.2f"|format((stock_costs_raw[size].values()|sum) + (stock_costs_lite[size].raw_cost if stock_costs_lite.get(size) else 0)) }}
               </td>
             </tr>
           {% endfor %}
@@ -761,3 +787,4 @@
   </script>
 </body>
 </html>
+
