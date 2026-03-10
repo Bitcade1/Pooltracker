@@ -184,7 +184,7 @@ def body_parts_for_completion(serial_number, table_type, laminate_color_key):
     laminate_part_name = f"Laminate - {laminate_label}"
 
     if table_type == TABLE_TYPE_LITE:
-        return {
+        lite_parts = {
             laminate_part_name: 4,
             "Table legs": 4,
             "Ball Gullies 1 (Untouched)": 2,
@@ -197,9 +197,13 @@ def body_parts_for_completion(serial_number, table_type, laminate_color_key):
             "Aluminum corner": 4,
             "4.2 x 16 No2 Self Tapping Screw": 19,
             "Latch": 12,
-            "7ft Bag of Bolts": 1,
             "7ft Ply Supports": 2,
         }
+        if serial_is_6ft(serial_number):
+            lite_parts["6ft Bag of Bolts"] = 1
+        else:
+            lite_parts["7ft Bag of Bolts"] = 1
+        return lite_parts
 
     parts_to_deduct = {
         "Large Ramp": 1,
