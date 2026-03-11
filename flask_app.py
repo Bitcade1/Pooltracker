@@ -875,62 +875,60 @@ def admin():
         model = None
         if table == 'pods':
             model = CompletedPods
-            # When deleting a pod, restore felt, carpet and tee nuts
+            # When deleting a pod, restore only the parts deducted for that pod type
             if 'delete' in request.form:
                 pod = CompletedPods.query.get(entry_id)
                 if pod:
                     # Determine if it's a 6ft pod
                     is_6ft = serial_is_6ft(pod.serial_number)
-                    
-                    # Determine which felt and carpet to restore
-                    felt_part = FELT_PART_NAME
-                    carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
-                    
-                    # Restore felt
-                    felt_entry = get_latest_part_entry(felt_part)
-                    if felt_entry:
-                        felt_entry.count += 2
-                    else:
-                        fallback_count = get_felt_count()
-                        new_felt = PrintedPartsCount(part_name=felt_part, count=fallback_count + 2,
-                                                   date=datetime.utcnow().date(),
-                                                   time=datetime.utcnow().time())
-                        db.session.add(new_felt)
-                    
-                    # Restore carpet
-                    carpet_entry = PrintedPartsCount.query.filter_by(part_name=carpet_part).order_by(
-                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-                    if carpet_entry:
-                        carpet_entry.count += 1
-                    else:
-                        new_carpet = PrintedPartsCount(part_name=carpet_part, count=1,
-                                                     date=datetime.utcnow().date(),
-                                                     time=datetime.utcnow().time())
-                        db.session.add(new_carpet)
-                    
-                    # Restore tee nuts
-                    tee_nuts_entry = PrintedPartsCount.query.filter_by(part_name="M10x13mm Tee Nut").order_by(
-                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-                    if tee_nuts_entry:
-                        tee_nuts_entry.count += 16
-                    else:
-                        new_tee_nuts = PrintedPartsCount(part_name="M10x13mm Tee Nut", count=16,
-                                                       date=datetime.utcnow().date(),
-                                                       time=datetime.utcnow().time())
-                        db.session.add(new_tee_nuts)
+                    pod_table_type = table_type_from_serial(pod.serial_number)
+                    restored_parts = []
 
-                    # Restore rows of black staples
-                    staples_entry = PrintedPartsCount.query.filter_by(part_name="Rows of Black Staples").order_by(
-                        PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-                    if staples_entry:
-                        staples_entry.count += 2
-                    else:
-                        new_staples = PrintedPartsCount(part_name="Rows of Black Staples", count=2,
-                                                       date=datetime.utcnow().date(),
-                                                       time=datetime.utcnow().time())
-                        db.session.add(new_staples)
-                    
-                    flash(f"Stock restored: +2 {felt_part}, +1 {carpet_part}, +16 Tee Nuts, +2 Rows of Black Staples", "success")
+                    def restore_part(part_name, quantity):
+                        inventory_entry = (
+                            PrintedPartsCount.query
+                            .filter_by(part_name=part_name)
+                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                            .first()
+                        )
+                        if inventory_entry:
+                            inventory_entry.count += quantity
+                        else:
+                            db.session.add(
+                                PrintedPartsCount(
+                                    part_name=part_name,
+                                    count=quantity,
+                                    date=datetime.utcnow().date(),
+                                    time=datetime.utcnow().time()
+                                )
+                            )
+                        restored_parts.append(f"+{quantity} {part_name}")
+
+                    if pod_table_type == TABLE_TYPE_CHAMPION:
+                        felt_part = FELT_PART_NAME
+                        carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
+
+                        felt_entry = get_latest_part_entry(felt_part)
+                        if felt_entry:
+                            felt_entry.count += 2
+                        else:
+                            fallback_count = get_felt_count()
+                            db.session.add(
+                                PrintedPartsCount(
+                                    part_name=felt_part,
+                                    count=fallback_count + 2,
+                                    date=datetime.utcnow().date(),
+                                    time=datetime.utcnow().time()
+                                )
+                            )
+                        restored_parts.append(f"+2 {felt_part}")
+                        restore_part(carpet_part, 1)
+                        restore_part("Rows of Black Staples", 2)
+
+                    restore_part("M10x13mm Tee Nut", 16)
+
+                    type_label = "Lite" if pod_table_type == TABLE_TYPE_LITE else "Champion"
+                    flash(f"{type_label} pod stock restored: {', '.join(restored_parts)}", "success")
         elif table == 'top rails':
             model = TopRail
         elif table == 'bodies':
@@ -2444,15 +2442,32 @@ def pods():
     
     if request.method == 'POST':
         worker = session['worker']
-        serial_number = request.form['serial_number']
+        raw_serial = (request.form.get('serial_number') or "").strip()
         issue_text = request.form['issue']
         lunch = request.form['lunch']
-        size_selector = request.form.get('size_selector', '7ft')  # Get the size from dropdown
-        
-        # Ensure serial number has proper format
-        if size_selector == '6ft' and not serial_is_6ft(serial_number):
-            # Add the 6ft suffix if not already present
-            serial_number = serial_number + ' - 6'
+        size_selector = request.form.get('size_selector', '7ft')
+        table_type_selector = request.form.get('table_type', 'Champion')
+        selected_table_type = (
+            TABLE_TYPE_LITE
+            if table_type_selector.strip().lower() == "lite"
+            else TABLE_TYPE_CHAMPION
+        )
+
+        clean_serial = strip_table_serial_suffixes(raw_serial, remove_color=True, remove_lite=True)
+        clean_serial = re.sub(r"\s*-\s*[67]\s*$", "", clean_serial, flags=re.IGNORECASE).strip()
+        if not clean_serial:
+            flash("Please enter a valid serial number.", "error")
+            return redirect(url_for('pods'))
+
+        if selected_table_type == TABLE_TYPE_LITE:
+            if size_selector == '6ft':
+                serial_number = f"{clean_serial} - 6 - L"
+            else:
+                serial_number = f"{clean_serial} - 7 - L"
+        else:
+            serial_number = f"{clean_serial} - 6" if size_selector == '6ft' else clean_serial
+
+        actual_table_type = table_type_from_serial(serial_number)
         
         try:
             start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
@@ -2471,37 +2486,42 @@ def pods():
         carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
         
         low_stock_messages = []
-        # Check and deduct felt
-        felt_count = get_felt_count()
-        if felt_count < 2:
-            flash(f"Not enough {felt_part} in stock!", "error")
-            return redirect(url_for('pods'))
-        
-        # Check and deduct carpet
-        carpet_entry = PrintedPartsCount.query.filter_by(part_name=carpet_part).order_by(
-            PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        if not carpet_entry or carpet_entry.count < 1:
-            flash(f"Not enough {carpet_part} in stock!", "error")
-            return redirect(url_for('pods'))
-        
+        parts_to_deduct = []
+
+        if actual_table_type == TABLE_TYPE_CHAMPION:
+            felt_count = get_felt_count()
+            if felt_count < 2:
+                flash(f"Not enough {felt_part} in stock!", "error")
+                return redirect(url_for('pods'))
+            parts_to_deduct.append((felt_part, felt_count, 2))
+
+            carpet_entry = PrintedPartsCount.query.filter_by(part_name=carpet_part).order_by(
+                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+            if not carpet_entry or carpet_entry.count < 1:
+                flash(f"Not enough {carpet_part} in stock!", "error")
+                return redirect(url_for('pods'))
+            parts_to_deduct.append((carpet_part, carpet_entry.count, 1))
+
         # Check and deduct Tee Nuts
         tee_nuts_entry = PrintedPartsCount.query.filter_by(part_name="M10x13mm Tee Nut").order_by(
             PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         if not tee_nuts_entry or tee_nuts_entry.count < 16:
             flash("Not enough M10x13mm Tee Nuts in stock! Need 16 per pod.", "error")
             return redirect(url_for('pods'))
-        
-        # Check and deduct Rows of Black Staples
-        black_staples_entry = PrintedPartsCount.query.filter_by(part_name="Rows of Black Staples").order_by(
-            PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
-        if not black_staples_entry or black_staples_entry.count < 2:
-            flash("Not enough Rows of Black Staples in stock! Need 2 per pod.", "error")
-            return redirect(url_for('pods'))
+        parts_to_deduct.append(("M10x13mm Tee Nut", tee_nuts_entry.count, 16))
+
+        if actual_table_type == TABLE_TYPE_CHAMPION:
+            black_staples_entry = PrintedPartsCount.query.filter_by(part_name="Rows of Black Staples").order_by(
+                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
+            if not black_staples_entry or black_staples_entry.count < 2:
+                flash("Not enough Rows of Black Staples in stock! Need 2 per pod.", "error")
+                return redirect(url_for('pods'))
+            parts_to_deduct.append(("Rows of Black Staples", black_staples_entry.count, 2))
         
         try:
             # Create and save the new pod
             new_pod = CompletedPods(
-                worker=session['worker'],
+                worker=worker,
                 start_time=start_time,
                 finish_time=finish_time,
                 serial_number=serial_number,
@@ -2527,15 +2547,16 @@ def pods():
                 )
 
             # Record deductions as new inventory entries so history and UI stay in sync
-            record_part_usage(felt_part, felt_count, 2)
-            record_part_usage(carpet_part, carpet_entry.count, 1)
-            record_part_usage("M10x13mm Tee Nut", tee_nuts_entry.count, 16)
-            record_part_usage("Rows of Black Staples", black_staples_entry.count, 2)
+            for part_name, current_count, decrement in parts_to_deduct:
+                record_part_usage(part_name, current_count, decrement)
 
             db.session.add(new_pod)
             db.session.commit()
+            deductions_summary = ", ".join(
+                f"{decrement} {part_name}" for part_name, _, decrement in parts_to_deduct
+            )
             flash(
-                f"Pod entry added successfully! Deducted 2 {felt_part}, 1 {carpet_part}, 16 M10x13mm Tee Nuts, and 2 Rows of Black Staples",
+                f"Pod entry added successfully! Deducted {deductions_summary}",
                 "success"
             )
 
@@ -2559,6 +2580,7 @@ def pods():
 
             # --- NTFY Notification ---
             size = "6ft" if is_6ft else "7ft"
+            type_label = "Lite" if actual_table_type == TABLE_TYPE_LITE else "Champion"
             message_lines = []
             if low_stock_messages:
                 message_lines.append("LOW STOCK WARNING")
@@ -2570,9 +2592,9 @@ def pods():
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
             if low_stock_messages:
-                title = f"[LOW STOCK] Pod Completed: {size}"
+                title = f"[LOW STOCK] Pod Completed: {type_label} {size}"
             else:
-                title = f"Pod Completed: {size}"
+                title = f"Pod Completed: {type_label} {size}"
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
                               data=message,
@@ -2592,6 +2614,11 @@ def pods():
     completed_pods = CompletedPods.query.filter_by(date=today).all()
     last_entry = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
     current_time = last_entry.finish_time.strftime("%H:%M") if last_entry else datetime.now().strftime("%H:%M")
+    default_table_type = (
+        "Lite"
+        if last_entry and table_type_from_serial(last_entry.serial_number) == TABLE_TYPE_LITE
+        else "Champion"
+    )
     
     # Retrieve all pods for the current month.
     all_pods_this_month = CompletedPods.query.filter(
@@ -2695,7 +2722,8 @@ def pods():
         next_serial_number=next_serial_number,
         target_7ft=target_7ft,
         target_6ft=target_6ft,
-        default_size=default_size
+        default_size=default_size,
+        default_table_type=default_table_type
     )
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
@@ -3645,12 +3673,6 @@ def bodies():
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
         color_selector = request.form.get('color_selector', 'Black')
-        table_type_selector = request.form.get('table_type', 'Champion')
-        selected_table_type = (
-            TABLE_TYPE_LITE
-            if table_type_selector.strip().lower() == "lite"
-            else TABLE_TYPE_CHAMPION
-        )
         issue_text = request.form['issue']
         lunch = request.form['lunch']
 
@@ -3660,6 +3682,7 @@ def bodies():
         if "**Pod Serial Number:" in raw_serial:
             raw_serial = raw_serial.replace("**Pod Serial Number:", "").strip()
 
+        selected_table_type = table_type_from_serial(raw_serial)
         clean_serial = strip_table_serial_suffixes(raw_serial, remove_color=True, remove_lite=True)
         normalized_serial = clean_serial.replace(" ", "").upper()
         has_6 = serial_is_6ft(clean_serial)
@@ -3956,11 +3979,6 @@ def bodies():
     # Determine default color based on the last completed table
     last_table = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     default_color = body_color_label(last_table) if last_table else 'Black'
-    default_table_type = (
-        "Lite"
-        if last_table and table_type_from_serial(last_table.serial_number) == TABLE_TYPE_LITE
-        else "Champion"
-    )
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if serial_is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not serial_is_6ft(table.serial_number))
@@ -4153,8 +4171,7 @@ def bodies():
         target_6ft=target_6ft,
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft,
-        default_color=default_color,
-        default_table_type=default_table_type
+        default_color=default_color
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():

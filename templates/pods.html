@@ -136,6 +136,7 @@
       function updateSerialNumber() {
           const baseSerialNumber = document.getElementById('base_serial_number').value;
           const sizeSelector = document.getElementById('size_selector');
+          const tableTypeSelector = document.getElementById('table_type_selector');
           const serialNumberField = document.getElementById('serial_number');
           
           if (baseSerialNumber.trim() === '') {
@@ -150,14 +151,25 @@
           if (cleanedSerialNumber.includes(' - 7') || cleanedSerialNumber.includes('-7')) {
               cleanedSerialNumber = cleanedSerialNumber.replace(/ - 7|-7/g, '');
           }
+          if (cleanedSerialNumber.includes(' - L') || cleanedSerialNumber.includes('-L')) {
+              cleanedSerialNumber = cleanedSerialNumber.replace(/ - L|-L/ig, '');
+          }
           
           // Add the new size suffix based on selection
-          if (sizeSelector.value === '6ft') {
-              serialNumberField.value = cleanedSerialNumber + ' - 6';
+          const isLite = (tableTypeSelector.value || '').toLowerCase() === 'lite';
+          if (isLite) {
+              if (sizeSelector.value === '6ft') {
+                  serialNumberField.value = cleanedSerialNumber + ' - 6 - L';
+              } else {
+                  serialNumberField.value = cleanedSerialNumber + ' - 7 - L';
+              }
           } else {
-              // For 7ft, we typically don't add a suffix as it's the default,
-              // but we'll add it here for consistency and clarity
-              serialNumberField.value = cleanedSerialNumber;
+              if (sizeSelector.value === '6ft') {
+                  serialNumberField.value = cleanedSerialNumber + ' - 6';
+              } else {
+                  // For Champion 7ft, no size suffix is used.
+                  serialNumberField.value = cleanedSerialNumber;
+              }
           }
       }
       
@@ -168,6 +180,7 @@
           
           // Add event listener for size selector changes
           document.getElementById('size_selector').addEventListener('change', updateSerialNumber);
+          document.getElementById('table_type_selector').addEventListener('change', updateSerialNumber);
           
           // Add event listener for base serial number changes
           document.getElementById('base_serial_number').addEventListener('input', updateSerialNumber);
@@ -227,6 +240,13 @@
         <select id="size_selector" name="size_selector">
           <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
           <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
+        </select>
+      </div>
+      <div class="size-field">
+        <label for="table_type_selector">Table Type:</label>
+        <select id="table_type_selector" name="table_type">
+          <option value="Champion" {% if default_table_type == 'Champion' %}selected{% endif %}>Champion</option>
+          <option value="Lite" {% if default_table_type == 'Lite' %}selected{% endif %}>Lite</option>
         </select>
       </div>
       
