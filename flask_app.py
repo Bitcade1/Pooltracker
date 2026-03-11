@@ -3673,6 +3673,12 @@ def bodies():
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
         color_selector = request.form.get('color_selector', 'Black')
+        table_type_selector = request.form.get('table_type', 'Champion')
+        selected_table_type = (
+            TABLE_TYPE_LITE
+            if table_type_selector.strip().lower() == "lite"
+            else TABLE_TYPE_CHAMPION
+        )
         issue_text = request.form['issue']
         lunch = request.form['lunch']
 
@@ -3682,7 +3688,6 @@ def bodies():
         if "**Pod Serial Number:" in raw_serial:
             raw_serial = raw_serial.replace("**Pod Serial Number:", "").strip()
 
-        selected_table_type = table_type_from_serial(raw_serial)
         clean_serial = strip_table_serial_suffixes(raw_serial, remove_color=True, remove_lite=True)
         normalized_serial = clean_serial.replace(" ", "").upper()
         has_6 = serial_is_6ft(clean_serial)
@@ -3979,6 +3984,11 @@ def bodies():
     # Determine default color based on the last completed table
     last_table = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     default_color = body_color_label(last_table) if last_table else 'Black'
+    default_table_type = (
+        "Lite"
+        if last_table and table_type_from_serial(last_table.serial_number) == TABLE_TYPE_LITE
+        else "Champion"
+    )
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if serial_is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not serial_is_6ft(table.serial_number))
@@ -4171,7 +4181,8 @@ def bodies():
         target_6ft=target_6ft,
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft,
-        default_color=default_color
+        default_color=default_color,
+        default_table_type=default_table_type
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():

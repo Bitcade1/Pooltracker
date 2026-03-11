@@ -174,19 +174,32 @@
           var content = document.getElementById(id);
           content.style.display = content.style.display === "block" ? "none" : "block";
       }
+
+      function inferTableTypeFromSerial(serialValue) {
+          const normalized = (serialValue || '').replace(/\s/g, '').toUpperCase();
+          return normalized.endsWith('-L') ? 'Lite' : 'Champion';
+      }
+
+      function syncTableTypeFromSelectedSerial() {
+          const selectedSerialNumber = document.getElementById('serial_number').value;
+          const tableTypeSelector = document.getElementById('table_type');
+          if (!tableTypeSelector) {
+              return;
+          }
+          tableTypeSelector.value = inferTableTypeFromSerial(selectedSerialNumber);
+      }
       
       function updateSerialNumber() {
           const selectedSerialNumber = document.getElementById('serial_number').value;
           const colorSelector = document.getElementById('color_selector');
+          const tableTypeSelector = document.getElementById('table_type');
           
           if (!selectedSerialNumber || selectedSerialNumber === "") {
               document.getElementById('formatted_serial_display').textContent = "";
               document.getElementById('formatted_serial_number').value = "";
               return; // Don't update if no serial is selected
           }
-
-          const normalizedSelectedSerial = selectedSerialNumber.replace(/\s/g, '').toUpperCase();
-          const isLitePod = normalizedSelectedSerial.endsWith('-L');
+          const selectedTableType = (tableTypeSelector && tableTypeSelector.value) ? tableTypeSelector.value : 'Champion';
           
           // Clean any existing color/lite suffix from the serial number
           let cleanedSerialNumber = selectedSerialNumber;
@@ -204,7 +217,7 @@
           const has7Token = normalized.endsWith('-7') || normalized.includes('-7-');
 
           let formattedSerial = cleanedSerialNumber;
-          if (isLitePod) {
+          if (selectedTableType === 'Lite') {
               if (!is6ft && !has7Token) {
                   formattedSerial += ' - 7';
               }
@@ -245,10 +258,15 @@
           });
           
           // Attach event listeners
-          $('#serial_number').on('change', updateSerialNumber);
+          $('#serial_number').on('change', function() {
+              syncTableTypeFromSelectedSerial();
+              updateSerialNumber();
+          });
           $('#color_selector').on('change', updateSerialNumber);
+          $('#table_type').on('change', updateSerialNumber);
           
           // Initialize the formatted serial number
+          syncTableTypeFromSelectedSerial();
           updateSerialNumber();
       });
   </script>
@@ -309,7 +327,14 @@
           <option value="" disabled selected>No unconverted pods available</option>
         {% endif %}
       </select>
-      <div class="size-indicator">Table type is automatic from pod serial (`-L` = Lite).</div>
+      <div class="color-field">
+        <label for="table_type">Table Type:</label>
+        <select id="table_type" name="table_type">
+          <option value="Champion" {% if default_table_type == 'Champion' %}selected{% endif %}>Champion Premium</option>
+          <option value="Lite" {% if default_table_type == 'Lite' %}selected{% endif %}>Champion Lite</option>
+        </select>
+      </div>
+      <div class="size-indicator">Auto-selected from pod serial (`-L` = Lite), but you can override for older pods.</div>
       
       <!-- Color Selector -->
       <div class="color-field">
