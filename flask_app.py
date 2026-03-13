@@ -1517,6 +1517,9 @@ def build_stock_snapshot():
         # Skip legacy generic body/top_rail keys without color so they don't pollute totals
         if entry.type in {"body_6ft", "body_7ft", "top_rail_6ft", "top_rail_7ft"}:
             continue
+        # Skip synthetic body metadata rows used to reconstruct Lite bodies.
+        if entry.type.startswith(("meta_body_type_", "meta_body_color_")):
+            continue
         if entry.type == "pallet_wrap_remainder":
             continue
 
