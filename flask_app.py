@@ -1520,7 +1520,7 @@ def build_stock_snapshot():
         # Skip synthetic body metadata rows used to reconstruct Lite bodies.
         if entry.type.startswith(("meta_body_type_", "meta_body_color_")):
             continue
-        if entry.type == "pallet_wrap_remainder":
+        if entry.type.endswith("_remainder"):
             continue
 
         if entry.type.startswith('body_'):
@@ -6111,7 +6111,7 @@ def table_stock():
         if stock_type in legacy_keys:
             # Ignore legacy aggregate keys so totals match the per-color rows shown in the UI
             continue
-        if stock_type == "pallet_wrap_remainder":
+        if stock_type.endswith("_remainder"):
             continue
         
         # Handle body stock
