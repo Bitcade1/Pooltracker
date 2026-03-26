@@ -289,12 +289,15 @@ PACKAGING_PART_NAMES = [
 ]
 LEGACY_PRINTED_PART_RENAMES = {
     "Ball Gullies 1 (Untouched)": "Ball Gullies 1",
-    "Top rail trim long length": "Top Rail Trim 822mm",
+    "Top rail trim long length": "Top Rail Trim - 822mm",
+    "Top Rail Trim 822mm": "Top Rail Trim - 822mm",
+    "Top Rail Trim 814mm Left": "Top Rail Trim - 814mm (Left)",
+    "Top Rail Trim 814mm Right": "Top Rail Trim - 814mm (Right)",
 }
 LEGACY_PRINTED_PART_SPLITS = {
     "Top rail trim short length": (
-        "Top Rail Trim 814mm Left",
-        "Top Rail Trim 814mm Right",
+        "Top Rail Trim - 814mm (Left)",
+        "Top Rail Trim - 814mm (Right)",
     ),
 }
 SEVEN_FOOT_GULLY_PARTS = {
@@ -305,9 +308,9 @@ SEVEN_FOOT_GULLY_PARTS = {
     "Ball Gullies 5": 1,
 }
 TOP_RAIL_TRIM_PARTS = {
-    "Top Rail Trim 814mm Left": 2,
-    "Top Rail Trim 814mm Right": 2,
-    "Top Rail Trim 822mm": 2,
+    "Top Rail Trim - 814mm (Left)": 2,
+    "Top Rail Trim - 814mm (Right)": 2,
+    "Top Rail Trim - 822mm": 2,
 }
 MANUAL_ONLY_CHINESE_PARTS = [
     "Gullies Untouched",
@@ -7836,9 +7839,9 @@ def order_chinese_parts():
         "Ramp 158mm": "158",
         "Ramp 376mm": "376",
         "Aluminum corner": "Aluminum Corner",
-        "Top Rail Trim 814mm Left": "814 Left",
-        "Top Rail Trim 814mm Right": "814 Right",
-        "Top Rail Trim 822mm": "822",
+        "Top Rail Trim - 814mm (Left)": "Top Rail Trim - 814mm (Left)",
+        "Top Rail Trim - 814mm (Right)": "Top Rail Trim - 814mm (Right)",
+        "Top Rail Trim - 822mm": "Top Rail Trim - 822mm",
         "Ball window trim": "Ball Window Trim",
         "Color ball trim": "Colour Ball Trim",
         "White ball return trim": "Cue ball Trim",
@@ -7945,9 +7948,9 @@ def order_chinese_parts():
         "Ramp 158mm",
         "Ramp 376mm",
         "Aluminum corner",
-        "Top Rail Trim 822mm",
-        "Top Rail Trim 814mm Left",
-        "Top Rail Trim 814mm Right",
+        "Top Rail Trim - 822mm",
+        "Top Rail Trim - 814mm (Left)",
+        "Top Rail Trim - 814mm (Right)",
         "Ball window trim",
         "Color ball trim",
         "White ball return trim",
