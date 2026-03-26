@@ -289,6 +289,13 @@ PACKAGING_PART_NAMES = [
 ]
 LEGACY_PRINTED_PART_RENAMES = {
     "Ball Gullies 1 (Untouched)": "Ball Gullies 1",
+    "Top rail trim long length": "Top Rail Trim 822mm",
+}
+LEGACY_PRINTED_PART_SPLITS = {
+    "Top rail trim short length": (
+        "Top Rail Trim 814mm Left",
+        "Top Rail Trim 814mm Right",
+    ),
 }
 SEVEN_FOOT_GULLY_PARTS = {
     "Ball Gullies 1": 2,
@@ -296,6 +303,11 @@ SEVEN_FOOT_GULLY_PARTS = {
     "Ball Gullies 3": 1,
     "Ball Gullies 4": 1,
     "Ball Gullies 5": 1,
+}
+TOP_RAIL_TRIM_PARTS = {
+    "Top Rail Trim 814mm Left": 2,
+    "Top Rail Trim 814mm Right": 2,
+    "Top Rail Trim 822mm": 2,
 }
 MANUAL_ONLY_CHINESE_PARTS = [
     "Gullies Untouched",
@@ -315,8 +327,7 @@ ALL_CHINESE_PARTS = [
     "Ball window trim",
     "Aluminum corner",
     "Chrome corner",
-    "Top rail trim short length",
-    "Top rail trim long length",
+    *TOP_RAIL_TRIM_PARTS.keys(),
     "Ramp 170mm",
     "Ramp 158mm",
     "Ramp 918mm",
@@ -452,6 +463,20 @@ class PartThreshold(db.Model):
     threshold = db.Column(db.Integer, default=0, nullable=False)
 
 
+def _coerce_int(value, default=0):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _split_legacy_quantity(value):
+    total = _coerce_int(value, 0)
+    left_qty = (total + 1) // 2
+    right_qty = total // 2
+    return left_qty, right_qty
+
+
 def ensure_legacy_inventory_names_migrated():
     if app.config.get("_legacy_inventory_names_migrated"):
         return
@@ -492,6 +517,62 @@ def ensure_legacy_inventory_names_migrated():
                     old_cost.item_key = new_cost_key
                 migration_changed = True
 
+        for old_name, new_names in LEGACY_PRINTED_PART_SPLITS.items():
+            split_entries = (
+                PrintedPartsCount.query
+                .filter_by(part_name=old_name)
+                .order_by(PrintedPartsCount.date.asc(), PrintedPartsCount.time.asc(), PrintedPartsCount.id.asc())
+                .all()
+            )
+            if split_entries:
+                left_name, right_name = new_names
+                for entry in split_entries:
+                    left_qty, right_qty = _split_legacy_quantity(entry.count)
+                    entry.part_name = left_name
+                    entry.count = left_qty
+                    cloned_entry = PrintedPartsCount(
+                        part_name=right_name,
+                        count=right_qty,
+                        date=entry.date,
+                        time=entry.time
+                    )
+                    db.session.add(cloned_entry)
+                migration_changed = True
+
+            old_threshold = PartThreshold.query.filter_by(part_name=old_name).first()
+            if old_threshold:
+                for new_name in new_names:
+                    threshold_entry = PartThreshold.query.filter_by(part_name=new_name).first()
+                    if threshold_entry:
+                        threshold_entry.threshold = max(threshold_entry.threshold or 0, old_threshold.threshold or 0)
+                    else:
+                        db.session.add(PartThreshold(part_name=new_name, threshold=old_threshold.threshold or 0))
+                db.session.delete(old_threshold)
+                migration_changed = True
+
+            old_cost_key = f"parts_inventory__{slugify_key(old_name)}"
+            old_cost = StockItemCost.query.filter_by(item_key=old_cost_key).first()
+            if old_cost:
+                for new_name in new_names:
+                    new_cost_key = f"parts_inventory__{slugify_key(new_name)}"
+                    new_cost = StockItemCost.query.filter_by(item_key=new_cost_key).first()
+                    if new_cost:
+                        if not (new_cost.unit_cost or 0.0):
+                            new_cost.unit_cost = old_cost.unit_cost
+                        if not (new_cost.shipping_cost or 0.0):
+                            new_cost.shipping_cost = old_cost.shipping_cost
+                        if not (new_cost.labour_cost or 0.0):
+                            new_cost.labour_cost = old_cost.labour_cost
+                    else:
+                        db.session.add(StockItemCost(
+                            item_key=new_cost_key,
+                            unit_cost=old_cost.unit_cost,
+                            shipping_cost=old_cost.shipping_cost,
+                            labour_cost=old_cost.labour_cost
+                        ))
+                db.session.delete(old_cost)
+                migration_changed = True
+
         on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
         if os.path.exists(on_order_file):
             try:
@@ -508,15 +589,16 @@ def ensure_legacy_inventory_names_migrated():
                         if old_name not in parts_data:
                             continue
                         old_value = parts_data.pop(old_name, 0)
-                        try:
-                            existing_value = int(parts_data.get(new_name, 0) or 0)
-                        except (TypeError, ValueError):
-                            existing_value = 0
-                        try:
-                            renamed_value = int(old_value or 0)
-                        except (TypeError, ValueError):
-                            renamed_value = 0
-                        parts_data[new_name] = existing_value + renamed_value
+                        parts_data[new_name] = _coerce_int(parts_data.get(new_name), 0) + _coerce_int(old_value, 0)
+                        file_changed = True
+                    for old_name, new_names in LEGACY_PRINTED_PART_SPLITS.items():
+                        if old_name not in parts_data:
+                            continue
+                        old_value = parts_data.pop(old_name, 0)
+                        left_name, right_name = new_names
+                        left_qty, right_qty = _split_legacy_quantity(old_value)
+                        parts_data[left_name] = _coerce_int(parts_data.get(left_name), 0) + left_qty
+                        parts_data[right_name] = _coerce_int(parts_data.get(right_name), 0) + right_qty
                         file_changed = True
                     if file_changed:
                         try:
@@ -1429,8 +1511,7 @@ def inventory():
         "Ball window trim": 1,
         "Aluminum corner": 4,
         "Chrome corner": 4,
-        "Top rail trim short length": 4,
-        "Top rail trim long length": 2,
+        **TOP_RAIL_TRIM_PARTS,
         "Ramp 170mm": 1,
         "Ramp 158mm": 1,
         "Ramp 918mm": 1,
@@ -2950,11 +3031,7 @@ def manage_raw_data():
                 elif table == 'top_rails':
                     # Parts used for a top rail
                     parts_used = {
-                        "Top rail trim long length": 2,
-                        "Top rail trim short length": 4,
-                        "Chrome corner": 4,
-                        "Center pockets": 2,
-                        "Corner pockets": 4,
+                        **dict(TOP_RAIL_PARTS_REQUIREMENTS),
                         BRAD_NAILS_PART_NAME: 0.5
                     }
                     # Revert each part's inventory for the top rail.
@@ -4369,16 +4446,7 @@ def top_rails():
         low_stock_messages = []
         # Parts and quantities needed for top rail completion
         parts_to_deduct = {
-            "Top rail trim long length": 2,
-            "Top rail trim short length": 4,
-            "Chrome corner": 4,
-            "Center pockets": 2,
-            "Corner pockets": 4,
-            "Catch Plate": 12,
-            "M5 x 20 Socket Cap Screw": 16,
-            "M5 x 18 x 1.25 Penny Mudguard Washer": 16,
-            "LAMELLO CLAMEX P-14 CONNECTOR": 18,
-            "4.8x32mm Self Tapping Screw": 24,
+            **dict(TOP_RAIL_PARTS_REQUIREMENTS),
             BRAD_NAILS_PART_NAME: 0.5
         }
 
@@ -4854,8 +4922,7 @@ BODY_SUPPORT_PARTS = {
     "4.0 x 50mm Wood Screw",
 }
 TOP_RAIL_PARTS_REQUIREMENTS = [
-    ("Top rail trim long length", 2),
-    ("Top rail trim short length", 4),
+    *TOP_RAIL_TRIM_PARTS.items(),
     ("Chrome corner", 4),
     ("Center pockets", 2),
     ("Corner pockets", 4),
@@ -7651,8 +7718,7 @@ def order_chinese_parts():
         "Ball window trim": 1,
         "Aluminum corner": 4,
         "Chrome corner": 4,
-        "Top rail trim short length": 4,
-        "Top rail trim long length": 2,
+        **TOP_RAIL_TRIM_PARTS,
         "Ramp 170mm": 1,
         "Ramp 158mm": 1,
         "Ramp 918mm": 1,
@@ -7770,8 +7836,9 @@ def order_chinese_parts():
         "Ramp 158mm": "158",
         "Ramp 376mm": "376",
         "Aluminum corner": "Aluminum Corner",
-        "Top rail trim long length": "Long aluminum Trim",
-        "Top rail trim short length": "Short aluminum Trim",
+        "Top Rail Trim 814mm Left": "814 Left",
+        "Top Rail Trim 814mm Right": "814 Right",
+        "Top Rail Trim 822mm": "822",
         "Ball window trim": "Ball Window Trim",
         "Color ball trim": "Colour Ball Trim",
         "White ball return trim": "Cue ball Trim",
@@ -7865,8 +7932,7 @@ def order_chinese_parts():
         "Color ball trim",
         "Ball window trim",
         "Aluminum corner",
-        "Top rail trim short length",
-        "Top rail trim long length",
+        *TOP_RAIL_TRIM_PARTS.keys(),
         "Ramp 170mm",
         "Ramp 158mm",
         "Ramp 918mm",
@@ -7879,8 +7945,9 @@ def order_chinese_parts():
         "Ramp 158mm",
         "Ramp 376mm",
         "Aluminum corner",
-        "Top rail trim long length",
-        "Top rail trim short length",
+        "Top Rail Trim 822mm",
+        "Top Rail Trim 814mm Left",
+        "Top Rail Trim 814mm Right",
         "Ball window trim",
         "Color ball trim",
         "White ball return trim",
