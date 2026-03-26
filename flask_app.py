@@ -2243,16 +2243,17 @@ def counting_chinese_parts():
 
         current_count = existing_entry.count if existing_entry else 0
 
-        # Amount is only used for 'bulk' updates; default to 1 otherwise
-        try:
-            amount = int(request.form.get('amount', 1))
-        except ValueError:
-            flash("Amount must be a number.", "error")
-            return redirect(url_for('counting_chinese_parts'))
-
         # Perform the requested action
         if action == 'increment':
             new_count = current_count + 1
+
+        elif action == 'quick_add':
+            try:
+                amount = int(request.form.get('quick_amount', 1))
+            except ValueError:
+                flash("Amount must be a number.", "error")
+                return redirect(url_for('counting_chinese_parts', selected=selected_part))
+            new_count = current_count + abs(amount)
 
         elif action == 'decrement':
             if current_count > 0:
@@ -2263,6 +2264,11 @@ def counting_chinese_parts():
                 return redirect(url_for('counting_chinese_parts', selected=selected_part))
 
         elif action == 'bulk':
+            try:
+                amount = int(request.form.get('amount', 1))
+            except ValueError:
+                flash("Amount must be a number.", "error")
+                return redirect(url_for('counting_chinese_parts', selected=selected_part))
             # Positive bulk = add stock; negative bulk = remove stock if sufficient
             if amount < 0 and current_count < abs(amount):
                 flash(f"Not enough stock to remove. Current count for '{selected_part}': {current_count}", "error")

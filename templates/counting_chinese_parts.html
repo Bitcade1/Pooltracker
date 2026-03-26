@@ -33,7 +33,15 @@
         .delta-none { color: #666; font-weight: bold; }
     </style>
     <script>
+        function syncSelectedPartFields() {
+            const selectedPart = document.getElementById("table_part").value;
+            document.querySelectorAll(".selected-part-field").forEach((el) => {
+                el.value = selectedPart;
+            });
+        }
+
         function onPartChange() {
+            syncSelectedPartFields();
             document.getElementById("partsForm").submit();
         }
 
@@ -95,6 +103,19 @@
                 </form>
             </div>
 
+            <div class="panel">
+                <h2 style="margin: 0 0 10px 0;">Quick Add</h2>
+                <form method="POST" action="{{ url_for('counting_chinese_parts') }}">
+                    <input type="hidden" name="action" value="quick_add">
+                    <input type="hidden" name="table_part" class="selected-part-field" value="{{ selected_part }}">
+                    <div class="buttons">
+                        <button type="submit" class="btn btn-success" name="quick_amount" value="1">Add +1</button>
+                        <button type="submit" class="btn btn-success" name="quick_amount" value="5">Add +5</button>
+                        <button type="submit" class="btn btn-success" name="quick_amount" value="10">Add +10</button>
+                    </div>
+                </form>
+            </div>
+
             <div class="panel log-section">
                 <div class="panel-header">
                     <h2 style="margin: 0;">Log</h2>
@@ -144,5 +165,8 @@
             <a href="{{ url_for('inventory') }}" class="menu-button">Back to Inventory</a>
         </div>
     </div>
+    <script>
+        syncSelectedPartFields();
+    </script>
 </body>
 </html>
