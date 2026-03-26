@@ -2226,7 +2226,7 @@ def counting_chinese_parts():
     table_parts_counts = get_table_parts_counts()
 
     # Determine the currently selected part (default to first in list if none selected)
-    selected_part = request.form.get('table_part', table_parts[0])
+    selected_part = request.form.get('table_part') or request.args.get('selected') or table_parts[0]
     action = request.form.get('action')  # e.g. 'increment', 'decrement', 'bulk'
 
     # Process form submission if we're in POST and have an 'action'
@@ -2241,15 +2241,7 @@ def counting_chinese_parts():
                           .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                           .first())
 
-        # If no entry exists, create one before proceeding
-        if not existing_entry:
-            existing_entry = PrintedPartsCount(
-                part_name=selected_part,
-                count=0,
-                date=datetime.utcnow().date(),
-                time=datetime.utcnow().time()
-            )
-            db.session.add(existing_entry)
+        current_count = existing_entry.count if existing_entry else 0
 
         # Amount is only used for 'bulk' updates; default to 1 otherwise
         try:
@@ -2260,49 +2252,81 @@ def counting_chinese_parts():
 
         # Perform the requested action
         if action == 'increment':
-            existing_entry.count += 1
+            new_count = current_count + 1
 
         elif action == 'decrement':
-            if existing_entry.count > 0:
-                old_count = existing_entry.count
-                existing_entry.count -= 1
-                check_and_notify_low_stock(selected_part, old_count, existing_entry.count)
+            if current_count > 0:
+                new_count = current_count - 1
+                check_and_notify_low_stock(selected_part, current_count, new_count)
             else:
                 flash("Cannot decrement below zero.", "error")
+                return redirect(url_for('counting_chinese_parts', selected=selected_part))
 
         elif action == 'bulk':
             # Positive bulk = add stock; negative bulk = remove stock if sufficient
-            if amount < 0 and existing_entry.count < abs(amount):
-                flash(f"Not enough stock to remove. Current count for '{selected_part}': {existing_entry.count}", "error")
-                return redirect(url_for('counting_chinese_parts'))
-            
-            old_count = existing_entry.count
-            existing_entry.count += amount
+            if amount < 0 and current_count < abs(amount):
+                flash(f"Not enough stock to remove. Current count for '{selected_part}': {current_count}", "error")
+                return redirect(url_for('counting_chinese_parts', selected=selected_part))
+
+            new_count = current_count + amount
             if amount < 0:
-                check_and_notify_low_stock(selected_part, old_count, existing_entry.count)
+                check_and_notify_low_stock(selected_part, current_count, new_count)
 
         else:
             flash("Invalid operation.", "error")
-            return redirect(url_for('counting_chinese_parts'))
+            return redirect(url_for('counting_chinese_parts', selected=selected_part))
 
-        # Update date/time so you can see the latest update
-        existing_entry.date = datetime.utcnow().date()
-        existing_entry.time = datetime.utcnow().time()
+        new_entry = PrintedPartsCount(
+            part_name=selected_part,
+            count=new_count,
+            date=datetime.utcnow().date(),
+            time=datetime.utcnow().time()
+        )
+        db.session.add(new_entry)
 
         # Commit changes
         db.session.commit()
 
-        flash(f"{selected_part} updated successfully! New count: {existing_entry.count}", "success")
-        
-        # Re-fetch updated counts for display
-        table_parts_counts = get_table_parts_counts()
+        flash(f"{selected_part} updated successfully! New count: {new_count}", "success")
+        return redirect(url_for('counting_chinese_parts', selected=selected_part))
+
+    chinese_parts_log = []
+    if table_parts:
+        recent_entries = (
+            PrintedPartsCount.query
+            .filter(PrintedPartsCount.part_name.in_(table_parts))
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .limit(50)
+            .all()
+        )
+
+        for entry in recent_entries:
+            previous = (
+                PrintedPartsCount.query
+                .filter(PrintedPartsCount.part_name == entry.part_name)
+                .filter(or_(
+                    PrintedPartsCount.date < entry.date,
+                    and_(PrintedPartsCount.date == entry.date, PrintedPartsCount.time < entry.time),
+                ))
+                .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                .first()
+            )
+            previous_count = previous.count if previous else 0
+            chinese_parts_log.append({
+                "part_name": entry.part_name,
+                "date": entry.date,
+                "time": entry.time,
+                "new_count": entry.count,
+                "delta": (entry.count or 0) - (previous_count or 0),
+            })
 
     # Render the template with the current data
     return render_template(
         'counting_chinese_parts.html',
         table_parts=table_parts,
         table_parts_counts=table_parts_counts,
-        selected_part=selected_part
+        selected_part=selected_part,
+        chinese_parts_log=chinese_parts_log
     )
 
 
