@@ -38,7 +38,7 @@ BASE_PARTS: Dict[str, int] = {
     "Cue Ball Separator": 1,
     "Bushing": 2,
     "Table legs": 4,
-    "Ball Gullies 1 (Untouched)": 2,
+    "Ball Gullies 1": 2,
     "Ball Gullies 2": 1,
     "Ball Gullies 3": 1,
     "Ball Gullies 4": 1,
@@ -93,8 +93,14 @@ def apply_adjustments(parts: Dict[str, int], serial: str) -> Dict[str, int]:
         adjusted.pop("Small Ramp", None)
         adjusted.pop("Ramp 170mm", None)
         adjusted.pop("Ramp 158mm", None)
+        adjusted.pop("Ball Gullies 1", None)
+        adjusted.pop("Ball Gullies 2", None)
+        adjusted.pop("Ball Gullies 3", None)
+        adjusted.pop("Ball Gullies 4", None)
+        adjusted.pop("Ball Gullies 5", None)
         adjusted["6ft Large Ramp"] = 1
         adjusted["6ft Cue Ball Separator"] = 1
+        adjusted["6ft Gully Set"] = 1
     return adjusted
 
 

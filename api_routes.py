@@ -447,14 +447,56 @@ def inventory_summary():
         # And then use mdf_inventory_data['plain_mdf'] etc.
     
     table_parts_definitions = {
-        "Table legs": 4, "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1,
-        "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1,
-        "Feet": 4, "Triangle trim": 1, "White ball return trim": 1,
-        "Color ball trim": 1, "Ball window trim": 1, "Aluminum corner": 4,
-        "Chrome corner": 4, "Top rail trim short length": 4,
-        "Top rail trim long length": 2, "Ramp 170mm": 1, "Ramp 158mm": 1,
-        "Ramp 918mm": 1, "Ramp 376mm": 1, "Chrome handles": 1,
-        "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
+        "Table legs": 0,
+        "Ball Gullies 1": 0,
+        "Ball Gullies 2": 0,
+        "Ball Gullies 3": 0,
+        "Ball Gullies 4": 0,
+        "Ball Gullies 5": 0,
+        "Gullies Untouched": 0,
+        "6ft Gully Set": 0,
+        "Feet": 0,
+        "Triangle trim": 0,
+        "White ball return trim": 0,
+        "Color ball trim": 0,
+        "Ball window trim": 0,
+        "Aluminum corner": 0,
+        "Chrome corner": 0,
+        "Top rail trim short length": 0,
+        "Top rail trim long length": 0,
+        "Ramp 170mm": 0,
+        "Ramp 158mm": 0,
+        "Ramp 918mm": 0,
+        "Ramp 376mm": 0,
+        "Chrome handles": 0,
+        "Center pockets": 0,
+        "Corner pockets": 0,
+        "Sticker Set": 0,
+    }
+    table_parts_capacity = {
+        "Table legs": 4,
+        "Ball Gullies 1": 2,
+        "Ball Gullies 2": 1,
+        "Ball Gullies 3": 1,
+        "Ball Gullies 4": 1,
+        "Ball Gullies 5": 1,
+        "Feet": 4,
+        "Triangle trim": 1,
+        "White ball return trim": 1,
+        "Color ball trim": 1,
+        "Ball window trim": 1,
+        "Aluminum corner": 4,
+        "Chrome corner": 4,
+        "Top rail trim short length": 4,
+        "Top rail trim long length": 2,
+        "Ramp 170mm": 1,
+        "Ramp 158mm": 1,
+        "Ramp 918mm": 1,
+        "Ramp 376mm": 1,
+        "Chrome handles": 1,
+        "Center pockets": 2,
+        "Corner pockets": 4,
+        "Sticker Set": 1,
     }
     table_parts_counts = {}
     for part_name_def in table_parts_definitions:
@@ -514,7 +556,7 @@ def inventory_summary():
             
     tables_possible_per_part = {
         part: table_parts_counts[part] // req
-        for part, req in table_parts_definitions.items() if req > 0 and table_parts_counts.get(part, 0) is not None
+        for part, req in table_parts_capacity.items() if req > 0 and table_parts_counts.get(part, 0) is not None
     }
     max_tables_possible = min(tables_possible_per_part.values()) if tables_possible_per_part else 0
     
@@ -666,8 +708,9 @@ VALID_PARTS = [
     "Small Ramp", "Cue Ball Separator", "Bushing",
     "6ft Cue Ball Separator", "6ft Large Ramp", 
     "6ft Carpet", "7ft Carpet", FELT_PART_NAME,
-    "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2",
+    "Table legs", "Ball Gullies 1", "Ball Gullies 2",
     "Ball Gullies 3", "Ball Gullies 4", "Ball Gullies 5",
+    "Gullies Untouched", "6ft Gully Set",
     "Feet", "Triangle trim", "White ball return trim",
     "Color ball trim", "Ball window trim", "Aluminum corner",
     "Chrome corner", "Top rail trim short length",

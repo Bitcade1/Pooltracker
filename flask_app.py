@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from datetime import datetime, timedelta, date, time
 from collections import defaultdict  # Ensure defaultdict is imported
 from calendar import monthrange
@@ -133,6 +133,12 @@ def base_serial_for_pod_matching(serial):
     return cleaned
 
 
+def gully_parts_for_completion(serial_number):
+    if serial_is_6ft(serial_number):
+        return {"6ft Gully Set": 1}
+    return dict(SEVEN_FOOT_GULLY_PARTS)
+
+
 def _body_meta_type_key(body_id):
     return f"meta_body_type_{body_id}"
 
@@ -182,22 +188,19 @@ def delete_body_build_metadata(body_id):
 def body_parts_for_completion(serial_number, table_type, laminate_color_key):
     laminate_label = LAMINATE_COLOR_KEY_TO_LABEL.get(laminate_color_key, "Black")
     laminate_part_name = f"Laminate - {laminate_label}"
+    gully_parts = gully_parts_for_completion(serial_number)
 
     if table_type == TABLE_TYPE_LITE:
         lite_parts = {
             laminate_part_name: 4,
             "Table legs": 4,
-            "Ball Gullies 1 (Untouched)": 2,
-            "Ball Gullies 2": 1,
-            "Ball Gullies 3": 1,
-            "Ball Gullies 4": 1,
-            "Ball Gullies 5": 1,
             "Feet": 4,
             "Color ball trim": 1,
             "Aluminum corner": 4,
             "4.2 x 16 No2 Self Tapping Screw": 19,
             "Latch": 12,
         }
+        lite_parts.update(gully_parts)
         if serial_is_6ft(serial_number):
             lite_parts["6ft Bag of Bolts"] = 1
         else:
@@ -215,11 +218,6 @@ def body_parts_for_completion(serial_number, table_type, laminate_color_key):
         "Cue Ball Separator": 1,
         "Bushing": 2,
         "Table legs": 4,
-        "Ball Gullies 1 (Untouched)": 2,
-        "Ball Gullies 2": 1,
-        "Ball Gullies 3": 1,
-        "Ball Gullies 4": 1,
-        "Ball Gullies 5": 1,
         "Feet": 4,
         "Triangle trim": 1,
         "White ball return trim": 1,
@@ -256,6 +254,7 @@ def body_parts_for_completion(serial_number, table_type, laminate_color_key):
         parts_to_deduct.pop("7ft Ply Supports", None)
         parts_to_deduct["6ft Bag of Bolts"] = 1
 
+    parts_to_deduct.update(gully_parts)
     return parts_to_deduct
 
 
@@ -287,6 +286,45 @@ PACKAGING_PART_NAMES = [
     "Top Rail Pallets 7ft",
     "Top Rail Pallets 6ft",
     "Blue Pallets",
+]
+LEGACY_PRINTED_PART_RENAMES = {
+    "Ball Gullies 1 (Untouched)": "Ball Gullies 1",
+}
+SEVEN_FOOT_GULLY_PARTS = {
+    "Ball Gullies 1": 2,
+    "Ball Gullies 2": 1,
+    "Ball Gullies 3": 1,
+    "Ball Gullies 4": 1,
+    "Ball Gullies 5": 1,
+}
+MANUAL_ONLY_CHINESE_PARTS = [
+    "Gullies Untouched",
+]
+SIX_FOOT_ONLY_CHINESE_PARTS = [
+    "6ft Gully Set",
+]
+ALL_CHINESE_PARTS = [
+    "Table legs",
+    *SEVEN_FOOT_GULLY_PARTS.keys(),
+    *MANUAL_ONLY_CHINESE_PARTS,
+    *SIX_FOOT_ONLY_CHINESE_PARTS,
+    "Feet",
+    "Triangle trim",
+    "White ball return trim",
+    "Color ball trim",
+    "Ball window trim",
+    "Aluminum corner",
+    "Chrome corner",
+    "Top rail trim short length",
+    "Top rail trim long length",
+    "Ramp 170mm",
+    "Ramp 158mm",
+    "Ramp 918mm",
+    "Ramp 376mm",
+    "Chrome handles",
+    "Center pockets",
+    "Corner pockets",
+    "Sticker Set",
 ]
 BRAD_NAILS_PART_NAME = "18G 10mm Brad Nails"
 BRAD_NAILS_UNITS_PER_STRIP = 4  # Track quarter-strip usage (0.25 = 1 unit, 0.5 = 2 units)
@@ -412,6 +450,94 @@ class PartThreshold(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_name = db.Column(db.String(100), unique=True, nullable=False)
     threshold = db.Column(db.Integer, default=0, nullable=False)
+
+
+def ensure_legacy_inventory_names_migrated():
+    if app.config.get("_legacy_inventory_names_migrated"):
+        return
+
+    try:
+        migration_changed = False
+
+        for old_name, new_name in LEGACY_PRINTED_PART_RENAMES.items():
+            printed_entries = PrintedPartsCount.query.filter_by(part_name=old_name).all()
+            for entry in printed_entries:
+                entry.part_name = new_name
+                migration_changed = True
+
+            old_threshold = PartThreshold.query.filter_by(part_name=old_name).first()
+            if old_threshold:
+                new_threshold = PartThreshold.query.filter_by(part_name=new_name).first()
+                if new_threshold:
+                    new_threshold.threshold = max(new_threshold.threshold or 0, old_threshold.threshold or 0)
+                    db.session.delete(old_threshold)
+                else:
+                    old_threshold.part_name = new_name
+                migration_changed = True
+
+            old_cost_key = f"parts_inventory__{slugify_key(old_name)}"
+            new_cost_key = f"parts_inventory__{slugify_key(new_name)}"
+            old_cost = StockItemCost.query.filter_by(item_key=old_cost_key).first()
+            if old_cost:
+                new_cost = StockItemCost.query.filter_by(item_key=new_cost_key).first()
+                if new_cost:
+                    if not (new_cost.unit_cost or 0.0):
+                        new_cost.unit_cost = old_cost.unit_cost
+                    if not (new_cost.shipping_cost or 0.0):
+                        new_cost.shipping_cost = old_cost.shipping_cost
+                    if not (new_cost.labour_cost or 0.0):
+                        new_cost.labour_cost = old_cost.labour_cost
+                    db.session.delete(old_cost)
+                else:
+                    old_cost.item_key = new_cost_key
+                migration_changed = True
+
+        on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
+        if os.path.exists(on_order_file):
+            try:
+                with open(on_order_file, "r") as f:
+                    on_order_data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                on_order_data = None
+
+            if isinstance(on_order_data, dict):
+                parts_data = on_order_data.get("parts")
+                if isinstance(parts_data, dict):
+                    file_changed = False
+                    for old_name, new_name in LEGACY_PRINTED_PART_RENAMES.items():
+                        if old_name not in parts_data:
+                            continue
+                        old_value = parts_data.pop(old_name, 0)
+                        try:
+                            existing_value = int(parts_data.get(new_name, 0) or 0)
+                        except (TypeError, ValueError):
+                            existing_value = 0
+                        try:
+                            renamed_value = int(old_value or 0)
+                        except (TypeError, ValueError):
+                            renamed_value = 0
+                        parts_data[new_name] = existing_value + renamed_value
+                        file_changed = True
+                    if file_changed:
+                        try:
+                            with open(on_order_file, "w") as f:
+                                json.dump(on_order_data, f)
+                        except OSError:
+                            pass
+
+        if migration_changed:
+            db.session.commit()
+        app.config["_legacy_inventory_names_migrated"] = True
+    except OperationalError:
+        db.session.rollback()
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+@app.before_request
+def run_legacy_inventory_name_migrations():
+    ensure_legacy_inventory_names_migrated()
 
 
 class CncJob(db.Model):
@@ -1292,19 +1418,31 @@ def inventory():
     # ---------------------------------------------------------------------
     # 4) TABLE PARTS
     # ---------------------------------------------------------------------
-    table_parts = {
-        "Table legs": 4, "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1,
-        "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1,
-        "Feet": 4, "Triangle trim": 1, "White ball return trim": 1,
-        "Color ball trim": 1, "Ball window trim": 1, "Aluminum corner": 4,
-        "Chrome corner": 4, "Top rail trim short length": 4,
-        "Top rail trim long length": 2, "Ramp 170mm": 1, "Ramp 158mm": 1,
-        "Ramp 918mm": 1, "Ramp 376mm": 1, "Chrome handles": 1,
-        "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
+    table_parts = {part: 0 for part in ALL_CHINESE_PARTS}
+    table_parts_capacity = {
+        "Table legs": 4,
+        **SEVEN_FOOT_GULLY_PARTS,
+        "Feet": 4,
+        "Triangle trim": 1,
+        "White ball return trim": 1,
+        "Color ball trim": 1,
+        "Ball window trim": 1,
+        "Aluminum corner": 4,
+        "Chrome corner": 4,
+        "Top rail trim short length": 4,
+        "Top rail trim long length": 2,
+        "Ramp 170mm": 1,
+        "Ramp 158mm": 1,
+        "Ramp 918mm": 1,
+        "Ramp 376mm": 1,
+        "Chrome handles": 1,
+        "Center pockets": 2,
+        "Corner pockets": 4,
+        "Sticker Set": 1,
     }
 
     table_parts_counts = {part: 0 for part in table_parts}
-    for part in table_parts:
+    for part in table_parts_counts:
         latest_entry = (
             db.session.query(PrintedPartsCount.count)
             .filter_by(part_name=part)
@@ -1315,7 +1453,7 @@ def inventory():
 
     tables_possible_per_part = {
         part: table_parts_counts[part] // req_per_table
-        for part, req_per_table in table_parts.items()
+        for part, req_per_table in table_parts_capacity.items()
     }
     max_tables_possible = min(tables_possible_per_part.values())
 
@@ -1406,16 +1544,7 @@ def build_stock_snapshot():
         "6ft Carpet", "7ft Carpet", FELT_PART_NAME
     ]
 
-    table_parts = {
-        "Table legs": 4, "Ball Gullies 1 (Untouched)": 2, "Ball Gullies 2": 1,
-        "Ball Gullies 3": 1, "Ball Gullies 4": 1, "Ball Gullies 5": 1,
-        "Feet": 4, "Triangle trim": 1, "White ball return trim": 1,
-        "Color ball trim": 1, "Ball window trim": 1, "Aluminum corner": 4,
-        "Chrome corner": 4, "Top rail trim short length": 4,
-        "Top rail trim long length": 2, "Ramp 170mm": 1, "Ramp 158mm": 1,
-        "Ramp 918mm": 1, "Ramp 376mm": 1, "Chrome handles": 1,
-        "Center pockets": 2, "Corner pockets": 4, "Sticker Set": 1
-    }
+    table_parts = {part: 0 for part in ALL_CHINESE_PARTS}
 
     packaging_parts = list(PACKAGING_PART_NAMES)
 
@@ -1993,15 +2122,7 @@ def counting_chinese_parts():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    # List of "Table Parts" items
-    table_parts = [
-        "Table legs", "Ball Gullies 1 (Untouched)", "Ball Gullies 2", "Ball Gullies 3",
-        "Ball Gullies 4", "Ball Gullies 5", "Feet", "Triangle trim",
-        "White ball return trim", "Color ball trim", "Ball window trim",
-        "Aluminum corner", "Chrome corner", "Top rail trim short length",
-        "Top rail trim long length", "Ramp 170mm", "Ramp 158mm", "Ramp 918mm",
-        "Chrome handles", "Center pockets", "Corner pockets", "Ramp 376mm", "Sticker Set"
-    ]
+    table_parts = list(ALL_CHINESE_PARTS)
 
     def get_table_parts_counts():
         """
@@ -2012,6 +2133,7 @@ def counting_chinese_parts():
         for part in table_parts:
             existing_entry = (db.session.query(PrintedPartsCount)
                               .filter_by(part_name=part)
+                              .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                               .first())
             counts[part] = existing_entry.count if existing_entry else 0
         return counts
@@ -2032,6 +2154,7 @@ def counting_chinese_parts():
         # Fetch the specific part entry to be updated
         existing_entry = (db.session.query(PrintedPartsCount)
                           .filter_by(part_name=selected_part)
+                          .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                           .first())
 
         # If no entry exists, create one before proceeding
@@ -4674,11 +4797,12 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "6ft Cue Ball Separator", "per_body": 1, "sizes": ["6ft"]},
     {"name": "Bushing", "per_body": 2, "sizes": ["7ft", "6ft"]},
     {"name": "Table legs", "per_body": 4, "sizes": ["7ft", "6ft"]},
-    {"name": "Ball Gullies 1 (Untouched)", "per_body": 2, "sizes": ["7ft", "6ft"]},
-    {"name": "Ball Gullies 2", "per_body": 1, "sizes": ["7ft", "6ft"]},
-    {"name": "Ball Gullies 3", "per_body": 1, "sizes": ["7ft", "6ft"]},
-    {"name": "Ball Gullies 4", "per_body": 1, "sizes": ["7ft", "6ft"]},
-    {"name": "Ball Gullies 5", "per_body": 1, "sizes": ["7ft", "6ft"]},
+    {"name": "Ball Gullies 1", "per_body": 2, "sizes": ["7ft"]},
+    {"name": "Ball Gullies 2", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "Ball Gullies 3", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "Ball Gullies 4", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "Ball Gullies 5", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "6ft Gully Set", "per_body": 1, "sizes": ["6ft"]},
     {"name": "Feet", "per_body": 4, "sizes": ["7ft", "6ft"]},
     {"name": "Triangle trim", "per_body": 1, "sizes": ["7ft", "6ft"]},
     {"name": "White ball return trim", "per_body": 1, "sizes": ["7ft", "6ft"]},
@@ -7512,10 +7636,10 @@ def order_chinese_parts():
         # Use material-only (unit + shipping); exclude labour from order cost
         return (entry.unit_cost or 0.0) + (entry.shipping_cost or 0.0)
 
-    # Chinese table parts and how many are needed per table
+    # Parts that are planned against a generic table target on this page.
     chinese_parts = {
         "Table legs": 4,
-        "Ball Gullies 1 (Untouched)": 2,
+        "Ball Gullies 1": 2,
         "Ball Gullies 2": 1,
         "Ball Gullies 3": 1,
         "Ball Gullies 4": 1,
@@ -7538,10 +7662,11 @@ def order_chinese_parts():
         "Corner pockets": 4,
         "Sticker Set": 1
     }
+    supplemental_parts = MANUAL_ONLY_CHINESE_PARTS + SIX_FOOT_ONLY_CHINESE_PARTS
 
     # Fetch latest count for each part
     part_stock = {}
-    for part in chinese_parts:
+    for part in list(chinese_parts) + supplemental_parts:
         latest_entry = (
             db.session.query(PrintedPartsCount.count)
             .filter_by(part_name=part)
@@ -7610,6 +7735,10 @@ def order_chinese_parts():
         default_saved = saved_parts_on_order.get(part, 0)
         part_on_order[part] = default_saved if request.method == 'GET' else safe_int(
             request.form.get(f"on_order_{slugify_key(part)}"), default_saved)
+    for part in supplemental_parts:
+        default_saved = saved_parts_on_order.get(part, 0)
+        part_on_order[part] = default_saved if request.method == 'GET' else safe_int(
+            request.form.get(f"on_order_{slugify_key(part)}"), default_saved)
 
     # Combine on-hand and on-order to get total available
     part_total_available = {
@@ -7629,7 +7758,10 @@ def order_chinese_parts():
 
     parts_to_order = {}
     target_table_count = None
-    part_costs = {part: part_cost_ex_vat(part) for part in chinese_parts}
+    part_costs = {
+        part: part_cost_ex_vat(part)
+        for part in list(chinese_parts) + supplemental_parts
+    }
     order_costs = {}
     total_order_cost = 0.0
     display_name_map = {
@@ -7695,6 +7827,22 @@ def order_chinese_parts():
             "cost_each": part_costs.get(part, 0.0),
             "need_to_order": parts_to_order.get(part, 0) if target_table_count else None,
             "order_cost": order_costs.get(part, 0.0) if target_table_count else None,
+        })
+
+    supplemental_part_rows = []
+    for part in supplemental_parts:
+        supplemental_part_rows.append({
+            "name": part,
+            "display_name": display_name_map.get(part, part),
+            "stock": part_stock.get(part, 0),
+            "on_order": part_on_order.get(part, 0),
+            "total_available": part_stock.get(part, 0) + part_on_order.get(part, 0),
+            "per_table": "Manual",
+            "can_build": "Manual",
+            "can_build_now": "Manual",
+            "cost_each": part_costs.get(part, 0.0),
+            "need_to_order": "Manual" if target_table_count else None,
+            "order_cost": 0.0 if target_table_count else None,
         })
 
     gullies_summary = {
@@ -7766,10 +7914,16 @@ def order_chinese_parts():
                 break
     for item in remaining_plastic:
         plastic_rows.append({"type": "part", "data": item})
+    for item in supplemental_part_rows:
+        plastic_rows.append({"type": "part", "data": item})
 
     if request.method == 'POST':
         save_on_order({
-            "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
+            "parts": {
+                part: part_on_order.get(part, 0)
+                for part in list(chinese_parts) + supplemental_parts
+                if part not in gullies_parts
+            },
             "gullies_units": gullies_units_on_order,
             "payments": saved_payments,
             "last_target_tables": saved_target_tables
