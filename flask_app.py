@@ -7762,6 +7762,10 @@ def order_chinese_parts():
         "Sticker Set": 1
     }
     supplemental_parts = MANUAL_ONLY_CHINESE_PARTS + SIX_FOOT_ONLY_CHINESE_PARTS
+    hidden_gully_parts = {
+        "Gullies Untouched": 1,
+        "6ft Gully Set": 6,
+    }
 
     # Fetch latest count for each part
     part_stock = {}
@@ -7798,6 +7802,10 @@ def order_chinese_parts():
     saved_on_order = load_on_order()
     saved_parts_on_order = saved_on_order.get("parts", {})
     saved_gullies_units = saved_on_order.get("gullies_units", 0) or 0
+    saved_hidden_gully_units = sum(
+        safe_int(saved_parts_on_order.get(part), 0) * multiplier
+        for part, multiplier in hidden_gully_parts.items()
+    )
     saved_payments = saved_on_order.get("payments", {})
     saved_arrivals = saved_on_order.get("arrivals", [])
     saved_target_tables = safe_int(saved_on_order.get("last_target_tables"), None)
@@ -7806,7 +7814,7 @@ def order_chinese_parts():
     action = None
     paid_all_supplier = None
     if request.method == 'GET':
-        gullies_units_on_order = saved_gullies_units
+        gullies_units_on_order = saved_gullies_units + saved_hidden_gully_units
         target_table_count = saved_target_tables
     else:
         # On POST, always take the submitted units; if blank/invalid, default to 0
@@ -7836,8 +7844,7 @@ def order_chinese_parts():
             request.form.get(f"on_order_{slugify_key(part)}"), default_saved)
     for part in supplemental_parts:
         default_saved = saved_parts_on_order.get(part, 0)
-        part_on_order[part] = default_saved if request.method == 'GET' else safe_int(
-            request.form.get(f"on_order_{slugify_key(part)}"), default_saved)
+        part_on_order[part] = default_saved if request.method == 'GET' else 0
 
     # Combine on-hand and on-order to get total available
     part_total_available = {
@@ -7879,7 +7886,15 @@ def order_chinese_parts():
     }
 
     gullies_stock = sum(part_stock.get(p, 0) for p in gullies_parts)
-    gullies_on_order = gullies_units_on_order  # use the exact submitted units, not a multiplied value
+    gullies_stock += sum(
+        part_stock.get(part, 0) * multiplier
+        for part, multiplier in hidden_gully_parts.items()
+    )
+    gullies_on_order = gullies_units_on_order
+    gullies_on_order += sum(
+        part_on_order.get(part, 0) * multiplier
+        for part, multiplier in hidden_gully_parts.items()
+    )
     gullies_total_available = gullies_stock + gullies_on_order
     gullies_can_build = (gullies_stock // gullies_per_table) if gullies_per_table else 0
     gullies_can_build_total = (gullies_total_available // gullies_per_table) if gullies_per_table else 0
@@ -7929,24 +7944,8 @@ def order_chinese_parts():
             "order_cost": order_costs.get(part, 0.0) if target_table_count else None,
         })
 
-    supplemental_part_rows = []
-    for part in supplemental_parts:
-        supplemental_part_rows.append({
-            "name": part,
-            "display_name": display_name_map.get(part, part),
-            "stock": part_stock.get(part, 0),
-            "on_order": part_on_order.get(part, 0),
-            "total_available": part_stock.get(part, 0) + part_on_order.get(part, 0),
-            "per_table": "Manual",
-            "can_build": "Manual",
-            "can_build_now": "Manual",
-            "cost_each": part_costs.get(part, 0.0),
-            "need_to_order": "Manual" if target_table_count else None,
-            "order_cost": 0.0 if target_table_count else None,
-        })
-
     gullies_summary = {
-        "name": "Ball Gullies (All)",
+        "name": "Gullies Untouched",
         "stock": gullies_stock,
         "on_order": gullies_on_order,
         "on_order_units": gullies_units_on_order,
@@ -8014,14 +8013,12 @@ def order_chinese_parts():
                 break
     for item in remaining_plastic:
         plastic_rows.append({"type": "part", "data": item})
-    for item in supplemental_part_rows:
-        plastic_rows.append({"type": "part", "data": item})
 
     if request.method == 'POST':
         save_on_order({
             "parts": {
                 part: part_on_order.get(part, 0)
-                for part in list(chinese_parts) + supplemental_parts
+                for part in chinese_parts
                 if part not in gullies_parts
             },
             "gullies_units": gullies_units_on_order,
