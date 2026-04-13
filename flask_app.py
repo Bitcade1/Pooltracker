@@ -53,6 +53,21 @@ def slugify_key(value):
     slug = re.sub(r'[^a-z0-9]+', '_', value.lower()).strip('_')
     return slug or "item"
 
+
+def london_now():
+    utc_now = datetime.utcnow()
+
+    def last_sunday(year, month):
+        last_day = monthrange(year, month)[1]
+        target = date(year, month, last_day)
+        return target - timedelta(days=(target.weekday() + 1) % 7)
+
+    bst_start = datetime.combine(last_sunday(utc_now.year, 3), time(1, 0))
+    bst_end = datetime.combine(last_sunday(utc_now.year, 10), time(1, 0))
+    if bst_start <= utc_now < bst_end:
+        return utc_now + timedelta(hours=1)
+    return utc_now
+
 # Shared serial parsing helper (works with formats like "1059 - 6 - RB").
 def serial_is_6ft(serial):
     if not serial:
@@ -5734,7 +5749,7 @@ def cnc_dashboard():
         queues=queues,
         machine_numbers=CNC_MACHINE_NUMBERS,
         completed_today=completed_today,
-        render_time=datetime.now().strftime("%d/%m/%Y %H:%M")
+        render_time=london_now().strftime("%d/%m/%Y %H:%M")
     )
 
 
