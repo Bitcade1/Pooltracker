@@ -144,12 +144,12 @@
 
     .queue-card-number {
         align-self: center;
-        min-width: 54px;
+        min-width: 72px;
         padding: 5px 12px;
         border-radius: 999px;
         background: var(--machine-soft);
         color: var(--machine-accent);
-        font-size: 1.2rem;
+        font-size: 1.05rem;
         font-weight: 800;
         line-height: 1;
     }
@@ -373,7 +373,7 @@
                 <div class="queue-list">
                     {% for item in queues[machine] %}
                         <div class="queue-card{% if loop.first %} is-current{% endif %}">
-                            <div class="queue-card-number">{{ item.position }}</div>
+                            <div class="queue-card-number">ID {{ item.id }}</div>
                             <div class="name">{{ item.job.name }}</div>
                             {% if item.job.notes %}
                                 <div class="notes">{{ item.job.notes }}</div>
@@ -454,16 +454,6 @@
         countElement.textContent = `${nextCount} queued`;
     }
 
-    function setCardNumbers(queueColumn) {
-        const cards = queueColumn ? queueColumn.querySelectorAll(".queue-card") : [];
-        cards.forEach((card, index) => {
-            const numberElement = card.querySelector(".queue-card-number");
-            if (numberElement) {
-                numberElement.textContent = String(index + 1);
-            }
-        });
-    }
-
     function hideUndoToast() {
         document.getElementById("undo-toast").classList.remove("is-visible");
     }
@@ -536,9 +526,6 @@
                 window.setTimeout(function () {
                     if (queueCard) {
                         queueCard.classList.add("is-completing");
-                    }
-                    if (queueColumn) {
-                        setCardNumbers(queueColumn);
                     }
                 }, 240);
                 pendingUndoItemId = data.item_id;
