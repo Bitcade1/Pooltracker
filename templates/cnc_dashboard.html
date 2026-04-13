@@ -427,6 +427,7 @@
     let completionInProgress = false;
     let undoRefreshTimer = null;
     let pendingUndoItemId = null;
+    const completedPanelStorageKey = "cncDashboardCompletedOpen";
 
     async function postJson(url, payload) {
         const response = await fetch(url, {
@@ -463,11 +464,25 @@
         document.getElementById("undo-toast").classList.add("is-visible");
     }
 
+    function setCompletedPanelState(isOpen) {
+        const list = document.getElementById("completed-list");
+        const toggle = document.getElementById("toggle-completed");
+        list.style.display = isOpen ? "block" : "none";
+        toggle.textContent = (isOpen ? "Hide" : "Show") + " Completed Today ({{ completed_today|length }})";
+        window.localStorage.setItem(completedPanelStorageKey, isOpen ? "open" : "closed");
+    }
+
+    function restoreCompletedPanelState() {
+        const savedState = window.localStorage.getItem(completedPanelStorageKey);
+        setCompletedPanelState(savedState === "open");
+    }
+
+    restoreCompletedPanelState();
+
     document.getElementById("toggle-completed").addEventListener("click", function () {
         const list = document.getElementById("completed-list");
         const showing = list.style.display === "block";
-        list.style.display = showing ? "none" : "block";
-        this.textContent = (showing ? "Show" : "Hide") + " Completed Today ({{ completed_today|length }})";
+        setCompletedPanelState(!showing);
     });
 
     document.getElementById("undo-toast-btn").addEventListener("click", async function () {
