@@ -120,7 +120,6 @@
     .queue-list {
         display: flex;
         flex-direction: column;
-        gap: 8px;
         overflow: auto;
     }
 
@@ -135,6 +134,12 @@
         gap: 8px;
         align-items: stretch;
         text-align: center;
+        overflow: hidden;
+        max-height: 320px;
+        margin-bottom: 8px;
+        transition: max-height 0.8s ease, opacity 0.35s ease, transform 0.8s ease,
+            padding 0.8s ease, margin 0.8s ease, border-width 0.8s ease,
+            background-color 0.25s ease, box-shadow 0.25s ease;
     }
 
     .queue-card .name {
@@ -173,6 +178,39 @@
 
     .complete-btn:hover {
         filter: brightness(0.88);
+    }
+
+    .queue-card.is-done {
+        background: #ecfdf5;
+        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+    }
+
+    .queue-card.is-completing {
+        opacity: 0;
+        transform: translateY(-18px);
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-bottom: 0;
+        border-width: 0;
+        gap: 0;
+        pointer-events: none;
+    }
+
+    .queue-card.is-next-up {
+        animation: next-up 0.9s ease;
+        box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+    }
+
+    @keyframes next-up {
+        0% {
+            transform: translateY(22px);
+            opacity: 0.55;
+        }
+        100% {
+            transform: translateY(0);
+            opacity: 1;
+        }
     }
 
     .empty-text {
@@ -321,6 +359,8 @@
 </div>
 
 <script>
+    let completionInProgress = false;
+
     async function postJson(url, payload) {
         const response = await fetch(url, {
             method: "POST",
@@ -332,6 +372,19 @@
             throw new Error(data.error || "Request failed.");
         }
         return data;
+    }
+
+    function updateQueueCount(queueColumn, delta) {
+        const countElement = queueColumn.querySelector(".queue-count");
+        if (!countElement) {
+            return;
+        }
+        const currentCount = parseInt(countElement.textContent, 10);
+        if (!Number.isInteger(currentCount)) {
+            return;
+        }
+        const nextCount = Math.max(0, currentCount + delta);
+        countElement.textContent = `${nextCount} queued`;
     }
 
     document.getElementById("toggle-completed").addEventListener("click", function () {
@@ -347,18 +400,48 @@
             if (!Number.isInteger(itemId)) {
                 return;
             }
+            if (completionInProgress) {
+                return;
+            }
+            completionInProgress = true;
+            const queueCard = button.closest(".queue-card");
+            const queueColumn = button.closest(".queue-column");
+            const nextCard = queueCard ? queueCard.nextElementSibling : null;
             button.disabled = true;
+            button.textContent = "Completing...";
             try {
                 await postJson("/api/cnc/queue/complete", { item_id: itemId });
-                window.location.reload();
+                if (queueColumn) {
+                    updateQueueCount(queueColumn, -1);
+                }
+                if (queueCard) {
+                    queueCard.classList.add("is-done");
+                }
+                if (nextCard && nextCard.classList.contains("queue-card")) {
+                    nextCard.classList.add("is-next-up");
+                }
+                button.textContent = "Done";
+                window.setTimeout(function () {
+                    if (queueCard) {
+                        queueCard.classList.add("is-completing");
+                    }
+                }, 240);
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 1400);
             } catch (error) {
+                completionInProgress = false;
                 button.disabled = false;
+                button.textContent = "Complete";
                 alert(error.message || "Unable to complete job.");
             }
         });
     });
 
     setInterval(function () {
+        if (completionInProgress) {
+            return;
+        }
         window.location.reload();
     }, 5000);
 </script>
