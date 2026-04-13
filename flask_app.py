@@ -6139,7 +6139,55 @@ def api_cnc_complete_queue_item():
     db.session.commit()
     _cnc_notify_low_queue_transitions(previous_counts)
 
-    return jsonify({"success": True}), 200
+    return jsonify({
+        "success": True,
+        "item_id": item.id,
+        "machine_number": machine_number,
+        "job_name": item.job.name if item.job else "",
+    }), 200
+
+
+@app.route('/api/cnc/queue/undo_complete', methods=['POST'])
+def api_cnc_undo_complete_queue_item():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cnc_tables()
+    data = request.get_json(silent=True) or {}
+
+    try:
+        item_id = int(data.get('item_id', 0))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Invalid queue item."}), 400
+
+    item = CncQueueItem.query.options(joinedload(CncQueueItem.job)).get(item_id)
+    if not item or item.status != CNC_STATUS_COMPLETED:
+        return jsonify({"success": False, "error": "Completed queue item not found."}), 404
+
+    machine_number = item.machine_number
+    queued_items = (
+        CncQueueItem.query
+        .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
+        .order_by(CncQueueItem.position.asc(), CncQueueItem.id.asc())
+        .all()
+    )
+    for queued_item in queued_items:
+        queued_item.position += 1
+
+    item.status = CNC_STATUS_QUEUED
+    item.position = 1
+    item.completed_at = None
+    item.completed_by = None
+
+    _cnc_reindex_machine(machine_number)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "item_id": item.id,
+        "machine_number": machine_number,
+        "job_name": item.job.name if item.job else "",
+    }), 200
 
 
 def fetch_uk_bank_holidays():

@@ -142,6 +142,18 @@
             background-color 0.25s ease, box-shadow 0.25s ease;
     }
 
+    .queue-card-number {
+        align-self: center;
+        min-width: 54px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: var(--machine-soft);
+        color: var(--machine-accent);
+        font-size: 1.2rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
     .queue-card .name {
         width: 100%;
         font-size: clamp(2rem, 3.2vw, 3.5rem);
@@ -223,6 +235,53 @@
         border: 1px solid #dfe3eb;
         border-radius: 12px;
         padding: 10px;
+    }
+
+    .undo-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 20px;
+        transform: translateX(-50%) translateY(24px);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.96);
+        color: #ffffff;
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.32);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 1000;
+    }
+
+    .undo-toast.is-visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+        pointer-events: auto;
+    }
+
+    .undo-toast-text {
+        font-size: 1.05rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .undo-toast-btn {
+        border: none;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 8px 14px;
+        font-size: 1rem;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .undo-toast-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
     }
 
     .toggle-completed {
@@ -314,6 +373,7 @@
                 <div class="queue-list">
                     {% for item in queues[machine] %}
                         <div class="queue-card{% if loop.first %} is-current{% endif %}">
+                            <div class="queue-card-number">{{ item.position }}</div>
                             <div class="name">{{ item.job.name }}</div>
                             {% if item.job.notes %}
                                 <div class="notes">{{ item.job.notes }}</div>
@@ -358,8 +418,15 @@
     </section>
 </div>
 
+<div class="undo-toast" id="undo-toast" aria-live="polite">
+    <div class="undo-toast-text" id="undo-toast-text"></div>
+    <button type="button" class="undo-toast-btn" id="undo-toast-btn">Undo</button>
+</div>
+
 <script>
     let completionInProgress = false;
+    let undoRefreshTimer = null;
+    let pendingUndoItemId = null;
 
     async function postJson(url, payload) {
         const response = await fetch(url, {
@@ -387,11 +454,50 @@
         countElement.textContent = `${nextCount} queued`;
     }
 
+    function setCardNumbers(queueColumn) {
+        const cards = queueColumn ? queueColumn.querySelectorAll(".queue-card") : [];
+        cards.forEach((card, index) => {
+            const numberElement = card.querySelector(".queue-card-number");
+            if (numberElement) {
+                numberElement.textContent = String(index + 1);
+            }
+        });
+    }
+
+    function hideUndoToast() {
+        document.getElementById("undo-toast").classList.remove("is-visible");
+    }
+
+    function showUndoToast(message) {
+        document.getElementById("undo-toast-text").textContent = message;
+        document.getElementById("undo-toast").classList.add("is-visible");
+    }
+
     document.getElementById("toggle-completed").addEventListener("click", function () {
         const list = document.getElementById("completed-list");
         const showing = list.style.display === "block";
         list.style.display = showing ? "none" : "block";
         this.textContent = (showing ? "Show" : "Hide") + " Completed Today ({{ completed_today|length }})";
+    });
+
+    document.getElementById("undo-toast-btn").addEventListener("click", async function () {
+        if (!pendingUndoItemId) {
+            return;
+        }
+        this.disabled = true;
+        try {
+            await postJson("/api/cnc/queue/undo_complete", { item_id: pendingUndoItemId });
+            if (undoRefreshTimer) {
+                window.clearTimeout(undoRefreshTimer);
+                undoRefreshTimer = null;
+            }
+            pendingUndoItemId = null;
+            hideUndoToast();
+            window.location.reload();
+        } catch (error) {
+            this.disabled = false;
+            alert(error.message || "Unable to undo completion.");
+        }
     });
 
     document.querySelectorAll(".complete-btn").forEach((button) => {
@@ -404,13 +510,19 @@
                 return;
             }
             completionInProgress = true;
+            hideUndoToast();
+            if (undoRefreshTimer) {
+                window.clearTimeout(undoRefreshTimer);
+                undoRefreshTimer = null;
+            }
+            pendingUndoItemId = null;
             const queueCard = button.closest(".queue-card");
             const queueColumn = button.closest(".queue-column");
             const nextCard = queueCard ? queueCard.nextElementSibling : null;
             button.disabled = true;
             button.textContent = "Completing...";
             try {
-                await postJson("/api/cnc/queue/complete", { item_id: itemId });
+                const data = await postJson("/api/cnc/queue/complete", { item_id: itemId });
                 if (queueColumn) {
                     updateQueueCount(queueColumn, -1);
                 }
@@ -425,10 +537,18 @@
                     if (queueCard) {
                         queueCard.classList.add("is-completing");
                     }
+                    if (queueColumn) {
+                        setCardNumbers(queueColumn);
+                    }
                 }, 240);
-                window.setTimeout(function () {
+                pendingUndoItemId = data.item_id;
+                document.getElementById("undo-toast-btn").disabled = false;
+                showUndoToast(`Completed ${data.job_name || "job"}. Undo?`);
+                undoRefreshTimer = window.setTimeout(function () {
+                    pendingUndoItemId = null;
+                    hideUndoToast();
                     window.location.reload();
-                }, 1400);
+                }, 5000);
             } catch (error) {
                 completionInProgress = false;
                 button.disabled = false;
