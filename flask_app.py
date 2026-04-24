@@ -19,6 +19,9 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+STOCK_SNAPSHOT_INDEX_FILE = os.path.join(basedir, "stock_costs_snapshots.json")
+STOCK_SNAPSHOT_DELETED_WEEKS_FILE = os.path.join(basedir, "stock_costs_deleted_snapshot_weeks.json")
+STOCK_SNAPSHOT_DIR = os.path.join(basedir, "stock_costs_snapshots")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'pool_table_tracker.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -52,6 +55,61 @@ def slugify_key(value):
         return "item"
     slug = re.sub(r'[^a-z0-9]+', '_', value.lower()).strip('_')
     return slug or "item"
+
+
+def load_stock_snapshots():
+    if not os.path.exists(STOCK_SNAPSHOT_INDEX_FILE):
+        return []
+    try:
+        with open(STOCK_SNAPSHOT_INDEX_FILE, "r") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_stock_snapshots(snapshots):
+    try:
+        with open(STOCK_SNAPSHOT_INDEX_FILE, "w") as f:
+            json.dump(snapshots, f)
+        return True
+    except OSError:
+        return False
+
+
+def load_deleted_stock_snapshot_weeks():
+    if not os.path.exists(STOCK_SNAPSHOT_DELETED_WEEKS_FILE):
+        return set()
+    try:
+        with open(STOCK_SNAPSHOT_DELETED_WEEKS_FILE, "r") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return {week for week in data if week}
+    except (json.JSONDecodeError, OSError):
+        pass
+    return set()
+
+
+def save_deleted_stock_snapshot_weeks(week_keys):
+    try:
+        with open(STOCK_SNAPSHOT_DELETED_WEEKS_FILE, "w") as f:
+            json.dump(sorted(week_keys), f)
+        return True
+    except OSError:
+        return False
+
+
+def safe_stock_snapshot_file_path(filename):
+    if not filename or os.path.basename(filename) != filename:
+        return None
+    snapshot_dir = os.path.abspath(STOCK_SNAPSHOT_DIR)
+    candidate = os.path.abspath(os.path.join(snapshot_dir, filename))
+    try:
+        if os.path.commonpath([snapshot_dir, candidate]) != snapshot_dir:
+            return None
+    except ValueError:
+        return None
+    return candidate
 
 
 def london_now():
@@ -2068,30 +2126,12 @@ def stock_costs():
     finished_total_ex_vat = sum(category_totals.get(cat, {}).get('ex_vat', 0.0) for cat in finished_categories)
     finished_total_inc_vat = sum(category_totals.get(cat, {}).get('inc_vat', 0.0) for cat in finished_categories)
 
-    snapshot_index_file = os.path.join(basedir, "stock_costs_snapshots.json")
-    snapshot_dir = os.path.join(basedir, "stock_costs_snapshots")
-
-    def load_stock_snapshots():
-        if not os.path.exists(snapshot_index_file):
-            return []
-        try:
-            with open(snapshot_index_file, "r") as f:
-                data = json.load(f)
-            return data if isinstance(data, list) else []
-        except (json.JSONDecodeError, OSError):
-            return []
-
-    def save_stock_snapshots(snapshots):
-        try:
-            with open(snapshot_index_file, "w") as f:
-                json.dump(snapshots, f)
-        except OSError:
-            pass
-
     def write_stock_snapshot_file(items, filename, include_category_headers=False):
         try:
-            os.makedirs(snapshot_dir, exist_ok=True)
-            filepath = os.path.join(snapshot_dir, filename)
+            os.makedirs(STOCK_SNAPSHOT_DIR, exist_ok=True)
+            filepath = safe_stock_snapshot_file_path(filename)
+            if not filepath:
+                return False
             with open(filepath, "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow([
@@ -2132,6 +2172,7 @@ def stock_costs():
 
     stock_snapshots = load_stock_snapshots()
     stock_snapshots.sort(key=lambda s: s.get("timestamp", ""))
+    deleted_snapshot_weeks = load_deleted_stock_snapshot_weeks()
     now = datetime.now()
     week_start = now - timedelta(days=now.weekday())
     week_key = week_start.strftime("%Y-%m-%d")
@@ -2153,11 +2194,14 @@ def stock_costs():
         if write_stock_snapshot_file(ordered_snapshot_items, snapshot_filename, include_category_headers=True):
             snapshot_payload["snapshot_file"] = snapshot_filename
         stock_snapshots.append(snapshot_payload)
+        if week_key in deleted_snapshot_weeks:
+            deleted_snapshot_weeks.remove(week_key)
+            save_deleted_stock_snapshot_weeks(deleted_snapshot_weeks)
         save_stock_snapshots(stock_snapshots)
         flash("Snapshot created successfully.", "success")
         return redirect(url_for('stock_costs'))
 
-    if is_after_trigger:
+    if is_after_trigger and week_key not in deleted_snapshot_weeks:
         existing_snapshot = next((s for s in stock_snapshots if s.get("week_key") == week_key), None)
         snapshot_filename = f"stock_snapshot_{week_key}.csv"
         snapshot_payload = {
@@ -2211,8 +2255,64 @@ def download_stock_snapshot(filename):
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
-    snapshot_dir = os.path.join(basedir, "stock_costs_snapshots")
-    return send_from_directory(snapshot_dir, filename, as_attachment=True)
+    return send_from_directory(STOCK_SNAPSHOT_DIR, filename, as_attachment=True)
+
+
+@app.route('/stock_costs_snapshot/delete', methods=['POST'])
+def delete_stock_snapshot():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    snapshot_timestamp = request.form.get('snapshot_timestamp', '').strip()
+    snapshot_file = request.form.get('snapshot_file', '').strip()
+    week_key = request.form.get('week_key', '').strip()
+
+    stock_snapshots = load_stock_snapshots()
+    deleted_snapshot = None
+    remaining_snapshots = []
+
+    for snapshot in stock_snapshots:
+        timestamp_matches = snapshot_timestamp and snapshot.get("timestamp") == snapshot_timestamp
+        file_matches = snapshot_file and snapshot.get("snapshot_file") == snapshot_file
+        week_matches = week_key and snapshot.get("week_key") == week_key
+        if deleted_snapshot is None and (
+            timestamp_matches or
+            (file_matches and (not week_key or week_matches))
+        ):
+            deleted_snapshot = snapshot
+            continue
+        remaining_snapshots.append(snapshot)
+
+    if not deleted_snapshot:
+        flash("Snapshot not found.", "error")
+        return redirect(url_for('stock_costs'))
+
+    if not save_stock_snapshots(remaining_snapshots):
+        flash("Could not update the snapshot list.", "error")
+        return redirect(url_for('stock_costs'))
+
+    file_delete_failed = False
+    deleted_file = deleted_snapshot.get("snapshot_file")
+    if deleted_file and not any(s.get("snapshot_file") == deleted_file for s in remaining_snapshots):
+        filepath = safe_stock_snapshot_file_path(deleted_file)
+        if filepath and os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except OSError:
+                file_delete_failed = True
+
+    deleted_week = deleted_snapshot.get("week_key")
+    if deleted_week:
+        deleted_weeks = load_deleted_stock_snapshot_weeks()
+        deleted_weeks.add(deleted_week)
+        save_deleted_stock_snapshot_weeks(deleted_weeks)
+
+    if file_delete_failed:
+        flash("Snapshot removed from the dashboard, but the CSV file could not be deleted.", "warning")
+    else:
+        flash("Snapshot deleted.", "success")
+    return redirect(url_for('stock_costs'))
 
 
 @app.route('/counting_chinese_parts', methods=['GET', 'POST'])

@@ -240,6 +240,26 @@
         .snapshot-download:hover {
             background: #cfd8dc;
         }
+        .snapshot-row-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+        .snapshot-delete {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: none;
+            background: #ffebee;
+            color: #b71c1c;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .snapshot-delete:hover {
+            background: #ffcdd2;
+        }
         .primary-button, .secondary-button {
             padding: 12px 24px;
             border-radius: 6px;
@@ -412,6 +432,7 @@
                                 <th>Parts (Ex VAT)</th>
                                 <th>Finished (Ex VAT)</th>
                                 <th>Snapshot</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -423,17 +444,27 @@
                                     <td>&pound;{{ snap.parts_ex_vat|default(0)|format_number }}</td>
                                     <td>&pound;{{ snap.finished_ex_vat|default(0)|format_number }}</td>
                                     <td>
-                                        {% if snap.snapshot_file %}
-                                            <a class="snapshot-download" href="{{ url_for('download_stock_snapshot', filename=snap.snapshot_file) }}">Download</a>
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
+                                        <div class="snapshot-row-actions">
+                                            {% if snap.snapshot_file %}
+                                                <a class="snapshot-download" href="{{ url_for('download_stock_snapshot', filename=snap.snapshot_file) }}">Download</a>
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('delete_stock_snapshot') }}" onsubmit="return confirm('Delete this stock snapshot?');">
+                                            <input type="hidden" name="snapshot_timestamp" value="{{ snap.timestamp|default('') }}">
+                                            <input type="hidden" name="snapshot_file" value="{{ snap.snapshot_file|default('') }}">
+                                            <input type="hidden" name="week_key" value="{{ snap.week_key|default('') }}">
+                                            <button type="submit" class="snapshot-delete">Delete</button>
+                                        </form>
                                     </td>
                                 </tr>
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="5">No snapshots yet.</td>
+                                    <td colspan="6">No snapshots yet.</td>
                                 </tr>
                             {% endif %}
                         </tbody>
