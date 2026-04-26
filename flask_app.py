@@ -8301,6 +8301,14 @@ def order_chinese_parts():
             "last_target_tables": saved_target_tables,
             "arrivals": saved_arrivals
         })
+        if action == 'save_payments':
+            flash("Payments and on-order figures saved.", "success")
+        elif action == 'parts_arrived':
+            flash("Parts arrival logged and on-order figures saved.", "success")
+        elif action == 'paid_all':
+            flash("Payment updated and on-order figures saved.", "success")
+        else:
+            flash("On-order figures saved.", "success")
 
     return render_template(
         'order_chinese_parts.html',
