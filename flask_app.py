@@ -7958,8 +7958,9 @@ def order_chinese_parts():
         try:
             with open(on_order_file, "w") as f:
                 json.dump(data, f)
+            return True
         except OSError:
-            pass
+            return False
 
     saved_on_order = load_on_order()
     saved_parts_on_order = saved_on_order.get("parts", {})
@@ -8025,7 +8026,6 @@ def order_chinese_parts():
     }
 
     parts_to_order = {}
-    target_table_count = None
     part_costs = {
         part: part_cost_ex_vat(part)
         for part in list(chinese_parts) + supplemental_parts
@@ -8176,18 +8176,6 @@ def order_chinese_parts():
     for item in remaining_plastic:
         plastic_rows.append({"type": "part", "data": item})
 
-    if request.method == 'POST':
-        save_on_order({
-            "parts": {
-                part: part_on_order.get(part, 0)
-                for part in chinese_parts
-                if part not in gullies_parts
-            },
-            "gullies_units": gullies_units_on_order,
-            "payments": saved_payments,
-            "last_target_tables": saved_target_tables
-        })
-
     max_tables_possible_candidates = [row["can_build_now"] for row in standard_parts]
     max_tables_possible_candidates_with_on_order = [row["can_build"] for row in standard_parts]
     if gullies_per_table:
@@ -8294,14 +8282,16 @@ def order_chinese_parts():
         })
 
     if request.method == 'POST':
-        save_on_order({
+        saved_successfully = save_on_order({
             "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
             "gullies_units": gullies_units_on_order,
             "payments": saved_payments,
             "last_target_tables": saved_target_tables,
             "arrivals": saved_arrivals
         })
-        if action == 'save_payments':
+        if not saved_successfully:
+            flash("Could not save on-order figures.", "error")
+        elif action == 'save_payments':
             flash("Payments and on-order figures saved.", "success")
         elif action == 'parts_arrived':
             flash("Parts arrival logged and on-order figures saved.", "success")
@@ -8309,6 +8299,7 @@ def order_chinese_parts():
             flash("Payment updated and on-order figures saved.", "success")
         else:
             flash("On-order figures saved.", "success")
+        return redirect(url_for('order_chinese_parts'))
 
     return render_template(
         'order_chinese_parts.html',
