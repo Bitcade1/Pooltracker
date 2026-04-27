@@ -413,6 +413,28 @@ ALL_CHINESE_PARTS = [
     "Corner pockets",
     "Sticker Set",
 ]
+CHINESE_PARTS_CAPACITY = {
+    "Table legs": 4,
+    **SEVEN_FOOT_GULLY_PARTS,
+    "Feet": 4,
+    "Triangle trim": 1,
+    "White ball return trim": 1,
+    "Color ball trim": 1,
+    "Ball window trim": 1,
+    "Aluminum corner": 4,
+    "Chrome corner": 4,
+    **TOP_RAIL_TRIM_PARTS,
+    "Ramp 170mm": 1,
+    "Ramp 158mm": 1,
+    "Ramp 918mm": 1,
+    "Ramp 376mm": 1,
+    "Chrome handles": 1,
+    "Center pockets": 2,
+    "Corner pockets": 4,
+    "Sticker Set": 1,
+}
+CHINESE_PARTS_ORDER_MORE_PART = "Sticker Set"
+CHINESE_PARTS_ORDER_MORE_THRESHOLD = 300
 BRAD_NAILS_PART_NAME = "18G 10mm Brad Nails"
 BRAD_NAILS_UNITS_PER_STRIP = 4  # Track quarter-strip usage (0.25 = 1 unit, 0.5 = 2 units)
 
@@ -835,6 +857,48 @@ def get_felt_count():
         if legacy_entry:
             total += legacy_entry.count
     return total
+
+
+def calculate_chinese_parts_build_capacity(counts):
+    tables_possible_per_part = {}
+    for part, req_per_table in CHINESE_PARTS_CAPACITY.items():
+        if req_per_table <= 0:
+            continue
+        tables_possible_per_part[part] = int((counts.get(part, 0) or 0) // req_per_table)
+    max_tables_possible = min(tables_possible_per_part.values()) if tables_possible_per_part else 0
+    return max_tables_possible, tables_possible_per_part
+
+
+def check_and_notify_chinese_parts_order_more(part_name, old_count, new_count, collected_warnings=None):
+    if part_name != CHINESE_PARTS_ORDER_MORE_PART:
+        return None
+
+    req_per_table = CHINESE_PARTS_CAPACITY.get(part_name, 0)
+    if req_per_table <= 0:
+        return None
+
+    old_can_build = int((old_count or 0) // req_per_table)
+    new_can_build = int((new_count or 0) // req_per_table)
+    if old_can_build < CHINESE_PARTS_ORDER_MORE_THRESHOLD or new_can_build >= CHINESE_PARTS_ORDER_MORE_THRESHOLD:
+        return None
+
+    message = (
+        f"Order more Chinese parts - {part_name} can build is "
+        f"{new_can_build} tables."
+    )
+    if collected_warnings is not None:
+        collected_warnings.append(message)
+        return message
+
+    try:
+        requests.post(
+            "https://ntfy.sh/PoolTableTracker",
+            data=message,
+            headers={"Title": "Order More Chinese Parts", "Priority": "high"}
+        )
+    except requests.RequestException as e:
+        print(f"Ntfy notification failed for Chinese parts order warning: {e}")
+    return message
 
 # Track last time we alerted for a given part to throttle repeats
 LOW_STOCK_LAST_ALERT = {}
@@ -1577,26 +1641,6 @@ def inventory():
     # 4) TABLE PARTS
     # ---------------------------------------------------------------------
     table_parts = {part: 0 for part in ALL_CHINESE_PARTS}
-    table_parts_capacity = {
-        "Table legs": 4,
-        **SEVEN_FOOT_GULLY_PARTS,
-        "Feet": 4,
-        "Triangle trim": 1,
-        "White ball return trim": 1,
-        "Color ball trim": 1,
-        "Ball window trim": 1,
-        "Aluminum corner": 4,
-        "Chrome corner": 4,
-        **TOP_RAIL_TRIM_PARTS,
-        "Ramp 170mm": 1,
-        "Ramp 158mm": 1,
-        "Ramp 918mm": 1,
-        "Ramp 376mm": 1,
-        "Chrome handles": 1,
-        "Center pockets": 2,
-        "Corner pockets": 4,
-        "Sticker Set": 1,
-    }
 
     table_parts_counts = {part: 0 for part in table_parts}
     for part in table_parts_counts:
@@ -1608,11 +1652,7 @@ def inventory():
         )
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
-    tables_possible_per_part = {
-        part: table_parts_counts[part] // req_per_table
-        for part, req_per_table in table_parts_capacity.items()
-    }
-    max_tables_possible = min(tables_possible_per_part.values())
+    max_tables_possible, tables_possible_per_part = calculate_chinese_parts_build_capacity(table_parts_counts)
 
     # ---------------------------------------------------------------------
     # 5) HARDWARE PARTS (FROM DB)
@@ -1640,6 +1680,8 @@ def inventory():
         table_parts_counts=table_parts_counts,
         max_tables_possible=max_tables_possible,
         tables_possible_per_part=tables_possible_per_part,
+        chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
+        chinese_parts_order_more_threshold=CHINESE_PARTS_ORDER_MORE_THRESHOLD,
         hardware_counts=hardware_counts
     )
 
@@ -2339,6 +2381,7 @@ def counting_chinese_parts():
 
     # Fetch current counts for all parts
     table_parts_counts = get_table_parts_counts()
+    _, tables_possible_per_part = calculate_chinese_parts_build_capacity(table_parts_counts)
 
     # Determine the currently selected part (default to first in list if none selected)
     selected_part = request.form.get('table_part') or request.args.get('selected') or table_parts[0]
@@ -2408,6 +2451,13 @@ def counting_chinese_parts():
         # Commit changes
         db.session.commit()
 
+        order_more_message = check_and_notify_chinese_parts_order_more(
+            selected_part,
+            current_count,
+            new_count
+        )
+        if order_more_message:
+            flash(order_more_message, "warning")
         flash(f"{selected_part} updated successfully! New count: {new_count}", "success")
         return redirect(url_for('counting_chinese_parts', selected=selected_part))
 
@@ -2446,7 +2496,11 @@ def counting_chinese_parts():
         'counting_chinese_parts.html',
         table_parts=table_parts,
         table_parts_counts=table_parts_counts,
+        tables_possible_per_part=tables_possible_per_part,
         selected_part=selected_part,
+        selected_part_can_build=tables_possible_per_part.get(selected_part),
+        chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
+        chinese_parts_order_more_threshold=CHINESE_PARTS_ORDER_MORE_THRESHOLD,
         chinese_parts_log=chinese_parts_log
     )
 
@@ -4150,6 +4204,12 @@ def bodies():
             if old_count >= quantity_needed:
                 part_entry.count -= quantity_needed
                 check_and_notify_low_stock(
+                    part_name,
+                    old_count,
+                    part_entry.count,
+                    collected_warnings=low_stock_messages
+                )
+                check_and_notify_chinese_parts_order_more(
                     part_name,
                     old_count,
                     part_entry.count,
@@ -8320,6 +8380,8 @@ def order_chinese_parts():
         metal_parts=metal_parts,
         plastic_rows=plastic_rows,
         gullies_summary=gullies_summary,
+        chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
+        chinese_parts_order_more_threshold=CHINESE_PARTS_ORDER_MORE_THRESHOLD,
         payments=payments,
         total_paid=total_paid,
         total_balance_due=total_balance_due,

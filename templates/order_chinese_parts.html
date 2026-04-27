@@ -62,6 +62,11 @@
             font-size: 0.85em;
             color: #555;
         }
+        .order-warning {
+            margin-top: 4px;
+            color: #b00020;
+            font-weight: bold;
+        }
         .supplier-summary {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -201,7 +206,12 @@
                             </td>
                             <td>{{ p.total_available }}</td>
                             <td>{{ p.per_table }}</td>
-                            <td>{{ p.can_build }} <span class="subtle">(now: {{ p.can_build_now }})</span></td>
+                            <td>
+                                {{ p.can_build }} <span class="subtle">(now: {{ p.can_build_now }})</span>
+                                {% if p.name == chinese_parts_order_more_part and p.can_build < chinese_parts_order_more_threshold %}
+                                    <div class="order-warning">Order more Chinese parts</div>
+                                {% endif %}
+                            </td>
                             <td>&pound;{{ p.cost_each|format_number }}</td>
                             {% if target_table_count %}
                             <td>{{ p.need_to_order }}</td>
