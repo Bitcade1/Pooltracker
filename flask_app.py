@@ -435,6 +435,7 @@ CHINESE_PARTS_CAPACITY = {
 }
 CHINESE_PARTS_ORDER_MORE_PART = "Sticker Set"
 CHINESE_PARTS_ORDER_MORE_THRESHOLD = 300
+CHINESE_PARTS_ON_ORDER_FILE = os.path.join(basedir, "on_order_chinese_parts.json")
 BRAD_NAILS_PART_NAME = "18G 10mm Brad Nails"
 BRAD_NAILS_UNITS_PER_STRIP = 4  # Track quarter-strip usage (0.25 = 1 unit, 0.5 = 2 units)
 
@@ -575,6 +576,21 @@ def _split_legacy_quantity(value):
     return left_qty, right_qty
 
 
+def default_chinese_parts_on_order():
+    return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None, "arrivals": []}
+
+
+def load_chinese_parts_on_order():
+    if not os.path.exists(CHINESE_PARTS_ON_ORDER_FILE):
+        return default_chinese_parts_on_order()
+    try:
+        with open(CHINESE_PARTS_ON_ORDER_FILE, "r") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return default_chinese_parts_on_order()
+    return data if isinstance(data, dict) else default_chinese_parts_on_order()
+
+
 def ensure_legacy_inventory_names_migrated():
     if app.config.get("_legacy_inventory_names_migrated"):
         return
@@ -671,10 +687,9 @@ def ensure_legacy_inventory_names_migrated():
                 db.session.delete(old_cost)
                 migration_changed = True
 
-        on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
-        if os.path.exists(on_order_file):
+        if os.path.exists(CHINESE_PARTS_ON_ORDER_FILE):
             try:
-                with open(on_order_file, "r") as f:
+                with open(CHINESE_PARTS_ON_ORDER_FILE, "r") as f:
                     on_order_data = json.load(f)
             except (json.JSONDecodeError, OSError):
                 on_order_data = None
@@ -700,7 +715,7 @@ def ensure_legacy_inventory_names_migrated():
                         file_changed = True
                     if file_changed:
                         try:
-                            with open(on_order_file, "w") as f:
+                            with open(CHINESE_PARTS_ON_ORDER_FILE, "w") as f:
                                 json.dump(on_order_data, f)
                         except OSError:
                             pass
@@ -859,17 +874,41 @@ def get_felt_count():
     return total
 
 
-def calculate_chinese_parts_build_capacity(counts):
+def saved_chinese_parts_on_order_counts(data=None):
+    saved_on_order = data if isinstance(data, dict) else load_chinese_parts_on_order()
+    parts_on_order = saved_on_order.get("parts", {})
+    if not isinstance(parts_on_order, dict):
+        parts_on_order = {}
+    return {
+        part: _coerce_int(parts_on_order.get(part), 0)
+        for part in CHINESE_PARTS_CAPACITY
+    }
+
+
+def saved_chinese_part_on_order(part_name, data=None):
+    return saved_chinese_parts_on_order_counts(data).get(part_name, 0)
+
+
+def calculate_chinese_parts_build_capacity(counts, on_order_counts=None):
+    on_order_counts = on_order_counts or {}
     tables_possible_per_part = {}
     for part, req_per_table in CHINESE_PARTS_CAPACITY.items():
         if req_per_table <= 0:
             continue
-        tables_possible_per_part[part] = int((counts.get(part, 0) or 0) // req_per_table)
+        available_count = (counts.get(part, 0) or 0) + (on_order_counts.get(part, 0) or 0)
+        tables_possible_per_part[part] = int(available_count // req_per_table)
     max_tables_possible = min(tables_possible_per_part.values()) if tables_possible_per_part else 0
     return max_tables_possible, tables_possible_per_part
 
 
-def check_and_notify_chinese_parts_order_more(part_name, old_count, new_count, collected_warnings=None):
+def check_and_notify_chinese_parts_order_more(
+    part_name,
+    old_count,
+    new_count,
+    collected_warnings=None,
+    old_on_order_count=None,
+    new_on_order_count=None
+):
     if part_name != CHINESE_PARTS_ORDER_MORE_PART:
         return None
 
@@ -877,14 +916,21 @@ def check_and_notify_chinese_parts_order_more(part_name, old_count, new_count, c
     if req_per_table <= 0:
         return None
 
-    old_can_build = int((old_count or 0) // req_per_table)
-    new_can_build = int((new_count or 0) // req_per_table)
+    if old_on_order_count is None:
+        old_on_order_count = saved_chinese_part_on_order(part_name)
+    if new_on_order_count is None:
+        new_on_order_count = old_on_order_count
+
+    old_available_count = (old_count or 0) + (old_on_order_count or 0)
+    new_available_count = (new_count or 0) + (new_on_order_count or 0)
+    old_can_build = int(old_available_count // req_per_table)
+    new_can_build = int(new_available_count // req_per_table)
     if old_can_build < CHINESE_PARTS_ORDER_MORE_THRESHOLD or new_can_build >= CHINESE_PARTS_ORDER_MORE_THRESHOLD:
         return None
 
     message = (
         f"Order more Chinese parts - {part_name} can build is "
-        f"{new_can_build} tables."
+        f"{new_can_build} tables including on-order."
     )
     if collected_warnings is not None:
         collected_warnings.append(message)
@@ -1652,7 +1698,11 @@ def inventory():
         )
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
-    max_tables_possible, tables_possible_per_part = calculate_chinese_parts_build_capacity(table_parts_counts)
+    table_parts_on_order_counts = saved_chinese_parts_on_order_counts()
+    max_tables_possible, tables_possible_per_part = calculate_chinese_parts_build_capacity(
+        table_parts_counts,
+        table_parts_on_order_counts
+    )
 
     # ---------------------------------------------------------------------
     # 5) HARDWARE PARTS (FROM DB)
@@ -1678,6 +1728,7 @@ def inventory():
         parts_used_this_month=parts_used_this_month,
         parts_status=parts_status,
         table_parts_counts=table_parts_counts,
+        table_parts_on_order_counts=table_parts_on_order_counts,
         max_tables_possible=max_tables_possible,
         tables_possible_per_part=tables_possible_per_part,
         chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
@@ -1788,10 +1839,9 @@ def build_stock_snapshot():
         )
 
     parts_on_water_total = 0.0
-    on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
-    if os.path.exists(on_order_file):
+    if os.path.exists(CHINESE_PARTS_ON_ORDER_FILE):
         try:
-            with open(on_order_file, "r") as f:
+            with open(CHINESE_PARTS_ON_ORDER_FILE, "r") as f:
                 on_order_data = json.load(f)
             payments = on_order_data.get("payments", {})
             for entry in payments.values():
@@ -2381,7 +2431,11 @@ def counting_chinese_parts():
 
     # Fetch current counts for all parts
     table_parts_counts = get_table_parts_counts()
-    _, tables_possible_per_part = calculate_chinese_parts_build_capacity(table_parts_counts)
+    table_parts_on_order_counts = saved_chinese_parts_on_order_counts()
+    _, tables_possible_per_part = calculate_chinese_parts_build_capacity(
+        table_parts_counts,
+        table_parts_on_order_counts
+    )
 
     # Determine the currently selected part (default to first in list if none selected)
     selected_part = request.form.get('table_part') or request.args.get('selected') or table_parts[0]
@@ -2496,8 +2550,10 @@ def counting_chinese_parts():
         'counting_chinese_parts.html',
         table_parts=table_parts,
         table_parts_counts=table_parts_counts,
+        table_parts_on_order_counts=table_parts_on_order_counts,
         tables_possible_per_part=tables_possible_per_part,
         selected_part=selected_part,
+        selected_part_on_order=table_parts_on_order_counts.get(selected_part, 0),
         selected_part_can_build=tables_possible_per_part.get(selected_part),
         chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
         chinese_parts_order_more_threshold=CHINESE_PARTS_ORDER_MORE_THRESHOLD,
@@ -8003,20 +8059,12 @@ def order_chinese_parts():
     gullies_parts = [p for p in chinese_parts if p.lower().startswith("ball gullies")]
     gullies_per_table = sum(chinese_parts.get(p, 0) for p in gullies_parts)
 
-    on_order_file = os.path.join(basedir, "on_order_chinese_parts.json")
-
     def load_on_order():
-        if not os.path.exists(on_order_file):
-            return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None, "arrivals": []}
-        try:
-            with open(on_order_file, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None, "arrivals": []}
+        return load_chinese_parts_on_order()
 
     def save_on_order(data):
         try:
-            with open(on_order_file, "w") as f:
+            with open(CHINESE_PARTS_ON_ORDER_FILE, "w") as f:
                 json.dump(data, f)
             return True
         except OSError:
@@ -8351,14 +8399,24 @@ def order_chinese_parts():
         })
         if not saved_successfully:
             flash("Could not save on-order figures.", "error")
-        elif action == 'save_payments':
-            flash("Payments and on-order figures saved.", "success")
-        elif action == 'parts_arrived':
-            flash("Parts arrival logged and on-order figures saved.", "success")
-        elif action == 'paid_all':
-            flash("Payment updated and on-order figures saved.", "success")
         else:
-            flash("On-order figures saved.", "success")
+            order_more_message = check_and_notify_chinese_parts_order_more(
+                CHINESE_PARTS_ORDER_MORE_PART,
+                part_stock.get(CHINESE_PARTS_ORDER_MORE_PART, 0),
+                part_stock.get(CHINESE_PARTS_ORDER_MORE_PART, 0),
+                old_on_order_count=safe_int(saved_parts_on_order.get(CHINESE_PARTS_ORDER_MORE_PART), 0),
+                new_on_order_count=part_on_order.get(CHINESE_PARTS_ORDER_MORE_PART, 0)
+            )
+            if order_more_message:
+                flash(order_more_message, "warning")
+            if action == 'save_payments':
+                flash("Payments and on-order figures saved.", "success")
+            elif action == 'parts_arrived':
+                flash("Parts arrival logged and on-order figures saved.", "success")
+            elif action == 'paid_all':
+                flash("Payment updated and on-order figures saved.", "success")
+            else:
+                flash("On-order figures saved.", "success")
         return redirect(url_for('order_chinese_parts'))
 
     return render_template(

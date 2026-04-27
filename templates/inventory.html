@@ -66,10 +66,10 @@
                 // Store original order before first sort
                 originalTablePartsOrder = rows.map(row => row.cloneNode(true));
                 
-                // Sort rows by the "Tables Possible" column (3rd column, index 2)
+                // Sort rows by the "Can Build" column (4th column, index 3)
                 rows.sort((a, b) => {
-                    const tablesA = parseInt(a.cells[2].textContent);
-                    const tablesB = parseInt(b.cells[2].textContent);
+                    const tablesA = parseInt(a.cells[3].textContent);
+                    const tablesB = parseInt(b.cells[3].textContent);
                     return tablesA - tablesB; // Ascending order (lowest first)
                 });
                 
@@ -166,7 +166,8 @@
                     <tr>
                         <th>Part</th>
                         <th>Current Stock</th>
-                        <th>Tables Possible</th>
+                        <th>Saved On Order</th>
+                        <th>Can Build</th>
                     </tr>
                 </thead>
                 <tbody id="tablePartsBody">
@@ -175,6 +176,7 @@
                     <tr>
                         <td><strong>{{ part }}</strong></td>
                         <td>{{ count }}</td>
+                        <td>{{ table_parts_on_order_counts.get(part, 0) }}</td>
                         <td>
                             {{ part_can_build if part_can_build is not none else '-' }}
                             {% if part_can_build is not none and part == chinese_parts_order_more_part and part_can_build < chinese_parts_order_more_threshold %}

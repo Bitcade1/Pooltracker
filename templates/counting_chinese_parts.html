@@ -15,6 +15,7 @@
         .form-group label { font-weight: bold; display: block; margin-bottom: 6px; }
         .count-display { font-size: 1.5em; margin: 10px 0 0; color: green; font-weight: bold; }
         .can-build-display { color: #1f2937; }
+        .subtle { color: #666; font-size: 0.75em; font-weight: normal; }
         .order-warning { margin: 8px 0 0; color: #b00020; font-weight: bold; }
         .buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
         .buttons button, .btn { padding: 10px 15px; font-size: 1em; cursor: pointer; border: none; border-radius: 8px; }
@@ -92,6 +93,9 @@
                     {% if selected_part_can_build is not none %}
                     <div class="count-display can-build-display">
                         <strong>Can Build:</strong> {{ selected_part_can_build }}
+                        {% if selected_part_on_order %}
+                            <span class="subtle">(stock + {{ selected_part_on_order }} saved on order)</span>
+                        {% endif %}
                     </div>
                     {% if selected_part == chinese_parts_order_more_part and selected_part_can_build < chinese_parts_order_more_threshold %}
                     <p class="order-warning">Order more Chinese parts</p>
