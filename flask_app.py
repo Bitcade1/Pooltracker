@@ -3197,41 +3197,45 @@ def manage_raw_data():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    serial_number_query = request.args.get('serial_number')
-    if serial_number_query:
-        # Normalize the search query by removing spaces
-        normalized_query = serial_number_query.replace(" ", "")
-        
-        # Use LIKE for partial matching with wildcards
-        pods = CompletedPods.query.filter(CompletedPods.serial_number.like(f'%{serial_number_query}%')).all()
-        top_rails = TopRail.query.filter(TopRail.serial_number.like(f'%{serial_number_query}%')).all()
-        bodies = CompletedTable.query.filter(CompletedTable.serial_number.like(f'%{serial_number_query}%')).all()
-        
-        # If no results found with spaces, try without spaces (normalized search)
-        if not (pods or top_rails or bodies):
-            pods = CompletedPods.query.all()
-            top_rails = TopRail.query.all()
-            bodies = CompletedTable.query.all()
-            
-            # Filter in Python to handle normalized comparison
-            pods = [pod for pod in pods if normalized_query in pod.serial_number.replace(" ", "")]
-            top_rails = [rail for rail in top_rails if normalized_query in rail.serial_number.replace(" ", "")]
-            bodies = [body for body in bodies if normalized_query in body.serial_number.replace(" ", "")]
-    else:
-        pods = CompletedPods.query.all()
-        top_rails = TopRail.query.all()
-        bodies = CompletedTable.query.all()
+    raw_data_sections = [
+        {"key": "pods", "label": "Completed Pods"},
+        {"key": "top_rails", "label": "Top Rails"},
+        {"key": "bodies", "label": "Completed Bodies"},
+    ]
+    raw_data_models = {
+        "pods": CompletedPods,
+        "top_rails": TopRail,
+        "bodies": CompletedTable,
+    }
+    raw_data_labels = {section["key"]: section["label"] for section in raw_data_sections}
+
+    def redirect_to_raw_data(default_section="pods"):
+        redirect_args = {}
+        serial_filter = (request.form.get('serial_number_filter') or request.args.get('serial_number') or '').strip()
+        section = request.form.get('section') or request.args.get('section') or default_section
+        if section not in raw_data_models:
+            section = default_section if default_section in raw_data_models else "pods"
+
+        page = request.form.get('page') or request.args.get('page')
+        per_page = request.form.get('per_page') or request.args.get('per_page')
+
+        redirect_args["section"] = section
+        if serial_filter:
+            redirect_args["serial_number"] = serial_filter
+        if page:
+            redirect_args["page"] = page
+        if per_page:
+            redirect_args["per_page"] = per_page
+
+        return redirect(url_for('manage_raw_data', **redirect_args))
 
     if request.method == 'POST':
         table = request.form.get('table')
         entry_id = request.form.get('id')
         entry = None
-        if table == 'pods':
-            entry = CompletedPods.query.get(entry_id)
-        elif table == 'top_rails':
-            entry = TopRail.query.get(entry_id)
-        elif table == 'bodies':
-            entry = CompletedTable.query.get(entry_id)
+        model = raw_data_models.get(table)
+        if model and entry_id:
+            entry = model.query.get(entry_id)
 
         if entry:
             body_color_key_for_stock = None
@@ -3366,7 +3370,7 @@ def manage_raw_data():
                         entry.finish_time = datetime.strptime(request.form.get('finish_time'), "%H:%M").time()
                     except ValueError:
                         flash("Invalid time format. Please use HH:MM.", "error")
-                        return redirect(url_for('manage_raw_data', serial_number=serial_number_query))
+                        return redirect_to_raw_data(table)
                 else:
                     entry.start_time = request.form.get('start_time')
                     entry.finish_time = request.form.get('finish_time')
@@ -3382,14 +3386,78 @@ def manage_raw_data():
                         entry.date = datetime.strptime(date_input, "%Y-%m-%d").date()
                     except ValueError:
                         flash("Invalid date format. Please use YYYY-MM-DD.", "error")
-                        return redirect(url_for('manage_raw_data', serial_number=serial_number_query))
+                        return redirect_to_raw_data(table)
 
                 db.session.commit()
                 flash(f"{table.capitalize()} entry updated successfully!", "success")
+        else:
+            flash("Raw data entry not found.", "error")
 
-        return redirect(url_for('manage_raw_data', serial_number=serial_number_query))
+        return redirect_to_raw_data(table)
 
-    return render_template('admin_raw_data.html', pods=pods, top_rails=top_rails, bodies=bodies)
+    serial_number_query = (request.args.get('serial_number') or '').strip()
+    active_section = request.args.get('section') or "pods"
+    if active_section not in raw_data_models:
+        active_section = "pods"
+
+    page = request.args.get('page', 1, type=int)
+    if page < 1:
+        page = 1
+
+    per_page = request.args.get('per_page', 25, type=int)
+    if per_page not in (10, 25, 50, 100):
+        per_page = 25
+
+    def filtered_query(model):
+        query = model.query
+        if serial_number_query:
+            original_like = f"%{serial_number_query.upper()}%"
+            normalized_query = serial_number_query.replace(" ", "").upper()
+            search_filters = [
+                func.upper(model.serial_number).like(original_like)
+            ]
+            if normalized_query:
+                normalized_serial = func.upper(func.replace(model.serial_number, " ", ""))
+                search_filters.append(normalized_serial.like(f"%{normalized_query}%"))
+            query = query.filter(or_(*search_filters))
+        return query
+
+    active_model = raw_data_models[active_section]
+    active_query = filtered_query(active_model).order_by(active_model.date.desc(), active_model.id.desc())
+    pagination = active_query.paginate(page=page, per_page=per_page, error_out=False)
+
+    if pagination.pages and page > pagination.pages:
+        redirect_args = {
+            "section": active_section,
+            "page": pagination.pages,
+            "per_page": per_page,
+        }
+        if serial_number_query:
+            redirect_args["serial_number"] = serial_number_query
+        return redirect(url_for('manage_raw_data', **redirect_args))
+
+    raw_counts = {active_section: pagination.total}
+    for section in raw_data_sections:
+        section_key = section["key"]
+        if section_key != active_section:
+            raw_counts[section_key] = filtered_query(raw_data_models[section_key]).count()
+
+    page_start = 0 if pagination.total == 0 else ((pagination.page - 1) * per_page) + 1
+    page_end = min(pagination.page * per_page, pagination.total)
+
+    return render_template(
+        'admin_raw_data.html',
+        rows=pagination.items,
+        raw_data_sections=raw_data_sections,
+        raw_counts=raw_counts,
+        active_section=active_section,
+        active_label=raw_data_labels[active_section],
+        serial_number_query=serial_number_query,
+        pagination=pagination,
+        per_page=per_page,
+        page_start=page_start,
+        page_end=page_end
+    )
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():

@@ -6,30 +6,145 @@
     <title>Admin Raw Data Management</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        .collapsible {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            padding: 10px;
-            width: 100%;
-            border: none;
+        .raw-data-container {
+            max-width: 1200px;
             text-align: left;
-            outline: none;
-            font-size: 1.2em;
-            margin-top: 20px;
-            border-radius: 5px;
+            border-radius: 8px;
         }
-        .collapsible:hover {
-            background-color: #0056b3;
+        .raw-data-container h1 {
+            text-align: center;
         }
-        .collapsible-content {
-            padding: 15px;
-            display: none;
-            overflow: hidden;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
+        .raw-data-search {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) 180px 140px auto auto;
+            gap: 12px;
+            align-items: end;
+            margin-top: 16px;
+        }
+        .raw-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+        .raw-field label {
+            font-size: 0.9em;
+        }
+        .raw-field input,
+        .raw-field select,
+        .raw-record-form input {
+            width: 100%;
+            padding: 10px;
+            font-size: 1em;
+            border: 1px solid #d5dbe3;
             border-radius: 5px;
-            margin-top: 10px;
+            box-sizing: border-box;
+            text-align: left;
+        }
+        .raw-data-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .raw-data-tab {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 11px 12px;
+            color: #26313f;
+            background: #f5f7fb;
+            border: 1px solid #d8dee8;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .raw-data-tab.active {
+            background: #007bff;
+            border-color: #007bff;
+            color: #fff;
+        }
+        .raw-summary {
+            margin: 16px 0 0;
+            color: #4c5968;
+            font-weight: 700;
+        }
+        .raw-record-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 14px;
+        }
+        .raw-record-form {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            padding: 12px;
+            margin-top: 0;
+            border: 1px solid #d8dee8;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .raw-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .raw-actions button,
+        .raw-data-search button,
+        .raw-link-button {
+            min-height: 43px;
+            padding: 10px 14px;
+            border-radius: 5px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .raw-link-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: #6c757d;
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .raw-danger {
+            background: #dc3545;
+        }
+        .raw-danger:hover {
+            background: #b02a37;
+        }
+        .raw-empty {
+            padding: 18px;
+            border: 1px solid #d8dee8;
+            border-radius: 8px;
+            background: #f8fafc;
+            text-align: center;
+            color: #4c5968;
+        }
+        .raw-pagination {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 18px;
+        }
+        .raw-pagination a,
+        .raw-pagination span {
+            min-width: 42px;
+            padding: 9px 10px;
+            border: 1px solid #d8dee8;
+            border-radius: 5px;
+            color: #26313f;
+            background: #fff;
+            text-align: center;
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .raw-pagination .active {
+            background: #007bff;
+            border-color: #007bff;
+            color: #fff;
         }
         .back-to-menu {
             display: flex;
@@ -48,26 +163,60 @@
         .menu-button:hover {
             background-color: #0056b3;
         }
-    </style>
-    <script>
-        function toggleCollapsible(id) {
-            var content = document.getElementById(id);
-            content.style.display = content.style.display === "block" ? "none" : "block";
+        @media (max-width: 800px) {
+            .raw-data-search,
+            .raw-data-tabs,
+            .raw-record-form {
+                grid-template-columns: 1fr;
+            }
+            .raw-actions {
+                flex-direction: column;
+            }
+            .raw-actions button,
+            .raw-data-search button,
+            .raw-link-button {
+                width: 100%;
+            }
         }
-    </script>
+    </style>
 </head>
 <body>
-    <div class="container">
+    {% macro time_input_value(value) -%}
+        {%- if value is not none and value.strftime is defined -%}
+            {{ value.strftime('%H:%M') }}
+        {%- elif value is not none -%}
+            {{ value }}
+        {%- endif -%}
+    {%- endmacro %}
+
+    <div class="container raw-data-container">
         <h1>Manage Raw Data</h1>
 
-        <!-- Search by Serial Number -->
-        <form method="GET" action="{{ url_for('manage_raw_data') }}">
-            <label for="serial_number">Search by Serial Number:</label>
-            <input type="text" id="serial_number" name="serial_number" placeholder="Enter serial number">
-            <button type="submit" class="button">Search</button>
+        <form class="raw-data-search" method="GET" action="{{ url_for('manage_raw_data') }}">
+            <div class="raw-field">
+                <label for="serial_number">Serial Number</label>
+                <input type="text" id="serial_number" name="serial_number" placeholder="Enter serial number" value="{{ serial_number_query }}">
+            </div>
+            <div class="raw-field">
+                <label for="section">Section</label>
+                <select id="section" name="section">
+                    {% for section in raw_data_sections %}
+                        <option value="{{ section.key }}" {% if section.key == active_section %}selected{% endif %}>{{ section.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="raw-field">
+                <label for="per_page">Rows</label>
+                <select id="per_page" name="per_page">
+                    {% for option in [10, 25, 50, 100] %}
+                        <option value="{{ option }}" {% if option == per_page %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit">Search</button>
+            <a class="raw-link-button" href="{{ url_for('manage_raw_data', section=active_section, per_page=per_page) }}">Clear</a>
         </form>
 
-        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
@@ -78,67 +227,90 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Collapsible Section for Completed Pods -->
-        <button class="collapsible" onclick="toggleCollapsible('podsData')">Completed Pods</button>
-        <div id="podsData" class="collapsible-content">
-            {% for pod in pods %}
-                <form method="POST" action="{{ url_for('manage_raw_data') }}">
-                    <input type="hidden" name="table" value="pods">
-                    <input type="hidden" name="id" value="{{ pod.id }}">
-                    <label>Worker:</label> <input type="text" name="worker" value="{{ pod.worker }}">
-                    <label>Start Time:</label> <input type="text" name="start_time" value="{{ pod.start_time }}">
-                    <label>Finish Time:</label> <input type="text" name="finish_time" value="{{ pod.finish_time }}">
-                    <label>Serial Number:</label> <input type="text" name="serial_number" value="{{ pod.serial_number }}">
-                    <label>Issue:</label> <input type="text" name="issue" value="{{ pod.issue }}">
-                    <label>Lunch:</label> <input type="text" name="lunch" value="{{ pod.lunch }}">
-                    <label>Date:</label> <input type="date" name="date" value="{{ pod.date.strftime('%Y-%m-%d') }}">
-                    <button type="submit" name="update">Update</button>
-                    <button type="submit" name="delete">Delete</button>
-                </form>
+        <div class="raw-data-tabs">
+            {% for section in raw_data_sections %}
+                <a class="raw-data-tab {% if section.key == active_section %}active{% endif %}"
+                   href="{{ url_for('manage_raw_data', section=section.key, serial_number=serial_number_query, per_page=per_page) }}">
+                    <span>{{ section.label }}</span>
+                    <span>{{ raw_counts.get(section.key, 0) }}</span>
+                </a>
             {% endfor %}
         </div>
 
-        <!-- Collapsible Section for Top Rails -->
-        <button class="collapsible" onclick="toggleCollapsible('topRailsData')">Top Rails</button>
-        <div id="topRailsData" class="collapsible-content">
-            {% for top_rail in top_rails %}
-                <form method="POST" action="{{ url_for('manage_raw_data') }}">
-                    <input type="hidden" name="table" value="top_rails">
-                    <input type="hidden" name="id" value="{{ top_rail.id }}">
-                    <label>Worker:</label> <input type="text" name="worker" value="{{ top_rail.worker }}">
-                    <label>Start Time:</label> <input type="text" name="start_time" value="{{ top_rail.start_time }}">
-                    <label>Finish Time:</label> <input type="text" name="finish_time" value="{{ top_rail.finish_time }}">
-                    <label>Serial Number:</label> <input type="text" name="serial_number" value="{{ top_rail.serial_number }}">
-                    <label>Issue:</label> <input type="text" name="issue" value="{{ top_rail.issue }}">
-                    <label>Lunch:</label> <input type="text" name="lunch" value="{{ top_rail.lunch }}">
-                    <label>Date:</label> <input type="date" name="date" value="{{ top_rail.date.strftime('%Y-%m-%d') }}">
-                    <button type="submit" name="update">Update</button>
-                    <button type="submit" name="delete">Delete</button>
+        <p class="raw-summary">
+            Showing {{ page_start }}-{{ page_end }} of {{ pagination.total }} {{ active_label }}
+        </p>
+
+        <div class="raw-record-list">
+            {% for row in rows %}
+                <form class="raw-record-form" method="POST" action="{{ url_for('manage_raw_data') }}">
+                    <input type="hidden" name="table" value="{{ active_section }}">
+                    <input type="hidden" name="id" value="{{ row.id }}">
+                    <input type="hidden" name="section" value="{{ active_section }}">
+                    <input type="hidden" name="serial_number_filter" value="{{ serial_number_query }}">
+                    <input type="hidden" name="page" value="{{ pagination.page }}">
+                    <input type="hidden" name="per_page" value="{{ per_page }}">
+
+                    <div class="raw-field">
+                        <label>Worker</label>
+                        <input type="text" name="worker" value="{{ row.worker or '' }}">
+                    </div>
+                    <div class="raw-field">
+                        <label>Start Time</label>
+                        <input type="{{ 'time' if active_section == 'bodies' else 'text' }}" name="start_time" value="{{ time_input_value(row.start_time) }}">
+                    </div>
+                    <div class="raw-field">
+                        <label>Finish Time</label>
+                        <input type="{{ 'time' if active_section == 'bodies' else 'text' }}" name="finish_time" value="{{ time_input_value(row.finish_time) }}">
+                    </div>
+                    <div class="raw-field">
+                        <label>Serial Number</label>
+                        <input type="text" name="serial_number" value="{{ row.serial_number or '' }}">
+                    </div>
+                    <div class="raw-field">
+                        <label>Issue</label>
+                        <input type="text" name="issue" value="{{ row.issue or '' }}">
+                    </div>
+                    <div class="raw-field">
+                        <label>Lunch</label>
+                        <input type="text" name="lunch" value="{{ row.lunch or '' }}">
+                    </div>
+                    <div class="raw-field">
+                        <label>Date</label>
+                        <input type="date" name="date" value="{{ row.date.strftime('%Y-%m-%d') if row.date else '' }}">
+                    </div>
+                    <div class="raw-actions">
+                        <button type="submit" name="update" value="1">Update</button>
+                        <button type="submit" name="delete" value="1" class="raw-danger">Delete</button>
+                    </div>
                 </form>
+            {% else %}
+                <div class="raw-empty">No {{ active_label }} found.</div>
             {% endfor %}
         </div>
 
-               <!-- Collapsible Section for Completed Bodies -->
-        <button class="collapsible" onclick="toggleCollapsible('bodiesData')">Completed Bodies</button>
-        <div id="bodiesData" class="collapsible-content">
-            {% for body in bodies %}
-                <form method="POST" action="{{ url_for('manage_raw_data') }}">
-                    <input type="hidden" name="table" value="bodies">
-                    <input type="hidden" name="id" value="{{ body.id }}">
-                    <label>Worker:</label> <input type="text" name="worker" value="{{ body.worker }}">
-                    <label>Start Time:</label> <input type="time" name="start_time" value="{{ body.start_time }}">
-                    <label>Finish Time:</label> <input type="time" name="finish_time" value="{{ body.finish_time }}">
-                    <label>Serial Number:</label> <input type="text" name="serial_number" value="{{ body.serial_number }}">
-                    <label>Issue:</label> <input type="text" name="issue" value="{{ body.issue }}">
-                    <label>Lunch:</label> <input type="text" name="lunch" value="{{ body.lunch }}">
-                    <label>Date:</label> <input type="date" name="date" value="{{ body.date.strftime('%Y-%m-%d') }}">
-                    <button type="submit" name="update">Update</button>
-                    <button type="submit" name="delete">Delete</button>
-                </form>
-            {% endfor %}
-        </div>
+        {% if pagination.pages > 1 %}
+            <nav class="raw-pagination" aria-label="Raw data pages">
+                {% if pagination.has_prev %}
+                    <a href="{{ url_for('manage_raw_data', section=active_section, serial_number=serial_number_query, per_page=per_page, page=pagination.prev_num) }}">Prev</a>
+                {% endif %}
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == pagination.page %}
+                            <span class="active">{{ page_num }}</span>
+                        {% else %}
+                            <a href="{{ url_for('manage_raw_data', section=active_section, serial_number=serial_number_query, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+                        {% endif %}
+                    {% else %}
+                        <span>...</span>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <a href="{{ url_for('manage_raw_data', section=active_section, serial_number=serial_number_query, per_page=per_page, page=pagination.next_num) }}">Next</a>
+                {% endif %}
+            </nav>
+        {% endif %}
 
-        <!-- Back to Admin Menu -->
         <div class="back-to-menu">
             <a href="{{ url_for('admin') }}" class="menu-button">Back to Admin Menu</a>
         </div>
