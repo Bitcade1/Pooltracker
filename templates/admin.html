@@ -53,6 +53,83 @@
         .menu-button:hover {
             background-color: #0056b3;
         }
+
+        .threshold-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .threshold-input {
+            width: 90px;
+        }
+
+        .threshold-table form {
+            margin: 0;
+        }
+
+        @media (max-width: 700px) {
+            .threshold-table-wrap {
+                overflow-x: visible;
+            }
+
+            .threshold-table,
+            .threshold-table thead,
+            .threshold-table tbody,
+            .threshold-table tr,
+            .threshold-table th,
+            .threshold-table td {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .threshold-table thead {
+                display: none;
+            }
+
+            .threshold-table tr {
+                margin-bottom: 12px;
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                background: #fff;
+            }
+
+            .threshold-table td {
+                display: grid;
+                grid-template-columns: minmax(120px, 42%) 1fr;
+                gap: 10px;
+                align-items: center;
+                padding: 8px 0;
+                border-bottom: 1px solid #eee;
+                text-align: left;
+            }
+
+            .threshold-table td::before {
+                content: attr(data-label);
+                font-weight: bold;
+                color: #333;
+            }
+
+            .threshold-table td:last-child {
+                display: block;
+                border-bottom: none;
+                padding-bottom: 0;
+            }
+
+            .threshold-table td:last-child::before {
+                content: none;
+            }
+
+            .threshold-input {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .threshold-update-button {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -150,34 +227,36 @@
         <div class="collapsible-content" style="display: {% if threshold_section_open %}block{% else %}none{% endif %};">
             <h2>Set Low Stock Notification Thresholds</h2>
             <p>Set a threshold for a part. A notification will be sent when the stock level drops to or below this number. Set to 0 to disable notifications for a part.</p>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Part Name</th>
-                        <th>Current Threshold</th>
-                        <th>New Threshold</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for part_name in all_part_names %}
-                    <tr>
-                        <form method="POST" action="{{ url_for('admin') }}">
-                            <input type="hidden" name="update_threshold" value="1">
-                            <input type="hidden" name="part_name" value="{{ part_name }}">
-                            <td>{{ part_name }}</td>
-                            <td>{{ thresholds_map.get(part_name, 0) }}</td>
-                            <td>
-                                <input type="number" name="threshold" value="{{ thresholds_map.get(part_name, 0) }}" min="0" style="width: 80px;">
+            <div class="threshold-table-wrap">
+                <table class="threshold-table">
+                    <thead>
+                        <tr>
+                            <th>Part Name</th>
+                            <th>Current Threshold</th>
+                            <th>New Threshold</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for part_name in all_part_names %}
+                        <tr>
+                            <td data-label="Part Name">{{ part_name }}</td>
+                            <td data-label="Current Threshold">{{ thresholds_map.get(part_name, 0) }}</td>
+                            <td data-label="New Threshold">
+                                <input class="threshold-input" type="number" name="threshold" value="{{ thresholds_map.get(part_name, 0) }}" min="0" form="threshold-form-{{ loop.index }}">
                             </td>
-                            <td>
-                                <button type="submit">Update</button>
+                            <td data-label="Action">
+                                <form id="threshold-form-{{ loop.index }}" method="POST" action="{{ url_for('admin') }}">
+                                    <input type="hidden" name="update_threshold" value="1">
+                                    <input type="hidden" name="part_name" value="{{ part_name }}">
+                                    <button class="threshold-update-button" type="submit">Update</button>
+                                </form>
                             </td>
-                        </form>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
          <!-- Manage MDF Inventory Section -->
