@@ -150,6 +150,50 @@
           background-color: #f8d7da;
           color: #721c24;
       }
+
+      .quick-add-panel {
+          margin: 20px 0;
+          padding: 15px;
+          border: 1px solid #dfe3eb;
+          border-radius: 8px;
+          background-color: #f7f7fb;
+          text-align: left;
+      }
+      .quick-add-panel h2 {
+          margin: 0 0 12px 0;
+          text-align: center;
+      }
+      .quick-add-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px;
+      }
+      .quick-add-card {
+          padding: 12px;
+          border: 1px solid #e7e7ee;
+          border-radius: 8px;
+          background-color: #fff;
+          text-align: center;
+      }
+      .quick-add-name {
+          font-weight: bold;
+          color: #222;
+      }
+      .quick-add-count {
+          margin: 8px 0 10px 0;
+          color: #555;
+      }
+      .quick-add-form {
+          display: block;
+          margin: 0;
+      }
+      .quick-add-button {
+          width: 100%;
+          background-color: #28a745;
+      }
+      .quick-add-button:hover {
+          background-color: #1f8a38;
+      }
       
       .back-to-menu {
           margin-top: 20px;
@@ -307,6 +351,23 @@
         </div>
       {% endif %}
     {% endwith %}
+
+    <div class="quick-add-panel">
+      <h2>Quick Add Body Stock</h2>
+      <div class="quick-add-grid">
+        {% for part in quick_add_parts %}
+          <div class="quick-add-card">
+            <div class="quick-add-name">{{ part.label }}</div>
+            <div class="quick-add-count">Current: {{ part.current_count }}</div>
+            <form method="POST" action="{{ url_for('bodies') }}" class="quick-add-form">
+              <input type="hidden" name="action" value="quick_add_body_part">
+              <input type="hidden" name="part_name" value="{{ part.part_name }}">
+              <button type="submit" class="quick-add-button" name="quick_amount" value="1">Add +1</button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
 
     <!-- Form to Add a New Completed Table -->
     <form method="POST" action="{{ url_for('bodies') }}">

@@ -350,6 +350,11 @@ LAMINATE_COLOR_KEY_TO_LABEL = {
     "stone": "Stone",
     "rustic_black": "Rustic Black",
 }
+BODIES_QUICK_ADD_PARTS = [
+    {"label": "Black Laminate", "part_name": "Laminate - Black", "hardware": False},
+    {"label": "7ft Bolt Bag", "part_name": "7ft Bag of Bolts", "hardware": True},
+    {"label": "6ft Bolt Bag", "part_name": "6ft Bag of Bolts", "hardware": True},
+]
 FELT_PART_NAME = "Felt"
 LEGACY_FELT_PART_NAMES = ("7ft Felt", "6ft Felt")
 PACKAGING_PART_NAMES = [
@@ -4196,7 +4201,52 @@ def bodies():
         if base_serial_for_pod_matching(pod_serial) not in completed_base_serials:
             unconverted_pods.append(pod)
 
+    def ensure_quick_add_hardware_part(part_name):
+        hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
+        if not hardware_part:
+            db.session.add(HardwarePart(name=part_name, initial_count=0))
+            db.session.flush()
+        return part_name
+
     if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'quick_add_body_part':
+            part_name = request.form.get('part_name', '').strip()
+            quick_part = next(
+                (part for part in BODIES_QUICK_ADD_PARTS if part["part_name"] == part_name),
+                None
+            )
+            if not quick_part:
+                flash("Invalid quick-add part selected.", "error")
+                return redirect(url_for('bodies'))
+
+            try:
+                amount = int(request.form.get('quick_amount', 1))
+            except ValueError:
+                flash("Quick-add amount must be a whole number.", "error")
+                return redirect(url_for('bodies'))
+
+            amount = abs(amount)
+            if amount <= 0:
+                flash("Quick-add amount must be greater than zero.", "error")
+                return redirect(url_for('bodies'))
+
+            canonical_part_name = part_name
+            if quick_part.get("hardware"):
+                canonical_part_name = ensure_quick_add_hardware_part(part_name)
+
+            current_count = _latest_part_count(canonical_part_name)
+            new_count = current_count + amount
+            db.session.add(PrintedPartsCount(
+                part_name=canonical_part_name,
+                count=new_count,
+                date=date.today(),
+                time=datetime.utcnow().time()
+            ))
+            db.session.commit()
+            flash(f"Added {amount} to {quick_part['label']}. New count: {new_count}", "success")
+            return redirect(url_for('bodies'))
+
         worker = session['worker']
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
@@ -4702,6 +4752,12 @@ def bodies():
     # Get the current finish time to pre-populate the form
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+    quick_add_parts = []
+    for quick_part in BODIES_QUICK_ADD_PARTS:
+        quick_add_parts.append({
+            **quick_part,
+            "current_count": _latest_part_count(quick_part["part_name"]),
+        })
 
     return render_template(
         'bodies.html',
@@ -4717,7 +4773,8 @@ def bodies():
         current_production_7ft=current_production_7ft,
         current_production_6ft=current_production_6ft,
         default_color=default_color,
-        default_table_type=default_table_type
+        default_table_type=default_table_type,
+        quick_add_parts=quick_add_parts
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
