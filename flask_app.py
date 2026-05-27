@@ -6069,16 +6069,33 @@ def cnc_dashboard():
     ensure_cnc_tables()
     queues = _cnc_queue_snapshot()
     today = date.today()
+    completed_base_filters = (
+        CncQueueItem.status == CNC_STATUS_COMPLETED,
+        CncQueueItem.completed_at.isnot(None),
+    )
+    completed_today_filters = completed_base_filters + (
+        extract('year', CncQueueItem.completed_at) == today.year,
+        extract('month', CncQueueItem.completed_at) == today.month,
+        extract('day', CncQueueItem.completed_at) == today.day,
+    )
+    completed_month_filters = completed_base_filters + (
+        extract('year', CncQueueItem.completed_at) == today.year,
+        extract('month', CncQueueItem.completed_at) == today.month,
+    )
+    completed_today_count = (
+        db.session.query(func.count(CncQueueItem.id))
+        .filter(*completed_today_filters)
+        .scalar() or 0
+    )
+    completed_month_count = (
+        db.session.query(func.count(CncQueueItem.id))
+        .filter(*completed_month_filters)
+        .scalar() or 0
+    )
     completed_today = (
         CncQueueItem.query
         .options(joinedload(CncQueueItem.job))
-        .filter(
-            CncQueueItem.status == CNC_STATUS_COMPLETED,
-            CncQueueItem.completed_at.isnot(None),
-            extract('year', CncQueueItem.completed_at) == today.year,
-            extract('month', CncQueueItem.completed_at) == today.month,
-            extract('day', CncQueueItem.completed_at) == today.day
-        )
+        .filter(*completed_today_filters)
         .order_by(CncQueueItem.completed_at.desc(), CncQueueItem.id.desc())
         .limit(200)
         .all()
@@ -6089,6 +6106,8 @@ def cnc_dashboard():
         queues=queues,
         machine_numbers=CNC_MACHINE_NUMBERS,
         completed_today=completed_today,
+        completed_today_count=completed_today_count,
+        completed_month_count=completed_month_count,
         render_time=london_now().strftime("%d/%m/%Y %H:%M")
     )
 
