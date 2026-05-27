@@ -194,6 +194,54 @@
       .quick-add-button:hover {
           background-color: #1f8a38;
       }
+
+      .type-breakdown {
+          margin-bottom: 20px;
+          padding: 15px;
+          border-radius: 8px;
+          background-color: #f7f7fb;
+          border: 1px solid #dfe3eb;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+      }
+      .type-breakdown h2 {
+          margin: 0 0 12px 0;
+      }
+      .type-summary {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-bottom: 14px;
+      }
+      .type-stat {
+          border-radius: 8px;
+          padding: 14px;
+          color: #fff;
+          text-align: center;
+      }
+      .type-stat.champion {
+          background-color: #0f766e;
+      }
+      .type-stat.lite {
+          background-color: #1d4ed8;
+      }
+      .type-stat-label {
+          font-size: 1.1em;
+          font-weight: bold;
+      }
+      .type-stat-value {
+          margin-top: 6px;
+          font-size: 2.6em;
+          line-height: 1;
+          font-weight: bold;
+      }
+      .type-breakdown table {
+          margin-top: 10px;
+      }
+      @media (max-width: 700px) {
+          .type-summary {
+              grid-template-columns: 1fr;
+          }
+      }
       
       .back-to-menu {
           margin-top: 20px;
@@ -333,6 +381,44 @@
         <span>7ft Tables: {{ current_production_7ft }}</span>
         <span>6ft Tables: {{ current_production_6ft }}</span>
       </div>
+    </div>
+
+    <div class="type-breakdown">
+      <h2>Champion vs Lite This Month</h2>
+      <div class="type-summary">
+        <div class="type-stat champion">
+          <div class="type-stat-label">Champion Premium</div>
+          <div class="type-stat-value">{{ body_type_totals.champion }}</div>
+        </div>
+        <div class="type-stat lite">
+          <div class="type-stat-label">Champion Lite</div>
+          <div class="type-stat-value">{{ body_type_totals.lite }}</div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Worker</th>
+            <th>Champion Premium</th>
+            <th>Champion Lite</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in body_type_worker_rows %}
+            <tr>
+              <td>{{ row.worker }}</td>
+              <td>{{ row.champion }}</td>
+              <td>{{ row.lite }}</td>
+              <td>{{ row.total }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="4">No bodies completed this month yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
 
     {% if logged_in_worker %}

@@ -4577,6 +4577,27 @@ def bodies():
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if serial_is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not serial_is_6ft(table.serial_number))
+    body_type_totals = {"champion": 0, "lite": 0}
+    body_type_worker_counts = {}
+    for table in all_bodies_this_month:
+        table_type, _ = get_body_build_metadata(table)
+        type_key = "lite" if table_type == TABLE_TYPE_LITE else "champion"
+        body_type_totals[type_key] += 1
+
+        worker_name = (table.worker or "Unknown").strip() or "Unknown"
+        if worker_name not in body_type_worker_counts:
+            body_type_worker_counts[worker_name] = {
+                "worker": worker_name,
+                "champion": 0,
+                "lite": 0,
+                "total": 0,
+            }
+        body_type_worker_counts[worker_name][type_key] += 1
+        body_type_worker_counts[worker_name]["total"] += 1
+    body_type_worker_rows = sorted(
+        body_type_worker_counts.values(),
+        key=lambda row: (-row["total"], row["worker"].lower())
+    )
 
     # Daily history (last 5 working days)
     def get_last_n_working_days(n, reference_date):
@@ -4774,7 +4795,9 @@ def bodies():
         current_production_6ft=current_production_6ft,
         default_color=default_color,
         default_table_type=default_table_type,
-        quick_add_parts=quick_add_parts
+        quick_add_parts=quick_add_parts,
+        body_type_totals=body_type_totals,
+        body_type_worker_rows=body_type_worker_rows
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
