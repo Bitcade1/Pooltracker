@@ -632,7 +632,12 @@ def bonus_goal_progress(area, year=None, month=None):
         counts = {(worker or "Unknown"): count for worker, count in rows}
     elif area == "cnc":
         rows = (
-            db.session.query(CncQueueItem.completed_by, func.count(CncQueueItem.id))
+            db.session.query(
+                CncQueueItem.completed_by,
+                func.coalesce(func.sum(CncJob.quantity), 0)
+            )
+            .select_from(CncQueueItem)
+            .join(CncJob, CncQueueItem.job_id == CncJob.id)
             .filter(
                 CncQueueItem.status == CNC_STATUS_COMPLETED,
                 CncQueueItem.completed_at.isnot(None),
@@ -642,7 +647,7 @@ def bonus_goal_progress(area, year=None, month=None):
             .group_by(CncQueueItem.completed_by)
             .all()
         )
-        counts = {(worker or "Unknown"): count for worker, count in rows}
+        counts = {(worker or "Unknown"): int(count or 0) for worker, count in rows}
 
     progress_rows = []
     for goal in goals:
@@ -6374,15 +6379,21 @@ def cnc_dashboard():
         extract('month', CncQueueItem.completed_at) == today.month,
     )
     completed_today_count = (
-        db.session.query(func.count(CncQueueItem.id))
+        db.session.query(func.coalesce(func.sum(CncJob.quantity), 0))
+        .select_from(CncQueueItem)
+        .join(CncJob, CncQueueItem.job_id == CncJob.id)
         .filter(*completed_today_filters)
         .scalar() or 0
     )
+    completed_today_count = int(completed_today_count or 0)
     completed_month_count = (
-        db.session.query(func.count(CncQueueItem.id))
+        db.session.query(func.coalesce(func.sum(CncJob.quantity), 0))
+        .select_from(CncQueueItem)
+        .join(CncJob, CncQueueItem.job_id == CncJob.id)
         .filter(*completed_month_filters)
         .scalar() or 0
     )
+    completed_month_count = int(completed_month_count or 0)
     completed_today = (
         CncQueueItem.query
         .options(joinedload(CncQueueItem.job))
