@@ -385,7 +385,17 @@
         {% for stage in stages %}
             <a class="job-page-card" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
                 <strong>{{ stage.short_label }}</strong>
-                <span>{{ stage.total }} in progress</span>
+                {% if stage.key == 'punch_rubber_ends' %}
+                    <span>
+                        {% for group in stage.groups %}
+                            {% for variant in group.variants %}
+                                {{ variant.label }}: {{ variant.count }}{% if not loop.last %} | {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    </span>
+                {% else %}
+                    <span>{{ stage.total }} in progress</span>
+                {% endif %}
             </a>
         {% endfor %}
     </section>

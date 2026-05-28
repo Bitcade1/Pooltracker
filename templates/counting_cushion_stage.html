@@ -390,7 +390,7 @@
         <input type="hidden" name="end_type" class="selected-end" value="{{ single_variant.end_type if single_variant else '' }}">
         <button class="add-btn {% if not single_option %}hidden{% endif %}" type="submit" id="add-button">
             <span class="add-label" id="add-label">{% if single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
-            <span class="add-count" id="add-count">{% if single_option %}Current {{ single_variant.count }}{% else %}Current 0{% endif %}</span>
+            <span class="add-count" id="add-count">{% if single_option %}{{ single_variant.count_label }}{% else %}Current 0{% endif %}</span>
         </button>
     </form>
 
@@ -523,13 +523,13 @@
             lockedLabel.textContent = variant.lock_label;
         }
         if (lockedMeta) {
-            lockedMeta.textContent = `Current count ${variant.count}`;
+            lockedMeta.textContent = variant.count_label || `Current ${variant.count}`;
         }
         if (lockedTiming) {
             lockedTiming.textContent = `Avg ${variant.timing.average_display} | Last ${variant.timing.last_display}`;
         }
         addLabel.textContent = `+1 ${variant.lock_label}`;
-        addCount.textContent = `Current ${variant.count}`;
+        addCount.textContent = variant.count_label || `Current ${variant.count}`;
         newCount.value = variant.count;
         correctionSummary.textContent = variant.lock_label;
 

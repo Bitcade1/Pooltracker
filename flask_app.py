@@ -4765,6 +4765,7 @@ def build_cushion_stage_context(include_timing=False):
                     "shape_no": 0,
                     "end_type": "",
                     "count": count,
+                    "count_label": f"Current {count}",
                     "timing": timing,
                 }]
             })
@@ -4781,6 +4782,7 @@ def build_cushion_stage_context(include_timing=False):
                     "shape_no": 0,
                     "end_type": end_type,
                     "count": count,
+                    "count_label": f"Stock {count}",
                     "timing": timing,
                 })
             groups.append({"label": "Rubber ends", "variants": variants})
@@ -4798,6 +4800,7 @@ def build_cushion_stage_context(include_timing=False):
                     "shape_no": 0,
                     "end_type": "",
                     "count": count,
+                    "count_label": f"Stock {count}",
                     "timing": timing,
                 })
             groups.append({"label": "Completed sets", "variants": variants})
@@ -4815,6 +4818,7 @@ def build_cushion_stage_context(include_timing=False):
                         "shape_no": shape_no,
                         "end_type": "",
                         "count": count,
+                        "count_label": f"Current {count}",
                         "timing": timing,
                     })
                 groups.append({"label": size_label, "variants": variants})
