@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+
+{% block title %}Bonus Goals{% endblock %}
+
+{% block content %}
+<style>
+    .bonus-page {
+        max-width: 1100px;
+        margin: 0 auto;
+        text-align: left;
+    }
+
+    .page-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+
+    .page-head h1 {
+        margin: 0;
+    }
+
+    .month-form,
+    .goals-form {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 8px;
+        padding: 14px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
+    }
+
+    .month-form {
+        display: flex;
+        flex-direction: row;
+        align-items: end;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .month-form label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-weight: bold;
+    }
+
+    .month-form select {
+        min-width: 150px;
+    }
+
+    .btn {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        border: none;
+        border-radius: 6px;
+        padding: 10px 14px;
+        color: #fff;
+        background: #0f172a;
+        text-decoration: none;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .btn:hover {
+        background: #1e293b;
+    }
+
+    .btn-primary {
+        background: #1d4ed8;
+    }
+
+    .btn-primary:hover {
+        background: #1e40af;
+    }
+
+    .goals-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .goals-table th,
+    .goals-table td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 10px;
+        text-align: center;
+    }
+
+    .goals-table th:first-child,
+    .goals-table td:first-child {
+        text-align: left;
+        width: 24%;
+    }
+
+    .goals-table input[type="number"] {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        text-align: center;
+        font-size: 1rem;
+        box-sizing: border-box;
+    }
+
+    .empty-state {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 8px;
+        padding: 14px;
+        color: #7c2d12;
+        font-weight: bold;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 14px;
+    }
+
+    @media (max-width: 760px) {
+        .month-form {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .goals-table {
+            table-layout: auto;
+        }
+
+        .goals-table th,
+        .goals-table td {
+            padding: 8px 6px;
+        }
+    }
+</style>
+
+<div class="bonus-page">
+    <div class="page-head">
+        <h1>Bonus Goals</h1>
+        <a class="btn" href="{{ url_for('top_rail_dashboard_view') }}">Top Rail Dashboard</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <p class="flash {{ category }}">{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <form class="month-form" method="GET" action="{{ url_for('bonus_goals') }}">
+        <label>
+            Month
+            <select name="month">
+                {% for option in month_options %}
+                    <option value="{{ option.value }}" {% if option.value == selected_month %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Year
+            <select name="year">
+                {% for year in year_options %}
+                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn">Load Month</button>
+    </form>
+
+    {% if rows %}
+        <form class="goals-form" method="POST" action="{{ url_for('bonus_goals') }}">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <input type="hidden" name="year" value="{{ selected_year }}">
+            <input type="hidden" name="row_count" value="{{ row_count }}">
+
+            <h2>{{ selected_month_label }}</h2>
+            <table class="goals-table">
+                <thead>
+                    <tr>
+                        <th>Worker</th>
+                        {% for area in areas %}
+                            <th>{{ area.label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>
+                                <strong>{{ row.worker }}</strong>
+                                <input type="hidden" name="worker_{{ row.index }}" value="{{ row.worker }}">
+                            </td>
+                            {% for area in areas %}
+                                <td>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        name="target_{{ area.key }}_{{ row.index }}"
+                                        value="{{ row.targets[area.key] }}"
+                                        placeholder="0"
+                                    >
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Bonus Goals</button>
+            </div>
+        </form>
+    {% else %}
+        <div class="empty-state">No workers are set up yet. Add workers in Admin before setting bonus goals.</div>
+    {% endif %}
+</div>
+{% endblock %}

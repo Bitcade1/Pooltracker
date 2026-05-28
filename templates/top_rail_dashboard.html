@@ -101,6 +101,118 @@
         border-left: 4px solid #27ae60;
     }
 
+    .bonus-panel {
+        background: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        padding: 0.85rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .bonus-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .bonus-head h3 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #1f2d3d;
+    }
+
+    .bonus-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.55rem 0.8rem;
+        border-radius: 999px;
+        background: #0f172a;
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 800;
+    }
+
+    .bonus-link:hover {
+        background: #1e293b;
+    }
+
+    .bonus-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .bonus-card {
+        border: 1px solid #dbe4ef;
+        border-radius: 10px;
+        padding: 0.85rem;
+        background: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+    }
+
+    .bonus-card.is-complete {
+        background: #ecfdf5;
+        border-color: #16a34a;
+    }
+
+    .bonus-worker {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #1f2d3d;
+    }
+
+    .bonus-count {
+        color: #475569;
+        white-space: nowrap;
+    }
+
+    .bonus-track {
+        height: 22px;
+        border-radius: 999px;
+        background: #dbe4ef;
+        overflow: hidden;
+    }
+
+    .bonus-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #1d4ed8, #0f766e);
+        transition: width 0.25s ease;
+    }
+
+    .bonus-card.is-complete .bonus-fill {
+        background: #16a34a;
+    }
+
+    .bonus-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.6rem;
+        color: #475569;
+        font-weight: 700;
+    }
+
+    .bonus-empty {
+        padding: 0.9rem;
+        border-radius: 8px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #7c2d12;
+        font-weight: 800;
+    }
+
     .warning-banner {
         background: #ffebee;
         border: 1px solid #c62828;
@@ -318,6 +430,38 @@
             <span class="stat-value">{{ avg_top_rail_time }}</span>
             <span class="stat-label">Last rail: {{ last_top_rail_time }}</span>
         </div>
+    </section>
+
+    <section class="bonus-panel">
+        <div class="bonus-head">
+            <h3>Bonus Progress - {{ bonus_month_label }}</h3>
+            <a class="bonus-link" href="{{ url_for('bonus_goals') }}">Manage Goals</a>
+        </div>
+        {% if bonus_progress %}
+            <div class="bonus-grid">
+                {% for goal in bonus_progress %}
+                    <article class="bonus-card {% if goal.target_hit %}is-complete{% endif %}">
+                        <div class="bonus-worker">
+                            <span>{{ goal.worker }}</span>
+                            <span class="bonus-count">{{ goal.current }} / {{ goal.target }}</span>
+                        </div>
+                        <div class="bonus-track" aria-label="{{ goal.worker }} bonus progress">
+                            <div class="bonus-fill" style="width: {{ goal.percentage_capped }}%;"></div>
+                        </div>
+                        <div class="bonus-meta">
+                            <span>{{ goal.percentage }}%</span>
+                            {% if goal.target_hit %}
+                                <span>Target hit</span>
+                            {% else %}
+                                <span>{{ goal.remaining }} to go</span>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="bonus-empty">No top rail bonus goals are set for this month yet.</div>
+        {% endif %}
     </section>
 
     {% if min_rails_possible is not none and min_rails_possible <= 10 %}

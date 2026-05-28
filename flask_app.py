@@ -552,6 +552,88 @@ class ProductionSchedule(db.Model):
         return f"<ProductionSchedule {self.month}/{self.year} 7ft={self.target_7ft} 6ft={self.target_6ft}>"
 
 
+class BonusGoal(db.Model):
+    __tablename__ = 'bonus_goal'
+    __table_args__ = (
+        db.UniqueConstraint('area', 'worker_name', 'year', 'month', name='uq_bonus_goal_area_worker_month'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    area = db.Column(db.String(30), nullable=False)
+    worker_name = db.Column(db.String(50), nullable=False)
+    target_count = db.Column(db.Integer, default=0, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+
+
+BONUS_GOAL_AREAS = [
+    {"key": "pods", "label": "Pods"},
+    {"key": "bodies", "label": "Bodies"},
+    {"key": "top_rails", "label": "Top Rails"},
+    {"key": "cnc", "label": "CNC"},
+]
+BONUS_GOAL_AREA_LABELS = {area["key"]: area["label"] for area in BONUS_GOAL_AREAS}
+
+
+def ensure_bonus_goal_tables():
+    BonusGoal.__table__.create(db.engine, checkfirst=True)
+
+
+def bonus_goal_progress(area, year=None, month=None):
+    ensure_bonus_goal_tables()
+    today = date.today()
+    year = int(year or today.year)
+    month = int(month or today.month)
+
+    goals = (
+        BonusGoal.query
+        .filter_by(area=area, year=year, month=month, active=True)
+        .filter(BonusGoal.target_count > 0)
+        .order_by(BonusGoal.worker_name.asc())
+        .all()
+    )
+    if not goals:
+        return []
+
+    counts = {}
+    if area == "top_rails":
+        rows = (
+            db.session.query(TopRail.worker, func.count(TopRail.id))
+            .filter(
+                extract('year', TopRail.date) == year,
+                extract('month', TopRail.date) == month
+            )
+            .group_by(TopRail.worker)
+            .all()
+        )
+        counts = {(worker or "Unknown"): count for worker, count in rows}
+
+    progress_rows = []
+    for goal in goals:
+        current_count = counts.get(goal.worker_name, 0)
+        target_count = goal.target_count or 0
+        percentage = round((current_count / target_count) * 100) if target_count else 0
+        remaining = max(target_count - current_count, 0)
+        progress_rows.append({
+            "worker": goal.worker_name,
+            "current": current_count,
+            "target": target_count,
+            "percentage": percentage,
+            "percentage_capped": min(percentage, 100),
+            "remaining": remaining,
+            "target_hit": current_count >= target_count,
+        })
+
+    return sorted(progress_rows, key=lambda row: (-row["percentage"], row["worker"].lower()))
+
+
+def bonus_goal_month_label(year=None, month=None):
+    today = date.today()
+    year = int(year or today.year)
+    month = int(month or today.month)
+    return date(year=year, month=month, day=1).strftime("%B %Y")
+
 
 
 
@@ -5468,6 +5550,125 @@ def _next_body_serial_and_size():
     return next_serial, default_size
 
 
+@app.route('/bonus_goals', methods=['GET', 'POST'])
+def bonus_goals():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_bonus_goal_tables()
+    today = date.today()
+
+    if request.method == 'POST':
+        try:
+            selected_year = int(request.form.get('year', today.year))
+            selected_month = int(request.form.get('month', today.month))
+        except (TypeError, ValueError):
+            flash("Invalid bonus goal month.", "error")
+            return redirect(url_for('bonus_goals'))
+
+        if selected_month < 1 or selected_month > 12:
+            flash("Invalid bonus goal month.", "error")
+            return redirect(url_for('bonus_goals'))
+
+        try:
+            row_count = int(request.form.get('row_count', 0))
+        except (TypeError, ValueError):
+            row_count = 0
+
+        for index in range(row_count):
+            worker_name = (request.form.get(f"worker_{index}") or "").strip()
+            if not worker_name:
+                continue
+            for area in BONUS_GOAL_AREA_LABELS:
+                raw_target = (request.form.get(f"target_{area}_{index}") or "").strip()
+                try:
+                    target_count = int(raw_target) if raw_target else 0
+                except ValueError:
+                    flash(f"Invalid target for {worker_name}.", "error")
+                    return redirect(url_for('bonus_goals', year=selected_year, month=selected_month))
+                target_count = max(target_count, 0)
+
+                goal = BonusGoal.query.filter_by(
+                    area=area,
+                    worker_name=worker_name,
+                    year=selected_year,
+                    month=selected_month
+                ).first()
+                if target_count > 0:
+                    if not goal:
+                        goal = BonusGoal(
+                            area=area,
+                            worker_name=worker_name,
+                            year=selected_year,
+                            month=selected_month
+                        )
+                        db.session.add(goal)
+                    goal.target_count = target_count
+                    goal.active = True
+                elif goal:
+                    db.session.delete(goal)
+
+        db.session.commit()
+        flash("Bonus goals saved.", "success")
+        return redirect(url_for('bonus_goals', year=selected_year, month=selected_month))
+
+    try:
+        selected_year = int(request.args.get('year', today.year))
+        selected_month = int(request.args.get('month', today.month))
+    except (TypeError, ValueError):
+        selected_year = today.year
+        selected_month = today.month
+
+    if selected_month < 1 or selected_month > 12:
+        selected_month = today.month
+
+    worker_names = {
+        worker.name
+        for worker in Worker.query.order_by(Worker.name.asc()).all()
+        if worker.name
+    }
+    worker_names.update(
+        goal.worker_name
+        for goal in BonusGoal.query.filter_by(year=selected_year, month=selected_month).all()
+        if goal.worker_name
+    )
+    worker_names = sorted(worker_names, key=lambda name: name.lower())
+
+    existing_goals = {
+        (goal.worker_name, goal.area): goal.target_count
+        for goal in BonusGoal.query.filter_by(year=selected_year, month=selected_month).all()
+    }
+    rows = []
+    for index, worker_name in enumerate(worker_names):
+        rows.append({
+            "index": index,
+            "worker": worker_name,
+            "targets": {
+                area["key"]: existing_goals.get((worker_name, area["key"]), "")
+                for area in BONUS_GOAL_AREAS
+            }
+        })
+
+    month_options = [
+        {"value": month, "label": date(selected_year, month, 1).strftime("%B")}
+        for month in range(1, 13)
+    ]
+    year_options = list(range(today.year - 1, today.year + 3))
+
+    return render_template(
+        'bonus_goals.html',
+        areas=BONUS_GOAL_AREAS,
+        rows=rows,
+        row_count=len(rows),
+        selected_year=selected_year,
+        selected_month=selected_month,
+        selected_month_label=bonus_goal_month_label(selected_year, selected_month),
+        month_options=month_options,
+        year_options=year_options
+    )
+
+
 @app.route('/top_rail_dashboard')
 def top_rail_dashboard_view():
     today = date.today()
@@ -5636,6 +5837,7 @@ def top_rail_dashboard_view():
 
     avg_top_rail_time = format_avg_duration(total_duration_seconds, counted_rails)
     last_top_rail_time = format_avg_duration(last_rail_duration.total_seconds(), 1) if last_rail_duration else "N/A"
+    bonus_progress = bonus_goal_progress("top_rails", today.year, today.month)
 
     return render_template(
         'top_rail_dashboard.html',
@@ -5649,7 +5851,9 @@ def top_rail_dashboard_view():
         min_rails_possible=min_rails_possible,
         deficits_by_size=deficits_by_size,
         avg_top_rail_time=avg_top_rail_time,
-        last_top_rail_time=last_top_rail_time
+        last_top_rail_time=last_top_rail_time,
+        bonus_progress=bonus_progress,
+        bonus_month_label=bonus_goal_month_label(today.year, today.month)
     )
 
 
