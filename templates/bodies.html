@@ -397,12 +397,17 @@
         <span>6ft Tables: {{ target_6ft }}</span>
       </div>
     </div>
-    <!-- New Current Production Section -->
-    <div class="production-targets">
-      <div class="prod-title">Current Production This Month</div>
-      <div class="prod-values">
-        <span>7ft Tables: {{ current_production_7ft }}</span>
-        <span>6ft Tables: {{ current_production_6ft }}</span>
+    <div class="type-breakdown">
+      <h2>Current Production This Month</h2>
+      <div class="type-summary">
+        <div class="type-stat champion">
+          <div class="type-stat-label">7ft Tables</div>
+          <div class="type-stat-value">{{ current_production_7ft }}</div>
+        </div>
+        <div class="type-stat lite">
+          <div class="type-stat-label">6ft Tables</div>
+          <div class="type-stat-value">{{ current_production_6ft }}</div>
+        </div>
       </div>
     </div>
 
