@@ -4514,8 +4514,12 @@ def cushion_input_requirements(stage_key, size_label, shape_no, end_type):
 
     if stage_key == "glue_ends":
         requirements.append(("shape_cushions", size_label, shape_no, ""))
-        requirements.append(("punch_rubber_ends", "", 0, "Big end"))
-        requirements.append(("punch_rubber_ends", "", 0, "Small end"))
+        if shape_no in (1, 6):
+            requirements.append(("punch_rubber_ends", "", 0, "Big end"))
+            requirements.append(("punch_rubber_ends", "", 0, "Big end"))
+        else:
+            requirements.append(("punch_rubber_ends", "", 0, "Big end"))
+            requirements.append(("punch_rubber_ends", "", 0, "Small end"))
 
     return requirements
 
@@ -4589,18 +4593,25 @@ def complete_available_cushion_sets(size_label, worker):
 def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
     size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
 
-    for input_stage_key, input_size, input_shape, input_end in cushion_input_requirements(stage_key, size_label, shape_no, end_type):
-        input_record = get_cushion_count_record(input_stage_key, input_size, input_shape, input_end, create=True)
-        if input_record.count <= 0:
-            raise ValueError(f"Not enough {cushion_variant_display(input_stage_key, input_record.size_label, input_record.shape_no, input_record.end_type)} available.")
+    requirements = cushion_input_requirements(stage_key, size_label, shape_no, end_type)
+    required_counts = defaultdict(int)
+    for requirement in requirements:
+        required_counts[requirement] += 1
 
-    for input_stage_key, input_size, input_shape, input_end in cushion_input_requirements(stage_key, size_label, shape_no, end_type):
+    for (input_stage_key, input_size, input_shape, input_end), required_count in required_counts.items():
+        input_record = get_cushion_count_record(input_stage_key, input_size, input_shape, input_end, create=True)
+        if input_record.count < required_count:
+            available = input_record.count
+            label = cushion_variant_display(input_stage_key, input_record.size_label, input_record.shape_no, input_record.end_type)
+            raise ValueError(f"Not enough {label} available. Need {required_count}, have {available}.")
+
+    for (input_stage_key, input_size, input_shape, input_end), required_count in required_counts.items():
         apply_cushion_count_delta(
             input_stage_key,
             input_size,
             input_shape,
             input_end,
-            -1,
+            -required_count,
             worker,
             action_type="move_out",
             note=f"Moved to {CUSHION_STAGE_BY_KEY[stage_key]['label']}"

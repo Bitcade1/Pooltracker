@@ -74,49 +74,6 @@
         flex-wrap: wrap;
     }
 
-    .stage-nav {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-    }
-
-    .stage-nav-link {
-        min-height: 74px;
-        border-radius: 12px;
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        color: #ffffff;
-        background: #475569;
-        text-decoration: none;
-        text-align: center;
-        font-weight: 900;
-    }
-
-    .stage-nav-link.next {
-        background: #1d4ed8;
-    }
-
-    .stage-nav-link.disabled {
-        background: #e2e8f0;
-        color: #64748b;
-        pointer-events: none;
-    }
-
-    .stage-nav-kicker {
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .stage-nav-name {
-        font-size: 1.35rem;
-        line-height: 1.05;
-    }
-
     .link-btn,
     .secondary-btn,
     .lock-btn {
@@ -148,6 +105,14 @@
     .secondary-btn:hover,
     .lock-btn:hover {
         filter: brightness(0.92);
+    }
+
+    .link-btn.previous {
+        background: #475569;
+    }
+
+    .link-btn.next {
+        background: #1d4ed8;
     }
 
     .panel {
@@ -337,7 +302,13 @@
             <div class="page-subtitle">{{ stage.unit_label }} at this stage: {{ stage.total }}</div>
         </div>
         <div class="head-actions">
+            {% if previous_stage %}
+                <a class="link-btn previous" href="{{ url_for('counting_cushion_stage', stage_key=previous_stage.key) }}">Previous: {{ previous_stage.short_label }}</a>
+            {% endif %}
             <a class="link-btn" href="{{ overview_url }}">All Stages</a>
+            {% if next_stage %}
+                <a class="link-btn next" href="{{ url_for('counting_cushion_stage', stage_key=next_stage.key) }}">Next: {{ next_stage.short_label }}</a>
+            {% endif %}
             <a class="link-btn" href="{{ admin_url }}">Admin</a>
         </div>
     </header>
@@ -351,32 +322,6 @@
             </div>
         {% endif %}
     {% endwith %}
-
-    <nav class="stage-nav" aria-label="Cushion stage navigation">
-        {% if previous_stage %}
-            <a class="stage-nav-link previous" href="{{ url_for('counting_cushion_stage', stage_key=previous_stage.key) }}">
-                <span class="stage-nav-kicker">Previous Stage</span>
-                <span class="stage-nav-name">{{ previous_stage.short_label }}</span>
-            </a>
-        {% else %}
-            <span class="stage-nav-link disabled">
-                <span class="stage-nav-kicker">Previous Stage</span>
-                <span class="stage-nav-name">None</span>
-            </span>
-        {% endif %}
-
-        {% if next_stage %}
-            <a class="stage-nav-link next" href="{{ url_for('counting_cushion_stage', stage_key=next_stage.key) }}">
-                <span class="stage-nav-kicker">Next Stage</span>
-                <span class="stage-nav-name">{{ next_stage.short_label }}</span>
-            </a>
-        {% else %}
-            <span class="stage-nav-link disabled">
-                <span class="stage-nav-kicker">Next Stage</span>
-                <span class="stage-nav-name">None</span>
-            </span>
-        {% endif %}
-    </nav>
 
     {% set single_option = stage.variant == 'plain' and variants %}
     {% set single_variant = variants[0] if single_option else none %}
