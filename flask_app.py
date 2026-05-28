@@ -8295,10 +8295,8 @@ def counting_cushions():
                 )
                 db.session.commit()
 
-                message = f"Logged 1: {cushion_variant_display(stage_key, target_record.size_label, target_record.shape_no, target_record.end_type)}."
                 if completed_sets:
-                    message += f" Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock."
-                flash(message, "success")
+                    flash(f"Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock.", "success")
             elif action == "set_count":
                 stage_key = request.form.get('stage_key', '')
                 size_label = request.form.get('size_label', '')
@@ -8381,10 +8379,8 @@ def counting_cushion_stage(stage_key):
                     worker_name
                 )
                 db.session.commit()
-                message = f"Logged 1: {cushion_variant_display(stage_key, target_record.size_label, target_record.shape_no, target_record.end_type)}."
                 if completed_sets:
-                    message += f" Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock."
-                flash(message, "success")
+                    flash(f"Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock.", "success")
             elif action == "set_count":
                 new_count = request.form.get('new_count', 0)
                 record = set_cushion_stage_count(
