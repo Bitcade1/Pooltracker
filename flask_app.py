@@ -8328,20 +8328,8 @@ def counting_cushions():
 
         return redirect(url_for('counting_cushions'))
 
-    today_start = datetime.combine(date.today(), time.min)
     stage_context = build_cushion_stage_context(include_timing=True)
     stock_summary = cushion_stock_summary()
-    recent_logs = (
-        CushionWorkflowLog.query
-        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
-        .limit(20)
-        .all()
-    )
-    completed_today = (
-        CushionCompletedSet.query
-        .filter(CushionCompletedSet.completed_at >= today_start)
-        .count()
-    )
 
     return render_template(
         'counting_cushions.html',
@@ -8349,13 +8337,6 @@ def counting_cushions():
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
-        total_wip=sum(stage["total"] for stage in stage_context),
-        completed_today=completed_today,
-        recent_logs=recent_logs,
-        estimated_set_times={
-            size_label: cushion_format_duration(cushion_estimated_set_seconds(size_label))
-            for size_label in CUSHION_SIZES
-        },
         admin_url=url_for('cushion_production_admin')
     )
 
@@ -8424,13 +8405,6 @@ def counting_cushion_stage(stage_key):
         if item["key"] == stage_key
     )
     variants = flatten_cushion_stage_variants(stage_context)
-    recent_logs = (
-        CushionWorkflowLog.query
-        .filter(CushionWorkflowLog.stage_key == stage_key)
-        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
-        .limit(20)
-        .all()
-    )
 
     return render_template(
         'counting_cushion_stage.html',
@@ -8440,7 +8414,6 @@ def counting_cushion_stage(stage_key):
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         end_types=CUSHION_END_TYPES,
-        recent_logs=recent_logs,
         overview_url=url_for('counting_cushions'),
         admin_url=url_for('cushion_production_admin')
     )

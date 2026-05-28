@@ -394,47 +394,6 @@
         </div>
     </details>
 
-    <details class="panel">
-        <summary>
-            <span>Recent {{ stage.short_label }} Log</span>
-            <span>{{ recent_logs|length }}</span>
-        </summary>
-        <div class="panel-body">
-            {% if recent_logs %}
-                <table class="log-table">
-                    <thead>
-                        <tr>
-                            <th>When</th>
-                            <th>Worker</th>
-                            <th>Variant</th>
-                            <th>Action</th>
-                            <th>Count</th>
-                            <th>Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for entry in recent_logs %}
-                            <tr>
-                                <td>{{ entry.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td>{{ entry.worker }}</td>
-                                <td>
-                                    {% if entry.size_label %}{{ entry.size_label }}{% endif %}
-                                    {% if entry.shape_no %} Shape {{ entry.shape_no }}{% endif %}
-                                    {% if entry.end_type %}{{ entry.end_type }}{% endif %}
-                                    {% if not entry.size_label and not entry.shape_no and not entry.end_type %}{{ stage.short_label }}{% endif %}
-                                </td>
-                                <td>{{ entry.action_type }} {{ entry.delta }}</td>
-                                <td>{{ entry.count_after }}</td>
-                                <td>{{ entry.seconds_taken|duration if entry.seconds_taken else 'N/A' }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p>No work logged for this stage yet.</p>
-            {% endif %}
-        </div>
-    </details>
 </div>
 
 <script>

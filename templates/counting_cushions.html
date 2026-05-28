@@ -365,20 +365,12 @@
 
     <section class="stats-grid">
         <div class="stat-card">
-            <div class="stat-label">Work In Progress</div>
-            <div class="stat-value">{{ total_wip }}</div>
-        </div>
-        <div class="stat-card">
             <div class="stat-label">6ft Cushion Stock</div>
             <div class="stat-value">{{ stock_summary['6ft'] }}</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">7ft Cushion Stock</div>
             <div class="stat-value">{{ stock_summary['7ft'] }}</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Sets Completed Today</div>
-            <div class="stat-value">{{ completed_today }}</div>
         </div>
     </section>
 
@@ -391,134 +383,5 @@
         {% endfor %}
     </section>
 
-    {% for stage in stages %}
-        <details class="stage-panel">
-            <summary>
-                <span>{{ loop.index }}. {{ stage.label }}</span>
-                <span class="stage-total">{{ stage.total }}</span>
-            </summary>
-            <div class="stage-body">
-                <div class="stage-links">
-                    <a class="link-btn" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">Open Job Page</a>
-                </div>
-                {% for group in stage.groups %}
-                    <div class="variant-group">
-                        <h3>{{ group.label }}</h3>
-                        <div class="button-grid">
-                            {% for variant in group.variants %}
-                                <form class="count-form" method="POST" action="{{ url_for('counting_cushions') }}">
-                                    <input type="hidden" name="action" value="add">
-                                    <input type="hidden" name="stage_key" value="{{ stage.key }}">
-                                    <input type="hidden" name="size_label" value="{{ variant.size_label }}">
-                                    <input type="hidden" name="shape_no" value="{{ variant.shape_no }}">
-                                    <input type="hidden" name="end_type" value="{{ variant.end_type }}">
-                                    <button class="count-btn" type="submit">
-                                        <span class="btn-label">{{ variant.button_label }}</span>
-                                        <span class="btn-count">{{ variant.count }}</span>
-                                        <span class="btn-meta">Avg {{ variant.timing.average_display }} | Last {{ variant.timing.last_display }}</span>
-                                    </button>
-                                </form>
-                            {% endfor %}
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        </details>
-    {% endfor %}
-
-    <details class="info-panel">
-        <summary>
-            <span>Bundle Reconcile</span>
-            <span class="stage-total">Stock</span>
-        </summary>
-        <div class="info-body">
-            <p>Use this after correcting bundled counts. It moves any complete group of shapes 1 to 6 into finished cushion stock.</p>
-            <div class="mini-actions">
-                {% for size in sizes %}
-                    <form method="POST" action="{{ url_for('counting_cushions') }}">
-                        <input type="hidden" name="action" value="reconcile_bundles">
-                        <input type="hidden" name="size_label" value="{{ size }}">
-                        <button class="small-btn" type="submit">Reconcile {{ size }}</button>
-                    </form>
-                {% endfor %}
-            </div>
-            <p>Estimated full set time: 6ft {{ estimated_set_times['6ft'] }}, 7ft {{ estimated_set_times['7ft'] }}.</p>
-        </div>
-    </details>
-
-    <details class="info-panel">
-        <summary>
-            <span>Correct Counts</span>
-            <span class="stage-total">Edit</span>
-        </summary>
-        <div class="info-body">
-            {% for stage in stages %}
-                <div class="variant-group">
-                    <h3>{{ stage.label }}</h3>
-                    <div class="correction-grid">
-                        {% for group in stage.groups %}
-                            {% for variant in group.variants %}
-                                <div class="correction-card">
-                                    <div class="correction-title">
-                                        {{ group.label }}{% if group.label != variant.label %} - {{ variant.label }}{% endif %}
-                                    </div>
-                                    <form class="correction-form" method="POST" action="{{ url_for('counting_cushions') }}">
-                                        <input type="hidden" name="action" value="set_count">
-                                        <input type="hidden" name="stage_key" value="{{ stage.key }}">
-                                        <input type="hidden" name="size_label" value="{{ variant.size_label }}">
-                                        <input type="hidden" name="shape_no" value="{{ variant.shape_no }}">
-                                        <input type="hidden" name="end_type" value="{{ variant.end_type }}">
-                                        <input type="number" name="new_count" min="0" step="1" value="{{ variant.count }}">
-                                        <button class="small-btn" type="submit">Set</button>
-                                    </form>
-                                </div>
-                            {% endfor %}
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-    </details>
-
-    <details class="info-panel">
-        <summary>
-            <span>Recent Log</span>
-            <span class="stage-total">{{ recent_logs|length }}</span>
-        </summary>
-        <div class="info-body">
-            {% if recent_logs %}
-                <table class="log-table">
-                    <thead>
-                        <tr>
-                            <th>When</th>
-                            <th>Worker</th>
-                            <th>Action</th>
-                            <th>Count</th>
-                            <th>Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for entry in recent_logs %}
-                            <tr>
-                                <td>{{ entry.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td>{{ entry.worker }}</td>
-                                <td>
-                                    {{ entry.stage_label }}
-                                    {% if entry.size_label %} - {{ entry.size_label }}{% endif %}
-                                    {% if entry.shape_no %} - Shape {{ entry.shape_no }}{% endif %}
-                                    {% if entry.end_type %} - {{ entry.end_type }}{% endif %}
-                                    <br>{{ entry.action_type }} {{ entry.delta }}
-                                </td>
-                                <td>{{ entry.count_after }}</td>
-                                <td>{{ entry.seconds_taken|duration if entry.seconds_taken else 'N/A' }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p>No cushion work logged yet.</p>
-            {% endif %}
-        </div>
-    </details>
 </div>
 {% endblock %}
