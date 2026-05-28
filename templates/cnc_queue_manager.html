@@ -383,6 +383,7 @@
                                 <div class="line-top">
                                     <label><input type="checkbox" class="queue-select" value="{{ item.id }}"> Select</label>
                                     <div class="queue-actions">
+                                        <button type="button" class="btn btn-small move-top" data-item-id="{{ item.id }}">Top</button>
                                         <button type="button" class="btn btn-small move-up" data-item-id="{{ item.id }}">Up</button>
                                         <button type="button" class="btn btn-small move-down" data-item-id="{{ item.id }}">Down</button>
                                         <button type="button" class="btn btn-small duplicate-one" data-item-id="{{ item.id }}" data-copies="1">+1</button>
@@ -563,6 +564,19 @@
             await withReload(postJson("/api/cnc/queue/reorder", {
                 item_id: itemId,
                 direction: "up"
+            }));
+            return;
+        }
+
+        const topButton = event.target.closest(".move-top");
+        if (topButton) {
+            const itemId = parseInt(topButton.getAttribute("data-item-id"), 10);
+            if (!Number.isInteger(itemId)) {
+                return;
+            }
+            await withReload(postJson("/api/cnc/queue/reorder", {
+                item_id: itemId,
+                direction: "top"
             }));
             return;
         }

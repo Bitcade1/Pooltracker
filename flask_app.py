@@ -6542,8 +6542,8 @@ def api_cnc_queue_reorder():
         return jsonify({"success": False, "error": "Invalid queue item."}), 400
 
     direction = (data.get('direction') or '').strip().lower()
-    if direction not in ('up', 'down'):
-        return jsonify({"success": False, "error": "Direction must be 'up' or 'down'."}), 400
+    if direction not in ('up', 'down', 'top'):
+        return jsonify({"success": False, "error": "Direction must be 'up', 'down', or 'top'."}), 400
 
     item = CncQueueItem.query.get(item_id)
     if not item or item.status != CNC_STATUS_QUEUED:
@@ -6566,6 +6566,16 @@ def api_cnc_queue_reorder():
 
     if target_index is None:
         return jsonify({"success": False, "error": "Queue item not found in machine queue."}), 404
+
+    if direction == 'top':
+        if target_index == 0:
+            return jsonify({"success": True}), 200
+        machine_items.pop(target_index)
+        machine_items.insert(0, item)
+        for index, machine_item in enumerate(machine_items, start=1):
+            machine_item.position = index
+        db.session.commit()
+        return jsonify({"success": True}), 200
 
     if direction == 'up':
         swap_index = target_index - 1
