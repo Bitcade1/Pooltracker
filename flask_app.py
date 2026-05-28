@@ -6669,23 +6669,36 @@ def api_cnc_bulk_duplicate_same_queue_items():
     if not selected_items:
         return jsonify({"success": False, "error": "Selected queue items not found."}), 404
 
-    next_positions = {}
     created_count = 0
-
+    selected_ids_by_machine = defaultdict(set)
     for selected_item in selected_items:
-        machine_number = selected_item.machine_number
-        if machine_number not in next_positions:
-            next_positions[machine_number] = _cnc_queue_count(machine_number)
+        selected_ids_by_machine[selected_item.machine_number].add(selected_item.id)
 
-        for _ in range(copies):
-            next_positions[machine_number] += 1
-            db.session.add(CncQueueItem(
-                job_id=selected_item.job_id,
-                machine_number=machine_number,
-                position=next_positions[machine_number],
-                status=CNC_STATUS_QUEUED
-            ))
-            created_count += 1
+    for machine_number, selected_ids in selected_ids_by_machine.items():
+        machine_items = (
+            CncQueueItem.query
+            .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
+            .order_by(CncQueueItem.position.asc(), CncQueueItem.id.asc())
+            .all()
+        )
+        reordered_items = []
+        for machine_item in machine_items:
+            reordered_items.append(machine_item)
+            if machine_item.id not in selected_ids:
+                continue
+            for _ in range(copies):
+                duplicate_item = CncQueueItem(
+                    job_id=machine_item.job_id,
+                    machine_number=machine_number,
+                    position=0,
+                    status=CNC_STATUS_QUEUED
+                )
+                db.session.add(duplicate_item)
+                reordered_items.append(duplicate_item)
+                created_count += 1
+
+        for position, queue_item in enumerate(reordered_items, start=1):
+            queue_item.position = position
 
     db.session.commit()
     return jsonify({"success": True, "created_items": created_count}), 200
