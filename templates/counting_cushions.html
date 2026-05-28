@@ -125,6 +125,36 @@
         overflow: hidden;
     }
 
+    .job-page-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+    }
+
+    .job-page-card {
+        min-height: 86px;
+        border-radius: 12px;
+        background: #0f172a;
+        color: #ffffff;
+        text-decoration: none;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .job-page-card strong {
+        font-size: 1.15rem;
+        line-height: 1.05;
+    }
+
+    .job-page-card span {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #cbd5e1;
+    }
+
     .stage-panel summary,
     .info-panel summary {
         display: flex;
@@ -261,6 +291,13 @@
         margin-bottom: 12px;
     }
 
+    .stage-links {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
     .log-table {
         width: 100%;
         border-collapse: collapse;
@@ -345,13 +382,25 @@
         </div>
     </section>
 
+    <section class="job-page-grid" aria-label="Cushion job pages">
+        {% for stage in stages %}
+            <a class="job-page-card" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+                <strong>{{ stage.short_label }}</strong>
+                <span>{{ stage.total }} in progress</span>
+            </a>
+        {% endfor %}
+    </section>
+
     {% for stage in stages %}
-        <details class="stage-panel" {% if loop.index <= 4 %}open{% endif %}>
+        <details class="stage-panel">
             <summary>
                 <span>{{ loop.index }}. {{ stage.label }}</span>
                 <span class="stage-total">{{ stage.total }}</span>
             </summary>
             <div class="stage-body">
+                <div class="stage-links">
+                    <a class="link-btn" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">Open Job Page</a>
+                </div>
                 {% for group in stage.groups %}
                     <div class="variant-group">
                         <h3>{{ group.label }}</h3>

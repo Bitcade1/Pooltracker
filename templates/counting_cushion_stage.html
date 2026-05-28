@@ -1,0 +1,589 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ stage.label }}{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        display: block;
+        align-items: stretch;
+        justify-content: flex-start;
+        background: #f4f4f9;
+    }
+
+    .site-header,
+    .site-footer {
+        display: none;
+    }
+
+    .container {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        text-align: left;
+    }
+
+    .stage-page {
+        min-height: 100vh;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .page-head,
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 12px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .page-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 14px 16px;
+    }
+
+    .page-title {
+        margin: 0;
+        color: #1f2d3d;
+        font-size: clamp(2rem, 4vw, 3.3rem);
+        line-height: 1;
+    }
+
+    .page-subtitle {
+        margin-top: 6px;
+        color: #566573;
+        font-size: 1rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .head-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .link-btn,
+    .secondary-btn,
+    .lock-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 10px;
+        min-height: 48px;
+        padding: 0 16px;
+        background: #0f172a;
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+    .secondary-btn {
+        background: #475569;
+    }
+
+    .lock-btn {
+        background: #1d4ed8;
+        width: 100%;
+        font-size: 1.2rem;
+    }
+
+    .link-btn:hover,
+    .secondary-btn:hover,
+    .lock-btn:hover {
+        filter: brightness(0.92);
+    }
+
+    .panel {
+        padding: 14px;
+    }
+
+    .selector-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+        align-items: end;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        color: #334155;
+        font-weight: 900;
+    }
+
+    .field select,
+    .field input[type="number"] {
+        width: 100%;
+        min-height: 58px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0 12px;
+        font-size: 1.25rem;
+        font-weight: 800;
+        background: #ffffff;
+    }
+
+    .locked-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .locked-summary {
+        background: #f8fafc;
+        border: 1px solid #dbe4ef;
+        border-radius: 12px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .locked-label {
+        color: #1f2d3d;
+        font-size: clamp(1.8rem, 4vw, 3rem);
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .locked-meta {
+        color: #475569;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .add-form {
+        margin: 0;
+    }
+
+    .add-btn {
+        width: 100%;
+        min-height: 330px;
+        border: none;
+        border-radius: 18px;
+        background: #16a34a;
+        color: #ffffff;
+        cursor: pointer;
+        box-shadow: 0 10px 24px rgba(22, 163, 74, 0.22);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    .add-btn:active {
+        transform: translateY(2px);
+    }
+
+    .add-label {
+        font-size: clamp(2.4rem, 7vw, 5.6rem);
+        font-weight: 900;
+        line-height: 0.95;
+    }
+
+    .add-count {
+        font-size: clamp(1.3rem, 3vw, 2.4rem);
+        font-weight: 900;
+        opacity: 0.95;
+    }
+
+    .locked-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 180px;
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    details.panel {
+        padding: 0;
+        overflow: hidden;
+    }
+
+    details.panel summary {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 1.25rem;
+        font-weight: 900;
+        color: #1f2d3d;
+    }
+
+    details.panel summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .panel-body {
+        padding: 0 14px 14px;
+    }
+
+    .correction-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: end;
+        max-width: 420px;
+    }
+
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+
+    .log-table th,
+    .log-table td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .log-table th {
+        background: #f8fafc;
+        font-weight: 900;
+    }
+
+    @media (max-width: 760px) {
+        .stage-page {
+            padding: 10px;
+        }
+
+        .locked-card {
+            grid-template-columns: 1fr;
+        }
+
+        .locked-actions {
+            min-width: 0;
+        }
+
+        .add-btn {
+            min-height: 260px;
+        }
+    }
+</style>
+
+<div class="stage-page">
+    <header class="page-head">
+        <div>
+            <h1 class="page-title">{{ stage.label }}</h1>
+            <div class="page-subtitle">{{ stage.unit_label }} at this stage: {{ stage.total }}</div>
+        </div>
+        <div class="head-actions">
+            <a class="link-btn" href="{{ overview_url }}">All Stages</a>
+            <a class="link-btn" href="{{ admin_url }}">Admin</a>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <p class="flash {{ category }}">{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <section class="panel" id="selector-panel">
+        <div class="selector-grid">
+            {% if stage.variant == 'size_shape' %}
+                <label class="field">
+                    Size
+                    <select id="size-select">
+                        {% for size in sizes %}
+                            <option value="{{ size }}">{{ size }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="field">
+                    Shape
+                    <select id="shape-select">
+                        {% for shape in shapes %}
+                            <option value="{{ shape }}">Shape {{ shape }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            {% elif stage.variant == 'end_type' %}
+                <label class="field">
+                    End Type
+                    <select id="end-select">
+                        {% for end_type in end_types %}
+                            <option value="{{ end_type }}">{{ end_type }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            {% else %}
+                <div class="field">
+                    Selection
+                    <div class="locked-summary">
+                        <div class="locked-label">{{ stage.short_label }}</div>
+                        <div class="locked-meta">No size or shape selection needed for this stage.</div>
+                    </div>
+                </div>
+            {% endif %}
+            <button type="button" class="lock-btn" id="lock-button">Lock Selection</button>
+        </div>
+    </section>
+
+    <section class="panel hidden" id="locked-panel">
+        <div class="locked-card">
+            <div class="locked-summary">
+                <div class="locked-label" id="locked-label">{{ stage.short_label }}</div>
+                <div class="locked-meta" id="locked-meta">Current count 0</div>
+                <div class="locked-meta" id="locked-timing">Avg N/A | Last N/A</div>
+            </div>
+            <div class="locked-actions">
+                <button type="button" class="secondary-btn" id="unlock-button">Unlock / Change</button>
+            </div>
+        </div>
+    </section>
+
+    <form class="add-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}" id="add-form">
+        <input type="hidden" name="action" value="add">
+        <input type="hidden" name="size_label" class="selected-size">
+        <input type="hidden" name="shape_no" class="selected-shape">
+        <input type="hidden" name="end_type" class="selected-end">
+        <button class="add-btn hidden" type="submit" id="add-button">
+            <span class="add-label" id="add-label">+1</span>
+            <span class="add-count" id="add-count">Current 0</span>
+        </button>
+    </form>
+
+    <details class="panel">
+        <summary>
+            <span>Correct Locked Count</span>
+            <span id="correction-summary">Edit</span>
+        </summary>
+        <div class="panel-body">
+            <form class="correction-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}" id="correction-form">
+                <input type="hidden" name="action" value="set_count">
+                <input type="hidden" name="size_label" class="selected-size">
+                <input type="hidden" name="shape_no" class="selected-shape">
+                <input type="hidden" name="end_type" class="selected-end">
+                <label class="field">
+                    Set Count
+                    <input type="number" name="new_count" id="new-count" min="0" step="1" value="0">
+                </label>
+                <button class="secondary-btn" type="submit">Set</button>
+            </form>
+        </div>
+    </details>
+
+    <details class="panel">
+        <summary>
+            <span>Recent {{ stage.short_label }} Log</span>
+            <span>{{ recent_logs|length }}</span>
+        </summary>
+        <div class="panel-body">
+            {% if recent_logs %}
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Worker</th>
+                            <th>Variant</th>
+                            <th>Action</th>
+                            <th>Count</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in recent_logs %}
+                            <tr>
+                                <td>{{ entry.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>{{ entry.worker }}</td>
+                                <td>
+                                    {% if entry.size_label %}{{ entry.size_label }}{% endif %}
+                                    {% if entry.shape_no %} Shape {{ entry.shape_no }}{% endif %}
+                                    {% if entry.end_type %}{{ entry.end_type }}{% endif %}
+                                    {% if not entry.size_label and not entry.shape_no and not entry.end_type %}{{ stage.short_label }}{% endif %}
+                                </td>
+                                <td>{{ entry.action_type }} {{ entry.delta }}</td>
+                                <td>{{ entry.count_after }}</td>
+                                <td>{{ entry.seconds_taken|duration if entry.seconds_taken else 'N/A' }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No work logged for this stage yet.</p>
+            {% endif %}
+        </div>
+    </details>
+</div>
+
+<script>
+    const stageKey = {{ stage.key|tojson }};
+    const stageVariant = {{ stage.variant|tojson }};
+    const storageKey = `cushion-stage-lock-${stageKey}`;
+    const variantMap = {{ variant_map|tojson }};
+    const variants = {{ variants|tojson }};
+
+    const selectorPanel = document.getElementById("selector-panel");
+    const lockedPanel = document.getElementById("locked-panel");
+    const lockButton = document.getElementById("lock-button");
+    const unlockButton = document.getElementById("unlock-button");
+    const addButton = document.getElementById("add-button");
+    const lockedLabel = document.getElementById("locked-label");
+    const lockedMeta = document.getElementById("locked-meta");
+    const lockedTiming = document.getElementById("locked-timing");
+    const addLabel = document.getElementById("add-label");
+    const addCount = document.getElementById("add-count");
+    const newCount = document.getElementById("new-count");
+    const correctionSummary = document.getElementById("correction-summary");
+    const sizeSelect = document.getElementById("size-select");
+    const shapeSelect = document.getElementById("shape-select");
+    const endSelect = document.getElementById("end-select");
+
+    function variantKey(sizeLabel, shapeNo, endType) {
+        const safeShape = parseInt(shapeNo || 0, 10) || 0;
+        return `${stageKey}|${sizeLabel || ""}|${safeShape}|${endType || ""}`;
+    }
+
+    function currentSelectionFromFields() {
+        if (stageVariant === "size_shape") {
+            return {
+                size_label: sizeSelect ? sizeSelect.value : "",
+                shape_no: shapeSelect ? parseInt(shapeSelect.value, 10) || 0 : 0,
+                end_type: ""
+            };
+        }
+        if (stageVariant === "end_type") {
+            return {
+                size_label: "",
+                shape_no: 0,
+                end_type: endSelect ? endSelect.value : ""
+            };
+        }
+        return {
+            size_label: "",
+            shape_no: 0,
+            end_type: ""
+        };
+    }
+
+    function hydrateFields(selection) {
+        if (!selection) {
+            return;
+        }
+        if (sizeSelect && selection.size_label) {
+            sizeSelect.value = selection.size_label;
+        }
+        if (shapeSelect && selection.shape_no) {
+            shapeSelect.value = String(selection.shape_no);
+        }
+        if (endSelect && selection.end_type) {
+            endSelect.value = selection.end_type;
+        }
+    }
+
+    function updateHiddenFields(selection) {
+        document.querySelectorAll(".selected-size").forEach((input) => {
+            input.value = selection.size_label || "";
+        });
+        document.querySelectorAll(".selected-shape").forEach((input) => {
+            input.value = selection.shape_no || 0;
+        });
+        document.querySelectorAll(".selected-end").forEach((input) => {
+            input.value = selection.end_type || "";
+        });
+    }
+
+    function lockSelection(selection) {
+        const key = variantKey(selection.size_label, selection.shape_no, selection.end_type);
+        const variant = variantMap[key] || variants[0];
+        if (!variant) {
+            return;
+        }
+
+        const resolvedSelection = {
+            size_label: variant.size_label || "",
+            shape_no: variant.shape_no || 0,
+            end_type: variant.end_type || ""
+        };
+        updateHiddenFields(resolvedSelection);
+        hydrateFields(resolvedSelection);
+
+        localStorage.setItem(storageKey, JSON.stringify(resolvedSelection));
+
+        lockedLabel.textContent = variant.lock_label;
+        lockedMeta.textContent = `Current count ${variant.count}`;
+        lockedTiming.textContent = `Avg ${variant.timing.average_display} | Last ${variant.timing.last_display}`;
+        addLabel.textContent = `+1 ${variant.lock_label}`;
+        addCount.textContent = `Current ${variant.count}`;
+        newCount.value = variant.count;
+        correctionSummary.textContent = variant.lock_label;
+
+        selectorPanel.classList.add("hidden");
+        lockedPanel.classList.remove("hidden");
+        addButton.classList.remove("hidden");
+    }
+
+    function unlockSelection() {
+        localStorage.removeItem(storageKey);
+        selectorPanel.classList.remove("hidden");
+        lockedPanel.classList.add("hidden");
+        addButton.classList.add("hidden");
+    }
+
+    lockButton.addEventListener("click", function () {
+        lockSelection(currentSelectionFromFields());
+    });
+
+    unlockButton.addEventListener("click", unlockSelection);
+
+    document.getElementById("add-form").addEventListener("submit", function () {
+        const saved = localStorage.getItem(storageKey);
+        if (!saved) {
+            lockSelection(currentSelectionFromFields());
+        }
+    });
+
+    document.getElementById("correction-form").addEventListener("submit", function () {
+        const saved = localStorage.getItem(storageKey);
+        if (!saved) {
+            lockSelection(currentSelectionFromFields());
+        }
+    });
+
+    let savedSelection = null;
+    try {
+        savedSelection = JSON.parse(localStorage.getItem(storageKey) || "null");
+    } catch (error) {
+        savedSelection = null;
+    }
+
+    if (savedSelection && variantMap[variantKey(savedSelection.size_label, savedSelection.shape_no, savedSelection.end_type)]) {
+        lockSelection(savedSelection);
+    } else if (stageVariant === "plain" && variants.length) {
+        lockSelection(variants[0]);
+    } else if (variants.length) {
+        hydrateFields(variants[0]);
+    }
+</script>
+{% endblock %}

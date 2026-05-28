@@ -4752,6 +4752,34 @@ def build_cushion_stage_context(include_timing=False):
     return stage_context
 
 
+def flatten_cushion_stage_variants(stage_context):
+    variants = []
+    for group in stage_context["groups"]:
+        for variant in group["variants"]:
+            lock_label_parts = []
+            if variant["size_label"]:
+                lock_label_parts.append(variant["size_label"])
+            if variant["shape_no"]:
+                lock_label_parts.append(f"Shape {variant['shape_no']}")
+            if variant["end_type"]:
+                lock_label_parts.append(variant["end_type"])
+            if not lock_label_parts:
+                lock_label_parts.append(stage_context["short_label"])
+
+            variants.append({
+                **variant,
+                "group_label": group["label"],
+                "variant_key": cushion_variant_key(
+                    stage_context["key"],
+                    variant["size_label"],
+                    variant["shape_no"],
+                    variant["end_type"]
+                ),
+                "lock_label": " - ".join(lock_label_parts),
+            })
+    return variants
+
+
 def cushion_stock_summary():
     summary = {}
     for size_label in CUSHION_SIZES:
@@ -8328,6 +8356,92 @@ def counting_cushions():
             size_label: cushion_format_duration(cushion_estimated_set_seconds(size_label))
             for size_label in CUSHION_SIZES
         },
+        admin_url=url_for('cushion_production_admin')
+    )
+
+
+@app.route('/counting_cushions/stage/<stage_key>', methods=['GET', 'POST'])
+def counting_cushion_stage(stage_key):
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_cushion_workflow_tables()
+    stage = CUSHION_STAGE_BY_KEY.get(stage_key)
+    if not stage:
+        flash("Unknown cushion stage.", "error")
+        return redirect(url_for('counting_cushions'))
+
+    worker_name = session['worker']
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        size_label = request.form.get('size_label', '')
+        shape_no = request.form.get('shape_no', 0)
+        end_type = request.form.get('end_type', '')
+        try:
+            if action == "add":
+                target_record, completed_sets = record_cushion_stage_add(
+                    stage_key,
+                    size_label,
+                    shape_no,
+                    end_type,
+                    worker_name
+                )
+                db.session.commit()
+                message = f"Logged 1: {cushion_variant_display(stage_key, target_record.size_label, target_record.shape_no, target_record.end_type)}."
+                if completed_sets:
+                    message += f" Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock."
+                flash(message, "success")
+            elif action == "set_count":
+                new_count = request.form.get('new_count', 0)
+                record = set_cushion_stage_count(
+                    stage_key,
+                    size_label,
+                    shape_no,
+                    end_type,
+                    new_count,
+                    worker_name
+                )
+                db.session.commit()
+                flash(
+                    f"Set {cushion_variant_display(stage_key, record.size_label, record.shape_no, record.end_type)} to {record.count}.",
+                    "success"
+                )
+            else:
+                flash("Unknown cushion action.", "error")
+        except ValueError as error:
+            db.session.rollback()
+            flash(str(error), "error")
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return redirect(url_for('counting_cushion_stage', stage_key=stage_key))
+
+    stage_context = next(
+        item for item in build_cushion_stage_context(include_timing=True)
+        if item["key"] == stage_key
+    )
+    variants = flatten_cushion_stage_variants(stage_context)
+    recent_logs = (
+        CushionWorkflowLog.query
+        .filter(CushionWorkflowLog.stage_key == stage_key)
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .limit(20)
+        .all()
+    )
+
+    return render_template(
+        'counting_cushion_stage.html',
+        stage=stage_context,
+        variants=variants,
+        variant_map={variant["variant_key"]: variant for variant in variants},
+        sizes=CUSHION_SIZES,
+        shapes=CUSHION_SHAPES,
+        end_types=CUSHION_END_TYPES,
+        recent_logs=recent_logs,
+        overview_url=url_for('counting_cushions'),
         admin_url=url_for('cushion_production_admin')
     )
 
