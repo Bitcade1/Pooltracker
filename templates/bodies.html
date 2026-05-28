@@ -74,6 +74,18 @@
           text-align: center;
           position: relative;
       }
+      .production-target-toggle {
+          margin: 0 0 12px 0;
+          text-align: center;
+      }
+      .production-target-toggle button {
+          padding: 10px 14px;
+          border-radius: 6px;
+          background-color: #0f172a;
+      }
+      .production-target-toggle button:hover {
+          background-color: #1e293b;
+      }
       /* Pseudo-element for vertical divider */
       .prod-values span:first-child::after {
           content: "";
@@ -267,6 +279,14 @@
           content.style.display = content.style.display === "block" ? "none" : "block";
       }
 
+      function toggleProductionTargets() {
+          var content = document.getElementById('productionTargetsPanel');
+          var button = document.getElementById('productionTargetsToggle');
+          var isHidden = content.style.display === "none";
+          content.style.display = isHidden ? "block" : "none";
+          button.textContent = isHidden ? "Hide Production Targets" : "Show Production Targets";
+      }
+
       function inferTableTypeFromSerial(serialValue) {
           const normalized = (serialValue || '').replace(/\s/g, '').toUpperCase();
           return normalized.endsWith('-L') ? 'Lite' : 'Champion';
@@ -367,7 +387,10 @@
   <div class="container">
     <h1>Bodies</h1>
     <!-- Enhanced production targets section -->
-    <div class="production-targets">
+    <div class="production-target-toggle">
+      <button type="button" id="productionTargetsToggle" onclick="toggleProductionTargets()">Show Production Targets</button>
+    </div>
+    <div class="production-targets" id="productionTargetsPanel" style="display: none;">
       <div class="prod-title">Production Targets for This Month</div>
       <div class="prod-values">
         <span>7ft Tables: {{ target_7ft }}</span>
