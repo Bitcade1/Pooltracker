@@ -8405,6 +8405,10 @@ def counting_cushion_stage(stage_key):
         if item["key"] == stage_key
     )
     variants = flatten_cushion_stage_variants(stage_context)
+    stage_keys = [stage_item["key"] for stage_item in CUSHION_WORKFLOW_STAGES]
+    stage_index = stage_keys.index(stage_key)
+    previous_stage = CUSHION_WORKFLOW_STAGES[stage_index - 1] if stage_index > 0 else None
+    next_stage = CUSHION_WORKFLOW_STAGES[stage_index + 1] if stage_index < len(CUSHION_WORKFLOW_STAGES) - 1 else None
 
     return render_template(
         'counting_cushion_stage.html',
@@ -8415,7 +8419,9 @@ def counting_cushion_stage(stage_key):
         shapes=CUSHION_SHAPES,
         end_types=CUSHION_END_TYPES,
         overview_url=url_for('counting_cushions'),
-        admin_url=url_for('cushion_production_admin')
+        admin_url=url_for('cushion_production_admin'),
+        previous_stage=previous_stage,
+        next_stage=next_stage
     )
 
 

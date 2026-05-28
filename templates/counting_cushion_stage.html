@@ -74,6 +74,49 @@
         flex-wrap: wrap;
     }
 
+    .stage-nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .stage-nav-link {
+        min-height: 74px;
+        border-radius: 12px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        color: #ffffff;
+        background: #475569;
+        text-decoration: none;
+        text-align: center;
+        font-weight: 900;
+    }
+
+    .stage-nav-link.next {
+        background: #1d4ed8;
+    }
+
+    .stage-nav-link.disabled {
+        background: #e2e8f0;
+        color: #64748b;
+        pointer-events: none;
+    }
+
+    .stage-nav-kicker {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stage-nav-name {
+        font-size: 1.35rem;
+        line-height: 1.05;
+    }
+
     .link-btn,
     .secondary-btn,
     .lock-btn {
@@ -309,85 +352,108 @@
         {% endif %}
     {% endwith %}
 
-    <section class="panel" id="selector-panel">
-        <div class="selector-grid">
-            {% if stage.variant == 'size_shape' %}
-                <label class="field">
-                    Size
-                    <select id="size-select">
-                        {% for size in sizes %}
-                            <option value="{{ size }}">{{ size }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label class="field">
-                    Shape
-                    <select id="shape-select">
-                        {% for shape in shapes %}
-                            <option value="{{ shape }}">Shape {{ shape }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-            {% elif stage.variant == 'end_type' %}
-                <label class="field">
-                    End Type
-                    <select id="end-select">
-                        {% for end_type in end_types %}
-                            <option value="{{ end_type }}">{{ end_type }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-            {% else %}
-                <div class="field">
-                    Selection
-                    <div class="locked-summary">
-                        <div class="locked-label">{{ stage.short_label }}</div>
-                        <div class="locked-meta">No size or shape selection needed for this stage.</div>
-                    </div>
-                </div>
-            {% endif %}
-            <button type="button" class="lock-btn" id="lock-button">Lock Selection</button>
-        </div>
-    </section>
+    <nav class="stage-nav" aria-label="Cushion stage navigation">
+        {% if previous_stage %}
+            <a class="stage-nav-link previous" href="{{ url_for('counting_cushion_stage', stage_key=previous_stage.key) }}">
+                <span class="stage-nav-kicker">Previous Stage</span>
+                <span class="stage-nav-name">{{ previous_stage.short_label }}</span>
+            </a>
+        {% else %}
+            <span class="stage-nav-link disabled">
+                <span class="stage-nav-kicker">Previous Stage</span>
+                <span class="stage-nav-name">None</span>
+            </span>
+        {% endif %}
 
-    <section class="panel hidden" id="locked-panel">
-        <div class="locked-card">
-            <div class="locked-summary">
-                <div class="locked-label" id="locked-label">{{ stage.short_label }}</div>
-                <div class="locked-meta" id="locked-meta">Current count 0</div>
-                <div class="locked-meta" id="locked-timing">Avg N/A | Last N/A</div>
+        {% if next_stage %}
+            <a class="stage-nav-link next" href="{{ url_for('counting_cushion_stage', stage_key=next_stage.key) }}">
+                <span class="stage-nav-kicker">Next Stage</span>
+                <span class="stage-nav-name">{{ next_stage.short_label }}</span>
+            </a>
+        {% else %}
+            <span class="stage-nav-link disabled">
+                <span class="stage-nav-kicker">Next Stage</span>
+                <span class="stage-nav-name">None</span>
+            </span>
+        {% endif %}
+    </nav>
+
+    {% set single_option = stage.variant == 'plain' and variants %}
+    {% set single_variant = variants[0] if single_option else none %}
+
+    {% if not single_option %}
+        <section class="panel" id="selector-panel">
+            <div class="selector-grid">
+                {% if stage.variant == 'size_shape' %}
+                    <label class="field">
+                        Size
+                        <select id="size-select">
+                            {% for size in sizes %}
+                                <option value="{{ size }}">{{ size }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="field">
+                        Shape
+                        <select id="shape-select">
+                            {% for shape in shapes %}
+                                <option value="{{ shape }}">Shape {{ shape }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                {% elif stage.variant == 'end_type' %}
+                    <label class="field">
+                        End Type
+                        <select id="end-select">
+                            {% for end_type in end_types %}
+                                <option value="{{ end_type }}">{{ end_type }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                {% endif %}
+                <button type="button" class="lock-btn" id="lock-button">Lock Selection</button>
             </div>
-            <div class="locked-actions">
-                <button type="button" class="secondary-btn" id="unlock-button">Unlock / Change</button>
+        </section>
+
+        <section class="panel hidden" id="locked-panel">
+            <div class="locked-card">
+                <div class="locked-summary">
+                    <div class="locked-label" id="locked-label">{{ stage.short_label }}</div>
+                    <div class="locked-meta" id="locked-meta">Current count 0</div>
+                    <div class="locked-meta" id="locked-timing">Avg N/A | Last N/A</div>
+                </div>
+                <div class="locked-actions">
+                    <button type="button" class="secondary-btn" id="unlock-button">Unlock / Change</button>
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
+    {% endif %}
 
     <form class="add-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}" id="add-form">
         <input type="hidden" name="action" value="add">
-        <input type="hidden" name="size_label" class="selected-size">
-        <input type="hidden" name="shape_no" class="selected-shape">
-        <input type="hidden" name="end_type" class="selected-end">
-        <button class="add-btn hidden" type="submit" id="add-button">
-            <span class="add-label" id="add-label">+1</span>
-            <span class="add-count" id="add-count">Current 0</span>
+        <input type="hidden" name="size_label" class="selected-size" value="{{ single_variant.size_label if single_variant else '' }}">
+        <input type="hidden" name="shape_no" class="selected-shape" value="{{ single_variant.shape_no if single_variant else 0 }}">
+        <input type="hidden" name="end_type" class="selected-end" value="{{ single_variant.end_type if single_variant else '' }}">
+        <button class="add-btn {% if not single_option %}hidden{% endif %}" type="submit" id="add-button">
+            <span class="add-label" id="add-label">{% if single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
+            <span class="add-count" id="add-count">{% if single_option %}Current {{ single_variant.count }}{% else %}Current 0{% endif %}</span>
         </button>
     </form>
 
     <details class="panel">
         <summary>
-            <span>Correct Locked Count</span>
-            <span id="correction-summary">Edit</span>
+            <span>Correct Count</span>
+            <span id="correction-summary">{% if single_option %}{{ single_variant.lock_label }}{% else %}Edit{% endif %}</span>
         </summary>
         <div class="panel-body">
             <form class="correction-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}" id="correction-form">
                 <input type="hidden" name="action" value="set_count">
-                <input type="hidden" name="size_label" class="selected-size">
-                <input type="hidden" name="shape_no" class="selected-shape">
-                <input type="hidden" name="end_type" class="selected-end">
+                <input type="hidden" name="size_label" class="selected-size" value="{{ single_variant.size_label if single_variant else '' }}">
+                <input type="hidden" name="shape_no" class="selected-shape" value="{{ single_variant.shape_no if single_variant else 0 }}">
+                <input type="hidden" name="end_type" class="selected-end" value="{{ single_variant.end_type if single_variant else '' }}">
                 <label class="field">
                     Set Count
-                    <input type="number" name="new_count" id="new-count" min="0" step="1" value="0">
+                    <input type="number" name="new_count" id="new-count" min="0" step="1" value="{{ single_variant.count if single_variant else 0 }}">
                 </label>
                 <button class="secondary-btn" type="submit">Set</button>
             </form>
@@ -488,33 +554,53 @@
         updateHiddenFields(resolvedSelection);
         hydrateFields(resolvedSelection);
 
-        localStorage.setItem(storageKey, JSON.stringify(resolvedSelection));
+        if (stageVariant !== "plain") {
+            localStorage.setItem(storageKey, JSON.stringify(resolvedSelection));
+        }
 
-        lockedLabel.textContent = variant.lock_label;
-        lockedMeta.textContent = `Current count ${variant.count}`;
-        lockedTiming.textContent = `Avg ${variant.timing.average_display} | Last ${variant.timing.last_display}`;
+        if (lockedLabel) {
+            lockedLabel.textContent = variant.lock_label;
+        }
+        if (lockedMeta) {
+            lockedMeta.textContent = `Current count ${variant.count}`;
+        }
+        if (lockedTiming) {
+            lockedTiming.textContent = `Avg ${variant.timing.average_display} | Last ${variant.timing.last_display}`;
+        }
         addLabel.textContent = `+1 ${variant.lock_label}`;
         addCount.textContent = `Current ${variant.count}`;
         newCount.value = variant.count;
         correctionSummary.textContent = variant.lock_label;
 
-        selectorPanel.classList.add("hidden");
-        lockedPanel.classList.remove("hidden");
+        if (selectorPanel) {
+            selectorPanel.classList.add("hidden");
+        }
+        if (lockedPanel) {
+            lockedPanel.classList.remove("hidden");
+        }
         addButton.classList.remove("hidden");
     }
 
     function unlockSelection() {
         localStorage.removeItem(storageKey);
-        selectorPanel.classList.remove("hidden");
-        lockedPanel.classList.add("hidden");
+        if (selectorPanel) {
+            selectorPanel.classList.remove("hidden");
+        }
+        if (lockedPanel) {
+            lockedPanel.classList.add("hidden");
+        }
         addButton.classList.add("hidden");
     }
 
-    lockButton.addEventListener("click", function () {
-        lockSelection(currentSelectionFromFields());
-    });
+    if (lockButton) {
+        lockButton.addEventListener("click", function () {
+            lockSelection(currentSelectionFromFields());
+        });
+    }
 
-    unlockButton.addEventListener("click", unlockSelection);
+    if (unlockButton) {
+        unlockButton.addEventListener("click", unlockSelection);
+    }
 
     document.getElementById("add-form").addEventListener("submit", function () {
         const saved = localStorage.getItem(storageKey);
