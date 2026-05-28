@@ -328,6 +328,70 @@
         margin: 0;
     }
 
+    .consumables-panel {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 10px;
+        padding: 14px;
+    }
+
+    .consumables-panel h2 {
+        margin: 0 0 12px;
+        color: #1f2d3d;
+        font-size: 1.35rem;
+    }
+
+    .consumables-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 10px;
+    }
+
+    .consumable-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: #f8fafc;
+        border: 1px solid #dbe4ef;
+        border-radius: 12px;
+        padding: 12px;
+    }
+
+    .consumable-name {
+        display: block;
+        color: #1f2d3d;
+        font-size: 1.1rem;
+        font-weight: 900;
+    }
+
+    .consumable-count {
+        display: block;
+        margin-top: 4px;
+        color: #475569;
+        font-weight: 900;
+    }
+
+    .consumable-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .consumable-actions form {
+        margin: 0;
+    }
+
+    .consumable-actions .small-btn {
+        min-width: 64px;
+        min-height: 56px;
+        font-size: 1.15rem;
+    }
+
+    .consumable-actions .add-consumable {
+        background: #1d4ed8;
+    }
+
     @media (max-width: 760px) {
         .cushion-page {
             padding: 10px;
@@ -347,6 +411,15 @@
 
         .btn-count {
             font-size: 2rem;
+        }
+
+        .consumable-card {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .consumable-actions .small-btn {
+            min-width: 86px;
         }
     }
 </style>
@@ -398,6 +471,34 @@
                 {% endif %}
             </a>
         {% endfor %}
+    </section>
+
+    <section class="consumables-panel">
+        <h2>Consumables</h2>
+        <div class="consumables-grid">
+            {% for item in consumables %}
+                <article class="consumable-card">
+                    <div>
+                        <span class="consumable-name">{{ item.label }}</span>
+                        <span class="consumable-count">Stock {{ item.count }}</span>
+                    </div>
+                    <div class="consumable-actions">
+                        <form method="POST" action="{{ url_for('counting_cushions') }}">
+                            <input type="hidden" name="action" value="consumable_adjust">
+                            <input type="hidden" name="part_name" value="{{ item.name }}">
+                            <input type="hidden" name="delta" value="-1">
+                            <button class="small-btn" type="submit">-1</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('counting_cushions') }}">
+                            <input type="hidden" name="action" value="consumable_adjust">
+                            <input type="hidden" name="part_name" value="{{ item.name }}">
+                            <input type="hidden" name="delta" value="1">
+                            <button class="small-btn add-consumable" type="submit">+1</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
     </section>
 
 </div>

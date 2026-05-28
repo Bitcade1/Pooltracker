@@ -28,6 +28,11 @@ PACKAGING_PART_NAMES = [
     "Top Rail Pallets 6ft",
     "Blue Pallets",
 ]
+CUSHION_CONSUMABLE_PART_NAMES = [
+    "Disposable Gloves",
+    "Work Gloves",
+    "Paint Brush",
+]
 
 def get_latest_part_entry(part_name):
     return (PrintedPartsCount.query
@@ -723,7 +728,8 @@ VALID_PARTS = [
     "M5 x 20 Socket Cap Screw",              # Added new hardware
     "Catch Plate",                           # Added new hardware
     "4.8x32mm Self Tapping Screw",           # Added new hardware
-    *PACKAGING_PART_NAMES
+    *PACKAGING_PART_NAMES,
+    *CUSHION_CONSUMABLE_PART_NAMES
 ]
 
 

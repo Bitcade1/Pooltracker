@@ -4212,6 +4212,12 @@ class CushionJobRecord(db.Model):
 CUSHION_SIZES = ["6ft", "7ft"]
 CUSHION_SHAPES = [1, 2, 3, 4, 5, 6]
 CUSHION_END_TYPES = ["Big end", "Small end"]
+CUSHION_CONSUMABLE_GLOVES = [
+    {"name": "Disposable Gloves", "label": "Disposable Gloves"},
+    {"name": "Work Gloves", "label": "Work Gloves"},
+]
+CUSHION_CONSUMABLE_PAINT_BRUSH = {"name": "Paint Brush", "label": "Paint Brush"}
+CUSHION_CONSUMABLES = [*CUSHION_CONSUMABLE_GLOVES, CUSHION_CONSUMABLE_PAINT_BRUSH]
 
 CUSHION_STAGE_PLAIN = "plain"
 CUSHION_STAGE_SIZE_SHAPE = "size_shape"
@@ -4359,9 +4365,81 @@ class CushionCompletedSet(db.Model):
 
 
 def ensure_cushion_workflow_tables():
+    TableStock.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowCount.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowLog.__table__.create(db.engine, checkfirst=True)
     CushionCompletedSet.__table__.create(db.engine, checkfirst=True)
+
+
+def ensure_cushion_consumables():
+    HardwarePart.__table__.create(db.engine, checkfirst=True)
+    PrintedPartsCount.__table__.create(db.engine, checkfirst=True)
+    PartThreshold.__table__.create(db.engine, checkfirst=True)
+
+    created_any = False
+    for item in CUSHION_CONSUMABLES:
+        if not HardwarePart.query.filter(func.lower(HardwarePart.name) == item["name"].lower()).first():
+            db.session.add(HardwarePart(name=item["name"], initial_count=0))
+            created_any = True
+    if created_any:
+        db.session.commit()
+
+
+def consumable_stock_state(part_name):
+    hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
+    canonical_name = hardware_part.name if hardware_part else part_name
+    latest_entry = (
+        PrintedPartsCount.query
+        .filter(func.lower(PrintedPartsCount.part_name) == canonical_name.lower())
+        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+        .first()
+    )
+    count = latest_entry.count if latest_entry else (hardware_part.initial_count if hardware_part else 0)
+    return count, canonical_name
+
+
+def consumable_current_count(part_name):
+    count, _ = consumable_stock_state(part_name)
+    return count
+
+
+def cushion_consumables_for_stage(stage_key):
+    items = list(CUSHION_CONSUMABLE_GLOVES)
+    if stage_key == "glue_ends":
+        items.append(CUSHION_CONSUMABLE_PAINT_BRUSH)
+    consumables = []
+    for item in items:
+        count, canonical_name = consumable_stock_state(item["name"])
+        consumables.append({
+            **item,
+            "name": canonical_name,
+            "count": count,
+        })
+    return consumables
+
+
+def adjust_consumable_stock(part_name, delta):
+    allowed_names = {item["name"].lower(): item["name"] for item in CUSHION_CONSUMABLES}
+    requested_name = (part_name or "").lower()
+    if requested_name not in allowed_names:
+        raise ValueError("Unknown consumable.")
+
+    current_count, canonical_name = consumable_stock_state(allowed_names[requested_name])
+    new_count = current_count + int(delta)
+    if new_count < 0:
+        raise ValueError(f"Not enough {canonical_name} in stock.")
+
+    if new_count < current_count:
+        check_and_notify_low_stock(canonical_name, current_count, new_count)
+
+    now = london_now()
+    db.session.add(PrintedPartsCount(
+        part_name=canonical_name,
+        count=new_count,
+        date=now.date(),
+        time=now.time()
+    ))
+    return canonical_name, new_count
 
 
 def cushion_stock_key(size_label):
@@ -8345,6 +8423,7 @@ def counting_cushions():
         return redirect(url_for('login'))
 
     ensure_cushion_workflow_tables()
+    ensure_cushion_consumables()
     worker_name = session['worker']
 
     if request.method == 'POST':
@@ -8395,6 +8474,19 @@ def counting_cushions():
                     flash(f"Added {len(completed_sets)} completed {size_label} cushion set(s) to stock.", "success")
                 else:
                     flash(f"No complete {size_label} bundle sets are ready yet.", "info")
+            elif action == "consumable_adjust":
+                part_name = request.form.get('part_name', '')
+                try:
+                    delta = int(request.form.get('delta', 0))
+                except (TypeError, ValueError):
+                    raise ValueError("Choose a valid consumable adjustment.")
+                if delta not in (-1, 1):
+                    raise ValueError("Choose a valid consumable adjustment.")
+                allowed_names = {item["name"].lower() for item in cushion_consumables_for_stage('')}
+                if part_name.lower() not in allowed_names:
+                    raise ValueError("That consumable is not available on this page.")
+                adjust_consumable_stock(part_name, delta)
+                db.session.commit()
             else:
                 flash("Unknown cushion action.", "error")
         except ValueError as error:
@@ -8415,6 +8507,7 @@ def counting_cushions():
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
+        consumables=cushion_consumables_for_stage(''),
         admin_url=url_for('cushion_production_admin')
     )
 
@@ -8426,6 +8519,7 @@ def counting_cushion_stage(stage_key):
         return redirect(url_for('login'))
 
     ensure_cushion_workflow_tables()
+    ensure_cushion_consumables()
     stage = CUSHION_STAGE_BY_KEY.get(stage_key)
     if not stage:
         flash("Unknown cushion stage.", "error")
@@ -8465,6 +8559,19 @@ def counting_cushion_stage(stage_key):
                     f"Set {cushion_variant_display(stage_key, record.size_label, record.shape_no, record.end_type)} to {record.count}.",
                     "success"
                 )
+            elif action == "consumable_adjust":
+                part_name = request.form.get('part_name', '')
+                try:
+                    delta = int(request.form.get('delta', 0))
+                except (TypeError, ValueError):
+                    raise ValueError("Choose a valid consumable adjustment.")
+                if delta not in (-1, 1):
+                    raise ValueError("Choose a valid consumable adjustment.")
+                allowed_names = {item["name"].lower() for item in cushion_consumables_for_stage(stage_key)}
+                if part_name.lower() not in allowed_names:
+                    raise ValueError("That consumable is not available on this page.")
+                adjust_consumable_stock(part_name, delta)
+                db.session.commit()
             else:
                 flash("Unknown cushion action.", "error")
         except ValueError as error:
@@ -8497,7 +8604,8 @@ def counting_cushion_stage(stage_key):
         overview_url=url_for('counting_cushions'),
         admin_url=url_for('cushion_production_admin'),
         previous_stage=previous_stage,
-        next_stage=next_stage
+        next_stage=next_stage,
+        consumables=cushion_consumables_for_stage(stage_key)
     )
 
 
