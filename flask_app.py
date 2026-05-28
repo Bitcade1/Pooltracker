@@ -45,6 +45,20 @@ def format_number_filter(value):
     except (TypeError, ValueError):
         return "0.00"
 
+
+@app.template_filter('duration')
+def duration_filter(value):
+    """Format a duration in seconds as hours and minutes."""
+    try:
+        seconds = max(0, int(value))
+    except (TypeError, ValueError):
+        return "N/A"
+    minutes = int(round(seconds / 60))
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
 # Register filters explicitly
 app.jinja_env.filters['abs'] = abs_filter
 app.jinja_env.filters['format_number'] = format_number_filter
@@ -4195,6 +4209,588 @@ class CushionJobRecord(db.Model):
         return f"<CushionJobRecord {self.job.name} for session {self.session_id}>"
 
 
+CUSHION_SIZES = ["6ft", "7ft"]
+CUSHION_SHAPES = [1, 2, 3, 4, 5, 6]
+CUSHION_END_TYPES = ["Big end", "Small end"]
+
+CUSHION_STAGE_PLAIN = "plain"
+CUSHION_STAGE_SIZE_SHAPE = "size_shape"
+CUSHION_STAGE_END_TYPE = "end_type"
+
+CUSHION_WORKFLOW_STAGES = [
+    {
+        "key": "cut_1m",
+        "label": "Cut tulip wood into 1m lengths",
+        "short_label": "Cut 1m",
+        "variant": CUSHION_STAGE_PLAIN,
+        "unit_label": "lengths",
+        "units_per_set": 6,
+    },
+    {
+        "key": "spindle_mould",
+        "label": "Spindle mould",
+        "short_label": "Spindle",
+        "variant": CUSHION_STAGE_PLAIN,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+    },
+    {
+        "key": "spray_glue_join_rubber",
+        "label": "Spray glue and join rubber",
+        "short_label": "Glue rubber",
+        "variant": CUSHION_STAGE_PLAIN,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+    },
+    {
+        "key": "router_slot",
+        "label": "Put through router table to create slot",
+        "short_label": "Router slot",
+        "variant": CUSHION_STAGE_PLAIN,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+    },
+    {
+        "key": "shape_cushions",
+        "label": "Shape cushions",
+        "short_label": "Shape",
+        "variant": CUSHION_STAGE_SIZE_SHAPE,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+    },
+    {
+        "key": "punch_rubber_ends",
+        "label": "Punch out rubber ends",
+        "short_label": "Punch ends",
+        "variant": CUSHION_STAGE_END_TYPE,
+        "unit_label": "ends",
+        "units_per_set": 12,
+    },
+    {
+        "key": "glue_ends",
+        "label": "Glue ends on",
+        "short_label": "Glue ends",
+        "variant": CUSHION_STAGE_SIZE_SHAPE,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+    },
+    {
+        "key": "sand_ends",
+        "label": "Sand ends",
+        "short_label": "Sand ends",
+        "variant": CUSHION_STAGE_SIZE_SHAPE,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+    },
+    {
+        "key": "sand_tops",
+        "label": "Sand tops",
+        "short_label": "Sand tops",
+        "variant": CUSHION_STAGE_SIZE_SHAPE,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+    },
+    {
+        "key": "bundle",
+        "label": "Bundle",
+        "short_label": "Bundle",
+        "variant": CUSHION_STAGE_SIZE_SHAPE,
+        "unit_label": "cushions",
+        "units_per_set": 6,
+        "completes_stock": True,
+    },
+]
+
+CUSHION_STAGE_BY_KEY = {stage["key"]: stage for stage in CUSHION_WORKFLOW_STAGES}
+CUSHION_STAGE_INPUTS = {
+    "spindle_mould": [("cut_1m", "", 0, "")],
+    "spray_glue_join_rubber": [("spindle_mould", "", 0, "")],
+    "router_slot": [("spray_glue_join_rubber", "", 0, "")],
+    "shape_cushions": [("router_slot", "", 0, "")],
+    "sand_ends": [("glue_ends", None, None, "")],
+    "sand_tops": [("sand_ends", None, None, "")],
+    "bundle": [("sand_tops", None, None, "")],
+}
+
+
+class CushionWorkflowCount(db.Model):
+    __tablename__ = 'cushion_workflow_count'
+    __table_args__ = (
+        db.UniqueConstraint('stage_key', 'size_label', 'shape_no', 'end_type', name='uq_cushion_workflow_count_variant'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    stage_key = db.Column(db.String(50), nullable=False)
+    size_label = db.Column(db.String(10), nullable=False, default="")
+    shape_no = db.Column(db.Integer, nullable=False, default=0)
+    end_type = db.Column(db.String(20), nullable=False, default="")
+    count = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
+class CushionWorkflowLog(db.Model):
+    __tablename__ = 'cushion_workflow_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    action_type = db.Column(db.String(30), nullable=False, default="add")
+    stage_key = db.Column(db.String(50), nullable=False)
+    stage_label = db.Column(db.String(120), nullable=False)
+    size_label = db.Column(db.String(10), nullable=False, default="")
+    shape_no = db.Column(db.Integer, nullable=False, default=0)
+    end_type = db.Column(db.String(20), nullable=False, default="")
+    worker = db.Column(db.String(50), nullable=False)
+    delta = db.Column(db.Integer, nullable=False, default=0)
+    count_after = db.Column(db.Integer, nullable=False, default=0)
+    seconds_taken = db.Column(db.Integer, nullable=True)
+    note = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
+class CushionCompletedSet(db.Model):
+    __tablename__ = 'cushion_completed_set'
+
+    id = db.Column(db.Integer, primary_key=True)
+    size_label = db.Column(db.String(10), nullable=False)
+    worker = db.Column(db.String(50), nullable=False)
+    stock_type = db.Column(db.String(50), nullable=False)
+    stock_count_after = db.Column(db.Integer, nullable=False)
+    estimated_seconds = db.Column(db.Integer, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
+def ensure_cushion_workflow_tables():
+    CushionWorkflowCount.__table__.create(db.engine, checkfirst=True)
+    CushionWorkflowLog.__table__.create(db.engine, checkfirst=True)
+    CushionCompletedSet.__table__.create(db.engine, checkfirst=True)
+
+
+def cushion_stock_key(size_label):
+    return f"cushion_set_{size_label.lower()}"
+
+
+def cushion_format_duration(seconds):
+    if seconds is None:
+        return "N/A"
+    seconds = max(0, int(seconds))
+    minutes = int(round(seconds / 60))
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+
+def cushion_variant_key(stage_key, size_label="", shape_no=0, end_type=""):
+    return f"{stage_key}|{size_label or ''}|{int(shape_no or 0)}|{end_type or ''}"
+
+
+def normalize_cushion_variant(stage_key, size_label="", shape_no=0, end_type=""):
+    stage = CUSHION_STAGE_BY_KEY.get(stage_key)
+    if not stage:
+        raise ValueError("Unknown cushion stage.")
+
+    variant = stage["variant"]
+    if variant == CUSHION_STAGE_PLAIN:
+        return "", 0, ""
+
+    if variant == CUSHION_STAGE_END_TYPE:
+        end_type = (end_type or "").strip()
+        if end_type not in CUSHION_END_TYPES:
+            raise ValueError("Choose a valid rubber end type.")
+        return "", 0, end_type
+
+    if variant == CUSHION_STAGE_SIZE_SHAPE:
+        size_label = (size_label or "").strip()
+        try:
+            shape_no = int(shape_no)
+        except (TypeError, ValueError):
+            shape_no = 0
+        if size_label not in CUSHION_SIZES:
+            raise ValueError("Choose a valid cushion size.")
+        if shape_no not in CUSHION_SHAPES:
+            raise ValueError("Choose a valid cushion shape.")
+        return size_label, shape_no, ""
+
+    raise ValueError("Unknown cushion stage variant.")
+
+
+def get_cushion_count_record(stage_key, size_label="", shape_no=0, end_type="", create=True):
+    size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
+    record = CushionWorkflowCount.query.filter_by(
+        stage_key=stage_key,
+        size_label=size_label,
+        shape_no=shape_no,
+        end_type=end_type
+    ).first()
+    if not record and create:
+        record = CushionWorkflowCount(
+            stage_key=stage_key,
+            size_label=size_label,
+            shape_no=shape_no,
+            end_type=end_type,
+            count=0,
+            updated_at=london_now()
+        )
+        db.session.add(record)
+        db.session.flush()
+    return record
+
+
+def cushion_count_value(stage_key, size_label="", shape_no=0, end_type=""):
+    record = get_cushion_count_record(stage_key, size_label, shape_no, end_type, create=False)
+    return record.count if record else 0
+
+
+def cushion_variant_display(stage_key, size_label="", shape_no=0, end_type=""):
+    stage = CUSHION_STAGE_BY_KEY.get(stage_key, {"label": stage_key})
+    parts = [stage["label"]]
+    if size_label:
+        parts.append(size_label)
+    if shape_no:
+        parts.append(f"Shape {shape_no}")
+    if end_type:
+        parts.append(end_type)
+    return " - ".join(parts)
+
+
+def cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, worker, now):
+    previous = (
+        CushionWorkflowLog.query
+        .filter_by(
+            action_type="add",
+            stage_key=stage_key,
+            size_label=size_label,
+            shape_no=shape_no,
+            end_type=end_type,
+            worker=worker
+        )
+        .filter(CushionWorkflowLog.delta > 0)
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .first()
+    )
+    if not previous:
+        return None
+
+    seconds = int((now - previous.created_at).total_seconds())
+    if seconds < 10 or seconds > 8 * 60 * 60:
+        return None
+    return seconds
+
+
+def apply_cushion_count_delta(stage_key, size_label, shape_no, end_type, delta, worker, action_type="add", note=None, seconds_taken=None):
+    stage = CUSHION_STAGE_BY_KEY[stage_key]
+    record = get_cushion_count_record(stage_key, size_label, shape_no, end_type, create=True)
+    new_count = record.count + int(delta)
+    if new_count < 0:
+        raise ValueError(f"Not enough {cushion_variant_display(stage_key, record.size_label, record.shape_no, record.end_type)} to move on.")
+
+    record.count = new_count
+    record.updated_at = london_now()
+    log_entry = CushionWorkflowLog(
+        action_type=action_type,
+        stage_key=stage_key,
+        stage_label=stage["label"],
+        size_label=record.size_label,
+        shape_no=record.shape_no,
+        end_type=record.end_type,
+        worker=worker,
+        delta=int(delta),
+        count_after=record.count,
+        seconds_taken=seconds_taken,
+        note=note
+    )
+    db.session.add(log_entry)
+    return record
+
+
+def cushion_input_requirements(stage_key, size_label, shape_no, end_type):
+    requirements = []
+    for input_stage_key, input_size, input_shape, input_end in CUSHION_STAGE_INPUTS.get(stage_key, []):
+        requirements.append((
+            input_stage_key,
+            size_label if input_size is None else input_size,
+            shape_no if input_shape is None else input_shape,
+            end_type if input_end is None else input_end,
+        ))
+
+    if stage_key == "glue_ends":
+        requirements.append(("shape_cushions", size_label, shape_no, ""))
+        requirements.append(("punch_rubber_ends", "", 0, "Big end"))
+        requirements.append(("punch_rubber_ends", "", 0, "Small end"))
+
+    return requirements
+
+
+def cushion_estimated_set_seconds(size_label=None):
+    total_seconds = 0
+    has_data = False
+    for stage in CUSHION_WORKFLOW_STAGES:
+        query = (
+            db.session.query(func.avg(CushionWorkflowLog.seconds_taken))
+            .filter(
+                CushionWorkflowLog.action_type == "add",
+                CushionWorkflowLog.stage_key == stage["key"],
+                CushionWorkflowLog.seconds_taken.isnot(None),
+                CushionWorkflowLog.seconds_taken > 0
+            )
+        )
+        if size_label and stage["variant"] == CUSHION_STAGE_SIZE_SHAPE:
+            query = query.filter(CushionWorkflowLog.size_label == size_label)
+        average_seconds = query.scalar()
+        if average_seconds:
+            has_data = True
+            total_seconds += int(round(float(average_seconds) * stage["units_per_set"]))
+    return total_seconds if has_data else None
+
+
+def complete_available_cushion_sets(size_label, worker):
+    completed_sets = []
+    while True:
+        bundle_records = [
+            get_cushion_count_record("bundle", size_label, shape_no, "", create=True)
+            for shape_no in CUSHION_SHAPES
+        ]
+        if any(record.count <= 0 for record in bundle_records):
+            break
+
+        for record in bundle_records:
+            apply_cushion_count_delta(
+                "bundle",
+                record.size_label,
+                record.shape_no,
+                record.end_type,
+                -1,
+                worker,
+                action_type="stock_move",
+                note="Moved into completed cushion set stock"
+            )
+
+        stock_type = cushion_stock_key(size_label)
+        stock_entry = TableStock.query.filter_by(type=stock_type).first()
+        if not stock_entry:
+            stock_entry = TableStock(type=stock_type, count=0)
+            db.session.add(stock_entry)
+            db.session.flush()
+        stock_entry.count += 1
+
+        completed_set = CushionCompletedSet(
+            size_label=size_label,
+            worker=worker,
+            stock_type=stock_type,
+            stock_count_after=stock_entry.count,
+            estimated_seconds=cushion_estimated_set_seconds(size_label),
+            completed_at=london_now()
+        )
+        db.session.add(completed_set)
+        completed_sets.append(completed_set)
+
+    return completed_sets
+
+
+def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
+    size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
+
+    for input_stage_key, input_size, input_shape, input_end in cushion_input_requirements(stage_key, size_label, shape_no, end_type):
+        input_record = get_cushion_count_record(input_stage_key, input_size, input_shape, input_end, create=True)
+        if input_record.count <= 0:
+            raise ValueError(f"Not enough {cushion_variant_display(input_stage_key, input_record.size_label, input_record.shape_no, input_record.end_type)} available.")
+
+    for input_stage_key, input_size, input_shape, input_end in cushion_input_requirements(stage_key, size_label, shape_no, end_type):
+        apply_cushion_count_delta(
+            input_stage_key,
+            input_size,
+            input_shape,
+            input_end,
+            -1,
+            worker,
+            action_type="move_out",
+            note=f"Moved to {CUSHION_STAGE_BY_KEY[stage_key]['label']}"
+        )
+
+    now = london_now()
+    seconds_taken = cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, worker, now)
+    target_record = apply_cushion_count_delta(
+        stage_key,
+        size_label,
+        shape_no,
+        end_type,
+        1,
+        worker,
+        action_type="add",
+        seconds_taken=seconds_taken
+    )
+
+    completed_sets = []
+    if stage_key == "bundle":
+        completed_sets = complete_available_cushion_sets(size_label, worker)
+
+    return target_record, completed_sets
+
+
+def set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count, worker):
+    size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
+    try:
+        new_count = int(new_count)
+    except (TypeError, ValueError):
+        raise ValueError("Enter a valid count.")
+    if new_count < 0:
+        raise ValueError("Count cannot be negative.")
+
+    record = get_cushion_count_record(stage_key, size_label, shape_no, end_type, create=True)
+    delta = new_count - record.count
+    if delta:
+        apply_cushion_count_delta(
+            stage_key,
+            size_label,
+            shape_no,
+            end_type,
+            delta,
+            worker,
+            action_type="correction",
+            note="Manual count correction"
+        )
+    return record
+
+
+def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type=""):
+    size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
+    average_seconds = (
+        db.session.query(func.avg(CushionWorkflowLog.seconds_taken))
+        .filter(
+            CushionWorkflowLog.action_type == "add",
+            CushionWorkflowLog.stage_key == stage_key,
+            CushionWorkflowLog.size_label == size_label,
+            CushionWorkflowLog.shape_no == shape_no,
+            CushionWorkflowLog.end_type == end_type,
+            CushionWorkflowLog.seconds_taken.isnot(None),
+            CushionWorkflowLog.seconds_taken > 0
+        )
+        .scalar()
+    )
+    last_log = (
+        CushionWorkflowLog.query
+        .filter_by(
+            action_type="add",
+            stage_key=stage_key,
+            size_label=size_label,
+            shape_no=shape_no,
+            end_type=end_type
+        )
+        .filter(CushionWorkflowLog.seconds_taken.isnot(None), CushionWorkflowLog.seconds_taken > 0)
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .first()
+    )
+    return {
+        "average_seconds": int(round(float(average_seconds))) if average_seconds else None,
+        "average_display": cushion_format_duration(average_seconds) if average_seconds else "N/A",
+        "last_seconds": last_log.seconds_taken if last_log else None,
+        "last_display": cushion_format_duration(last_log.seconds_taken) if last_log else "N/A",
+    }
+
+
+def build_cushion_stage_context(include_timing=False):
+    stage_context = []
+    for stage in CUSHION_WORKFLOW_STAGES:
+        stage_total = 0
+        groups = []
+
+        if stage["variant"] == CUSHION_STAGE_PLAIN:
+            count = cushion_count_value(stage["key"])
+            timing = cushion_variant_timing(stage["key"]) if include_timing else None
+            stage_total += count
+            groups.append({
+                "label": stage["short_label"],
+                "variants": [{
+                    "label": stage["short_label"],
+                    "button_label": f"+1 {stage['short_label']}",
+                    "size_label": "",
+                    "shape_no": 0,
+                    "end_type": "",
+                    "count": count,
+                    "timing": timing,
+                }]
+            })
+        elif stage["variant"] == CUSHION_STAGE_END_TYPE:
+            variants = []
+            for end_type in CUSHION_END_TYPES:
+                count = cushion_count_value(stage["key"], end_type=end_type)
+                timing = cushion_variant_timing(stage["key"], end_type=end_type) if include_timing else None
+                stage_total += count
+                variants.append({
+                    "label": end_type,
+                    "button_label": f"+1 {end_type}",
+                    "size_label": "",
+                    "shape_no": 0,
+                    "end_type": end_type,
+                    "count": count,
+                    "timing": timing,
+                })
+            groups.append({"label": "Rubber ends", "variants": variants})
+        else:
+            for size_label in CUSHION_SIZES:
+                variants = []
+                for shape_no in CUSHION_SHAPES:
+                    count = cushion_count_value(stage["key"], size_label=size_label, shape_no=shape_no)
+                    timing = cushion_variant_timing(stage["key"], size_label=size_label, shape_no=shape_no) if include_timing else None
+                    stage_total += count
+                    variants.append({
+                        "label": f"Shape {shape_no}",
+                        "button_label": f"+1 {size_label} S{shape_no}",
+                        "size_label": size_label,
+                        "shape_no": shape_no,
+                        "end_type": "",
+                        "count": count,
+                        "timing": timing,
+                    })
+                groups.append({"label": size_label, "variants": variants})
+
+        stage_context.append({
+            **stage,
+            "total": stage_total,
+            "groups": groups,
+        })
+
+    return stage_context
+
+
+def cushion_stock_summary():
+    summary = {}
+    for size_label in CUSHION_SIZES:
+        stock_type = cushion_stock_key(size_label)
+        entry = TableStock.query.filter_by(type=stock_type).first()
+        summary[size_label] = entry.count if entry else 0
+    return summary
+
+
+def cushion_timing_summary():
+    summary = {}
+    for stage in CUSHION_WORKFLOW_STAGES:
+        rows = (
+            db.session.query(
+                func.count(CushionWorkflowLog.id),
+                func.avg(CushionWorkflowLog.seconds_taken),
+                func.min(CushionWorkflowLog.seconds_taken),
+                func.max(CushionWorkflowLog.seconds_taken)
+            )
+            .filter(
+                CushionWorkflowLog.action_type == "add",
+                CushionWorkflowLog.stage_key == stage["key"],
+                CushionWorkflowLog.seconds_taken.isnot(None),
+                CushionWorkflowLog.seconds_taken > 0
+            )
+            .first()
+        )
+        sample_count = rows[0] if rows else 0
+        average_seconds = rows[1] if rows else None
+        summary[stage["key"]] = {
+            "sample_count": sample_count or 0,
+            "average_seconds": int(round(float(average_seconds))) if average_seconds else None,
+            "average_display": cushion_format_duration(average_seconds) if average_seconds else "N/A",
+            "fastest_display": cushion_format_duration(rows[2]) if rows and rows[2] else "N/A",
+            "slowest_display": cushion_format_duration(rows[3]) if rows and rows[3] else "N/A",
+        }
+    return summary
+
+
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if 'worker' not in session:
@@ -7636,6 +8232,187 @@ def reset_cushion_jobs():
 
 @app.route('/counting_cushions', methods=['GET', 'POST'])
 def counting_cushions():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_cushion_workflow_tables()
+    worker_name = session['worker']
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        try:
+            if action == "add":
+                stage_key = request.form.get('stage_key', '')
+                size_label = request.form.get('size_label', '')
+                shape_no = request.form.get('shape_no', 0)
+                end_type = request.form.get('end_type', '')
+                target_record, completed_sets = record_cushion_stage_add(
+                    stage_key,
+                    size_label,
+                    shape_no,
+                    end_type,
+                    worker_name
+                )
+                db.session.commit()
+
+                message = f"Logged 1: {cushion_variant_display(stage_key, target_record.size_label, target_record.shape_no, target_record.end_type)}."
+                if completed_sets:
+                    message += f" Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock."
+                flash(message, "success")
+            elif action == "set_count":
+                stage_key = request.form.get('stage_key', '')
+                size_label = request.form.get('size_label', '')
+                shape_no = request.form.get('shape_no', 0)
+                end_type = request.form.get('end_type', '')
+                new_count = request.form.get('new_count', 0)
+                record = set_cushion_stage_count(
+                    stage_key,
+                    size_label,
+                    shape_no,
+                    end_type,
+                    new_count,
+                    worker_name
+                )
+                db.session.commit()
+                flash(
+                    f"Set {cushion_variant_display(stage_key, record.size_label, record.shape_no, record.end_type)} to {record.count}.",
+                    "success"
+                )
+            elif action == "reconcile_bundles":
+                size_label = request.form.get('size_label', '')
+                if size_label not in CUSHION_SIZES:
+                    raise ValueError("Choose a valid cushion size.")
+                completed_sets = complete_available_cushion_sets(size_label, worker_name)
+                db.session.commit()
+                if completed_sets:
+                    flash(f"Added {len(completed_sets)} completed {size_label} cushion set(s) to stock.", "success")
+                else:
+                    flash(f"No complete {size_label} bundle sets are ready yet.", "info")
+            else:
+                flash("Unknown cushion action.", "error")
+        except ValueError as error:
+            db.session.rollback()
+            flash(str(error), "error")
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return redirect(url_for('counting_cushions'))
+
+    today_start = datetime.combine(date.today(), time.min)
+    stage_context = build_cushion_stage_context(include_timing=True)
+    stock_summary = cushion_stock_summary()
+    recent_logs = (
+        CushionWorkflowLog.query
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .limit(20)
+        .all()
+    )
+    completed_today = (
+        CushionCompletedSet.query
+        .filter(CushionCompletedSet.completed_at >= today_start)
+        .count()
+    )
+
+    return render_template(
+        'counting_cushions.html',
+        stages=stage_context,
+        sizes=CUSHION_SIZES,
+        shapes=CUSHION_SHAPES,
+        stock_summary=stock_summary,
+        total_wip=sum(stage["total"] for stage in stage_context),
+        completed_today=completed_today,
+        recent_logs=recent_logs,
+        estimated_set_times={
+            size_label: cushion_format_duration(cushion_estimated_set_seconds(size_label))
+            for size_label in CUSHION_SIZES
+        },
+        admin_url=url_for('cushion_production_admin')
+    )
+
+
+@app.route('/cushion_production_admin', methods=['GET', 'POST'])
+def cushion_production_admin():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_cushion_workflow_tables()
+    worker_name = session['worker']
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        try:
+            if action == "set_count":
+                stage_key = request.form.get('stage_key', '')
+                size_label = request.form.get('size_label', '')
+                shape_no = request.form.get('shape_no', 0)
+                end_type = request.form.get('end_type', '')
+                new_count = request.form.get('new_count', 0)
+                record = set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count, worker_name)
+                db.session.commit()
+                flash(
+                    f"Set {cushion_variant_display(stage_key, record.size_label, record.shape_no, record.end_type)} to {record.count}.",
+                    "success"
+                )
+            elif action == "reconcile_bundles":
+                size_label = request.form.get('size_label', '')
+                if size_label not in CUSHION_SIZES:
+                    raise ValueError("Choose a valid cushion size.")
+                completed_sets = complete_available_cushion_sets(size_label, worker_name)
+                db.session.commit()
+                if completed_sets:
+                    flash(f"Added {len(completed_sets)} completed {size_label} cushion set(s) to stock.", "success")
+                else:
+                    flash(f"No complete {size_label} bundle sets are ready yet.", "info")
+            else:
+                flash("Unknown cushion admin action.", "error")
+        except ValueError as error:
+            db.session.rollback()
+            flash(str(error), "error")
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return redirect(url_for('cushion_production_admin'))
+
+    stage_context = build_cushion_stage_context(include_timing=True)
+    timing_summary = cushion_timing_summary()
+    completed_sets = (
+        CushionCompletedSet.query
+        .order_by(CushionCompletedSet.completed_at.desc(), CushionCompletedSet.id.desc())
+        .limit(50)
+        .all()
+    )
+    recent_logs = (
+        CushionWorkflowLog.query
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .limit(100)
+        .all()
+    )
+
+    return render_template(
+        'cushion_production_admin.html',
+        stages=stage_context,
+        timing_summary=timing_summary,
+        stock_summary=cushion_stock_summary(),
+        completed_sets=completed_sets,
+        recent_logs=recent_logs,
+        total_wip=sum(stage["total"] for stage in stage_context),
+        estimated_set_times={
+            size_label: cushion_format_duration(cushion_estimated_set_seconds(size_label))
+            for size_label in CUSHION_SIZES
+        },
+        counting_url=url_for('counting_cushions')
+    )
+
+
+@app.route('/counting_cushions_legacy', methods=['GET', 'POST'])
+def counting_cushions_legacy():
+    flash("The cushion page has been rebuilt. Use the new cushion production page.", "info")
+    return redirect(url_for('counting_cushions'))
+
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
