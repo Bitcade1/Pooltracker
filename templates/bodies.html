@@ -220,7 +220,7 @@
       }
       .type-summary {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
           gap: 12px;
           margin-bottom: 14px;
       }
@@ -235,6 +235,9 @@
       }
       .type-stat.lite {
           background-color: #1d4ed8;
+      }
+      .type-stat.total {
+          background-color: #0f172a;
       }
       .type-stat-label {
           font-size: 1.1em;
@@ -407,6 +410,10 @@
         <div class="type-stat lite">
           <div class="type-stat-label">6ft Tables</div>
           <div class="type-stat-value">{{ current_production_6ft }}</div>
+        </div>
+        <div class="type-stat total">
+          <div class="type-stat-label">Total Tables</div>
+          <div class="type-stat-value">{{ current_month_bodies_count }}</div>
         </div>
       </div>
     </div>
