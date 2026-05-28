@@ -597,7 +597,29 @@ def bonus_goal_progress(area, year=None, month=None):
         return []
 
     counts = {}
-    if area == "top_rails":
+    if area == "bodies":
+        rows = (
+            db.session.query(CompletedTable.worker, func.count(CompletedTable.id))
+            .filter(
+                extract('year', CompletedTable.date) == year,
+                extract('month', CompletedTable.date) == month
+            )
+            .group_by(CompletedTable.worker)
+            .all()
+        )
+        counts = {(worker or "Unknown"): count for worker, count in rows}
+    elif area == "pods":
+        rows = (
+            db.session.query(CompletedPods.worker, func.count(CompletedPods.id))
+            .filter(
+                extract('year', CompletedPods.date) == year,
+                extract('month', CompletedPods.date) == month
+            )
+            .group_by(CompletedPods.worker)
+            .all()
+        )
+        counts = {(worker or "Unknown"): count for worker, count in rows}
+    elif area == "top_rails":
         rows = (
             db.session.query(TopRail.worker, func.count(TopRail.id))
             .filter(
@@ -605,6 +627,19 @@ def bonus_goal_progress(area, year=None, month=None):
                 extract('month', TopRail.date) == month
             )
             .group_by(TopRail.worker)
+            .all()
+        )
+        counts = {(worker or "Unknown"): count for worker, count in rows}
+    elif area == "cnc":
+        rows = (
+            db.session.query(CncQueueItem.completed_by, func.count(CncQueueItem.id))
+            .filter(
+                CncQueueItem.status == CNC_STATUS_COMPLETED,
+                CncQueueItem.completed_at.isnot(None),
+                extract('year', CncQueueItem.completed_at) == year,
+                extract('month', CncQueueItem.completed_at) == month
+            )
+            .group_by(CncQueueItem.completed_by)
             .all()
         )
         counts = {(worker or "Unknown"): count for worker, count in rows}
@@ -6001,6 +6036,7 @@ def pod_dashboard_view():
 
     avg_pod_time = format_avg_duration(total_duration_seconds, counted_pods)
     last_pod_time = format_avg_duration(last_pod_duration.total_seconds(), 1) if last_pod_duration else "N/A"
+    bonus_progress = bonus_goal_progress("pods", today.year, today.month)
 
     return render_template(
         'pod_dashboard.html',
@@ -6012,7 +6048,9 @@ def pod_dashboard_view():
         limiting_overall=limiting_overall,
         min_capacity=min_capacity,
         avg_pod_time=avg_pod_time,
-        last_pod_time=last_pod_time
+        last_pod_time=last_pod_time,
+        bonus_progress=bonus_progress,
+        bonus_month_label=bonus_goal_month_label(today.year, today.month)
     )
 
 
@@ -6255,6 +6293,7 @@ def body_dashboard_view():
         if data["bodies_possible"] == min_capacity
         for part_name in data["limiting_parts"]
     })
+    bonus_progress = bonus_goal_progress("bodies", today.year, today.month)
 
     return render_template(
         'body_dashboard.html',
@@ -6275,7 +6314,9 @@ def body_dashboard_view():
         last_lite_duration=last_lite_duration,
         printed_parts_data=printed_parts_data,
         support_parts_data=support_parts_data,
-        other_parts_data=other_parts_data
+        other_parts_data=other_parts_data,
+        bonus_progress=bonus_progress,
+        bonus_month_label=bonus_goal_month_label(today.year, today.month)
     )
 
 
@@ -6350,6 +6391,7 @@ def cnc_dashboard():
         .limit(200)
         .all()
     )
+    bonus_progress = bonus_goal_progress("cnc", today.year, today.month)
 
     return render_template(
         'cnc_dashboard.html',
@@ -6358,6 +6400,8 @@ def cnc_dashboard():
         completed_today=completed_today,
         completed_today_count=completed_today_count,
         completed_month_count=completed_month_count,
+        bonus_progress=bonus_progress,
+        bonus_month_label=bonus_goal_month_label(today.year, today.month),
         render_time=london_now().strftime("%d/%m/%Y %H:%M")
     )
 
