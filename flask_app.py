@@ -4221,8 +4221,8 @@ CUSHION_STAGE_END_TYPE = "end_type"
 CUSHION_WORKFLOW_STAGES = [
     {
         "key": "cut_1m",
-        "label": "Cut tulip wood into 1m lengths",
-        "short_label": "Cut 1m",
+        "label": "Cut into 1m Lengths",
+        "short_label": "Cut 1m Lengths",
         "variant": CUSHION_STAGE_PLAIN,
         "unit_label": "lengths",
         "units_per_set": 6,
@@ -4277,8 +4277,8 @@ CUSHION_WORKFLOW_STAGES = [
     },
     {
         "key": "sand_ends",
-        "label": "Sand ends",
-        "short_label": "Sand ends",
+        "label": "Shape ends",
+        "short_label": "Shape ends",
         "variant": CUSHION_STAGE_SIZE_SHAPE,
         "unit_label": "cushions",
         "units_per_set": 6,
