@@ -355,6 +355,15 @@
                             {% endfor %}
                         </select>
                     </label>
+                {% elif stage.variant == 'size_only' %}
+                    <label class="field">
+                        Size
+                        <select id="size-select">
+                            {% for size in sizes %}
+                                <option value="{{ size }}">{{ size }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
                 {% endif %}
                 <button type="button" class="lock-btn" id="lock-button">Lock Selection</button>
             </div>
@@ -448,6 +457,13 @@
                 size_label: "",
                 shape_no: 0,
                 end_type: endSelect ? endSelect.value : ""
+            };
+        }
+        if (stageVariant === "size_only") {
+            return {
+                size_label: sizeSelect ? sizeSelect.value : "",
+                shape_no: 0,
+                end_type: ""
             };
         }
         return {

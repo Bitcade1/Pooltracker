@@ -4215,6 +4215,7 @@ CUSHION_END_TYPES = ["Big end", "Small end"]
 
 CUSHION_STAGE_PLAIN = "plain"
 CUSHION_STAGE_SIZE_SHAPE = "size_shape"
+CUSHION_STAGE_SIZE_ONLY = "size_only"
 CUSHION_STAGE_END_TYPE = "end_type"
 
 CUSHION_WORKFLOW_STAGES = [
@@ -4294,9 +4295,9 @@ CUSHION_WORKFLOW_STAGES = [
         "key": "bundle",
         "label": "Bundle",
         "short_label": "Bundle",
-        "variant": CUSHION_STAGE_SIZE_SHAPE,
-        "unit_label": "cushions",
-        "units_per_set": 6,
+        "variant": CUSHION_STAGE_SIZE_ONLY,
+        "unit_label": "sets",
+        "units_per_set": 1,
         "completes_stock": True,
     },
 ]
@@ -4309,7 +4310,6 @@ CUSHION_STAGE_INPUTS = {
     "shape_cushions": [("router_slot", "", 0, "")],
     "sand_ends": [("glue_ends", None, None, "")],
     "sand_tops": [("sand_ends", None, None, "")],
-    "bundle": [("sand_tops", None, None, "")],
 }
 
 
@@ -4397,6 +4397,12 @@ def normalize_cushion_variant(stage_key, size_label="", shape_no=0, end_type="")
         if end_type not in CUSHION_END_TYPES:
             raise ValueError("Choose a valid rubber end type.")
         return "", 0, end_type
+
+    if variant == CUSHION_STAGE_SIZE_ONLY:
+        size_label = (size_label or "").strip()
+        if size_label not in CUSHION_SIZES:
+            raise ValueError("Choose a valid cushion size.")
+        return size_label, 0, ""
 
     if variant == CUSHION_STAGE_SIZE_SHAPE:
         size_label = (size_label or "").strip()
@@ -4521,6 +4527,10 @@ def cushion_input_requirements(stage_key, size_label, shape_no, end_type):
             requirements.append(("punch_rubber_ends", "", 0, "Big end"))
             requirements.append(("punch_rubber_ends", "", 0, "Small end"))
 
+    if stage_key == "bundle":
+        for bundle_shape_no in CUSHION_SHAPES:
+            requirements.append(("sand_tops", size_label, bundle_shape_no, ""))
+
     return requirements
 
 
@@ -4537,7 +4547,7 @@ def cushion_estimated_set_seconds(size_label=None):
                 CushionWorkflowLog.seconds_taken > 0
             )
         )
-        if size_label and stage["variant"] == CUSHION_STAGE_SIZE_SHAPE:
+        if size_label and stage["variant"] in (CUSHION_STAGE_SIZE_SHAPE, CUSHION_STAGE_SIZE_ONLY):
             query = query.filter(CushionWorkflowLog.size_label == size_label)
         average_seconds = query.scalar()
         if average_seconds:
@@ -4546,46 +4556,39 @@ def cushion_estimated_set_seconds(size_label=None):
     return total_seconds if has_data else None
 
 
+def add_cushion_set_to_stock(size_label, worker, estimated_seconds=None):
+    stock_type = cushion_stock_key(size_label)
+    stock_entry = TableStock.query.filter_by(type=stock_type).first()
+    if not stock_entry:
+        stock_entry = TableStock(type=stock_type, count=0)
+        db.session.add(stock_entry)
+        db.session.flush()
+    stock_entry.count += 1
+
+    completed_set = CushionCompletedSet(
+        size_label=size_label,
+        worker=worker,
+        stock_type=stock_type,
+        stock_count_after=stock_entry.count,
+        estimated_seconds=estimated_seconds if estimated_seconds is not None else cushion_estimated_set_seconds(size_label),
+        completed_at=london_now()
+    )
+    db.session.add(completed_set)
+    return completed_set
+
+
 def complete_available_cushion_sets(size_label, worker):
     completed_sets = []
     while True:
-        bundle_records = [
-            get_cushion_count_record("bundle", size_label, shape_no, "", create=True)
+        sanded_top_records = [
+            get_cushion_count_record("sand_tops", size_label, shape_no, "", create=True)
             for shape_no in CUSHION_SHAPES
         ]
-        if any(record.count <= 0 for record in bundle_records):
+        if any(record.count <= 0 for record in sanded_top_records):
             break
 
-        for record in bundle_records:
-            apply_cushion_count_delta(
-                "bundle",
-                record.size_label,
-                record.shape_no,
-                record.end_type,
-                -1,
-                worker,
-                action_type="stock_move",
-                note="Moved into completed cushion set stock"
-            )
-
-        stock_type = cushion_stock_key(size_label)
-        stock_entry = TableStock.query.filter_by(type=stock_type).first()
-        if not stock_entry:
-            stock_entry = TableStock(type=stock_type, count=0)
-            db.session.add(stock_entry)
-            db.session.flush()
-        stock_entry.count += 1
-
-        completed_set = CushionCompletedSet(
-            size_label=size_label,
-            worker=worker,
-            stock_type=stock_type,
-            stock_count_after=stock_entry.count,
-            estimated_seconds=cushion_estimated_set_seconds(size_label),
-            completed_at=london_now()
-        )
-        db.session.add(completed_set)
-        completed_sets.append(completed_set)
+        _, new_sets = record_cushion_stage_add("bundle", size_label, 0, "", worker)
+        completed_sets.extend(new_sets)
 
     return completed_sets
 
@@ -4619,6 +4622,26 @@ def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
 
     now = london_now()
     seconds_taken = cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, worker, now)
+    if stage_key == "bundle":
+        completed_set = add_cushion_set_to_stock(size_label, worker, seconds_taken)
+        target_record = get_cushion_count_record(stage_key, size_label, 0, "", create=True)
+        target_record.count = completed_set.stock_count_after
+        target_record.updated_at = now
+        db.session.add(CushionWorkflowLog(
+            action_type="add",
+            stage_key=stage_key,
+            stage_label=CUSHION_STAGE_BY_KEY[stage_key]["label"],
+            size_label=size_label,
+            shape_no=0,
+            end_type="",
+            worker=worker,
+            delta=1,
+            count_after=completed_set.stock_count_after,
+            seconds_taken=seconds_taken,
+            note="Bundled completed cushion set"
+        ))
+        return target_record, [completed_set]
+
     target_record = apply_cushion_count_delta(
         stage_key,
         size_label,
@@ -4631,9 +4654,6 @@ def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
     )
 
     completed_sets = []
-    if stage_key == "bundle":
-        completed_sets = complete_available_cushion_sets(size_label, worker)
-
     return target_record, completed_sets
 
 
@@ -4645,6 +4665,34 @@ def set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count
         raise ValueError("Enter a valid count.")
     if new_count < 0:
         raise ValueError("Count cannot be negative.")
+
+    if stage_key == "bundle":
+        stock_type = cushion_stock_key(size_label)
+        stock_entry = TableStock.query.filter_by(type=stock_type).first()
+        if not stock_entry:
+            stock_entry = TableStock(type=stock_type, count=0)
+            db.session.add(stock_entry)
+            db.session.flush()
+        old_count = stock_entry.count
+        stock_entry.count = new_count
+
+        record = get_cushion_count_record(stage_key, size_label, shape_no, end_type, create=True)
+        record.count = new_count
+        record.updated_at = london_now()
+        if old_count != new_count:
+            db.session.add(CushionWorkflowLog(
+                action_type="correction",
+                stage_key=stage_key,
+                stage_label=CUSHION_STAGE_BY_KEY[stage_key]["label"],
+                size_label=size_label,
+                shape_no=shape_no,
+                end_type=end_type,
+                worker=worker,
+                delta=new_count - old_count,
+                count_after=new_count,
+                note="Manual finished cushion stock correction"
+            ))
+        return record
 
     record = get_cushion_count_record(stage_key, size_label, shape_no, end_type, create=True)
     delta = new_count - record.count
@@ -4736,6 +4784,23 @@ def build_cushion_stage_context(include_timing=False):
                     "timing": timing,
                 })
             groups.append({"label": "Rubber ends", "variants": variants})
+        elif stage["variant"] == CUSHION_STAGE_SIZE_ONLY:
+            variants = []
+            stock_summary = cushion_stock_summary()
+            for size_label in CUSHION_SIZES:
+                count = stock_summary.get(size_label, 0)
+                timing = cushion_variant_timing(stage["key"], size_label=size_label) if include_timing else None
+                stage_total += count
+                variants.append({
+                    "label": f"{size_label} Set",
+                    "button_label": f"+1 {size_label} Set",
+                    "size_label": size_label,
+                    "shape_no": 0,
+                    "end_type": "",
+                    "count": count,
+                    "timing": timing,
+                })
+            groups.append({"label": "Completed sets", "variants": variants})
         else:
             for size_label in CUSHION_SIZES:
                 variants = []
