@@ -3103,6 +3103,27 @@ def pods():
     
     current_production_pods_6ft = sum(1 for pod in all_pods_this_month if is_6ft(pod.serial_number))
     current_production_pods_7ft = pods_this_month - current_production_pods_6ft
+    pod_type_totals = {"champion": 0, "lite": 0}
+    pod_type_worker_counts = {}
+    for pod in all_pods_this_month:
+        pod_type = table_type_from_serial(pod.serial_number)
+        type_key = "lite" if pod_type == TABLE_TYPE_LITE else "champion"
+        pod_type_totals[type_key] += 1
+
+        worker_name = (pod.worker or "Unknown").strip() or "Unknown"
+        if worker_name not in pod_type_worker_counts:
+            pod_type_worker_counts[worker_name] = {
+                "worker": worker_name,
+                "champion": 0,
+                "lite": 0,
+                "total": 0,
+            }
+        pod_type_worker_counts[worker_name][type_key] += 1
+        pod_type_worker_counts[worker_name]["total"] += 1
+    pod_type_worker_rows = sorted(
+        pod_type_worker_counts.values(),
+        key=lambda row: (-row["total"], row["worker"].lower())
+    )
     
     # Helper: last 5 working days (Monday-Friday)
     def get_last_n_working_days(n, reference_date):
@@ -3193,7 +3214,9 @@ def pods():
         target_7ft=target_7ft,
         target_6ft=target_6ft,
         default_size=default_size,
-        default_table_type=default_table_type
+        default_table_type=default_table_type,
+        pod_type_totals=pod_type_totals,
+        pod_type_worker_rows=pod_type_worker_rows
     )
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
