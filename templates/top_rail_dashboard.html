@@ -213,6 +213,52 @@
         font-weight: 800;
     }
 
+    .goal-celebration-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: rgba(15, 23, 42, 0.78);
+    }
+
+    .goal-celebration-overlay.is-visible {
+        display: flex;
+    }
+
+    .goal-celebration-card {
+        width: min(720px, 92vw);
+        border-radius: 18px;
+        padding: 1.4rem;
+        background: #ffffff;
+        text-align: center;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    .goal-celebration-card h2 {
+        margin: 0 0 0.75rem;
+        color: #0f172a;
+        font-size: clamp(2rem, 5vw, 4rem);
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .goal-celebration-card p {
+        margin: 0 0 1rem;
+        color: #475569;
+        font-size: clamp(1.1rem, 2.5vw, 1.8rem);
+        font-weight: 900;
+    }
+
+    .goal-celebration-card img {
+        width: min(498px, 78vw);
+        max-height: 58vh;
+        border-radius: 12px;
+        object-fit: contain;
+    }
+
     .warning-banner {
         background: #ffebee;
         border: 1px solid #c62828;
@@ -404,6 +450,14 @@
 </style>
 
 <div class="dashboard-wrapper">
+    <div class="goal-celebration-overlay" id="goalCelebrationOverlay" aria-live="polite">
+        <div class="goal-celebration-card">
+            <h2>Target Hit</h2>
+            <p id="goalCelebrationText">Top rail goal completed.</p>
+            <img src="https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif" alt="Schwarzenegger thumbs up celebration GIF">
+        </div>
+    </div>
+
     <section class="stat-grid">
         <div class="stat-card highlight">
             <span class="stat-label">Today</span>
@@ -517,8 +571,65 @@
 </div>
 
 <script>
+    const topRailBonusGoals = {{ bonus_progress|tojson }};
+    const topRailBonusMonth = {{ bonus_month_label|tojson }};
+    const celebrationStorageKey = `top-rail-bonus-celebrations-${topRailBonusMonth}`;
+    const celebrationOverlay = document.getElementById("goalCelebrationOverlay");
+    const celebrationText = document.getElementById("goalCelebrationText");
+
+    function readShownCelebrations() {
+        try {
+            return JSON.parse(localStorage.getItem(celebrationStorageKey) || "{}");
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function writeShownCelebrations(value) {
+        try {
+            localStorage.setItem(celebrationStorageKey, JSON.stringify(value));
+        } catch (error) {
+            // Ignore storage failures so the dashboard refresh still works.
+        }
+    }
+
+    function goalCelebrationKey(goal) {
+        return `${goal.worker}|${goal.target}`;
+    }
+
+    function showGoalCelebration(goals) {
+        if (!celebrationOverlay || !goals.length) {
+            return;
+        }
+
+        const names = goals.map((goal) => goal.worker).join(", ");
+        celebrationText.textContent = goals.length === 1
+            ? `${names} completed their top rail goal.`
+            : `${names} completed their top rail goals.`;
+
+        document.body.classList.add("goal-celebration-active");
+        celebrationOverlay.classList.add("is-visible");
+
+        window.setTimeout(function () {
+            celebrationOverlay.classList.remove("is-visible");
+            document.body.classList.remove("goal-celebration-active");
+        }, 30000);
+    }
+
+    const shownCelebrations = readShownCelebrations();
+    const completedGoals = topRailBonusGoals.filter((goal) => goal.target_hit);
+    const newlyCompletedGoals = completedGoals.filter((goal) => !shownCelebrations[goalCelebrationKey(goal)]);
+
+    completedGoals.forEach((goal) => {
+        shownCelebrations[goalCelebrationKey(goal)] = true;
+    });
+    writeShownCelebrations(shownCelebrations);
+    showGoalCelebration(newlyCompletedGoals);
+
     setInterval(function () {
-        window.location.reload();
+        if (!document.body.classList.contains("goal-celebration-active")) {
+            window.location.reload();
+        }
     }, 10000);
 </script>
 {% endblock %}
