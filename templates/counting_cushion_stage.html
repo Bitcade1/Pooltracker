@@ -387,22 +387,6 @@
         background: #1d4ed8;
     }
 
-    .manual-consumable {
-        display: grid;
-        grid-template-columns: minmax(76px, 1fr) auto auto;
-        gap: 8px;
-        width: 100%;
-    }
-
-    .manual-consumable input {
-        min-height: 48px;
-        border: 1px solid #cbd5e1;
-        border-radius: 10px;
-        padding: 0 10px;
-        font-size: 1rem;
-        font-weight: 800;
-    }
-
     @media (max-width: 760px) {
         .stage-page {
             padding: 10px;
@@ -440,14 +424,6 @@
 
         .consumable-actions .secondary-btn {
             min-width: 86px;
-        }
-
-        .manual-consumable {
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .manual-consumable input {
-            grid-column: 1 / -1;
         }
     }
 </style>
@@ -593,17 +569,8 @@
                     <form class="consumable-actions" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
                         <input type="hidden" name="action" value="consumable_adjust">
                         <input type="hidden" name="part_name" value="{{ item.name }}">
-                        <button class="secondary-btn" type="submit" name="delta" value="-10">-10</button>
-                        <button class="secondary-btn" type="submit" name="delta" value="-5">-5</button>
                         <button class="secondary-btn" type="submit" name="delta" value="-1">-1</button>
                         <button class="secondary-btn add-consumable" type="submit" name="delta" value="1">+1</button>
-                        <button class="secondary-btn add-consumable" type="submit" name="delta" value="5">+5</button>
-                        <button class="secondary-btn add-consumable" type="submit" name="delta" value="10">+10</button>
-                        <div class="manual-consumable">
-                            <input type="number" name="manual_delta" min="1" step="1" placeholder="Manual">
-                            <button class="secondary-btn" type="submit" name="delta" value="manual_remove">Remove</button>
-                            <button class="secondary-btn add-consumable" type="submit" name="delta" value="manual_add">Add</button>
-                        </div>
                     </form>
                 </article>
             {% endfor %}

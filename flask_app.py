@@ -48,16 +48,18 @@ def format_number_filter(value):
 
 @app.template_filter('duration')
 def duration_filter(value):
-    """Format a duration in seconds as hours and minutes."""
+    """Format a duration in seconds without rounding it to minutes."""
     try:
-        seconds = max(0, int(value))
+        seconds = max(0, int(round(float(value))))
     except (TypeError, ValueError):
         return "N/A"
-    minutes = int(round(seconds / 60))
-    hours, minutes = divmod(minutes, 60)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
     if hours:
-        return f"{hours}h {minutes}m"
-    return f"{minutes}m"
+        return f"{hours}h {minutes}m {seconds}s"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
 
 # Register filters explicitly
 app.jinja_env.filters['abs'] = abs_filter
@@ -4436,16 +4438,12 @@ def parse_cushion_add_quantity(quantity_value, manual_quantity=None):
 
 
 def parse_consumable_delta(delta_value, manual_delta=None):
-    if delta_value in ("manual_add", "manual_remove"):
-        amount = parse_positive_count(manual_delta, "Manual adjustment")
-        return amount if delta_value == "manual_add" else -amount
-
     try:
         delta = int(delta_value)
     except (TypeError, ValueError):
         raise ValueError("Choose a valid consumable adjustment.")
-    if delta == 0 or abs(delta) not in (1, 5, 10):
-        raise ValueError("Choose 1, 5, 10, or enter a manual adjustment.")
+    if delta not in (-1, 1):
+        raise ValueError("Choose -1 or +1 for consumables.")
     return delta
 
 
@@ -4498,12 +4496,14 @@ def cushion_stock_key(size_label):
 def cushion_format_duration(seconds):
     if seconds is None:
         return "N/A"
-    seconds = max(0, int(seconds))
-    minutes = int(round(seconds / 60))
-    hours, minutes = divmod(minutes, 60)
+    seconds = max(0, int(round(float(seconds))))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
     if hours:
-        return f"{hours}h {minutes}m"
-    return f"{minutes}m"
+        return f"{hours}h {minutes}m {seconds}s"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
 
 
 def cushion_variant_key(stage_key, size_label="", shape_no=0, end_type=""):
