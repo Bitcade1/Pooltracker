@@ -4,23 +4,73 @@
 
 {% block content %}
 <style>
-    .cushion-admin {
-        max-width: 1200px;
-        margin: 0 auto;
+    body {
+        display: block;
+        align-items: stretch;
+        justify-content: flex-start;
+        background: #f4f4f9;
+    }
+
+    .container {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
         text-align: left;
+    }
+
+    .cushion-admin {
+        width: min(1500px, calc(100% - 28px));
+        margin: 0 auto;
+        padding: 14px 0 28px;
+        color: #1f2d3d;
+    }
+
+    .page-head,
+    .stat-card,
+    .admin-panel,
+    .stage-panel {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 12px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
 
     .page-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: 14px;
         flex-wrap: wrap;
+        padding: 16px 18px;
         margin-bottom: 14px;
     }
 
     .page-head h1 {
         margin: 0;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1;
+    }
+
+    .page-kicker,
+    .panel-kicker {
+        margin: 0 0 6px;
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .head-actions,
+    .reconcile-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
     }
 
     .link-btn,
@@ -29,153 +79,322 @@
         align-items: center;
         justify-content: center;
         border: none;
-        border-radius: 8px;
+        border-radius: 9px;
         background: #0f172a;
         color: #ffffff;
         text-decoration: none;
-        font-weight: 800;
+        font-weight: 900;
         cursor: pointer;
+        white-space: nowrap;
     }
 
     .link-btn {
-        min-height: 44px;
+        min-height: 46px;
         padding: 0 16px;
     }
 
     .small-btn {
-        min-height: 34px;
-        padding: 0 10px;
+        min-height: 38px;
+        padding: 0 12px;
+        font-size: 0.95rem;
+    }
+
+    .link-btn:hover,
+    .small-btn:hover {
+        filter: brightness(0.92);
     }
 
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 12px;
         margin-bottom: 14px;
     }
 
-    .stat-card,
-    .panel {
-        background: #ffffff;
-        border: 1px solid #dfe3eb;
-        border-radius: 10px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-    }
-
     .stat-card {
-        padding: 14px;
+        padding: 15px;
+        min-height: 106px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
         text-align: center;
     }
 
     .stat-label {
-        color: #566573;
-        font-size: 0.9rem;
-        font-weight: 800;
+        color: #64748b;
+        font-size: 0.84rem;
+        font-weight: 900;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.05em;
     }
 
     .stat-value {
-        color: #1f2d3d;
-        font-size: 2.2rem;
+        margin-top: 8px;
+        color: #0f172a;
+        font-size: clamp(2rem, 4vw, 3rem);
         font-weight: 900;
+        line-height: 1;
     }
 
-    .panel {
-        margin-bottom: 14px;
+    .admin-panel {
         overflow: hidden;
+        margin-bottom: 14px;
     }
 
-    .panel summary {
+    .panel-header,
+    .admin-panel > summary {
         display: flex;
+        align-items: center;
         justify-content: space-between;
         gap: 12px;
-        padding: 13px 15px;
-        cursor: pointer;
+        padding: 15px 16px;
         list-style: none;
-        font-size: 1.25rem;
-        font-weight: 900;
-        color: #1f2d3d;
     }
 
-    .panel summary::-webkit-details-marker {
+    .admin-panel > summary {
+        cursor: pointer;
+    }
+
+    .admin-panel > summary::-webkit-details-marker,
+    .stage-panel summary::-webkit-details-marker {
         display: none;
     }
 
-    .panel-body {
-        padding: 0 15px 15px;
+    .panel-title {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 900;
+        line-height: 1.1;
     }
 
-    .stage-total {
+    .panel-body {
+        padding: 0 16px 16px;
+    }
+
+    .count-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         min-width: 48px;
-        padding: 4px 10px;
+        min-height: 34px;
+        padding: 0 12px;
         border-radius: 999px;
         background: #eef2f7;
         color: #0f172a;
-        text-align: center;
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+    .reconcile-row {
+        margin-bottom: 14px;
+    }
+
+    .stage-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .stage-panel {
+        overflow: hidden;
+        box-shadow: none;
+    }
+
+    .stage-panel summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        padding: 13px 14px;
+        cursor: pointer;
+        list-style: none;
+    }
+
+    .stage-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        font-size: 1.05rem;
+        font-weight: 900;
+    }
+
+    .stage-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        background: #1d4ed8;
+        color: #ffffff;
+        flex: 0 0 auto;
+        font-size: 0.9rem;
+    }
+
+    .stage-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .stage-body {
+        padding: 0 14px 14px;
+    }
+
+    .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
     }
 
     .data-table {
         width: 100%;
-        border-collapse: collapse;
-        font-size: 0.95rem;
+        min-width: 760px;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.94rem;
     }
 
     .data-table th,
     .data-table td {
         border-bottom: 1px solid #e5e7eb;
-        padding: 8px;
+        padding: 10px 12px;
         text-align: left;
         vertical-align: middle;
     }
 
     .data-table th {
         background: #f8fafc;
+        color: #334155;
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .data-table tbody tr:nth-child(even) {
+        background: #fbfdff;
+    }
+
+    .data-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .data-table .number-cell {
+        width: 120px;
+        font-size: 1.2rem;
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .variant-cell strong {
+        display: block;
+        color: #0f172a;
         font-weight: 900;
     }
 
+    .variant-cell span {
+        display: block;
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 800;
+    }
+
+    .timing-cell {
+        color: #334155;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
     .correction-form {
-        display: flex;
+        display: grid;
+        grid-template-columns: 92px auto;
         gap: 8px;
         align-items: center;
+        margin: 0;
     }
 
     .correction-form input[type="number"] {
-        width: 90px;
-        min-height: 34px;
+        width: 100%;
+        min-height: 38px;
         border: 1px solid #cbd5e1;
         border-radius: 8px;
-        padding: 0 8px;
+        padding: 0 9px;
+        font-size: 1rem;
+        font-weight: 800;
     }
 
-    .reconcile-row {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin: 10px 0 14px;
+    .compact-table {
+        min-width: 620px;
+    }
+
+    .log-table {
+        min-width: 1040px;
+    }
+
+    .empty-state {
+        margin: 0;
+        padding: 16px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 800;
+    }
+
+    .flash-messages {
+        margin: 0 0 14px;
     }
 
     @media (max-width: 760px) {
-        .data-table {
-            font-size: 0.85rem;
+        .cushion-admin {
+            width: calc(100% - 20px);
+            padding-top: 10px;
         }
 
-        .correction-form {
-            flex-direction: column;
+        .page-head {
             align-items: stretch;
         }
 
-        .correction-form input[type="number"] {
+        .head-actions,
+        .head-actions .link-btn {
             width: 100%;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .stat-card {
+            min-height: 92px;
+            padding: 12px;
+        }
+
+        .panel-header,
+        .admin-panel > summary {
+            align-items: flex-start;
+        }
+
+        .stage-name {
+            white-space: normal;
         }
     }
 </style>
 
 <div class="cushion-admin">
-    <div class="page-head">
-        <h1>Cushion Production Admin</h1>
-        <a class="link-btn" href="{{ counting_url }}">Counting Page</a>
-    </div>
+    <header class="page-head">
+        <div>
+            <p class="page-kicker">Admin View</p>
+            <h1>Cushion Production</h1>
+        </div>
+        <div class="head-actions">
+            <a class="link-btn" href="{{ counting_url }}">Counting Page</a>
+            <a class="link-btn" href="{{ url_for('home') }}">Home</a>
+        </div>
+    </header>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -210,11 +429,14 @@
         </div>
     </section>
 
-    <details class="panel" open>
-        <summary>
-            <span>Counts By Stage</span>
-            <span class="stage-total">{{ total_wip }}</span>
-        </summary>
+    <section class="admin-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">Live Counts</p>
+                <h2 class="panel-title">Counts By Stage</h2>
+            </div>
+            <span class="count-pill">{{ total_wip }}</span>
+        </div>
         <div class="panel-body">
             <div class="reconcile-row">
                 {% for size, stock_count in stock_summary.items() %}
@@ -227,176 +449,205 @@
                 <a class="small-btn" href="{{ url_for('table_stock') }}">Edit Finished Stock</a>
             </div>
 
-            {% for stage in stages %}
-                <details class="panel" {% if loop.first %}open{% endif %}>
-                    <summary>
-                        <span>{{ loop.index }}. {{ stage.label }}</span>
-                        <span class="stage-total">{{ stage.total }}</span>
-                    </summary>
-                    <div class="panel-body">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Variant</th>
-                                    <th>Current Count</th>
-                                    <th>Average</th>
-                                    <th>Last</th>
-                                    <th>Correct Count</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for group in stage.groups %}
-                                    {% for variant in group.variants %}
+            <div class="stage-list">
+                {% for stage in stages %}
+                    <details class="stage-panel" {% if loop.first %}open{% endif %}>
+                        <summary>
+                            <span class="stage-title">
+                                <span class="stage-number">{{ loop.index }}</span>
+                                <span class="stage-name">{{ stage.label }}</span>
+                            </span>
+                            <span class="count-pill">{{ stage.total }}</span>
+                        </summary>
+                        <div class="stage-body">
+                            <div class="table-wrap">
+                                <table class="data-table">
+                                    <thead>
                                         <tr>
-                                            <td>
-                                                {{ group.label }}{% if group.label != variant.label %} - {{ variant.label }}{% endif %}
-                                            </td>
-                                            <td><strong>{{ variant.count }}</strong></td>
-                                            <td>{{ variant.timing.average_display }}</td>
-                                            <td>{{ variant.timing.last_display }}</td>
-                                            <td>
-                                                <form class="correction-form" method="POST" action="{{ url_for('cushion_production_admin') }}">
-                                                    <input type="hidden" name="action" value="set_count">
-                                                    <input type="hidden" name="stage_key" value="{{ stage.key }}">
-                                                    <input type="hidden" name="size_label" value="{{ variant.size_label }}">
-                                                    <input type="hidden" name="shape_no" value="{{ variant.shape_no }}">
-                                                    <input type="hidden" name="end_type" value="{{ variant.end_type }}">
-                                                    <input type="number" name="new_count" min="0" step="1" value="{{ variant.count }}">
-                                                    <button class="small-btn" type="submit">Set</button>
-                                                </form>
-                                            </td>
+                                            <th>Variant</th>
+                                            <th>Current</th>
+                                            <th>Average</th>
+                                            <th>Last</th>
+                                            <th>Correct Count</th>
                                         </tr>
-                                    {% endfor %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </details>
-            {% endfor %}
+                                    </thead>
+                                    <tbody>
+                                        {% for group in stage.groups %}
+                                            {% for variant in group.variants %}
+                                                <tr>
+                                                    <td class="variant-cell">
+                                                        <strong>{{ variant.label }}</strong>
+                                                        {% if group.label and group.label != 'All' and group.label != variant.label %}
+                                                            <span>{{ group.label }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="number-cell">{{ variant.count }}</td>
+                                                    <td class="timing-cell">{{ variant.timing.average_display }}</td>
+                                                    <td class="timing-cell">{{ variant.timing.last_display }}</td>
+                                                    <td>
+                                                        <form class="correction-form" method="POST" action="{{ url_for('cushion_production_admin') }}">
+                                                            <input type="hidden" name="action" value="set_count">
+                                                            <input type="hidden" name="stage_key" value="{{ stage.key }}">
+                                                            <input type="hidden" name="size_label" value="{{ variant.size_label }}">
+                                                            <input type="hidden" name="shape_no" value="{{ variant.shape_no }}">
+                                                            <input type="hidden" name="end_type" value="{{ variant.end_type }}">
+                                                            <input type="number" name="new_count" min="0" step="1" value="{{ variant.count }}">
+                                                            <button class="small-btn" type="submit">Set</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
+                {% endfor %}
+            </div>
         </div>
-    </details>
+    </section>
 
-    <details class="panel" open>
-        <summary>
-            <span>Timing Summary</span>
-            <span class="stage-total">Avg</span>
-        </summary>
-        <div class="panel-body">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Stage</th>
-                        <th>Samples</th>
-                        <th>Average Per Cushion</th>
-                        <th>Fastest</th>
-                        <th>Slowest</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for stage in stages %}
-                        {% set timing = timing_summary[stage.key] %}
-                        <tr>
-                            <td>{{ stage.label }}</td>
-                            <td>{{ timing.sample_count }}</td>
-                            <td>{{ timing.average_display }}</td>
-                            <td>{{ timing.fastest_display }}</td>
-                            <td>{{ timing.slowest_display }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <section class="admin-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">Performance</p>
+                <h2 class="panel-title">Timing Summary</h2>
+            </div>
+            <span class="count-pill">Avg</span>
         </div>
-    </details>
-
-    <details class="panel" open>
-        <summary>
-            <span>Completed Cushion Sets</span>
-            <span class="stage-total">{{ completed_sets|length }}</span>
-        </summary>
         <div class="panel-body">
-            {% if completed_sets %}
-                <table class="data-table">
+            <div class="table-wrap">
+                <table class="data-table compact-table">
                     <thead>
                         <tr>
-                            <th>Completed</th>
-                            <th>Size</th>
-                            <th>Worker</th>
-                            <th>Stock After</th>
-                            <th>Estimated Set Time</th>
+                            <th>Stage</th>
+                            <th>Samples</th>
+                            <th>Average Per Cushion</th>
+                            <th>Fastest</th>
+                            <th>Slowest</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for completed in completed_sets %}
+                        {% for stage in stages %}
+                            {% set timing = timing_summary[stage.key] %}
                             <tr>
-                                <td>{{ completed.completed_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td>{{ completed.size_label }}</td>
-                                <td>{{ completed.worker }}</td>
-                                <td>{{ completed.stock_count_after }}</td>
-                                <td>
-                                    {% if completed.estimated_seconds %}
-                                        {{ completed.estimated_seconds|duration }}
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </td>
+                                <td class="variant-cell"><strong>{{ stage.label }}</strong></td>
+                                <td class="number-cell">{{ timing.sample_count }}</td>
+                                <td class="timing-cell">{{ timing.average_display }}</td>
+                                <td class="timing-cell">{{ timing.fastest_display }}</td>
+                                <td class="timing-cell">{{ timing.slowest_display }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </section>
+
+    <details class="admin-panel" open>
+        <summary>
+            <div>
+                <p class="panel-kicker">Stock Updates</p>
+                <h2 class="panel-title">Completed Cushion Sets</h2>
+            </div>
+            <span class="count-pill">{{ completed_sets|length }}</span>
+        </summary>
+        <div class="panel-body">
+            {% if completed_sets %}
+                <div class="table-wrap">
+                    <table class="data-table compact-table">
+                        <thead>
+                            <tr>
+                                <th>Completed</th>
+                                <th>Size</th>
+                                <th>Worker</th>
+                                <th>Stock After</th>
+                                <th>Estimated Set Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for completed in completed_sets %}
+                                <tr>
+                                    <td class="timing-cell">{{ completed.completed_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td class="number-cell">{{ completed.size_label }}</td>
+                                    <td>{{ completed.worker }}</td>
+                                    <td class="number-cell">{{ completed.stock_count_after }}</td>
+                                    <td class="timing-cell">
+                                        {% if completed.estimated_seconds %}
+                                            {{ completed.estimated_seconds|duration }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% else %}
-                <p>No completed cushion sets have been logged yet.</p>
+                <p class="empty-state">No completed cushion sets have been logged yet.</p>
             {% endif %}
         </div>
     </details>
 
-    <details class="panel">
+    <details class="admin-panel">
         <summary>
-            <span>Recent Action Log</span>
-            <span class="stage-total">{{ recent_logs|length }}</span>
+            <div>
+                <p class="panel-kicker">History</p>
+                <h2 class="panel-title">Recent Action Log</h2>
+            </div>
+            <span class="count-pill">{{ recent_logs|length }}</span>
         </summary>
         <div class="panel-body">
             {% if recent_logs %}
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>When</th>
-                            <th>Worker</th>
-                            <th>Stage</th>
-                            <th>Action</th>
-                            <th>Delta</th>
-                            <th>Count After</th>
-                            <th>Timing</th>
-                            <th>Note</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for entry in recent_logs %}
+                <div class="table-wrap">
+                    <table class="data-table log-table">
+                        <thead>
                             <tr>
-                                <td>{{ entry.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td>{{ entry.worker }}</td>
-                                <td>
-                                    {{ entry.stage_label }}
-                                    {% if entry.size_label %} - {{ entry.size_label }}{% endif %}
-                                    {% if entry.shape_no %} - Shape {{ entry.shape_no }}{% endif %}
-                                    {% if entry.end_type %} - {{ entry.end_type }}{% endif %}
-                                </td>
-                                <td>{{ entry.action_type }}</td>
-                                <td>{{ entry.delta }}</td>
-                                <td>{{ entry.count_after }}</td>
-                                <td>
-                                    {% if entry.seconds_taken %}
-                                        {{ entry.seconds_taken|duration }}
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </td>
-                                <td>{{ entry.note or '' }}</td>
+                                <th>When</th>
+                                <th>Worker</th>
+                                <th>Stage</th>
+                                <th>Action</th>
+                                <th>Delta</th>
+                                <th>Count After</th>
+                                <th>Timing</th>
+                                <th>Note</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% for entry in recent_logs %}
+                                <tr>
+                                    <td class="timing-cell">{{ entry.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>{{ entry.worker }}</td>
+                                    <td class="variant-cell">
+                                        <strong>{{ entry.stage_label }}</strong>
+                                        {% if entry.size_label or entry.shape_no or entry.end_type %}
+                                            <span>
+                                                {% if entry.size_label %}{{ entry.size_label }}{% endif %}
+                                                {% if entry.shape_no %}{% if entry.size_label %} - {% endif %}Shape {{ entry.shape_no }}{% endif %}
+                                                {% if entry.end_type %}{% if entry.size_label or entry.shape_no %} - {% endif %}{{ entry.end_type }}{% endif %}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ entry.action_type }}</td>
+                                    <td class="number-cell">{{ entry.delta }}</td>
+                                    <td class="number-cell">{{ entry.count_after }}</td>
+                                    <td class="timing-cell">
+                                        {% if entry.seconds_taken %}
+                                            {{ entry.seconds_taken|duration }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ entry.note or '' }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% else %}
-                <p>No cushion work logged yet.</p>
+                <p class="empty-state">No cushion work logged yet.</p>
             {% endif %}
         </div>
     </details>
