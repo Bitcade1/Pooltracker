@@ -231,6 +231,10 @@
         box-shadow: inset 0 0 0 2px #111827;
     }
 
+    .queue-column.has-new-top {
+        box-shadow: 0 0 0 4px #f97316, 0 10px 24px rgba(249, 115, 22, 0.22);
+    }
+
     .queue-column.machine-1 {
         --machine-accent: #b42318;
         --machine-soft: #fff0ee;
@@ -276,6 +280,70 @@
         background: #ffffff;
     }
 
+    .queue-item.changeover {
+        border-color: #f97316;
+        background: #fff7ed;
+    }
+
+    .queue-item.is-new-top {
+        border-color: #dc2626;
+        background: #fff1f2;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.28);
+    }
+
+    .queue-change-divider {
+        border: 2px solid #f97316;
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: #fff7ed;
+        color: #9a3412;
+        text-align: center;
+        font-size: 1rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .changeover-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: #f97316;
+        color: #ffffff;
+        font-size: 0.78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .queue-change-alert {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        z-index: 1000;
+        transform: translateX(-50%);
+        width: min(900px, calc(100% - 28px));
+        border: 3px solid #dc2626;
+        border-radius: 14px;
+        padding: 12px 14px;
+        background: #fff1f2;
+        color: #7f1d1d;
+        box-shadow: 0 18px 50px rgba(127, 29, 29, 0.3);
+        font-size: 1.1rem;
+        font-weight: 900;
+    }
+
+    .queue-change-alert[hidden] {
+        display: none;
+    }
+
+    .queue-change-alert ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+    }
+
     .empty-text {
         font-size: 0.95rem;
         color: #5d6470;
@@ -302,6 +370,8 @@
     <header class="manager-header">
         <h1>CNC Queue Manager</h1>
     </header>
+
+    <div id="queue-change-alert" class="queue-change-alert" hidden></div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -378,11 +448,20 @@
                     <h3 class="queue-heading">CNC {{ machine }}</h3>
                     <div class="queue-count">{{ queues[machine]|length }} queued</div>
                     <div class="queue-list">
+                        {% set queue_ns = namespace(previous_job_name='') %}
                         {% for item in queues[machine] %}
-                            <article class="queue-item" draggable="true" data-drag-type="queue_item" data-item-id="{{ item.id }}">
+                            {% set item_job_name = item.job.name|lower %}
+                            {% set is_changeover = queue_ns.previous_job_name and queue_ns.previous_job_name != item_job_name %}
+                            {% if is_changeover %}
+                                <div class="queue-change-divider">Change job here</div>
+                            {% endif %}
+                            <article class="queue-item {% if is_changeover %}changeover{% endif %}" draggable="true" data-drag-type="queue_item" data-item-id="{{ item.id }}" data-job-name="{{ item.job.name }}">
                                 <div class="line-top">
                                     <label><input type="checkbox" class="queue-select" value="{{ item.id }}"> Select</label>
                                     <div class="queue-actions">
+                                        {% if is_changeover %}
+                                            <span class="changeover-badge">New job</span>
+                                        {% endif %}
                                         <button type="button" class="btn btn-small move-top" data-item-id="{{ item.id }}">Top</button>
                                         <button type="button" class="btn btn-small move-up" data-item-id="{{ item.id }}">Up</button>
                                         <button type="button" class="btn btn-small move-down" data-item-id="{{ item.id }}">Down</button>
@@ -394,6 +473,7 @@
                                 <div class="job-name">{{ item.job.name }}</div>
                                 <div class="job-meta">Queue #{{ item.position }}</div>
                             </article>
+                            {% set queue_ns.previous_job_name = item_job_name %}
                         {% else %}
                             <p class="empty-text">Queue is empty.</p>
                         {% endfor %}
@@ -406,6 +486,7 @@
 
 <script>
     const refreshStateKey = "cnc-queue-manager-scroll-state";
+    const topQueueStateKey = "cnc-queue-manager-top-items";
     const idleRefreshDelayMs = 45000;
     const refreshCheckIntervalMs = 15000;
     let lastUserInteractionAt = Date.now();
@@ -462,7 +543,95 @@
         return Date.now() - lastUserInteractionAt >= idleRefreshDelayMs;
     }
 
+    function readTopQueueState() {
+        try {
+            return JSON.parse(localStorage.getItem(topQueueStateKey) || "{}");
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function writeTopQueueState(value) {
+        try {
+            localStorage.setItem(topQueueStateKey, JSON.stringify(value));
+        } catch (error) {
+            // Ignore storage failures; the page can still be used.
+        }
+    }
+
+    function currentTopQueueState() {
+        const state = {};
+        document.querySelectorAll(".queue-column").forEach((column) => {
+            const machineNumber = column.getAttribute("data-machine-number");
+            const firstItem = column.querySelector(".queue-item");
+            state[machineNumber] = firstItem ? {
+                itemId: firstItem.getAttribute("data-item-id"),
+                jobName: firstItem.getAttribute("data-job-name") || ""
+            } : null;
+        });
+        return state;
+    }
+
+    function showTopQueueChanges() {
+        const previousState = readTopQueueState();
+        const currentState = currentTopQueueState();
+        const changes = [];
+
+        Object.keys(currentState).forEach((machineNumber) => {
+            const previous = previousState[machineNumber];
+            const current = currentState[machineNumber];
+            if (!previous || !current) {
+                return;
+            }
+            if (String(previous.itemId) === String(current.itemId)) {
+                return;
+            }
+            if ((previous.jobName || "") === (current.jobName || "")) {
+                return;
+            }
+
+            changes.push({
+                machineNumber: machineNumber,
+                from: previous.jobName || "empty",
+                to: current.jobName || "empty"
+            });
+
+            const column = document.querySelector(`.queue-column[data-machine-number="${machineNumber}"]`);
+            const firstItem = column ? column.querySelector(".queue-item") : null;
+            if (column) {
+                column.classList.add("has-new-top");
+            }
+            if (firstItem) {
+                firstItem.classList.add("is-new-top");
+            }
+        });
+
+        writeTopQueueState(currentState);
+
+        if (!changes.length) {
+            return;
+        }
+
+        const alertBox = document.getElementById("queue-change-alert");
+        if (!alertBox) {
+            return;
+        }
+        alertBox.replaceChildren();
+        const heading = document.createElement("div");
+        heading.textContent = "Queue item changed from what was just being cut:";
+        const list = document.createElement("ul");
+        changes.forEach((change) => {
+            const item = document.createElement("li");
+            item.textContent = `CNC ${change.machineNumber}: ${change.from} to ${change.to}`;
+            list.appendChild(item);
+        });
+        alertBox.appendChild(heading);
+        alertBox.appendChild(list);
+        alertBox.hidden = false;
+    }
+
     restoreScrollState();
+    showTopQueueChanges();
 
     ["pointerdown", "keydown", "change", "dragstart", "drop"].forEach((eventName) => {
         document.addEventListener(eventName, markUserInteraction, { passive: true });
