@@ -452,9 +452,9 @@
 <div class="dashboard-wrapper">
     <div class="goal-celebration-overlay" id="goalCelebrationOverlay" aria-live="polite">
         <div class="goal-celebration-card">
-            <h2>Target Hit</h2>
+            <h2 id="goalCelebrationTitle">Target Hit</h2>
             <p id="goalCelebrationText">Top rail goal completed.</p>
-            <img src="https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif" alt="Schwarzenegger thumbs up celebration GIF">
+            <img id="goalCelebrationImage" src="https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif" alt="Schwarzenegger celebration GIF">
         </div>
     </div>
 
@@ -573,9 +573,21 @@
 <script>
     const topRailBonusGoals = {{ bonus_progress|tojson }};
     const topRailBonusMonth = {{ bonus_month_label|tojson }};
+    const topRailMonthlyCount = {{ stats.monthly|tojson }};
     const celebrationStorageKey = `top-rail-bonus-celebrations-${topRailBonusMonth}`;
+    const milestoneStorageKey = `top-rail-10-rail-milestones-${topRailBonusMonth}`;
     const celebrationOverlay = document.getElementById("goalCelebrationOverlay");
+    const celebrationTitle = document.getElementById("goalCelebrationTitle");
     const celebrationText = document.getElementById("goalCelebrationText");
+    const celebrationImage = document.getElementById("goalCelebrationImage");
+    const goalCelebrationGif = "https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif";
+    const milestoneCelebrationGifs = [
+        "https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif",
+        "https://media1.tenor.com/m/4gwgdvPrIxUAAAAC/just-flexing-arnold-schwarzenegger.gif",
+        "https://media1.tenor.com/m/gNVtdIjW3mQAAAAC/terminator-smiling.gif",
+        "https://media1.tenor.com/m/QoT40TO0_FEAAAAC/bodybuilder-bodybuilding.gif",
+        "https://media1.tenor.com/m/viod1pQpctkAAAAC/arnold-schwarzenegger-stare.gif"
+    ];
 
     function readShownCelebrations() {
         try {
@@ -597,15 +609,24 @@
         return `${goal.worker}|${goal.target}`;
     }
 
-    function showGoalCelebration(goals) {
-        if (!celebrationOverlay || !goals.length) {
+    function randomMilestoneGif() {
+        return milestoneCelebrationGifs[Math.floor(Math.random() * milestoneCelebrationGifs.length)];
+    }
+
+    function showCelebration(title, message, imageUrl) {
+        if (!celebrationOverlay) {
             return;
         }
 
-        const names = goals.map((goal) => goal.worker).join(", ");
-        celebrationText.textContent = goals.length === 1
-            ? `${names} completed their top rail goal.`
-            : `${names} completed their top rail goals.`;
+        if (celebrationTitle) {
+            celebrationTitle.textContent = title;
+        }
+        if (celebrationText) {
+            celebrationText.textContent = message;
+        }
+        if (celebrationImage) {
+            celebrationImage.src = imageUrl;
+        }
 
         document.body.classList.add("goal-celebration-active");
         celebrationOverlay.classList.add("is-visible");
@@ -616,6 +637,54 @@
         }, 30000);
     }
 
+    function showGoalCelebration(goals) {
+        if (!goals.length) {
+            return false;
+        }
+
+        const names = goals.map((goal) => goal.worker).join(", ");
+        showCelebration(
+            "Target Hit",
+            goals.length === 1
+                ? `${names} completed their top rail goal.`
+                : `${names} completed their top rail goals.`,
+            goalCelebrationGif
+        );
+        return true;
+    }
+
+    function showMilestoneCelebration() {
+        const milestone = Math.floor(topRailMonthlyCount / 10) * 10;
+        if (milestone < 10 || topRailMonthlyCount !== milestone) {
+            return false;
+        }
+
+        let shownMilestones = {};
+        try {
+            shownMilestones = JSON.parse(localStorage.getItem(milestoneStorageKey) || "{}");
+        } catch (error) {
+            shownMilestones = {};
+        }
+
+        if (shownMilestones[String(milestone)]) {
+            return false;
+        }
+
+        shownMilestones[String(milestone)] = true;
+        try {
+            localStorage.setItem(milestoneStorageKey, JSON.stringify(shownMilestones));
+        } catch (error) {
+            // Ignore storage failures so the dashboard refresh still works.
+        }
+
+        showCelebration(
+            `${milestone} Top Rails`,
+            `${milestone} top rails completed this month.`,
+            randomMilestoneGif()
+        );
+        return true;
+    }
+
     const shownCelebrations = readShownCelebrations();
     const completedGoals = topRailBonusGoals.filter((goal) => goal.target_hit);
     const newlyCompletedGoals = completedGoals.filter((goal) => !shownCelebrations[goalCelebrationKey(goal)]);
@@ -624,7 +693,10 @@
         shownCelebrations[goalCelebrationKey(goal)] = true;
     });
     writeShownCelebrations(shownCelebrations);
-    showGoalCelebration(newlyCompletedGoals);
+    const goalCelebrationShown = showGoalCelebration(newlyCompletedGoals);
+    if (!goalCelebrationShown) {
+        showMilestoneCelebration();
+    }
 
     setInterval(function () {
         if (!document.body.classList.contains("goal-celebration-active")) {
