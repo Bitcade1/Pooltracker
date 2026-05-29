@@ -405,6 +405,71 @@
 </div>
 
 <script>
+    const refreshStateKey = "cnc-queue-manager-scroll-state";
+    const idleRefreshDelayMs = 45000;
+    const refreshCheckIntervalMs = 15000;
+    let lastUserInteractionAt = Date.now();
+
+    function saveScrollState() {
+        try {
+            const jobPool = document.getElementById("job-pool");
+            sessionStorage.setItem(refreshStateKey, JSON.stringify({
+                windowX: window.scrollX || 0,
+                windowY: window.scrollY || 0,
+                jobPoolTop: jobPool ? jobPool.scrollTop : 0
+            }));
+        } catch (error) {
+            // Ignore storage failures; refresh should still work.
+        }
+    }
+
+    function restoreScrollState() {
+        try {
+            const raw = sessionStorage.getItem(refreshStateKey);
+            if (!raw) {
+                return;
+            }
+            const state = JSON.parse(raw);
+            window.scrollTo(state.windowX || 0, state.windowY || 0);
+            const jobPool = document.getElementById("job-pool");
+            if (jobPool && Number.isFinite(state.jobPoolTop)) {
+                jobPool.scrollTop = state.jobPoolTop;
+            }
+        } catch (error) {
+            // Ignore invalid saved state.
+        }
+    }
+
+    function markUserInteraction() {
+        lastUserInteractionAt = Date.now();
+        saveScrollState();
+    }
+
+    function hasActiveSelections() {
+        return Boolean(document.querySelector(".job-select:checked, .queue-select:checked"));
+    }
+
+    function isEditingField() {
+        const active = document.activeElement;
+        const activeTag = active ? active.tagName : "";
+        return activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
+    }
+
+    function canAutoRefresh() {
+        if (document.hidden || isEditingField() || hasActiveSelections()) {
+            return false;
+        }
+        return Date.now() - lastUserInteractionAt >= idleRefreshDelayMs;
+    }
+
+    restoreScrollState();
+
+    ["pointerdown", "keydown", "change", "dragstart", "drop"].forEach((eventName) => {
+        document.addEventListener(eventName, markUserInteraction, { passive: true });
+    });
+    window.addEventListener("scroll", markUserInteraction, { passive: true });
+    window.addEventListener("beforeunload", saveScrollState);
+
     async function postJson(url, payload) {
         const response = await fetch(url, {
             method: "POST",
@@ -433,6 +498,7 @@
     async function withReload(requestPromise) {
         try {
             await requestPromise;
+            saveScrollState();
             window.location.reload();
         } catch (error) {
             alert(error.message || "Action failed.");
@@ -726,15 +792,11 @@
     blockDragFromControls();
 
     setInterval(function () {
-        if (document.hidden) {
+        if (!canAutoRefresh()) {
             return;
         }
-        const active = document.activeElement;
-        const activeTag = active ? active.tagName : "";
-        if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") {
-            return;
-        }
+        saveScrollState();
         window.location.reload();
-    }, 5000);
+    }, refreshCheckIntervalMs);
 </script>
 {% endblock %}
