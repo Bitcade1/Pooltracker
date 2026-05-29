@@ -4465,6 +4465,45 @@ def cushion_consumables_for_stage(stage_key):
     return consumables
 
 
+def cushion_all_consumables():
+    consumables = []
+    for item in CUSHION_CONSUMABLES:
+        count, canonical_name = consumable_stock_state(item["name"])
+        consumables.append({
+            **item,
+            "name": canonical_name,
+            "count": count,
+        })
+    return consumables
+
+
+def set_consumable_stock(part_name, new_count):
+    allowed_names = {item["name"].lower(): item["name"] for item in CUSHION_CONSUMABLES}
+    requested_name = (part_name or "").lower()
+    if requested_name not in allowed_names:
+        raise ValueError("Unknown consumable.")
+
+    try:
+        new_count = int(new_count)
+    except (TypeError, ValueError):
+        raise ValueError("Enter a valid consumable stock count.")
+    if new_count < 0:
+        raise ValueError("Consumable stock cannot be negative.")
+
+    current_count, canonical_name = consumable_stock_state(allowed_names[requested_name])
+    if new_count < current_count:
+        check_and_notify_low_stock(canonical_name, current_count, new_count)
+
+    now = london_now()
+    db.session.add(PrintedPartsCount(
+        part_name=canonical_name,
+        count=new_count,
+        date=now.date(),
+        time=now.time()
+    ))
+    return canonical_name, current_count, new_count
+
+
 def adjust_consumable_stock(part_name, delta):
     allowed_names = {item["name"].lower(): item["name"] for item in CUSHION_CONSUMABLES}
     requested_name = (part_name or "").lower()
@@ -8708,6 +8747,7 @@ def cushion_production_admin():
         return redirect(url_for('login'))
 
     ensure_cushion_workflow_tables()
+    ensure_cushion_consumables()
     worker_name = session['worker']
 
     if request.method == 'POST':
@@ -8768,6 +8808,49 @@ def cushion_production_admin():
                     flash(f"Updated {changed_count} cushion count(s).", "success")
                 else:
                     flash("No count changes to save.", "info")
+            elif action == "bulk_update_consumables":
+                part_names = request.form.getlist('part_name')
+                stock_counts = request.form.getlist('stock_count')
+                stock_adjustments = request.form.getlist('stock_adjustment')
+                row_count = len(part_names)
+                if not (
+                    row_count
+                    and len(stock_counts) == row_count
+                    and len(stock_adjustments) == row_count
+                ):
+                    raise ValueError("Consumable update rows were incomplete. Please try again.")
+
+                changed_count = 0
+                for index in range(row_count):
+                    part_name = part_names[index]
+                    try:
+                        target_count = int(stock_counts[index])
+                    except (TypeError, ValueError):
+                        raise ValueError("Enter valid whole-number consumable stock counts.")
+                    if target_count < 0:
+                        raise ValueError("Consumable stock cannot be negative.")
+
+                    adjustment_text = (stock_adjustments[index] or "").strip()
+                    if adjustment_text:
+                        try:
+                            target_count += int(adjustment_text)
+                        except (TypeError, ValueError):
+                            raise ValueError("Consumable adjustments must be whole numbers.")
+                    if target_count < 0:
+                        raise ValueError("Consumable stock cannot be negative after adjustment.")
+
+                    current_count, _ = consumable_stock_state(part_name)
+                    if target_count == current_count:
+                        continue
+
+                    set_consumable_stock(part_name, target_count)
+                    changed_count += 1
+
+                db.session.commit()
+                if changed_count:
+                    flash(f"Updated {changed_count} consumable stock count(s).", "success")
+                else:
+                    flash("No consumable changes to save.", "info")
             elif action == "reconcile_bundles":
                 size_label = request.form.get('size_label', '')
                 if size_label not in CUSHION_SIZES:
@@ -8809,6 +8892,7 @@ def cushion_production_admin():
         stages=stage_context,
         timing_summary=timing_summary,
         stock_summary=cushion_stock_summary(),
+        consumables=cushion_all_consumables(),
         completed_sets=completed_sets,
         recent_logs=recent_logs,
         total_wip=sum(stage["total"] for stage in stage_context),

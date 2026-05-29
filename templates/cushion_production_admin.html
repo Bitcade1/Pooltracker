@@ -332,6 +332,27 @@
         font-weight: 800;
     }
 
+    .stock-input,
+    .adjustment-input {
+        width: 130px;
+        min-height: 38px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0 9px;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .adjustment-input {
+        width: 150px;
+    }
+
+    .help-text {
+        margin: 0 0 12px;
+        color: #64748b;
+        font-weight: 800;
+    }
+
     .bulk-save-row {
         display: flex;
         justify-content: flex-end;
@@ -347,6 +368,10 @@
 
     .compact-table {
         min-width: 620px;
+    }
+
+    .consumables-table {
+        min-width: 700px;
     }
 
     .log-table {
@@ -444,6 +469,60 @@
         <div class="stat-card">
             <div class="stat-label">7ft Est. Set Time</div>
             <div class="stat-value">{{ estimated_set_times['7ft'] }}</div>
+        </div>
+    </section>
+
+    <section class="admin-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">Stock Control</p>
+                <h2 class="panel-title">Consumables</h2>
+            </div>
+            <span class="count-pill">{{ consumables|length }}</span>
+        </div>
+        <div class="panel-body">
+            <p class="help-text">Edit Set Stock for exact stock, or use Add / Remove for a one-off adjustment. Use negative numbers to remove stock.</p>
+            <form method="POST" action="{{ url_for('cushion_production_admin') }}">
+                <input type="hidden" name="action" value="bulk_update_consumables">
+                <div class="bulk-save-row">
+                    <button class="small-btn save-btn" type="submit">Save Consumables</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table consumables-table">
+                        <thead>
+                            <tr>
+                                <th>Consumable</th>
+                                <th>Current Stock</th>
+                                <th>Set Stock</th>
+                                <th>Add / Remove</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in consumables %}
+                                <tr>
+                                    <td class="variant-cell">
+                                        <strong>{{ item.label }}</strong>
+                                        {% if item.name != item.label %}
+                                            <span>{{ item.name }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="number-cell">{{ item.count }}</td>
+                                    <td>
+                                        <input type="hidden" name="part_name" value="{{ item.name }}">
+                                        <input class="stock-input" type="number" name="stock_count" min="0" step="1" value="{{ item.count }}">
+                                    </td>
+                                    <td>
+                                        <input class="adjustment-input" type="number" name="stock_adjustment" step="1" placeholder="e.g. 25 or -5">
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bulk-save-row">
+                    <button class="small-btn save-btn" type="submit">Save Consumables</button>
+                </div>
+            </form>
         </div>
     </section>
 
