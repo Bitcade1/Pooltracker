@@ -375,10 +375,8 @@
     .consumable-actions {
         display: flex;
         gap: 8px;
+        flex-wrap: wrap;
         flex-shrink: 0;
-    }
-
-    .consumable-actions form {
         margin: 0;
     }
 
@@ -390,6 +388,22 @@
 
     .consumable-actions .add-consumable {
         background: #1d4ed8;
+    }
+
+    .manual-consumable {
+        display: grid;
+        grid-template-columns: minmax(76px, 1fr) auto auto;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .manual-consumable input {
+        min-height: 48px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0 10px;
+        font-size: 1rem;
+        font-weight: 800;
     }
 
     @media (max-width: 760px) {
@@ -420,6 +434,14 @@
 
         .consumable-actions .small-btn {
             min-width: 86px;
+        }
+
+        .manual-consumable {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .manual-consumable input {
+            grid-column: 1 / -1;
         }
     }
 </style>
@@ -482,20 +504,21 @@
                         <span class="consumable-name">{{ item.label }}</span>
                         <span class="consumable-count">Stock {{ item.count }}</span>
                     </div>
-                    <div class="consumable-actions">
-                        <form method="POST" action="{{ url_for('counting_cushions') }}">
-                            <input type="hidden" name="action" value="consumable_adjust">
-                            <input type="hidden" name="part_name" value="{{ item.name }}">
-                            <input type="hidden" name="delta" value="-1">
-                            <button class="small-btn" type="submit">-1</button>
-                        </form>
-                        <form method="POST" action="{{ url_for('counting_cushions') }}">
-                            <input type="hidden" name="action" value="consumable_adjust">
-                            <input type="hidden" name="part_name" value="{{ item.name }}">
-                            <input type="hidden" name="delta" value="1">
-                            <button class="small-btn add-consumable" type="submit">+1</button>
-                        </form>
-                    </div>
+                    <form class="consumable-actions" method="POST" action="{{ url_for('counting_cushions') }}">
+                        <input type="hidden" name="action" value="consumable_adjust">
+                        <input type="hidden" name="part_name" value="{{ item.name }}">
+                        <button class="small-btn" type="submit" name="delta" value="-10">-10</button>
+                        <button class="small-btn" type="submit" name="delta" value="-5">-5</button>
+                        <button class="small-btn" type="submit" name="delta" value="-1">-1</button>
+                        <button class="small-btn add-consumable" type="submit" name="delta" value="1">+1</button>
+                        <button class="small-btn add-consumable" type="submit" name="delta" value="5">+5</button>
+                        <button class="small-btn add-consumable" type="submit" name="delta" value="10">+10</button>
+                        <div class="manual-consumable">
+                            <input type="number" name="manual_delta" min="1" step="1" placeholder="Manual">
+                            <button class="small-btn" type="submit" name="delta" value="manual_remove">Remove</button>
+                            <button class="small-btn add-consumable" type="submit" name="delta" value="manual_add">Add</button>
+                        </div>
+                    </form>
                 </article>
             {% endfor %}
         </div>

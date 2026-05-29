@@ -4217,7 +4217,17 @@ CUSHION_CONSUMABLE_GLOVES = [
     {"name": "Work Gloves", "label": "Work Gloves"},
 ]
 CUSHION_CONSUMABLE_PAINT_BRUSH = {"name": "Paint Brush", "label": "Paint Brush"}
-CUSHION_CONSUMABLES = [*CUSHION_CONSUMABLE_GLOVES, CUSHION_CONSUMABLE_PAINT_BRUSH]
+CUSHION_CONSUMABLE_TEE_NUTS = {"name": "M10x13mm Tee Nut", "label": "Tee Nuts"}
+CUSHION_CONSUMABLE_SANDING = [
+    {"name": "Sanding Belts", "label": "Sanding Belts"},
+    {"name": "Sanding Pads", "label": "Sanding Pads"},
+]
+CUSHION_CONSUMABLES = [
+    *CUSHION_CONSUMABLE_GLOVES,
+    CUSHION_CONSUMABLE_PAINT_BRUSH,
+    CUSHION_CONSUMABLE_TEE_NUTS,
+    *CUSHION_CONSUMABLE_SANDING,
+]
 
 CUSHION_STAGE_PLAIN = "plain"
 CUSHION_STAGE_SIZE_SHAPE = "size_shape"
@@ -4403,10 +4413,49 @@ def consumable_current_count(part_name):
     return count
 
 
+def parse_positive_count(value, field_label="Quantity"):
+    try:
+        count = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_label} must be a whole number.")
+    if count <= 0:
+        raise ValueError(f"{field_label} must be at least 1.")
+    if count > 999:
+        raise ValueError(f"{field_label} is too high.")
+    return count
+
+
+def parse_cushion_add_quantity(quantity_value, manual_quantity=None):
+    if quantity_value == "manual":
+        return parse_positive_count(manual_quantity, "Manual quantity")
+
+    quantity = parse_positive_count(quantity_value or 1, "Quantity")
+    if quantity not in (1, 5, 10):
+        raise ValueError("Choose 1, 5, 10, or enter a manual quantity.")
+    return quantity
+
+
+def parse_consumable_delta(delta_value, manual_delta=None):
+    if delta_value in ("manual_add", "manual_remove"):
+        amount = parse_positive_count(manual_delta, "Manual adjustment")
+        return amount if delta_value == "manual_add" else -amount
+
+    try:
+        delta = int(delta_value)
+    except (TypeError, ValueError):
+        raise ValueError("Choose a valid consumable adjustment.")
+    if delta == 0 or abs(delta) not in (1, 5, 10):
+        raise ValueError("Choose 1, 5, 10, or enter a manual adjustment.")
+    return delta
+
+
 def cushion_consumables_for_stage(stage_key):
     items = list(CUSHION_CONSUMABLE_GLOVES)
     if stage_key == "glue_ends":
         items.append(CUSHION_CONSUMABLE_PAINT_BRUSH)
+        items.append(CUSHION_CONSUMABLE_TEE_NUTS)
+    if stage_key in ("sand_ends", "sand_tops"):
+        items.extend(CUSHION_CONSUMABLE_SANDING)
     consumables = []
     for item in items:
         count, canonical_name = consumable_stock_state(item["name"])
@@ -4679,13 +4728,22 @@ def complete_available_cushion_sets(size_label, worker):
     return completed_sets
 
 
-def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
+def cushion_tee_nuts_required_for_glue_ends(size_label, quantity=1):
+    if size_label == "6ft":
+        return 3 * int(quantity)
+    if size_label == "7ft":
+        return 4 * int(quantity)
+    return 0
+
+
+def record_cushion_stage_add_many(stage_key, size_label, shape_no, end_type, quantity, worker):
     size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
+    quantity = parse_positive_count(quantity, "Quantity")
 
     requirements = cushion_input_requirements(stage_key, size_label, shape_no, end_type)
     required_counts = defaultdict(int)
     for requirement in requirements:
-        required_counts[requirement] += 1
+        required_counts[requirement] += quantity
 
     for (input_stage_key, input_size, input_shape, input_end), required_count in required_counts.items():
         input_record = get_cushion_count_record(input_stage_key, input_size, input_shape, input_end, create=True)
@@ -4693,6 +4751,13 @@ def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
             available = input_record.count
             label = cushion_variant_display(input_stage_key, input_record.size_label, input_record.shape_no, input_record.end_type)
             raise ValueError(f"Not enough {label} available. Need {required_count}, have {available}.")
+
+    tee_nuts_required = 0
+    if stage_key == "glue_ends":
+        tee_nuts_required = cushion_tee_nuts_required_for_glue_ends(size_label, quantity)
+        current_tee_nuts, tee_nuts_name = consumable_stock_state(CUSHION_CONSUMABLE_TEE_NUTS["name"])
+        if current_tee_nuts < tee_nuts_required:
+            raise ValueError(f"Not enough {tee_nuts_name} in stock. Need {tee_nuts_required}, have {current_tee_nuts}.")
 
     for (input_stage_key, input_size, input_shape, input_end), required_count in required_counts.items():
         apply_cushion_count_delta(
@@ -4708,10 +4773,16 @@ def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
 
     now = london_now()
     seconds_taken = cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, worker, now)
+    if seconds_taken and quantity > 1:
+        seconds_taken = max(1, int(round(seconds_taken / quantity)))
+
     if stage_key == "bundle":
-        completed_set = add_cushion_set_to_stock(size_label, worker, seconds_taken)
+        completed_sets = [
+            add_cushion_set_to_stock(size_label, worker, seconds_taken)
+            for _ in range(quantity)
+        ]
         target_record = get_cushion_count_record(stage_key, size_label, 0, "", create=True)
-        target_record.count = completed_set.stock_count_after
+        target_record.count = completed_sets[-1].stock_count_after
         target_record.updated_at = now
         db.session.add(CushionWorkflowLog(
             action_type="add",
@@ -4721,19 +4792,22 @@ def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
             shape_no=0,
             end_type="",
             worker=worker,
-            delta=1,
-            count_after=completed_set.stock_count_after,
+            delta=quantity,
+            count_after=target_record.count,
             seconds_taken=seconds_taken,
-            note="Bundled completed cushion set"
+            note=f"Bundled {quantity} completed cushion set(s)"
         ))
-        return target_record, [completed_set]
+        return target_record, completed_sets
+
+    if tee_nuts_required:
+        adjust_consumable_stock(CUSHION_CONSUMABLE_TEE_NUTS["name"], -tee_nuts_required)
 
     target_record = apply_cushion_count_delta(
         stage_key,
         size_label,
         shape_no,
         end_type,
-        1,
+        quantity,
         worker,
         action_type="add",
         seconds_taken=seconds_taken
@@ -4741,6 +4815,10 @@ def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
 
     completed_sets = []
     return target_record, completed_sets
+
+
+def record_cushion_stage_add(stage_key, size_label, shape_no, end_type, worker):
+    return record_cushion_stage_add_many(stage_key, size_label, shape_no, end_type, 1, worker)
 
 
 def set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count, worker):
@@ -8442,11 +8520,16 @@ def counting_cushions():
                 size_label = request.form.get('size_label', '')
                 shape_no = request.form.get('shape_no', 0)
                 end_type = request.form.get('end_type', '')
-                target_record, completed_sets = record_cushion_stage_add(
+                quantity = parse_cushion_add_quantity(
+                    request.form.get('quantity', '1'),
+                    request.form.get('manual_quantity')
+                )
+                target_record, completed_sets = record_cushion_stage_add_many(
                     stage_key,
                     size_label,
                     shape_no,
                     end_type,
+                    quantity,
                     worker_name
                 )
                 db.session.commit()
@@ -8484,12 +8567,10 @@ def counting_cushions():
                     flash(f"No complete {size_label} bundle sets are ready yet.", "info")
             elif action == "consumable_adjust":
                 part_name = request.form.get('part_name', '')
-                try:
-                    delta = int(request.form.get('delta', 0))
-                except (TypeError, ValueError):
-                    raise ValueError("Choose a valid consumable adjustment.")
-                if delta not in (-1, 1):
-                    raise ValueError("Choose a valid consumable adjustment.")
+                delta = parse_consumable_delta(
+                    request.form.get('delta'),
+                    request.form.get('manual_delta')
+                )
                 allowed_names = {item["name"].lower() for item in cushion_consumables_for_stage('')}
                 if part_name.lower() not in allowed_names:
                     raise ValueError("That consumable is not available on this page.")
@@ -8542,11 +8623,16 @@ def counting_cushion_stage(stage_key):
         end_type = request.form.get('end_type', '')
         try:
             if action == "add":
-                target_record, completed_sets = record_cushion_stage_add(
+                quantity = parse_cushion_add_quantity(
+                    request.form.get('quantity', '1'),
+                    request.form.get('manual_quantity')
+                )
+                target_record, completed_sets = record_cushion_stage_add_many(
                     stage_key,
                     size_label,
                     shape_no,
                     end_type,
+                    quantity,
                     worker_name
                 )
                 db.session.commit()
@@ -8569,12 +8655,10 @@ def counting_cushion_stage(stage_key):
                 )
             elif action == "consumable_adjust":
                 part_name = request.form.get('part_name', '')
-                try:
-                    delta = int(request.form.get('delta', 0))
-                except (TypeError, ValueError):
-                    raise ValueError("Choose a valid consumable adjustment.")
-                if delta not in (-1, 1):
-                    raise ValueError("Choose a valid consumable adjustment.")
+                delta = parse_consumable_delta(
+                    request.form.get('delta'),
+                    request.form.get('manual_delta')
+                )
                 allowed_names = {item["name"].lower() for item in cushion_consumables_for_stage(stage_key)}
                 if part_name.lower() not in allowed_names:
                     raise ValueError("That consumable is not available on this page.")

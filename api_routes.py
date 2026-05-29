@@ -32,6 +32,9 @@ CUSHION_CONSUMABLE_PART_NAMES = [
     "Disposable Gloves",
     "Work Gloves",
     "Paint Brush",
+    "M10x13mm Tee Nut",
+    "Sanding Belts",
+    "Sanding Pads",
 ]
 
 def get_latest_part_entry(part_name):

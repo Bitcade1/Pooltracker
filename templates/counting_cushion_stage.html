@@ -181,6 +181,13 @@
         margin: 0;
     }
 
+    .add-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+        gap: 12px;
+        align-items: stretch;
+    }
+
     .add-btn {
         width: 100%;
         min-height: 330px;
@@ -211,6 +218,54 @@
         font-size: clamp(1.3rem, 3vw, 2.4rem);
         font-weight: 900;
         opacity: 0.95;
+    }
+
+    .add-side {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .quick-add-btn {
+        flex: 1;
+        min-height: 84px;
+        border: none;
+        border-radius: 14px;
+        background: #1d4ed8;
+        color: #ffffff;
+        font-size: 1.8rem;
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+    .manual-add-box {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid #dbe4ef;
+        border-radius: 14px;
+        background: #f8fafc;
+    }
+
+    .manual-add-box input {
+        width: 100%;
+        min-height: 54px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0 12px;
+        font-size: 1.2rem;
+        font-weight: 900;
+    }
+
+    .manual-add-box button {
+        min-height: 54px;
+        border: none;
+        border-radius: 10px;
+        background: #0f172a;
+        color: #ffffff;
+        font-weight: 900;
+        cursor: pointer;
     }
 
     .locked-actions {
@@ -316,10 +371,8 @@
     .consumable-actions {
         display: flex;
         gap: 8px;
+        flex-wrap: wrap;
         flex-shrink: 0;
-    }
-
-    .consumable-actions form {
         margin: 0;
     }
 
@@ -332,6 +385,22 @@
 
     .consumable-actions .add-consumable {
         background: #1d4ed8;
+    }
+
+    .manual-consumable {
+        display: grid;
+        grid-template-columns: minmax(76px, 1fr) auto auto;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .manual-consumable input {
+        min-height: 48px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0 10px;
+        font-size: 1rem;
+        font-weight: 800;
     }
 
     @media (max-width: 760px) {
@@ -351,6 +420,19 @@
             min-height: 260px;
         }
 
+        .add-panel {
+            grid-template-columns: 1fr;
+        }
+
+        .add-side {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .manual-add-box {
+            grid-column: 1 / -1;
+        }
+
         .consumable-card {
             align-items: stretch;
             flex-direction: column;
@@ -358,6 +440,14 @@
 
         .consumable-actions .secondary-btn {
             min-width: 86px;
+        }
+
+        .manual-consumable {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .manual-consumable input {
+            grid-column: 1 / -1;
         }
     }
 </style>
@@ -455,10 +545,20 @@
         <input type="hidden" name="size_label" class="selected-size" value="{{ single_variant.size_label if single_variant else '' }}">
         <input type="hidden" name="shape_no" class="selected-shape" value="{{ single_variant.shape_no if single_variant else 0 }}">
         <input type="hidden" name="end_type" class="selected-end" value="{{ single_variant.end_type if single_variant else '' }}">
-        <button class="add-btn {% if not single_option %}hidden{% endif %}" type="submit" id="add-button">
-            <span class="add-label" id="add-label">{% if single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
-            <span class="add-count" id="add-count">{% if single_option %}{{ single_variant.count_label }}{% else %}Current 0{% endif %}</span>
-        </button>
+        <div class="add-panel {% if not single_option %}hidden{% endif %}" id="add-panel">
+            <button class="add-btn" type="submit" name="quantity" value="1" id="add-button">
+                <span class="add-label" id="add-label">{% if single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
+                <span class="add-count" id="add-count">{% if single_option %}{{ single_variant.count_label }}{% else %}Current 0{% endif %}</span>
+            </button>
+            <div class="add-side">
+                <button class="quick-add-btn" type="submit" name="quantity" value="5">+5</button>
+                <button class="quick-add-btn" type="submit" name="quantity" value="10">+10</button>
+                <div class="manual-add-box">
+                    <input type="number" name="manual_quantity" min="1" step="1" placeholder="Manual">
+                    <button type="submit" name="quantity" value="manual">Add Manual</button>
+                </div>
+            </div>
+        </div>
     </form>
 
     <details class="panel">
@@ -490,20 +590,21 @@
                         <span class="consumable-name">{{ item.label }}</span>
                         <span class="consumable-count">Stock {{ item.count }}</span>
                     </div>
-                    <div class="consumable-actions">
-                        <form method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
-                            <input type="hidden" name="action" value="consumable_adjust">
-                            <input type="hidden" name="part_name" value="{{ item.name }}">
-                            <input type="hidden" name="delta" value="-1">
-                            <button class="secondary-btn" type="submit">-1</button>
-                        </form>
-                        <form method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
-                            <input type="hidden" name="action" value="consumable_adjust">
-                            <input type="hidden" name="part_name" value="{{ item.name }}">
-                            <input type="hidden" name="delta" value="1">
-                            <button class="secondary-btn add-consumable" type="submit">+1</button>
-                        </form>
-                    </div>
+                    <form class="consumable-actions" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+                        <input type="hidden" name="action" value="consumable_adjust">
+                        <input type="hidden" name="part_name" value="{{ item.name }}">
+                        <button class="secondary-btn" type="submit" name="delta" value="-10">-10</button>
+                        <button class="secondary-btn" type="submit" name="delta" value="-5">-5</button>
+                        <button class="secondary-btn" type="submit" name="delta" value="-1">-1</button>
+                        <button class="secondary-btn add-consumable" type="submit" name="delta" value="1">+1</button>
+                        <button class="secondary-btn add-consumable" type="submit" name="delta" value="5">+5</button>
+                        <button class="secondary-btn add-consumable" type="submit" name="delta" value="10">+10</button>
+                        <div class="manual-consumable">
+                            <input type="number" name="manual_delta" min="1" step="1" placeholder="Manual">
+                            <button class="secondary-btn" type="submit" name="delta" value="manual_remove">Remove</button>
+                            <button class="secondary-btn add-consumable" type="submit" name="delta" value="manual_add">Add</button>
+                        </div>
+                    </form>
                 </article>
             {% endfor %}
         </div>
@@ -522,7 +623,7 @@
     const lockedPanel = document.getElementById("locked-panel");
     const lockButton = document.getElementById("lock-button");
     const unlockButton = document.getElementById("unlock-button");
-    const addButton = document.getElementById("add-button");
+    const addPanel = document.getElementById("add-panel");
     const lockedLabel = document.getElementById("locked-label");
     const lockedMeta = document.getElementById("locked-meta");
     const lockedTiming = document.getElementById("locked-timing");
@@ -634,7 +735,7 @@
         if (lockedPanel) {
             lockedPanel.classList.remove("hidden");
         }
-        addButton.classList.remove("hidden");
+        addPanel.classList.remove("hidden");
     }
 
     function unlockSelection() {
@@ -645,7 +746,7 @@
         if (lockedPanel) {
             lockedPanel.classList.add("hidden");
         }
-        addButton.classList.add("hidden");
+        addPanel.classList.add("hidden");
     }
 
     if (lockButton) {
