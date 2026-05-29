@@ -229,34 +229,41 @@
     }
 
     .goal-celebration-card {
-        width: min(720px, 92vw);
-        border-radius: 18px;
-        padding: 1.4rem;
-        background: #ffffff;
+        width: 100%;
+        height: 100%;
+        padding: 2rem;
+        background: transparent;
         text-align: center;
-        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        box-shadow: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
 
     .goal-celebration-card h2 {
         margin: 0 0 0.75rem;
-        color: #0f172a;
-        font-size: clamp(2rem, 5vw, 4rem);
+        color: #ffffff;
+        font-size: clamp(3rem, 9vw, 8rem);
         font-weight: 900;
         line-height: 1;
+        text-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
     }
 
     .goal-celebration-card p {
         margin: 0 0 1rem;
-        color: #475569;
-        font-size: clamp(1.1rem, 2.5vw, 1.8rem);
+        color: #ffffff;
+        font-size: clamp(1.6rem, 4vw, 3rem);
         font-weight: 900;
+        text-shadow: 0 3px 14px rgba(0, 0, 0, 0.55);
     }
 
     .goal-celebration-card img {
-        width: min(498px, 78vw);
-        max-height: 58vh;
-        border-radius: 12px;
+        width: min(96vw, 1400px);
+        height: min(72vh, 900px);
+        border-radius: 16px;
         object-fit: contain;
+        box-shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
     }
 
     .warning-banner {
