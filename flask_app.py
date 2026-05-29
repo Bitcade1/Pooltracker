@@ -4524,6 +4524,14 @@ def cushion_count_value(stage_key, size_label="", shape_no=0, end_type=""):
     return record.count if record else 0
 
 
+def cushion_current_count_for_variant(stage_key, size_label="", shape_no=0, end_type=""):
+    size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
+    if stage_key == "bundle":
+        stock_entry = TableStock.query.filter_by(type=cushion_stock_key(size_label)).first()
+        return stock_entry.count if stock_entry else 0
+    return cushion_count_value(stage_key, size_label, shape_no, end_type)
+
+
 def cushion_variant_display(stage_key, size_label="", shape_no=0, end_type=""):
     stage = CUSHION_STAGE_BY_KEY.get(stage_key, {"label": stage_key})
     parts = [stage["label"]]
@@ -8633,6 +8641,49 @@ def cushion_production_admin():
                     f"Set {cushion_variant_display(stage_key, record.size_label, record.shape_no, record.end_type)} to {record.count}.",
                     "success"
                 )
+            elif action == "bulk_set_counts":
+                stage_keys = request.form.getlist('stage_key')
+                size_labels = request.form.getlist('size_label')
+                shape_nos = request.form.getlist('shape_no')
+                end_types = request.form.getlist('end_type')
+                new_counts = request.form.getlist('new_count')
+                row_count = len(stage_keys)
+                if not (
+                    row_count
+                    and len(size_labels) == row_count
+                    and len(shape_nos) == row_count
+                    and len(end_types) == row_count
+                    and len(new_counts) == row_count
+                ):
+                    raise ValueError("Count update rows were incomplete. Please try again.")
+
+                changed_count = 0
+                for index in range(row_count):
+                    stage_key = stage_keys[index]
+                    size_label = size_labels[index]
+                    shape_no = shape_nos[index]
+                    end_type = end_types[index]
+                    try:
+                        new_count = int(new_counts[index])
+                    except (TypeError, ValueError):
+                        label = cushion_variant_display(stage_key, size_label, shape_no, end_type)
+                        raise ValueError(f"Enter a valid count for {label}.")
+                    if new_count < 0:
+                        label = cushion_variant_display(stage_key, size_label, shape_no, end_type)
+                        raise ValueError(f"Count cannot be negative for {label}.")
+
+                    current_count = cushion_current_count_for_variant(stage_key, size_label, shape_no, end_type)
+                    if new_count == current_count:
+                        continue
+
+                    set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count, worker_name)
+                    changed_count += 1
+
+                db.session.commit()
+                if changed_count:
+                    flash(f"Updated {changed_count} cushion count(s).", "success")
+                else:
+                    flash("No count changes to save.", "info")
             elif action == "reconcile_bundles":
                 size_label = request.form.get('size_label', '')
                 if size_label not in CUSHION_SIZES:

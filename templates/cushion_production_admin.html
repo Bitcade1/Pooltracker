@@ -11,6 +11,11 @@
         background: #f4f4f9;
     }
 
+    .site-header,
+    .site-footer {
+        display: none;
+    }
+
     .container {
         width: 100%;
         max-width: none;
@@ -311,7 +316,7 @@
 
     .correction-form {
         display: grid;
-        grid-template-columns: 92px auto;
+        grid-template-columns: minmax(92px, 130px);
         gap: 8px;
         align-items: center;
         margin: 0;
@@ -325,6 +330,19 @@
         padding: 0 9px;
         font-size: 1rem;
         font-weight: 800;
+    }
+
+    .bulk-save-row {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin: 12px 0;
+    }
+
+    .save-btn {
+        background: #1d4ed8;
+        min-height: 44px;
+        padding: 0 18px;
     }
 
     .compact-table {
@@ -449,62 +467,69 @@
                 <a class="small-btn" href="{{ url_for('table_stock') }}">Edit Finished Stock</a>
             </div>
 
-            <div class="stage-list">
-                {% for stage in stages %}
-                    <details class="stage-panel" {% if loop.first %}open{% endif %}>
-                        <summary>
-                            <span class="stage-title">
-                                <span class="stage-number">{{ loop.index }}</span>
-                                <span class="stage-name">{{ stage.label }}</span>
-                            </span>
-                            <span class="count-pill">{{ stage.total }}</span>
-                        </summary>
-                        <div class="stage-body">
-                            <div class="table-wrap">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Variant</th>
-                                            <th>Current</th>
-                                            <th>Average</th>
-                                            <th>Last</th>
-                                            <th>Correct Count</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for group in stage.groups %}
-                                            {% for variant in group.variants %}
-                                                <tr>
-                                                    <td class="variant-cell">
-                                                        <strong>{{ variant.label }}</strong>
-                                                        {% if group.label and group.label != 'All' and group.label != variant.label %}
-                                                            <span>{{ group.label }}</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td class="number-cell">{{ variant.count }}</td>
-                                                    <td class="timing-cell">{{ variant.timing.average_display }}</td>
-                                                    <td class="timing-cell">{{ variant.timing.last_display }}</td>
-                                                    <td>
-                                                        <form class="correction-form" method="POST" action="{{ url_for('cushion_production_admin') }}">
-                                                            <input type="hidden" name="action" value="set_count">
-                                                            <input type="hidden" name="stage_key" value="{{ stage.key }}">
-                                                            <input type="hidden" name="size_label" value="{{ variant.size_label }}">
-                                                            <input type="hidden" name="shape_no" value="{{ variant.shape_no }}">
-                                                            <input type="hidden" name="end_type" value="{{ variant.end_type }}">
-                                                            <input type="number" name="new_count" min="0" step="1" value="{{ variant.count }}">
-                                                            <button class="small-btn" type="submit">Set</button>
-                                                        </form>
-                                                    </td>
-                                                </tr>
+            <form method="POST" action="{{ url_for('cushion_production_admin') }}">
+                <input type="hidden" name="action" value="bulk_set_counts">
+                <div class="bulk-save-row">
+                    <button class="small-btn save-btn" type="submit">Save All Count Changes</button>
+                </div>
+                <div class="stage-list">
+                    {% for stage in stages %}
+                        <details class="stage-panel" {% if loop.first %}open{% endif %}>
+                            <summary>
+                                <span class="stage-title">
+                                    <span class="stage-number">{{ loop.index }}</span>
+                                    <span class="stage-name">{{ stage.label }}</span>
+                                </span>
+                                <span class="count-pill">{{ stage.total }}</span>
+                            </summary>
+                            <div class="stage-body">
+                                <div class="table-wrap">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Variant</th>
+                                                <th>Current</th>
+                                                <th>Average</th>
+                                                <th>Last</th>
+                                                <th>New Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for group in stage.groups %}
+                                                {% for variant in group.variants %}
+                                                    <tr>
+                                                        <td class="variant-cell">
+                                                            <strong>{{ variant.label }}</strong>
+                                                            {% if group.label and group.label != 'All' and group.label != variant.label %}
+                                                                <span>{{ group.label }}</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="number-cell">{{ variant.count }}</td>
+                                                        <td class="timing-cell">{{ variant.timing.average_display }}</td>
+                                                        <td class="timing-cell">{{ variant.timing.last_display }}</td>
+                                                        <td>
+                                                            <div class="correction-form">
+                                                                <input type="hidden" name="stage_key" value="{{ stage.key }}">
+                                                                <input type="hidden" name="size_label" value="{{ variant.size_label }}">
+                                                                <input type="hidden" name="shape_no" value="{{ variant.shape_no }}">
+                                                                <input type="hidden" name="end_type" value="{{ variant.end_type }}">
+                                                                <input type="number" name="new_count" min="0" step="1" value="{{ variant.count }}">
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
                                             {% endfor %}
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
-                    </details>
-                {% endfor %}
-            </div>
+                        </details>
+                    {% endfor %}
+                </div>
+                <div class="bulk-save-row">
+                    <button class="small-btn save-btn" type="submit">Save All Count Changes</button>
+                </div>
+            </form>
         </div>
     </section>
 
