@@ -69,7 +69,7 @@
             align-items: start;
         }
 
-        .menu-section {
+        details.menu-section {
             border: 1px solid #cbd5e1;
             border-radius: 12px;
             background: #ffffff;
@@ -78,19 +78,48 @@
         }
 
         .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
             padding: 18px 18px 14px;
             background: #e8eef5;
             border-bottom: 1px solid #e2e8f0;
-            box-shadow: inset 6px 0 0 #0f172a;
+            box-shadow: inset 6px 0 0 #1d4ed8;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .section-head::-webkit-details-marker {
+            display: none;
         }
 
         .section-title {
             margin: 0;
-            color: #0f172a;
+            color: #1d4ed8;
             font-size: clamp(1.65rem, 2.6vw, 2.4rem);
             font-weight: 900;
             line-height: 1.05;
             letter-spacing: 0.01em;
+        }
+
+        .section-head::after {
+            content: "+";
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #1d4ed8;
+            font-size: 1.5rem;
+            font-weight: 900;
+            flex: 0 0 auto;
+        }
+
+        details.menu-section[open] .section-head::after {
+            content: "-";
         }
 
         .menu-links {
@@ -169,10 +198,10 @@
         </header>
 
         <section class="menu-grid" aria-label="Main menu">
-            <article class="menu-section">
-                <div class="section-head">
+            <details class="menu-section" open>
+                <summary class="section-head">
                     <h2 class="section-title">Production Logging</h2>
-                </div>
+                </summary>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('bodies') }}">Building a Body</a>
                     <a class="menu-link" href="{{ url_for('top_rails') }}">Building a Top Rail</a>
@@ -180,12 +209,12 @@
                     <a class="menu-link" href="{{ url_for('counting_cushions') }}">Making Cushions</a>
                     <a class="menu-link" href="{{ url_for('cnc_queue_manager') }}">CNC Queue Manager</a>
                 </div>
-            </article>
+            </details>
 
-            <article class="menu-section">
-                <div class="section-head">
+            <details class="menu-section">
+                <summary class="section-head">
                     <h2 class="section-title">Stock Control</h2>
-                </div>
+                </summary>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('counting_3d_printing_parts') }}">Logging Manufactured Parts</a>
                     <a class="menu-link" href="{{ url_for('counting_hardware') }}">Consumable Hardware Stock</a>
@@ -194,24 +223,24 @@
                     <a class="menu-link" href="{{ url_for('top_rail_pieces') }}">Top Rail Pieces</a>
                     <a class="menu-link" href="{{ url_for('counting_laminate') }}">Laminate</a>
                 </div>
-            </article>
+            </details>
 
-            <article class="menu-section">
-                <div class="section-head">
+            <details class="menu-section">
+                <summary class="section-head">
                     <h2 class="section-title">Planning &amp; Forecasting</h2>
-                </div>
+                </summary>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('material_calculator') }}">Material Calculator</a>
                     <a class="menu-link" href="{{ url_for('sales_extrapolation') }}">Sales Extrapolation</a>
                     <a class="menu-link" href="{{ url_for('predicted_finish') }}">Predicted Finish</a>
                     <a class="menu-link" href="{{ url_for('order_chinese_parts') }}">Chinese Parts Planning</a>
                 </div>
-            </article>
+            </details>
 
-            <article class="menu-section">
-                <div class="section-head">
+            <details class="menu-section">
+                <summary class="section-head">
                     <h2 class="section-title">Dashboards</h2>
-                </div>
+                </summary>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('dashboard') }}">Production Dashboard</a>
                     <a class="menu-link" href="{{ url_for('body_dashboard_view') }}">Body Dashboard</a>
@@ -219,12 +248,12 @@
                     <a class="menu-link" href="{{ url_for('top_rail_dashboard_view') }}">Top Rail Dashboard</a>
                     <a class="menu-link" href="{{ url_for('cnc_dashboard') }}">CNC Dashboard</a>
                 </div>
-            </article>
+            </details>
 
-            <article class="menu-section">
-                <div class="section-head">
+            <details class="menu-section">
+                <summary class="section-head">
                     <h2 class="section-title">Admin</h2>
-                </div>
+                </summary>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('inventory') }}">Inventory</a>
                     <a class="menu-link" href="{{ url_for('working_days') }}">Number of Working Days</a>
@@ -236,7 +265,7 @@
                     <a class="menu-link" href="{{ url_for('stock_costs') }}">Stock Cost Dashboard</a>
                     <a class="menu-link" href="{{ url_for('api_documentation') }}">API Documentation</a>
                 </div>
-            </article>
+            </details>
         </section>
     </main>
 </body>
