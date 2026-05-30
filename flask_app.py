@@ -5676,6 +5676,41 @@ def cushion_timing_summary():
     return summary
 
 
+def cushion_stage_timing(stage_key, worker_name=None):
+    filters = [
+        CushionWorkflowLog.action_type == "add",
+        CushionWorkflowLog.stage_key == stage_key,
+        CushionWorkflowLog.seconds_taken.isnot(None),
+        CushionWorkflowLog.seconds_taken > 0,
+    ]
+    if worker_name:
+        filters.append(CushionWorkflowLog.worker == worker_name)
+
+    rows = (
+        db.session.query(
+            func.count(CushionWorkflowLog.id),
+            func.avg(CushionWorkflowLog.seconds_taken),
+        )
+        .filter(*filters)
+        .first()
+    )
+    last_log = (
+        CushionWorkflowLog.query
+        .filter(*filters)
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .first()
+    )
+    sample_count = rows[0] if rows else 0
+    average_seconds = rows[1] if rows else None
+    return {
+        "sample_count": sample_count or 0,
+        "average_seconds": int(round(float(average_seconds))) if average_seconds else None,
+        "average_display": cushion_format_duration(average_seconds) if average_seconds else "N/A",
+        "last_seconds": last_log.seconds_taken if last_log else None,
+        "last_display": cushion_format_duration(last_log.seconds_taken) if last_log else "N/A",
+    }
+
+
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if 'worker' not in session:
@@ -9318,10 +9353,25 @@ def counting_cushion_stage(stage_key):
         return redirect(url_for('counting_cushion_stage', stage_key=stage_key))
 
     stage_context = next(
-        item for item in build_cushion_stage_context(include_timing=True, worker_name=worker_name)
+        item for item in build_cushion_stage_context(include_timing=True)
         if item["key"] == stage_key
     )
     variants = flatten_cushion_stage_variants(stage_context)
+    stage_timing = cushion_stage_timing(stage_key)
+    for variant in variants:
+        timing = variant.get("timing") or {}
+        variant["display_timing"] = {
+            "average_display": (
+                timing.get("average_display")
+                if timing.get("average_seconds") is not None
+                else stage_timing["average_display"]
+            ),
+            "last_display": (
+                timing.get("last_display")
+                if timing.get("last_seconds") is not None
+                else stage_timing["last_display"]
+            ),
+        }
     stage_keys = [stage_item["key"] for stage_item in CUSHION_WORKFLOW_STAGES]
     stage_index = stage_keys.index(stage_key)
     previous_stage = CUSHION_WORKFLOW_STAGES[stage_index - 1] if stage_index > 0 else None
@@ -9339,6 +9389,7 @@ def counting_cushion_stage(stage_key):
         admin_url=url_for('cushion_production_admin'),
         previous_stage=previous_stage,
         next_stage=next_stage,
+        stage_timing=stage_timing,
         compressor_context=cushion_compressor_context(worker_name),
         stage_lock=get_cushion_stage_lock(worker_name, stage_key),
         consumables=cushion_consumables_for_stage(stage_key)

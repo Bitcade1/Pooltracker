@@ -482,7 +482,7 @@
 
     {% if single_option %}
         <section class="panel stage-timing-panel">
-            <div class="stage-timing" id="locked-timing">Your avg: {{ single_variant.timing.average_display }} | Last: {{ single_variant.timing.last_display }}</div>
+            <div class="stage-timing" id="locked-timing">Avg: {{ single_variant.display_timing.average_display }} | Last: {{ single_variant.display_timing.last_display }}</div>
         </section>
     {% endif %}
 
@@ -534,7 +534,7 @@
                 <div class="locked-summary">
                     <div class="locked-label" id="locked-label">{{ stage.short_label }}</div>
                     <div class="locked-meta" id="locked-meta">Current count 0</div>
-                    <div class="locked-meta stage-timing" id="locked-timing">Your avg: N/A | Last: N/A</div>
+                    <div class="locked-meta stage-timing" id="locked-timing">Avg: {{ stage_timing.average_display }} | Last: {{ stage_timing.last_display }}</div>
                 </div>
                 <div class="locked-actions">
                     <button type="button" class="secondary-btn" id="unlock-button">Unlock / Change</button>
@@ -763,7 +763,8 @@
             lockedMeta.textContent = variant.count_label || `Current ${variant.count}`;
         }
         if (lockedTiming) {
-            lockedTiming.textContent = `Your avg: ${variant.timing.average_display} | Last: ${variant.timing.last_display}`;
+            const timing = variant.display_timing || variant.timing || {average_display: "N/A", last_display: "N/A"};
+            lockedTiming.textContent = `Avg: ${timing.average_display} | Last: ${timing.last_display}`;
         }
         addLabel.textContent = `+1 ${variant.lock_label}`;
         addCount.textContent = variant.count_label || `Current ${variant.count}`;
