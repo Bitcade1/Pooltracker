@@ -120,6 +120,41 @@
         font-weight: 900;
     }
 
+    .inventory-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .inventory-stat {
+        border-radius: 12px;
+        padding: 14px 18px;
+        color: #ffffff;
+        text-align: center;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+    }
+
+    .inventory-stat.black {
+        background: #111827;
+    }
+
+    .inventory-stat.plain {
+        background: #475569;
+    }
+
+    .inventory-stat-label {
+        font-size: clamp(1rem, 1.6vw, 1.5rem);
+        font-weight: 800;
+        letter-spacing: 0.02em;
+    }
+
+    .inventory-stat-value {
+        margin-top: 4px;
+        font-size: clamp(2.8rem, 5.5vw, 5.5rem);
+        line-height: 0.95;
+        font-weight: 900;
+    }
+
     .bonus-panel {
         background: #ffffff;
         border: 1px solid #dfe3eb;
@@ -580,6 +615,10 @@
             grid-template-columns: 1fr;
         }
 
+        .inventory-stats {
+            grid-template-columns: 1fr;
+        }
+
         .completed-row {
             grid-template-columns: 1fr;
             gap: 2px;
@@ -606,6 +645,17 @@
         <article class="headline-stat month">
             <div class="headline-stat-label">Completed This Month</div>
             <div class="headline-stat-value" id="completed-month-count">{{ completed_month_count }}</div>
+        </article>
+    </section>
+
+    <section class="inventory-stats" aria-label="MDF stock">
+        <article class="inventory-stat black">
+            <div class="inventory-stat-label">Black Wood</div>
+            <div class="inventory-stat-value">{{ mdf_inventory.black_mdf if mdf_inventory else 0 }}</div>
+        </article>
+        <article class="inventory-stat plain">
+            <div class="inventory-stat-label">Plain MDF</div>
+            <div class="inventory-stat-value">{{ mdf_inventory.plain_mdf if mdf_inventory else 0 }}</div>
         </article>
     </section>
 
@@ -964,7 +1014,8 @@
                 }, 240);
                 pendingUndoItemId = data.item_id;
                 document.getElementById("undo-toast-btn").disabled = false;
-                showUndoToast(`Completed ${data.job_name || "job"}. Undo?`);
+                const woodMessage = data.wood_message ? ` ${data.wood_message}` : "";
+                showUndoToast(`Completed ${data.job_name || "job"}.${woodMessage} Undo?`);
                 undoRefreshTimer = window.setTimeout(function () {
                     pendingUndoItemId = null;
                     hideUndoToast();

@@ -995,6 +995,266 @@ def _cnc_notify_low_queue_transitions(previous_counts):
             _send_cnc_low_queue_notification(machine_number, new_count)
 
 
+CNC_WOOD_LOG_SESSION_KEY = "cnc_wood_logged_items"
+CNC_WOOD_COMPONENT_LABELS = {
+    "body": "Body",
+    "pod_sides": "Pod Sides",
+    "bases": "Bases",
+    "top_rail_short": "Top Rail Pieces Short",
+    "top_rail_long": "Top Rail Pieces Long",
+}
+
+
+def _get_or_create_mdf_inventory():
+    inventory = MDFInventory.query.first()
+    if not inventory:
+        inventory = MDFInventory(plain_mdf=0, black_mdf=0, plain_mdf_36=0)
+        db.session.add(inventory)
+    return inventory
+
+
+def _cnc_wood_job_details(job_name):
+    normalized = re.sub(r"[^a-z0-9]+", " ", (job_name or "").lower()).strip()
+    if not normalized:
+        return None
+    tokens = set(normalized.split())
+
+    size = None
+    if "7ft" in tokens or ("7" in tokens and tokens.intersection({"ft", "foot", "feet"})):
+        size = "7ft"
+    elif "6ft" in tokens or ("6" in tokens and tokens.intersection({"ft", "foot", "feet"})):
+        size = "6ft"
+    if not size:
+        return None
+
+    has_top_rail = (
+        ("top" in tokens and tokens.intersection({"rail", "rails"}))
+        or tokens.intersection({"toprail", "toprails"})
+    )
+    component = None
+    if has_top_rail and "long" in tokens:
+        component = "top_rail_long"
+    elif has_top_rail and "short" in tokens:
+        component = "top_rail_short"
+    elif "pod" in tokens and tokens.intersection({"side", "sides"}):
+        component = "pod_sides"
+    elif tokens.intersection({"base", "bases"}):
+        component = "bases"
+    elif tokens.intersection({"body", "bodies"}):
+        component = "body"
+
+    if not component:
+        return None
+
+    label = CNC_WOOD_COMPONENT_LABELS[component]
+    return {
+        "size": size,
+        "component": component,
+        "section": f"{size} - {label}",
+    }
+
+
+def _wood_month_bounds(target_date):
+    month_start = date(target_date.year, target_date.month, 1)
+    month_end = date(target_date.year, target_date.month, monthrange(target_date.year, target_date.month)[1])
+    return month_start, month_end
+
+
+def _get_or_create_monthly_wood_entry(section, target_date, current_time):
+    month_start, month_end = _wood_month_bounds(target_date)
+    entry = (
+        WoodCount.query
+        .filter(
+            WoodCount.section == section,
+            WoodCount.date >= month_start,
+            WoodCount.date <= month_end
+        )
+        .order_by(WoodCount.date.asc(), WoodCount.id.asc())
+        .first()
+    )
+    if not entry:
+        entry = WoodCount(section=section, count=0, date=month_start, time=current_time)
+        db.session.add(entry)
+    return entry
+
+
+def _combine_wood_entries(entries):
+    combined = defaultdict(int)
+    for entry in entries:
+        section = entry.get("section")
+        try:
+            count = int(entry.get("count", 0))
+        except (TypeError, ValueError):
+            count = 0
+        if section and count:
+            combined[section] += count
+    return [
+        {"section": section, "count": count}
+        for section, count in combined.items()
+        if count
+    ]
+
+
+def _apply_wood_count_entries(entries, inventory_deltas=None, inventory=None, log_date=None, log_time=None):
+    now = london_now()
+    log_date = log_date or now.date()
+    log_time = log_time or now.time()
+    inventory = inventory or _get_or_create_mdf_inventory()
+    entries = _combine_wood_entries(entries)
+    inventory_deltas = {
+        field: int(delta)
+        for field, delta in (inventory_deltas or {}).items()
+        if int(delta) != 0
+    }
+
+    monthly_entries = {}
+    for entry in entries:
+        monthly_entry = _get_or_create_monthly_wood_entry(entry["section"], log_date, log_time)
+        next_count = monthly_entry.count + entry["count"]
+        if next_count < 0:
+            raise ValueError(f"Cannot reduce {entry['section']} below zero.")
+        monthly_entries[entry["section"]] = monthly_entry
+
+    for field, delta in inventory_deltas.items():
+        if not hasattr(inventory, field):
+            raise ValueError("Invalid MDF inventory field.")
+        next_value = getattr(inventory, field) + delta
+        if next_value < 0:
+            raise ValueError("Not enough MDF inventory to complete this CNC job.")
+
+    for field, delta in inventory_deltas.items():
+        setattr(inventory, field, getattr(inventory, field) + delta)
+
+    for entry in entries:
+        monthly_entries[entry["section"]].count += entry["count"]
+        db.session.add(WoodCount(
+            section=entry["section"],
+            count=entry["count"],
+            date=log_date,
+            time=log_time
+        ))
+
+    return {
+        "entries": entries,
+        "inventory_deltas": inventory_deltas,
+    }
+
+
+def _build_cnc_wood_count_change(job):
+    details = _cnc_wood_job_details(job.name if job else "")
+    if not details:
+        return None
+
+    try:
+        quantity = int(job.quantity or 1)
+    except (TypeError, ValueError):
+        quantity = 1
+    quantity = max(quantity, 1)
+
+    component = details["component"]
+    section = details["section"]
+    entries = []
+    inventory_deltas = {}
+
+    if component == "top_rail_long":
+        short_count = 3 if details["size"] == "6ft" else 2
+        entries.append({"section": section, "count": quantity * 8})
+        entries.append({"section": section.replace("Long", "Short"), "count": quantity * short_count})
+        inventory_deltas["plain_mdf_36"] = -quantity
+    elif component == "top_rail_short":
+        entries.append({"section": section, "count": quantity * 16})
+        inventory_deltas["plain_mdf_36"] = -quantity
+    else:
+        entries.append({"section": section, "count": quantity})
+        inventory_field = "black_mdf" if component == "body" else "plain_mdf"
+        inventory = _get_or_create_mdf_inventory()
+        current_stock = getattr(inventory, inventory_field)
+        if quantity == 1:
+            if current_stock > 0:
+                inventory_deltas[inventory_field] = -1
+        else:
+            inventory_deltas[inventory_field] = -quantity
+
+    return {
+        "details": details,
+        "quantity": quantity,
+        "entries": entries,
+        "inventory_deltas": inventory_deltas,
+    }
+
+
+def _record_cnc_job_wood_count(job):
+    change = _build_cnc_wood_count_change(job)
+    if not change:
+        return {
+            "logged": False,
+            "message": "Wood count not updated - CNC job name was not recognised."
+        }
+
+    inventory = _get_or_create_mdf_inventory()
+    applied = _apply_wood_count_entries(
+        change["entries"],
+        change["inventory_deltas"],
+        inventory=inventory
+    )
+    return {
+        "logged": True,
+        "section": change["details"]["section"],
+        "quantity": change["quantity"],
+        "entries": applied["entries"],
+        "inventory_deltas": applied["inventory_deltas"],
+        "message": "Wood count updated."
+    }
+
+
+def _remember_cnc_wood_log(item_id, wood_result):
+    if not wood_result or not wood_result.get("logged"):
+        return
+    logs = session.get(CNC_WOOD_LOG_SESSION_KEY) or {}
+    logs[str(item_id)] = {
+        "entries": wood_result.get("entries", []),
+        "inventory_deltas": wood_result.get("inventory_deltas", {}),
+    }
+    session[CNC_WOOD_LOG_SESSION_KEY] = logs
+    session.modified = True
+
+
+def _get_remembered_cnc_wood_log(item_id):
+    logs = session.get(CNC_WOOD_LOG_SESSION_KEY) or {}
+    return logs.get(str(item_id))
+
+
+def _forget_cnc_wood_log(item_id):
+    logs = session.get(CNC_WOOD_LOG_SESSION_KEY) or {}
+    if str(item_id) in logs:
+        logs.pop(str(item_id), None)
+        session[CNC_WOOD_LOG_SESSION_KEY] = logs
+        session.modified = True
+
+
+def _reverse_remembered_cnc_wood_log(item_id):
+    remembered = _get_remembered_cnc_wood_log(item_id)
+    if not remembered:
+        return {
+            "logged": False,
+            "message": "Wood count was not changed for this undo."
+        }
+
+    reverse_entries = [
+        {"section": entry.get("section"), "count": -int(entry.get("count", 0))}
+        for entry in remembered.get("entries", [])
+    ]
+    reverse_inventory = {
+        field: -int(delta)
+        for field, delta in (remembered.get("inventory_deltas") or {}).items()
+    }
+    _apply_wood_count_entries(reverse_entries, reverse_inventory)
+    return {
+        "logged": True,
+        "message": "Wood count reversed."
+    }
+
+
 def _payload_bool(value):
     if isinstance(value, bool):
         return value
@@ -7299,6 +7559,9 @@ def cnc_dashboard():
         .all()
     )
     bonus_progress = bonus_goal_progress("cnc", today.year, today.month)
+    mdf_inventory = _get_or_create_mdf_inventory()
+    if mdf_inventory in db.session.new:
+        db.session.commit()
 
     return render_template(
         'cnc_dashboard.html',
@@ -7309,6 +7572,7 @@ def cnc_dashboard():
         completed_month_count=completed_month_count,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        mdf_inventory=mdf_inventory,
         render_time=london_now().strftime("%d/%m/%Y %H:%M")
     )
 
@@ -7730,11 +7994,18 @@ def api_cnc_complete_queue_item():
 
     machine_number = item.machine_number
     previous_counts = _cnc_capture_queue_counts([machine_number])
+    try:
+        wood_result = _record_cnc_job_wood_count(item.job)
+    except ValueError as error:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(error)}), 400
+
     item.status = CNC_STATUS_COMPLETED
     item.completed_at = datetime.utcnow()
     item.completed_by = session.get('worker', 'Unknown')
     _cnc_reindex_machine(machine_number)
     db.session.commit()
+    _remember_cnc_wood_log(item.id, wood_result)
     _cnc_notify_low_queue_transitions(previous_counts)
 
     return jsonify({
@@ -7742,6 +8013,8 @@ def api_cnc_complete_queue_item():
         "item_id": item.id,
         "machine_number": machine_number,
         "job_name": item.job.name if item.job else "",
+        "wood_counted": bool(wood_result.get("logged")),
+        "wood_message": wood_result.get("message", ""),
     }), 200
 
 
@@ -7763,6 +8036,12 @@ def api_cnc_undo_complete_queue_item():
         return jsonify({"success": False, "error": "Completed queue item not found."}), 404
 
     machine_number = item.machine_number
+    try:
+        wood_result = _reverse_remembered_cnc_wood_log(item.id)
+    except ValueError as error:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(error)}), 400
+
     queued_items = (
         CncQueueItem.query
         .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
@@ -7779,12 +8058,16 @@ def api_cnc_undo_complete_queue_item():
 
     _cnc_reindex_machine(machine_number)
     db.session.commit()
+    if wood_result.get("logged"):
+        _forget_cnc_wood_log(item.id)
 
     return jsonify({
         "success": True,
         "item_id": item.id,
         "machine_number": machine_number,
         "job_name": item.job.name if item.job else "",
+        "wood_counted": bool(wood_result.get("logged")),
+        "wood_message": wood_result.get("message", ""),
     }), 200
 
 
