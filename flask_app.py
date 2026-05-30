@@ -5651,7 +5651,10 @@ def cushion_ready_count_for_stage(stage_key):
 
 def build_cushion_stage_context(include_timing=False, worker_name=None, batch_number=None):
     stage_context = []
+    furthest_in_progress_index = None
+    furthest_ready_index = None
     for stage in CUSHION_WORKFLOW_STAGES:
+        stage_index = len(stage_context)
         stage_total = 0
         groups = []
         ready_bundle_count = 0
@@ -5731,12 +5734,17 @@ def build_cushion_stage_context(include_timing=False, worker_name=None, batch_nu
         ready_to_work_count = cushion_ready_count_for_stage(stage["key"])
         if stage["key"] == "bundle":
             # Bundle is driven by upstream readiness rather than in-stage stock.
-            has_wip = ready_to_work_count > 0
+            has_wip = False
             status_label = f"{ready_to_work_count} ready to bundle" if ready_to_work_count else ""
         else:
             # For stage cards, highlight where pieces currently are, not the next ready stage.
-            has_wip = stage_total > 0
+            has_wip = False
             status_label = f"{stage_total} in progress" if stage_total else ""
+
+        if stage["key"] != "bundle" and stage_total > 0:
+            furthest_in_progress_index = stage_index
+        elif furthest_in_progress_index is None and ready_to_work_count > 0:
+            furthest_ready_index = stage_index
 
         stage_context.append({
             **stage,
@@ -5747,6 +5755,14 @@ def build_cushion_stage_context(include_timing=False, worker_name=None, batch_nu
             "ready_to_work_count": ready_to_work_count,
             "ready_bundle_count": ready_bundle_count,
         })
+
+    # Highlight only one stage card: the furthest stage with WIP.
+    # If no WIP exists, fallback to the furthest stage that is ready to work.
+    highlight_index = furthest_in_progress_index
+    if highlight_index is None:
+        highlight_index = furthest_ready_index
+    if highlight_index is not None and 0 <= highlight_index < len(stage_context):
+        stage_context[highlight_index]["has_wip"] = True
 
     return stage_context
 
