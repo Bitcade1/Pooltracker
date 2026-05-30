@@ -5456,11 +5456,20 @@ def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type=""):
     }
 
 
+def cushion_ready_bundle_count(size_label):
+    counts = [
+        cushion_count_value("sand_tops", size_label, shape_no, "")
+        for shape_no in CUSHION_SHAPES
+    ]
+    return min(counts) if counts else 0
+
+
 def build_cushion_stage_context(include_timing=False):
     stage_context = []
     for stage in CUSHION_WORKFLOW_STAGES:
         stage_total = 0
         groups = []
+        ready_bundle_count = 0
 
         if stage["variant"] == CUSHION_STAGE_PLAIN:
             count = cushion_count_value(stage["key"])
@@ -5501,6 +5510,7 @@ def build_cushion_stage_context(include_timing=False):
             stock_summary = cushion_stock_summary()
             for size_label in CUSHION_SIZES:
                 count = stock_summary.get(size_label, 0)
+                ready_bundle_count += cushion_ready_bundle_count(size_label)
                 timing = cushion_variant_timing(stage["key"], size_label=size_label) if include_timing else None
                 stage_total += count
                 variants.append({
@@ -5533,10 +5543,23 @@ def build_cushion_stage_context(include_timing=False):
                     })
                 groups.append({"label": size_label, "variants": variants})
 
+        if stage["key"] == "bundle":
+            has_wip = ready_bundle_count > 0
+            status_label = f"{ready_bundle_count} ready to bundle" if ready_bundle_count else ""
+        elif stage["key"] == "punch_rubber_ends":
+            has_wip = False
+            status_label = ""
+        else:
+            has_wip = stage_total > 0
+            status_label = f"{stage_total} in progress" if stage_total else ""
+
         stage_context.append({
             **stage,
             "total": stage_total,
             "groups": groups,
+            "has_wip": has_wip,
+            "status_label": status_label,
+            "ready_bundle_count": ready_bundle_count,
         })
 
     return stage_context
@@ -9160,7 +9183,6 @@ def counting_cushions():
 
     stage_context = build_cushion_stage_context(include_timing=True)
     stock_summary = cushion_stock_summary()
-    stage_locks = cushion_stage_locks_for_worker(worker_name)
 
     return render_template(
         'counting_cushions.html',
@@ -9168,7 +9190,6 @@ def counting_cushions():
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
-        locked_stage_keys=set(stage_locks.keys()),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )

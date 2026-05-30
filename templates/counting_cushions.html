@@ -151,12 +151,12 @@
         background: #1e40af;
     }
 
-    .job-page-card.is-working {
+    .job-page-card.has-wip {
         background: #16a34a;
         box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28);
     }
 
-    .job-page-card.is-working:hover {
+    .job-page-card.has-wip:hover {
         background: #15803d;
     }
 
@@ -171,11 +171,11 @@
         color: #dbeafe;
     }
 
-    .job-page-card.is-working span {
+    .job-page-card.has-wip span {
         color: #dcfce7;
     }
 
-    .working-badge {
+    .wip-badge {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -413,9 +413,9 @@
 
     <section class="job-page-grid" aria-label="Cushion job pages">
         {% for stage in stages %}
-            <a class="job-page-card {% if stage.key in locked_stage_keys %}is-working{% endif %}" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
-                {% if stage.key in locked_stage_keys %}
-                    <span class="working-badge">Working on this</span>
+            <a class="job-page-card {% if stage.has_wip %}has-wip{% endif %}" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+                {% if stage.has_wip %}
+                    <span class="wip-badge">{{ stage.status_label or 'Work in progress' }}</span>
                 {% endif %}
                 <strong>{{ stage.short_label }}</strong>
                 {% if stage.key == 'punch_rubber_ends' %}
