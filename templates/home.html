@@ -70,50 +70,27 @@
         }
 
         .menu-section {
-            border: 1px solid #dbe4ef;
+            border: 1px solid #cbd5e1;
             border-radius: 12px;
             background: #ffffff;
             box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
             overflow: hidden;
         }
 
-        .menu-section.featured {
-            border-color: #bfdbfe;
-        }
-
         .section-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 15px 16px;
-            background: #f8fafc;
+            padding: 18px 18px 14px;
+            background: #e8eef5;
             border-bottom: 1px solid #e2e8f0;
-        }
-
-        .menu-section.featured .section-head {
-            background: #eff6ff;
+            box-shadow: inset 6px 0 0 #0f172a;
         }
 
         .section-title {
             margin: 0;
             color: #0f172a;
-            font-size: clamp(1.35rem, 2.2vw, 2rem);
+            font-size: clamp(1.65rem, 2.6vw, 2.4rem);
             font-weight: 900;
             line-height: 1.05;
-        }
-
-        .section-count {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 38px;
-            min-height: 32px;
-            padding: 0 10px;
-            border-radius: 999px;
-            background: #e2e8f0;
-            color: #334155;
-            font-weight: 900;
+            letter-spacing: 0.01em;
         }
 
         .menu-links {
@@ -147,24 +124,10 @@
             transform: translateY(-1px);
         }
 
-        .menu-link.primary {
-            border-color: #1d4ed8;
-            background: #1d4ed8;
-            color: #ffffff;
-        }
-
-        .menu-link.primary:hover {
-            background: #1e40af;
-        }
-
         .menu-link::after {
             content: ">";
             color: #94a3b8;
             font-weight: 900;
-        }
-
-        .menu-link.primary::after {
-            color: #dbeafe;
         }
 
         @media (max-width: 980px) {
@@ -206,16 +169,15 @@
         </header>
 
         <section class="menu-grid" aria-label="Main menu">
-            <article class="menu-section featured">
+            <article class="menu-section">
                 <div class="section-head">
                     <h2 class="section-title">Production Logging</h2>
-                    <span class="section-count">5</span>
                 </div>
                 <div class="menu-links">
-                    <a class="menu-link primary" href="{{ url_for('bodies') }}">Building a Body</a>
-                    <a class="menu-link primary" href="{{ url_for('top_rails') }}">Building a Top Rail</a>
-                    <a class="menu-link primary" href="{{ url_for('pods') }}">Building a Pod</a>
-                    <a class="menu-link primary" href="{{ url_for('counting_cushions') }}">Making Cushions</a>
+                    <a class="menu-link" href="{{ url_for('bodies') }}">Building a Body</a>
+                    <a class="menu-link" href="{{ url_for('top_rails') }}">Building a Top Rail</a>
+                    <a class="menu-link" href="{{ url_for('pods') }}">Building a Pod</a>
+                    <a class="menu-link" href="{{ url_for('counting_cushions') }}">Making Cushions</a>
                     <a class="menu-link" href="{{ url_for('cnc_queue_manager') }}">CNC Queue Manager</a>
                 </div>
             </article>
@@ -223,7 +185,6 @@
             <article class="menu-section">
                 <div class="section-head">
                     <h2 class="section-title">Stock Control</h2>
-                    <span class="section-count">6</span>
                 </div>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('counting_3d_printing_parts') }}">Logging Manufactured Parts</a>
@@ -238,7 +199,6 @@
             <article class="menu-section">
                 <div class="section-head">
                     <h2 class="section-title">Planning &amp; Forecasting</h2>
-                    <span class="section-count">4</span>
                 </div>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('material_calculator') }}">Material Calculator</a>
@@ -248,24 +208,22 @@
                 </div>
             </article>
 
-            <article class="menu-section featured">
+            <article class="menu-section">
                 <div class="section-head">
                     <h2 class="section-title">Dashboards</h2>
-                    <span class="section-count">5</span>
                 </div>
                 <div class="menu-links">
-                    <a class="menu-link primary" href="{{ url_for('dashboard') }}">Production Dashboard</a>
+                    <a class="menu-link" href="{{ url_for('dashboard') }}">Production Dashboard</a>
                     <a class="menu-link" href="{{ url_for('body_dashboard_view') }}">Body Dashboard</a>
                     <a class="menu-link" href="{{ url_for('pod_dashboard_view') }}">Pod Dashboard</a>
                     <a class="menu-link" href="{{ url_for('top_rail_dashboard_view') }}">Top Rail Dashboard</a>
-                    <a class="menu-link primary" href="{{ url_for('cnc_dashboard') }}">CNC Dashboard</a>
+                    <a class="menu-link" href="{{ url_for('cnc_dashboard') }}">CNC Dashboard</a>
                 </div>
             </article>
 
             <article class="menu-section">
                 <div class="section-head">
                     <h2 class="section-title">Admin</h2>
-                    <span class="section-count">9</span>
                 </div>
                 <div class="menu-links">
                     <a class="menu-link" href="{{ url_for('inventory') }}">Inventory</a>
