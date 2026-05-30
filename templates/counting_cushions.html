@@ -82,6 +82,14 @@
         padding: 0 12px;
     }
 
+    .avg-time-toggle {
+        background: #1d4ed8;
+    }
+
+    .avg-time-toggle:hover {
+        background: #1e40af;
+    }
+
     .link-btn:hover,
     .small-btn:hover {
         background: #1e293b;
@@ -173,6 +181,19 @@
 
     .job-page-card.has-wip span {
         color: #dcfce7;
+    }
+
+    .job-page-card .avg-time {
+        border-radius: 999px;
+        padding: 5px 10px;
+        background: rgba(255, 255, 255, 0.16);
+        color: #ffffff;
+        font-size: 0.98rem;
+        line-height: 1.1;
+    }
+
+    .job-page-card .avg-time[hidden] {
+        display: none;
     }
 
     .wip-badge {
@@ -383,6 +404,7 @@
     <header class="page-head">
         <h1>Cushion Production</h1>
         <div class="head-actions">
+            <button class="small-btn avg-time-toggle" type="button" id="avgTimeToggle" aria-pressed="false">Hide Avg Times</button>
             <a class="link-btn" href="{{ admin_url }}">Admin View</a>
             <a class="link-btn" href="{{ url_for('home') }}">Home</a>
         </div>
@@ -413,6 +435,7 @@
 
     <section class="job-page-grid" aria-label="Cushion job pages">
         {% for stage in stages %}
+            {% set worker_timing = worker_timing_summary.get(stage.key) if worker_timing_summary else none %}
             <a class="job-page-card {% if stage.has_wip %}has-wip{% endif %}" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
                 {% if stage.has_wip %}
                     <span class="wip-badge">Ready to work</span>
@@ -426,14 +449,44 @@
                             {% endfor %}
                         {% endfor %}
                     </span>
+                {% elif stage.key == 'bundle' %}
+                    {% if stage.status_label %}
+                        <span>{{ stage.status_label }}</span>
+                    {% else %}
+                        <span>{{ stage.total }} in stock</span>
+                    {% endif %}
                 {% elif stage.status_label %}
                     <span>{{ stage.status_label }}</span>
                 {% else %}
                     <span>{{ stage.total }} in progress</span>
                 {% endif %}
+                <span class="avg-time" title="{{ worker_timing.sample_count if worker_timing else 0 }} timed logs">Your avg: {{ worker_timing.average_display if worker_timing else 'N/A' }}</span>
             </a>
         {% endfor %}
     </section>
 
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var toggle = document.getElementById('avgTimeToggle');
+        var avgItems = document.querySelectorAll('.avg-time');
+        var isVisible = true;
+
+        function applyAverageVisibility() {
+            avgItems.forEach(function (item) {
+                item.hidden = !isVisible;
+            });
+            toggle.textContent = isVisible ? 'Hide Avg Times' : 'Show Avg Times';
+            toggle.setAttribute('aria-pressed', String(!isVisible));
+        }
+
+        if (toggle) {
+            toggle.addEventListener('click', function () {
+                isVisible = !isVisible;
+                applyAverageVisibility();
+            });
+            applyAverageVisibility();
+        }
+    });
+</script>
 {% endblock %}

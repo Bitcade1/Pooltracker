@@ -5669,6 +5669,45 @@ def cushion_timing_summary():
     return summary
 
 
+def cushion_worker_timing_summary(worker_name):
+    summary = {
+        stage["key"]: {
+            "sample_count": 0,
+            "average_seconds": None,
+            "average_display": "N/A",
+        }
+        for stage in CUSHION_WORKFLOW_STAGES
+    }
+    if not worker_name:
+        return summary
+
+    rows = (
+        db.session.query(
+            CushionWorkflowLog.stage_key,
+            func.count(CushionWorkflowLog.id),
+            func.avg(CushionWorkflowLog.seconds_taken),
+        )
+        .filter(
+            CushionWorkflowLog.action_type == "add",
+            CushionWorkflowLog.worker == worker_name,
+            CushionWorkflowLog.seconds_taken.isnot(None),
+            CushionWorkflowLog.seconds_taken > 0,
+        )
+        .group_by(CushionWorkflowLog.stage_key)
+        .all()
+    )
+
+    for stage_key, sample_count, average_seconds in rows:
+        if stage_key in summary:
+            summary[stage_key] = {
+                "sample_count": sample_count or 0,
+                "average_seconds": int(round(float(average_seconds))) if average_seconds else None,
+                "average_display": cushion_format_duration(average_seconds) if average_seconds else "N/A",
+            }
+
+    return summary
+
+
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if 'worker' not in session:
@@ -9227,6 +9266,7 @@ def counting_cushions():
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
+        worker_timing_summary=cushion_worker_timing_summary(worker_name),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )
