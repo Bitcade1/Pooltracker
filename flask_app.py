@@ -5420,9 +5420,9 @@ def set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count
     return record
 
 
-def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type=""):
+def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type="", worker_name=None):
     size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
-    average_seconds = (
+    average_query = (
         db.session.query(func.avg(CushionWorkflowLog.seconds_taken))
         .filter(
             CushionWorkflowLog.action_type == "add",
@@ -5433,9 +5433,8 @@ def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type=""):
             CushionWorkflowLog.seconds_taken.isnot(None),
             CushionWorkflowLog.seconds_taken > 0
         )
-        .scalar()
     )
-    last_log = (
+    last_query = (
         CushionWorkflowLog.query
         .filter_by(
             action_type="add",
@@ -5445,6 +5444,14 @@ def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type=""):
             end_type=end_type
         )
         .filter(CushionWorkflowLog.seconds_taken.isnot(None), CushionWorkflowLog.seconds_taken > 0)
+    )
+    if worker_name:
+        average_query = average_query.filter(CushionWorkflowLog.worker == worker_name)
+        last_query = last_query.filter(CushionWorkflowLog.worker == worker_name)
+
+    average_seconds = average_query.scalar()
+    last_log = (
+        last_query
         .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
         .first()
     )
@@ -5499,7 +5506,7 @@ def cushion_ready_count_for_stage(stage_key):
     return ready_count
 
 
-def build_cushion_stage_context(include_timing=False):
+def build_cushion_stage_context(include_timing=False, worker_name=None):
     stage_context = []
     for stage in CUSHION_WORKFLOW_STAGES:
         stage_total = 0
@@ -5508,7 +5515,7 @@ def build_cushion_stage_context(include_timing=False):
 
         if stage["variant"] == CUSHION_STAGE_PLAIN:
             count = cushion_count_value(stage["key"])
-            timing = cushion_variant_timing(stage["key"]) if include_timing else None
+            timing = cushion_variant_timing(stage["key"], worker_name=worker_name) if include_timing else None
             stage_total += count
             groups.append({
                 "label": stage["short_label"],
@@ -5527,7 +5534,7 @@ def build_cushion_stage_context(include_timing=False):
             variants = []
             for end_type in CUSHION_END_TYPES:
                 count = cushion_count_value(stage["key"], end_type=end_type)
-                timing = cushion_variant_timing(stage["key"], end_type=end_type) if include_timing else None
+                timing = cushion_variant_timing(stage["key"], end_type=end_type, worker_name=worker_name) if include_timing else None
                 stage_total += count
                 variants.append({
                     "label": end_type,
@@ -5546,7 +5553,7 @@ def build_cushion_stage_context(include_timing=False):
             for size_label in CUSHION_SIZES:
                 count = stock_summary.get(size_label, 0)
                 ready_bundle_count += cushion_ready_bundle_count(size_label)
-                timing = cushion_variant_timing(stage["key"], size_label=size_label) if include_timing else None
+                timing = cushion_variant_timing(stage["key"], size_label=size_label, worker_name=worker_name) if include_timing else None
                 stage_total += count
                 variants.append({
                     "label": f"{size_label} Set",
@@ -5564,7 +5571,7 @@ def build_cushion_stage_context(include_timing=False):
                 variants = []
                 for shape_no in CUSHION_SHAPES:
                     count = cushion_count_value(stage["key"], size_label=size_label, shape_no=shape_no)
-                    timing = cushion_variant_timing(stage["key"], size_label=size_label, shape_no=shape_no) if include_timing else None
+                    timing = cushion_variant_timing(stage["key"], size_label=size_label, shape_no=shape_no, worker_name=worker_name) if include_timing else None
                     stage_total += count
                     variants.append({
                         "label": f"Shape {shape_no}",
@@ -5666,45 +5673,6 @@ def cushion_timing_summary():
             "fastest_display": cushion_format_duration(rows[2]) if rows and rows[2] else "N/A",
             "slowest_display": cushion_format_duration(rows[3]) if rows and rows[3] else "N/A",
         }
-    return summary
-
-
-def cushion_worker_timing_summary(worker_name):
-    summary = {
-        stage["key"]: {
-            "sample_count": 0,
-            "average_seconds": None,
-            "average_display": "N/A",
-        }
-        for stage in CUSHION_WORKFLOW_STAGES
-    }
-    if not worker_name:
-        return summary
-
-    rows = (
-        db.session.query(
-            CushionWorkflowLog.stage_key,
-            func.count(CushionWorkflowLog.id),
-            func.avg(CushionWorkflowLog.seconds_taken),
-        )
-        .filter(
-            CushionWorkflowLog.action_type == "add",
-            CushionWorkflowLog.worker == worker_name,
-            CushionWorkflowLog.seconds_taken.isnot(None),
-            CushionWorkflowLog.seconds_taken > 0,
-        )
-        .group_by(CushionWorkflowLog.stage_key)
-        .all()
-    )
-
-    for stage_key, sample_count, average_seconds in rows:
-        if stage_key in summary:
-            summary[stage_key] = {
-                "sample_count": sample_count or 0,
-                "average_seconds": int(round(float(average_seconds))) if average_seconds else None,
-                "average_display": cushion_format_duration(average_seconds) if average_seconds else "N/A",
-            }
-
     return summary
 
 
@@ -9257,7 +9225,7 @@ def counting_cushions():
 
         return redirect(url_for('counting_cushions'))
 
-    stage_context = build_cushion_stage_context(include_timing=True)
+    stage_context = build_cushion_stage_context()
     stock_summary = cushion_stock_summary()
 
     return render_template(
@@ -9266,7 +9234,6 @@ def counting_cushions():
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
-        worker_timing_summary=cushion_worker_timing_summary(worker_name),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )
@@ -9351,7 +9318,7 @@ def counting_cushion_stage(stage_key):
         return redirect(url_for('counting_cushion_stage', stage_key=stage_key))
 
     stage_context = next(
-        item for item in build_cushion_stage_context(include_timing=True)
+        item for item in build_cushion_stage_context(include_timing=True, worker_name=worker_name)
         if item["key"] == stage_key
     )
     variants = flatten_cushion_stage_variants(stage_context)

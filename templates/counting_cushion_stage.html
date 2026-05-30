@@ -115,6 +115,10 @@
         background: #1d4ed8;
     }
 
+    .timing-toggle {
+        background: #1d4ed8;
+    }
+
     .panel {
         padding: 14px;
     }
@@ -175,6 +179,20 @@
         color: #475569;
         font-size: 1rem;
         font-weight: 800;
+    }
+
+    .stage-timing-panel {
+        padding: 12px 14px;
+    }
+
+    .stage-timing {
+        color: #1f2d3d;
+        font-size: 1.15rem;
+        font-weight: 900;
+    }
+
+    .stage-timing[hidden] {
+        display: none;
     }
 
     .add-form {
@@ -439,6 +457,7 @@
                 <a class="link-btn previous" href="{{ url_for('counting_cushion_stage', stage_key=previous_stage.key) }}">Previous: {{ previous_stage.short_label }}</a>
             {% endif %}
             <a class="link-btn" href="{{ overview_url }}">All Stages</a>
+            <button class="link-btn timing-toggle" type="button" id="timing-toggle" aria-pressed="false">Hide Avg Times</button>
             {% if next_stage %}
                 <a class="link-btn next" href="{{ url_for('counting_cushion_stage', stage_key=next_stage.key) }}">Next: {{ next_stage.short_label }}</a>
             {% endif %}
@@ -460,6 +479,12 @@
 
     {% set single_option = stage.variant == 'plain' and variants %}
     {% set single_variant = variants[0] if single_option else none %}
+
+    {% if single_option %}
+        <section class="panel stage-timing-panel">
+            <div class="stage-timing" id="locked-timing">Your avg: {{ single_variant.timing.average_display }} | Last: {{ single_variant.timing.last_display }}</div>
+        </section>
+    {% endif %}
 
     {% if not single_option %}
         <section class="panel" id="selector-panel">
@@ -509,7 +534,7 @@
                 <div class="locked-summary">
                     <div class="locked-label" id="locked-label">{{ stage.short_label }}</div>
                     <div class="locked-meta" id="locked-meta">Current count 0</div>
-                    <div class="locked-meta" id="locked-timing">Avg N/A | Last N/A</div>
+                    <div class="locked-meta stage-timing" id="locked-timing">Your avg: N/A | Last: N/A</div>
                 </div>
                 <div class="locked-actions">
                     <button type="button" class="secondary-btn" id="unlock-button">Unlock / Change</button>
@@ -601,9 +626,22 @@
     const addCount = document.getElementById("add-count");
     const newCount = document.getElementById("new-count");
     const correctionSummary = document.getElementById("correction-summary");
+    const timingToggle = document.getElementById("timing-toggle");
+    const timingItems = document.querySelectorAll(".stage-timing");
     const sizeSelect = document.getElementById("size-select");
     const shapeSelect = document.getElementById("shape-select");
     const endSelect = document.getElementById("end-select");
+    let timingVisible = true;
+
+    function applyTimingVisibility() {
+        timingItems.forEach((item) => {
+            item.hidden = !timingVisible;
+        });
+        if (timingToggle) {
+            timingToggle.textContent = timingVisible ? "Hide Avg Times" : "Show Avg Times";
+            timingToggle.setAttribute("aria-pressed", String(!timingVisible));
+        }
+    }
 
     function variantKey(sizeLabel, shapeNo, endType) {
         const safeShape = parseInt(shapeNo || 0, 10) || 0;
@@ -725,7 +763,7 @@
             lockedMeta.textContent = variant.count_label || `Current ${variant.count}`;
         }
         if (lockedTiming) {
-            lockedTiming.textContent = `Avg ${variant.timing.average_display} | Last ${variant.timing.last_display}`;
+            lockedTiming.textContent = `Your avg: ${variant.timing.average_display} | Last: ${variant.timing.last_display}`;
         }
         addLabel.textContent = `+1 ${variant.lock_label}`;
         addCount.textContent = variant.count_label || `Current ${variant.count}`;
@@ -761,6 +799,14 @@
 
     if (unlockButton) {
         unlockButton.addEventListener("click", unlockSelection);
+    }
+
+    if (timingToggle) {
+        timingToggle.addEventListener("click", function () {
+            timingVisible = !timingVisible;
+            applyTimingVisibility();
+        });
+        applyTimingVisibility();
     }
 
     document.getElementById("add-form").addEventListener("submit", function () {
