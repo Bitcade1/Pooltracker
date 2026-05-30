@@ -621,7 +621,7 @@
         <div class="add-panel {% if not single_option %}hidden{% endif %}" id="add-panel">
             <button class="add-btn" type="submit" name="quantity" value="1" id="add-button">
                 <span class="add-label" id="add-label">{% if single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
-                <span class="add-count" id="add-count">{% if single_option %}{{ single_variant.count_label }}{% else %}Current 0{% endif %}</span>
+                <span class="add-count" id="add-count">{% if single_option %}{{ single_variant.count_label }}{% elif stage.key == 'bundle' %}{% else %}Current 0{% endif %}</span>
             </button>
             <div class="add-side">
                 <button class="quick-add-btn" type="submit" name="quantity" value="5">+5</button>
@@ -837,7 +837,7 @@
             lockedTiming.textContent = `Avg: ${timing.average_display} | Last: ${timing.last_display}`;
         }
         addLabel.textContent = `+1 ${variant.lock_label}`;
-        addCount.textContent = variant.count_label || `Current ${variant.count}`;
+        addCount.textContent = variant.count_label ?? `Current ${variant.count}`;
         newCount.value = variant.count;
         correctionSummary.textContent = variant.lock_label;
 

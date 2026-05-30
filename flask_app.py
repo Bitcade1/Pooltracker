@@ -5708,7 +5708,7 @@ def build_cushion_stage_context(include_timing=False, worker_name=None, batch_nu
                     "shape_no": 0,
                     "end_type": "",
                     "count": count,
-                    "count_label": f"Current {count}",
+                    "count_label": "",
                     "timing": timing,
                 })
             groups.append({"label": "Completed sets", "variants": variants})
