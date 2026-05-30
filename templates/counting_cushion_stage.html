@@ -450,7 +450,9 @@
     <header class="page-head">
         <div>
             <h1 class="page-title">{{ stage.label }}</h1>
-            <div class="page-subtitle">{{ stage.unit_label }} at this stage: {{ stage.total }}</div>
+            {% if stage.key != 'bundle' %}
+                <div class="page-subtitle">{{ stage.unit_label }} at this stage: {{ stage.total }}</div>
+            {% endif %}
         </div>
         <div class="head-actions">
             {% if previous_stage %}
