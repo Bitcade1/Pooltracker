@@ -5730,14 +5730,13 @@ def build_cushion_stage_context(include_timing=False, worker_name=None, batch_nu
 
         ready_to_work_count = cushion_ready_count_for_stage(stage["key"])
         if stage["key"] == "bundle":
+            # Bundle is driven by upstream readiness rather than in-stage stock.
             has_wip = ready_to_work_count > 0
             status_label = f"{ready_to_work_count} ready to bundle" if ready_to_work_count else ""
-        elif stage["key"] == "punch_rubber_ends":
-            has_wip = False
-            status_label = ""
         else:
-            has_wip = ready_to_work_count > 0
-            status_label = f"{ready_to_work_count} ready to work" if ready_to_work_count else ""
+            # For stage cards, highlight where pieces currently are, not the next ready stage.
+            has_wip = stage_total > 0
+            status_label = f"{stage_total} in progress" if stage_total else ""
 
         stage_context.append({
             **stage,
