@@ -78,6 +78,17 @@
         align-items: center;
     }
 
+    .batch-select {
+        min-height: 42px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        padding: 0 10px;
+        font-size: 0.95rem;
+        font-weight: 800;
+        background: #ffffff;
+        color: #0f172a;
+    }
+
     .link-btn,
     .small-btn {
         display: inline-flex;
@@ -459,6 +470,18 @@
         <div class="head-actions">
             <a class="link-btn" href="{{ history_url }}">History</a>
             <a class="link-btn" href="{{ counting_url }}">Counting Page</a>
+            <form method="GET" action="{{ url_for('cushion_production_admin') }}">
+                <select class="batch-select" name="batch" onchange="this.form.submit()">
+                    <option value="current" {{ 'selected' if selected_batch == 'current' else '' }}>Current Batch</option>
+                    <option value="all" {{ 'selected' if selected_batch == 'all' else '' }}>All Batches</option>
+                    {% for batch in recent_batches %}
+                        {% set option_value = batch.batch_number|string %}
+                        <option value="{{ option_value }}" {{ 'selected' if selected_batch == option_value else '' }}>
+                            Batch #{{ batch.batch_number }} - {{ batch.batch_date.strftime('%d/%m/%Y') }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
             <a class="link-btn" href="{{ url_for('home') }}">Home</a>
         </div>
     </header>
@@ -692,7 +715,15 @@
                 <p class="panel-kicker">Performance</p>
                 <h2 class="panel-title">Timing Summary</h2>
             </div>
-            <span class="count-pill">Avg</span>
+            <span class="count-pill">
+                {% if timing_batch_number %}
+                    Batch #{{ timing_batch_number }}
+                {% elif selected_batch == 'all' %}
+                    All
+                {% else %}
+                    Avg
+                {% endif %}
+            </span>
         </div>
         <div class="panel-body">
             <div class="table-wrap">
@@ -790,6 +821,7 @@
                                 <th>Delta</th>
                                 <th>Count After</th>
                                 <th>Timing</th>
+                                <th>Batch</th>
                                 <th>Note</th>
                             </tr>
                         </thead>
@@ -816,6 +848,13 @@
                                             {{ entry.seconds_taken|duration }}
                                         {% else %}
                                             N/A
+                                        {% endif %}
+                                    </td>
+                                    <td class="number-cell">
+                                        {% if entry.batch_number %}
+                                            #{{ entry.batch_number }}
+                                        {% else %}
+                                            -
                                         {% endif %}
                                     </td>
                                     <td>{{ entry.note or '' }}</td>

@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from datetime import datetime, timedelta, date, time
 from collections import defaultdict  # Ensure defaultdict is imported
 from calendar import monthrange
-from sqlalchemy import func, extract, and_, or_
+from sqlalchemy import func, extract, and_, or_, text
 from sqlalchemy.orm import joinedload
 import requests
 import threading
@@ -4623,8 +4623,24 @@ class CushionWorkflowLog(db.Model):
     delta = db.Column(db.Integer, nullable=False, default=0)
     count_after = db.Column(db.Integer, nullable=False, default=0)
     seconds_taken = db.Column(db.Integer, nullable=True)
+    batch_number = db.Column(db.Integer, nullable=True)
+    batch_date = db.Column(db.Date, nullable=True)
     note = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
+class CushionBatch(db.Model):
+    __tablename__ = 'cushion_batch'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_number = db.Column(db.Integer, unique=True, nullable=False)
+    batch_date = db.Column(db.Date, nullable=False, default=date.today)
+    started_at = db.Column(db.DateTime, nullable=False, default=london_now)
+    started_by = db.Column(db.String(50), nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+
+    def __repr__(self):
+        return f"<CushionBatch #{self.batch_number} {self.batch_date}>"
 
 
 class CushionCompletedSet(db.Model):
@@ -4674,9 +4690,85 @@ def ensure_cushion_workflow_tables():
     TableStock.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowCount.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowLog.__table__.create(db.engine, checkfirst=True)
+    CushionBatch.__table__.create(db.engine, checkfirst=True)
     CushionCompletedSet.__table__.create(db.engine, checkfirst=True)
     CushionCompressorCheck.__table__.create(db.engine, checkfirst=True)
     CushionStageLock.__table__.create(db.engine, checkfirst=True)
+    ensure_cushion_workflow_log_batch_columns()
+
+
+def ensure_cushion_workflow_log_batch_columns():
+    existing_columns = {
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info(cushion_workflow_log)")).fetchall()
+    }
+    columns_added = False
+    if "batch_number" not in existing_columns:
+        db.session.execute(text("ALTER TABLE cushion_workflow_log ADD COLUMN batch_number INTEGER"))
+        columns_added = True
+    if "batch_date" not in existing_columns:
+        db.session.execute(text("ALTER TABLE cushion_workflow_log ADD COLUMN batch_date DATE"))
+        columns_added = True
+    if columns_added:
+        db.session.commit()
+
+
+def get_active_cushion_batch():
+    return (
+        CushionBatch.query
+        .filter_by(active=True)
+        .order_by(CushionBatch.started_at.desc(), CushionBatch.id.desc())
+        .first()
+    )
+
+
+def get_cushion_batch_by_number(batch_number):
+    if batch_number in (None, "", "all", "current"):
+        return None
+    try:
+        batch_number = int(batch_number)
+    except (TypeError, ValueError):
+        return None
+    if batch_number <= 0:
+        return None
+    return CushionBatch.query.filter_by(batch_number=batch_number).first()
+
+
+def start_new_cushion_batch(worker_name):
+    active_batch = get_active_cushion_batch()
+    if active_batch:
+        active_batch.active = False
+
+    last_batch_no = db.session.query(func.max(CushionBatch.batch_number)).scalar() or 0
+    new_batch = CushionBatch(
+        batch_number=last_batch_no + 1,
+        batch_date=london_now().date(),
+        started_at=london_now(),
+        started_by=worker_name,
+        active=True
+    )
+    db.session.add(new_batch)
+    db.session.flush()
+    return new_batch
+
+
+def get_or_create_active_cushion_batch(worker_name):
+    active_batch = get_active_cushion_batch()
+    if active_batch:
+        return active_batch
+    return start_new_cushion_batch(worker_name)
+
+
+def cushion_timing_batch_filter(query, batch_number=None):
+    if batch_number in (None, "", "all"):
+        return query
+    try:
+        resolved = int(batch_number)
+    except (TypeError, ValueError):
+        return query
+    if resolved <= 0:
+        return query
+    return query.filter(CushionWorkflowLog.batch_number == resolved)
 
 
 def ensure_cushion_consumables():
@@ -5139,16 +5231,18 @@ def cushion_variant_display(stage_key, size_label="", shape_no=0, end_type=""):
     return " - ".join(parts)
 
 
-def cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, worker, now):
+def cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, worker, now, batch_number=None):
     previous = (
-        CushionWorkflowLog.query
-        .filter_by(
+        cushion_timing_batch_filter(
+            CushionWorkflowLog.query.filter_by(
             action_type="add",
             stage_key=stage_key,
             size_label=size_label,
             shape_no=shape_no,
             end_type=end_type,
             worker=worker
+            ),
+            batch_number
         )
         .filter(CushionWorkflowLog.delta > 0)
         .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
@@ -5163,7 +5257,7 @@ def cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, w
     return seconds
 
 
-def apply_cushion_count_delta(stage_key, size_label, shape_no, end_type, delta, worker, action_type="add", note=None, seconds_taken=None):
+def apply_cushion_count_delta(stage_key, size_label, shape_no, end_type, delta, worker, action_type="add", note=None, seconds_taken=None, batch_number=None, batch_date=None):
     stage = CUSHION_STAGE_BY_KEY[stage_key]
     record = get_cushion_count_record(stage_key, size_label, shape_no, end_type, create=True)
     new_count = record.count + int(delta)
@@ -5183,6 +5277,8 @@ def apply_cushion_count_delta(stage_key, size_label, shape_no, end_type, delta, 
         delta=int(delta),
         count_after=record.count,
         seconds_taken=seconds_taken,
+        batch_number=batch_number,
+        batch_date=batch_date,
         note=note
     )
     db.session.add(log_entry)
@@ -5305,6 +5401,13 @@ def record_cushion_stage_add_many(stage_key, size_label, shape_no, end_type, qua
         if current_tee_nuts < tee_nuts_required:
             raise ValueError(f"Not enough {tee_nuts_name} in stock. Need {tee_nuts_required}, have {current_tee_nuts}.")
 
+    # Transition-safe behavior: if no batch exists yet, adopt the current WIP flow
+    # (even if not at cut_1m) into a new active batch.
+    active_batch = get_or_create_active_cushion_batch(worker)
+
+    batch_number = active_batch.batch_number if active_batch else None
+    batch_date = active_batch.batch_date if active_batch else None
+
     for (input_stage_key, input_size, input_shape, input_end), required_count in required_counts.items():
         apply_cushion_count_delta(
             input_stage_key,
@@ -5314,11 +5417,21 @@ def record_cushion_stage_add_many(stage_key, size_label, shape_no, end_type, qua
             -required_count,
             worker,
             action_type="move_out",
-            note=f"Moved to {CUSHION_STAGE_BY_KEY[stage_key]['label']}"
+            note=f"Moved to {CUSHION_STAGE_BY_KEY[stage_key]['label']}",
+            batch_number=batch_number,
+            batch_date=batch_date
         )
 
     now = london_now()
-    seconds_taken = cushion_action_duration_seconds(stage_key, size_label, shape_no, end_type, worker, now)
+    seconds_taken = cushion_action_duration_seconds(
+        stage_key,
+        size_label,
+        shape_no,
+        end_type,
+        worker,
+        now,
+        batch_number=batch_number
+    )
     if seconds_taken and quantity > 1:
         seconds_taken = max(1, int(round(seconds_taken / quantity)))
 
@@ -5341,6 +5454,8 @@ def record_cushion_stage_add_many(stage_key, size_label, shape_no, end_type, qua
             delta=quantity,
             count_after=target_record.count,
             seconds_taken=seconds_taken,
+            batch_number=batch_number,
+            batch_date=batch_date,
             note=f"Bundled {quantity} completed cushion set(s)"
         ))
         return target_record, completed_sets
@@ -5356,7 +5471,9 @@ def record_cushion_stage_add_many(stage_key, size_label, shape_no, end_type, qua
         quantity,
         worker,
         action_type="add",
-        seconds_taken=seconds_taken
+        seconds_taken=seconds_taken,
+        batch_number=batch_number,
+        batch_date=batch_date
     )
 
     completed_sets = []
@@ -5420,7 +5537,7 @@ def set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count
     return record
 
 
-def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type="", worker_name=None):
+def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type="", worker_name=None, batch_number=None):
     size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
     average_query = (
         db.session.query(func.avg(CushionWorkflowLog.seconds_taken))
@@ -5448,6 +5565,9 @@ def cushion_variant_timing(stage_key, size_label="", shape_no=0, end_type="", wo
     if worker_name:
         average_query = average_query.filter(CushionWorkflowLog.worker == worker_name)
         last_query = last_query.filter(CushionWorkflowLog.worker == worker_name)
+
+    average_query = cushion_timing_batch_filter(average_query, batch_number)
+    last_query = cushion_timing_batch_filter(last_query, batch_number)
 
     average_seconds = average_query.scalar()
     last_log = (
@@ -5506,7 +5626,7 @@ def cushion_ready_count_for_stage(stage_key):
     return ready_count
 
 
-def build_cushion_stage_context(include_timing=False, worker_name=None):
+def build_cushion_stage_context(include_timing=False, worker_name=None, batch_number=None):
     stage_context = []
     for stage in CUSHION_WORKFLOW_STAGES:
         stage_total = 0
@@ -5515,7 +5635,7 @@ def build_cushion_stage_context(include_timing=False, worker_name=None):
 
         if stage["variant"] == CUSHION_STAGE_PLAIN:
             count = cushion_count_value(stage["key"])
-            timing = cushion_variant_timing(stage["key"], worker_name=worker_name) if include_timing else None
+            timing = cushion_variant_timing(stage["key"], worker_name=worker_name, batch_number=batch_number) if include_timing else None
             stage_total += count
             groups.append({
                 "label": stage["short_label"],
@@ -5534,7 +5654,7 @@ def build_cushion_stage_context(include_timing=False, worker_name=None):
             variants = []
             for end_type in CUSHION_END_TYPES:
                 count = cushion_count_value(stage["key"], end_type=end_type)
-                timing = cushion_variant_timing(stage["key"], end_type=end_type, worker_name=worker_name) if include_timing else None
+                timing = cushion_variant_timing(stage["key"], end_type=end_type, worker_name=worker_name, batch_number=batch_number) if include_timing else None
                 stage_total += count
                 variants.append({
                     "label": end_type,
@@ -5553,7 +5673,7 @@ def build_cushion_stage_context(include_timing=False, worker_name=None):
             for size_label in CUSHION_SIZES:
                 count = stock_summary.get(size_label, 0)
                 ready_bundle_count += cushion_ready_bundle_count(size_label)
-                timing = cushion_variant_timing(stage["key"], size_label=size_label, worker_name=worker_name) if include_timing else None
+                timing = cushion_variant_timing(stage["key"], size_label=size_label, worker_name=worker_name, batch_number=batch_number) if include_timing else None
                 stage_total += count
                 variants.append({
                     "label": f"{size_label} Set",
@@ -5571,7 +5691,7 @@ def build_cushion_stage_context(include_timing=False, worker_name=None):
                 variants = []
                 for shape_no in CUSHION_SHAPES:
                     count = cushion_count_value(stage["key"], size_label=size_label, shape_no=shape_no)
-                    timing = cushion_variant_timing(stage["key"], size_label=size_label, shape_no=shape_no, worker_name=worker_name) if include_timing else None
+                    timing = cushion_variant_timing(stage["key"], size_label=size_label, shape_no=shape_no, worker_name=worker_name, batch_number=batch_number) if include_timing else None
                     stage_total += count
                     variants.append({
                         "label": f"Shape {shape_no}",
@@ -5646,16 +5766,17 @@ def cushion_stock_summary():
     return summary
 
 
-def cushion_timing_summary():
+def cushion_timing_summary(batch_number=None):
     summary = {}
     for stage in CUSHION_WORKFLOW_STAGES:
-        rows = (
-            db.session.query(
+        base_query = db.session.query(
                 func.count(CushionWorkflowLog.id),
                 func.avg(CushionWorkflowLog.seconds_taken),
                 func.min(CushionWorkflowLog.seconds_taken),
                 func.max(CushionWorkflowLog.seconds_taken)
             )
+        rows = (
+            cushion_timing_batch_filter(base_query, batch_number)
             .filter(
                 CushionWorkflowLog.action_type == "add",
                 CushionWorkflowLog.stage_key == stage["key"],
@@ -5676,7 +5797,7 @@ def cushion_timing_summary():
     return summary
 
 
-def cushion_stage_timing(stage_key, worker_name=None):
+def cushion_stage_timing(stage_key, worker_name=None, batch_number=None):
     filters = [
         CushionWorkflowLog.action_type == "add",
         CushionWorkflowLog.stage_key == stage_key,
@@ -5687,15 +5808,18 @@ def cushion_stage_timing(stage_key, worker_name=None):
         filters.append(CushionWorkflowLog.worker == worker_name)
 
     rows = (
-        db.session.query(
+        cushion_timing_batch_filter(
+            db.session.query(
             func.count(CushionWorkflowLog.id),
             func.avg(CushionWorkflowLog.seconds_taken),
+            ),
+            batch_number
         )
         .filter(*filters)
         .first()
     )
     last_log = (
-        CushionWorkflowLog.query
+        cushion_timing_batch_filter(CushionWorkflowLog.query, batch_number)
         .filter(*filters)
         .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
         .first()
@@ -9509,15 +9633,31 @@ def counting_cushion_stage(stage_key):
         return redirect(url_for('counting_cushions'))
 
     worker_name = session['worker']
+    selected_batch = (request.args.get('batch') or 'current').strip().lower()
+    active_batch = get_active_cushion_batch()
+    if selected_batch == 'current':
+        timing_batch_number = active_batch.batch_number if active_batch else None
+    elif selected_batch == 'all':
+        timing_batch_number = None
+    else:
+        selected_batch_record = get_cushion_batch_by_number(selected_batch)
+        timing_batch_number = selected_batch_record.batch_number if selected_batch_record else None
 
     if request.method == 'POST':
         action = request.form.get('action')
         if handle_cushion_compressor_action(action, worker_name):
-            return redirect(url_for('counting_cushion_stage', stage_key=stage_key))
+            return redirect(url_for('counting_cushion_stage', stage_key=stage_key, batch=selected_batch))
         size_label = request.form.get('size_label', '')
         shape_no = request.form.get('shape_no', 0)
         end_type = request.form.get('end_type', '')
         try:
+            if action == "start_batch":
+                if stage_key != "cut_1m":
+                    raise ValueError("Batches can only be started from the Cut into 1m Lengths stage.")
+                new_batch = start_new_cushion_batch(worker_name)
+                db.session.commit()
+                flash(f"Started cushion batch #{new_batch.batch_number} ({new_batch.batch_date.strftime('%d/%m/%Y')}).", "success")
+                return redirect(url_for('counting_cushion_stage', stage_key=stage_key, batch='current'))
             if action == "add":
                 quantity = parse_cushion_add_quantity(
                     request.form.get('quantity', '1'),
@@ -9571,14 +9711,14 @@ def counting_cushion_stage(stage_key):
             db.session.rollback()
             raise
 
-        return redirect(url_for('counting_cushion_stage', stage_key=stage_key))
+        return redirect(url_for('counting_cushion_stage', stage_key=stage_key, batch=selected_batch))
 
     stage_context = next(
-        item for item in build_cushion_stage_context(include_timing=True)
+        item for item in build_cushion_stage_context(include_timing=True, batch_number=timing_batch_number)
         if item["key"] == stage_key
     )
     variants = flatten_cushion_stage_variants(stage_context)
-    stage_timing = cushion_stage_timing(stage_key)
+    stage_timing = cushion_stage_timing(stage_key, batch_number=timing_batch_number)
     for variant in variants:
         timing = variant.get("timing") or {}
         variant["display_timing"] = {
@@ -9597,6 +9737,12 @@ def counting_cushion_stage(stage_key):
     stage_index = stage_keys.index(stage_key)
     previous_stage = CUSHION_WORKFLOW_STAGES[stage_index - 1] if stage_index > 0 else None
     next_stage = CUSHION_WORKFLOW_STAGES[stage_index + 1] if stage_index < len(CUSHION_WORKFLOW_STAGES) - 1 else None
+    recent_batches = (
+        CushionBatch.query
+        .order_by(CushionBatch.batch_number.desc())
+        .limit(20)
+        .all()
+    )
 
     return render_template(
         'counting_cushion_stage.html',
@@ -9613,7 +9759,11 @@ def counting_cushion_stage(stage_key):
         stage_timing=stage_timing,
         compressor_context=cushion_compressor_context(worker_name),
         stage_lock=get_cushion_stage_lock(worker_name, stage_key),
-        consumables=cushion_consumables_for_stage(stage_key)
+        consumables=cushion_consumables_for_stage(stage_key),
+        active_batch=active_batch,
+        selected_batch=selected_batch,
+        timing_batch_number=timing_batch_number,
+        recent_batches=recent_batches
     )
 
 
@@ -9671,6 +9821,15 @@ def cushion_production_admin():
     ensure_cushion_workflow_tables()
     ensure_cushion_consumables()
     worker_name = session['worker']
+    selected_batch = (request.args.get('batch') or 'current').strip().lower()
+    active_batch = get_active_cushion_batch()
+    if selected_batch == 'current':
+        timing_batch_number = active_batch.batch_number if active_batch else None
+    elif selected_batch == 'all':
+        timing_batch_number = None
+    else:
+        selected_batch_record = get_cushion_batch_by_number(selected_batch)
+        timing_batch_number = selected_batch_record.batch_number if selected_batch_record else None
 
     if request.method == 'POST':
         action = request.form.get('action')
@@ -9792,10 +9951,10 @@ def cushion_production_admin():
             db.session.rollback()
             raise
 
-        return redirect(url_for('cushion_production_admin'))
+        return redirect(url_for('cushion_production_admin', batch=selected_batch))
 
-    stage_context = build_cushion_stage_context(include_timing=True)
-    timing_summary = cushion_timing_summary()
+    stage_context = build_cushion_stage_context(include_timing=True, batch_number=timing_batch_number)
+    timing_summary = cushion_timing_summary(batch_number=timing_batch_number)
     completed_sets = (
         CushionCompletedSet.query
         .order_by(CushionCompletedSet.completed_at.desc(), CushionCompletedSet.id.desc())
@@ -9803,9 +9962,15 @@ def cushion_production_admin():
         .all()
     )
     recent_logs = (
-        CushionWorkflowLog.query
+        cushion_timing_batch_filter(CushionWorkflowLog.query, timing_batch_number)
         .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
         .limit(100)
+        .all()
+    )
+    recent_batches = (
+        CushionBatch.query
+        .order_by(CushionBatch.batch_number.desc())
+        .limit(20)
         .all()
     )
 
@@ -9824,7 +9989,11 @@ def cushion_production_admin():
             for size_label in CUSHION_SIZES
         },
         counting_url=url_for('counting_cushions'),
-        history_url=url_for('cushion_history')
+        history_url=url_for('cushion_history'),
+        active_batch=active_batch,
+        selected_batch=selected_batch,
+        timing_batch_number=timing_batch_number,
+        recent_batches=recent_batches
     )
 
 

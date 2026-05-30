@@ -123,6 +123,37 @@
         padding: 14px;
     }
 
+    .batch-panel {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .batch-info {
+        color: #1f2d3d;
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+    .batch-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .batch-actions select {
+        min-height: 42px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0 10px;
+        font-size: 1rem;
+        font-weight: 800;
+        background: #ffffff;
+    }
+
     .selector-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -479,6 +510,43 @@
 
     {% include '_cushion_compressor_check.html' %}
 
+    <section class="panel">
+        <div class="batch-panel">
+            <div class="batch-info">
+                {% if timing_batch_number %}
+                    Timing Scope: Batch #{{ timing_batch_number }}
+                    {% if active_batch and active_batch.batch_number == timing_batch_number %}
+                        (Current)
+                    {% endif %}
+                {% elif selected_batch == 'all' %}
+                    Timing Scope: All Batches
+                {% else %}
+                    Timing Scope: No active batch yet
+                {% endif %}
+            </div>
+            <div class="batch-actions">
+                <form method="GET" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+                    <select name="batch" onchange="this.form.submit()">
+                        <option value="current" {{ 'selected' if selected_batch == 'current' else '' }}>Current Batch</option>
+                        <option value="all" {{ 'selected' if selected_batch == 'all' else '' }}>All Batches</option>
+                        {% for batch in recent_batches %}
+                            {% set option_value = batch.batch_number|string %}
+                            <option value="{{ option_value }}" {{ 'selected' if selected_batch == option_value else '' }}>
+                                Batch #{{ batch.batch_number }} - {{ batch.batch_date.strftime('%d/%m/%Y') }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% if stage.key == 'cut_1m' %}
+                    <form method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key, batch=selected_batch) }}">
+                        <input type="hidden" name="action" value="start_batch">
+                        <button class="secondary-btn" type="submit">Start New Batch</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
     {% set single_option = stage.variant == 'plain' and variants %}
     {% set single_variant = variants[0] if single_option else none %}
 
@@ -545,7 +613,7 @@
         </section>
     {% endif %}
 
-    <form class="add-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}" id="add-form">
+    <form class="add-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key, batch=selected_batch) }}" id="add-form">
         <input type="hidden" name="action" value="add">
         <input type="hidden" name="size_label" class="selected-size" value="{{ single_variant.size_label if single_variant else '' }}">
         <input type="hidden" name="shape_no" class="selected-shape" value="{{ single_variant.shape_no if single_variant else 0 }}">
@@ -572,7 +640,7 @@
             <span id="correction-summary">{% if single_option %}{{ single_variant.lock_label }}{% else %}Edit{% endif %}</span>
         </summary>
         <div class="panel-body">
-            <form class="correction-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}" id="correction-form">
+            <form class="correction-form" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key, batch=selected_batch) }}" id="correction-form">
                 <input type="hidden" name="action" value="set_count">
                 <input type="hidden" name="size_label" class="selected-size" value="{{ single_variant.size_label if single_variant else '' }}">
                 <input type="hidden" name="shape_no" class="selected-shape" value="{{ single_variant.shape_no if single_variant else 0 }}">
@@ -595,7 +663,7 @@
                         <span class="consumable-name">{{ item.label }}</span>
                         <span class="consumable-count">Stock {{ item.count }}</span>
                     </div>
-                    <form class="consumable-actions" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+                    <form class="consumable-actions" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key, batch=selected_batch) }}">
                         <input type="hidden" name="action" value="consumable_adjust">
                         <input type="hidden" name="part_name" value="{{ item.name }}">
                         <button class="secondary-btn" type="submit" name="delta" value="-1">-1</button>
