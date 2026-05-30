@@ -9738,7 +9738,8 @@ def counting_cushion_stage(stage_key):
             if action == "add":
                 quantity = parse_cushion_add_quantity(
                     request.form.get('quantity', '1'),
-                    request.form.get('manual_quantity')
+                    request.form.get('manual_quantity'),
+                    stage_key=stage_key
                 )
                 target_record, completed_sets = record_cushion_stage_add_many(
                     stage_key,
