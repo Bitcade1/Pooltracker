@@ -4838,14 +4838,43 @@ def parse_positive_count(value, field_label="Quantity"):
     return count
 
 
-def parse_cushion_add_quantity(quantity_value, manual_quantity=None):
+def parse_cushion_add_quantity(quantity_value, manual_quantity=None, stage_key=None):
     if quantity_value == "manual":
         return parse_positive_count(manual_quantity, "Manual quantity")
 
     quantity = parse_positive_count(quantity_value or 1, "Quantity")
-    if quantity not in (1, 5, 10):
-        raise ValueError("Choose 1, 5, 10, or enter a manual quantity.")
+    allowed_quantities = (1, 5, 10)
+    if stage_key == "spray_glue_join_rubber":
+        allowed_quantities = (1, 5, 12)
+
+    if quantity not in allowed_quantities:
+        allowed_text = ", ".join(str(item) for item in allowed_quantities)
+        stage_label = CUSHION_STAGE_BY_KEY.get(stage_key, {}).get("label", "this section")
+        raise ValueError(
+            f"For {stage_label}, choose {allowed_text} or enter a manual quantity."
+        )
     return quantity
+
+
+def cushion_stage_missing_requirements_message(stage_key, quantity, missing_requirements):
+    stage = CUSHION_STAGE_BY_KEY.get(stage_key, {"label": stage_key})
+    stage_label = stage["label"]
+
+    top_missing = missing_requirements[0]
+    source_stage = CUSHION_STAGE_BY_KEY.get(top_missing["input_stage_key"], {"label": top_missing["input_stage_key"]})
+    source_stage_label = source_stage["label"]
+
+    lines = [
+        f"Cannot add {quantity} to {stage_label} yet.",
+        f"You need more stock in {source_stage_label} first.",
+        f"Needed: {top_missing['required_count']}, available: {top_missing['available']} ({top_missing['variant_label']}).",
+        f"Go to {source_stage_label}, add enough pieces, then try this step again.",
+    ]
+
+    if len(missing_requirements) > 1:
+        lines.append(f"There are {len(missing_requirements) - 1} other missing prerequisite stock item(s) as well.")
+
+    return " ".join(lines)
 
 
 def parse_consumable_delta(delta_value, manual_delta=None):
@@ -5410,12 +5439,21 @@ def record_cushion_stage_add_many(stage_key, size_label, shape_no, end_type, qua
     for requirement in requirements:
         required_counts[requirement] += quantity
 
+    missing_requirements = []
     for (input_stage_key, input_size, input_shape, input_end), required_count in required_counts.items():
         input_record = get_cushion_count_record(input_stage_key, input_size, input_shape, input_end, create=True)
         if input_record.count < required_count:
             available = input_record.count
             label = cushion_variant_display(input_stage_key, input_record.size_label, input_record.shape_no, input_record.end_type)
-            raise ValueError(f"Not enough {label} available. Need {required_count}, have {available}.")
+            missing_requirements.append({
+                "input_stage_key": input_stage_key,
+                "required_count": required_count,
+                "available": available,
+                "variant_label": label,
+            })
+
+    if missing_requirements:
+        raise ValueError(cushion_stage_missing_requirements_message(stage_key, quantity, missing_requirements))
 
     tee_nuts_required = 0
     if stage_key == "glue_ends":
@@ -9578,7 +9616,8 @@ def counting_cushions():
                 end_type = request.form.get('end_type', '')
                 quantity = parse_cushion_add_quantity(
                     request.form.get('quantity', '1'),
-                    request.form.get('manual_quantity')
+                    request.form.get('manual_quantity'),
+                    stage_key=stage_key
                 )
                 target_record, completed_sets = record_cushion_stage_add_many(
                     stage_key,
