@@ -151,6 +151,15 @@
         background: #1e40af;
     }
 
+    .job-page-card.is-working {
+        background: #16a34a;
+        box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28);
+    }
+
+    .job-page-card.is-working:hover {
+        background: #15803d;
+    }
+
     .job-page-card strong {
         font-size: 1.6rem;
         line-height: 1.05;
@@ -160,6 +169,24 @@
         font-size: 1.15rem;
         font-weight: 800;
         color: #dbeafe;
+    }
+
+    .job-page-card.is-working span {
+        color: #dcfce7;
+    }
+
+    .working-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 5px 10px;
+        background: rgba(255, 255, 255, 0.18);
+        color: #ffffff;
+        font-size: 0.9rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 
     .stage-panel summary,
@@ -328,68 +355,6 @@
         margin: 0;
     }
 
-    .consumables-panel {
-        background: #ffffff;
-        border: 1px solid #dfe3eb;
-        border-radius: 10px;
-        padding: 14px;
-    }
-
-    .consumables-panel h2 {
-        margin: 0 0 12px;
-        color: #1f2d3d;
-        font-size: 1.35rem;
-    }
-
-    .consumables-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-        gap: 10px;
-    }
-
-    .consumable-card {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        background: #f8fafc;
-        border: 1px solid #dbe4ef;
-        border-radius: 12px;
-        padding: 12px;
-    }
-
-    .consumable-name {
-        display: block;
-        color: #1f2d3d;
-        font-size: 1.1rem;
-        font-weight: 900;
-    }
-
-    .consumable-count {
-        display: block;
-        margin-top: 4px;
-        color: #475569;
-        font-weight: 900;
-    }
-
-    .consumable-actions {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        flex-shrink: 0;
-        margin: 0;
-    }
-
-    .consumable-actions .small-btn {
-        min-width: 64px;
-        min-height: 56px;
-        font-size: 1.15rem;
-    }
-
-    .consumable-actions .add-consumable {
-        background: #1d4ed8;
-    }
-
     @media (max-width: 760px) {
         .cushion-page {
             padding: 10px;
@@ -411,14 +376,6 @@
             font-size: 2rem;
         }
 
-        .consumable-card {
-            align-items: stretch;
-            flex-direction: column;
-        }
-
-        .consumable-actions .small-btn {
-            min-width: 86px;
-        }
     }
 </style>
 
@@ -456,7 +413,10 @@
 
     <section class="job-page-grid" aria-label="Cushion job pages">
         {% for stage in stages %}
-            <a class="job-page-card" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+            <a class="job-page-card {% if stage.key in locked_stage_keys %}is-working{% endif %}" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+                {% if stage.key in locked_stage_keys %}
+                    <span class="working-badge">Working on this</span>
+                {% endif %}
                 <strong>{{ stage.short_label }}</strong>
                 {% if stage.key == 'punch_rubber_ends' %}
                     <span>
@@ -471,26 +431,6 @@
                 {% endif %}
             </a>
         {% endfor %}
-    </section>
-
-    <section class="consumables-panel">
-        <h2>Consumables</h2>
-        <div class="consumables-grid">
-            {% for item in consumables %}
-                <article class="consumable-card">
-                    <div>
-                        <span class="consumable-name">{{ item.label }}</span>
-                        <span class="consumable-count">Stock {{ item.count }}</span>
-                    </div>
-                    <form class="consumable-actions" method="POST" action="{{ url_for('counting_cushions') }}">
-                        <input type="hidden" name="action" value="consumable_adjust">
-                        <input type="hidden" name="part_name" value="{{ item.name }}">
-                        <button class="small-btn" type="submit" name="delta" value="-1">-1</button>
-                        <button class="small-btn add-consumable" type="submit" name="delta" value="1">+1</button>
-                    </form>
-                </article>
-            {% endfor %}
-        </div>
     </section>
 
 </div>

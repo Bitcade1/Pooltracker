@@ -1518,6 +1518,7 @@ def admin():
         return redirect(url_for('login'))
 
     BodyPieceCount.__table__.create(db.engine, checkfirst=True)
+    ensure_cushion_consumables()
 
     threshold_section_open = False
 
@@ -4931,6 +4932,31 @@ def get_cushion_stage_lock(worker_name, stage_key):
         db.session.commit()
         return None
     return cushion_stage_lock_payload(record)
+
+
+def cushion_stage_locks_for_worker(worker_name):
+    if not worker_name:
+        return {}
+    records = CushionStageLock.query.filter_by(worker=worker_name).all()
+    locks = {}
+    invalid_records = []
+    for record in records:
+        if record.stage_key not in CUSHION_STAGE_BY_KEY:
+            invalid_records.append(record)
+            continue
+        try:
+            normalize_cushion_variant(record.stage_key, record.size_label, record.shape_no, record.end_type)
+        except ValueError:
+            invalid_records.append(record)
+            continue
+        locks[record.stage_key] = cushion_stage_lock_payload(record)
+
+    if invalid_records:
+        for record in invalid_records:
+            db.session.delete(record)
+        db.session.commit()
+
+    return locks
 
 
 def save_cushion_stage_lock(worker_name, stage_key, size_label="", shape_no=0, end_type="", commit=False):
@@ -9134,6 +9160,7 @@ def counting_cushions():
 
     stage_context = build_cushion_stage_context(include_timing=True)
     stock_summary = cushion_stock_summary()
+    stage_locks = cushion_stage_locks_for_worker(worker_name)
 
     return render_template(
         'counting_cushions.html',
@@ -9141,7 +9168,7 @@ def counting_cushions():
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
-        consumables=cushion_consumables_for_stage(''),
+        locked_stage_keys=set(stage_locks.keys()),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )
