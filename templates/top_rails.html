@@ -41,6 +41,18 @@
       height: 100%;
       border-right: 2px solid #ccc;
     }
+    .production-target-toggle {
+      margin: 0 0 12px 0;
+      text-align: center;
+    }
+    .production-target-toggle button {
+      padding: 10px 14px;
+      border-radius: 6px;
+      background-color: #0f172a;
+    }
+    .production-target-toggle button:hover {
+      background-color: #1e293b;
+    }
     
     /* Collapsible styles */
     .collapsible {
@@ -168,11 +180,63 @@
     .rustic-black-swatch {
       background-color: #1a1a1a;
     }
+
+    .type-breakdown {
+      margin-bottom: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      background-color: #f7f7fb;
+      border: 1px solid #dfe3eb;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    }
+    .type-breakdown h2 {
+      margin: 0 0 12px 0;
+      text-align: center;
+    }
+    .type-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .type-stat {
+      border-radius: 8px;
+      padding: 14px;
+      color: #fff;
+      text-align: center;
+    }
+    .type-stat.sevenft {
+      background-color: #0f766e;
+    }
+    .type-stat.sixft {
+      background-color: #1d4ed8;
+    }
+    .type-stat.total {
+      background-color: #0f172a;
+    }
+    .type-stat-label {
+      font-size: 1.1em;
+      font-weight: bold;
+    }
+    .type-stat-value {
+      margin-top: 6px;
+      font-size: 2.6em;
+      line-height: 1;
+      font-weight: bold;
+    }
   </style>
   <script>
     function toggleCollapsible(id) {
       var content = document.getElementById(id);
       content.style.display = content.style.display === "block" ? "none" : "block";
+    }
+
+    function toggleProductionTargets() {
+      var content = document.getElementById('productionTargetsPanel');
+      var button = document.getElementById('productionTargetsToggle');
+      var isHidden = content.style.display === "none";
+      content.style.display = isHidden ? "block" : "none";
+      button.textContent = isHidden ? "Hide Production Targets" : "Show Production Targets";
     }
     
     // Function to format serial number based on size and color selection
@@ -259,7 +323,10 @@
     <h1>Top Rails</h1>
     
     <!-- Production Targets Section -->
-    <div class="production-targets">
+    <div class="production-target-toggle">
+      <button type="button" id="productionTargetsToggle" onclick="toggleProductionTargets()">Show Production Targets</button>
+    </div>
+    <div class="production-targets" id="productionTargetsPanel" style="display: none;">
       <div class="prod-title">Production Targets for This Month</div>
       <div class="prod-values">
         <span>7ft Tables: {{ target_7ft }}</span>
@@ -268,11 +335,21 @@
     </div>
     
     <!-- Current Production Section -->
-    <div class="production-targets">
-      <div class="prod-title">Current Production This Month</div>
-      <div class="prod-values">
-        <span>7ft Top Rails: {{ current_top_rails_7ft }}</span>
-        <span>6ft Top Rails: {{ current_top_rails_6ft }}</span>
+    <div class="type-breakdown">
+      <h2>Current Production This Month</h2>
+      <div class="type-summary">
+        <div class="type-stat sevenft">
+          <div class="type-stat-label">7ft Top Rails</div>
+          <div class="type-stat-value">{{ current_top_rails_7ft }}</div>
+        </div>
+        <div class="type-stat sixft">
+          <div class="type-stat-label">6ft Top Rails</div>
+          <div class="type-stat-value">{{ current_top_rails_6ft }}</div>
+        </div>
+        <div class="type-stat total">
+          <div class="type-stat-label">Total Top Rails</div>
+          <div class="type-stat-value">{{ top_rails_this_month }}</div>
+        </div>
       </div>
     </div>
     
