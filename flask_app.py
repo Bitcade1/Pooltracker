@@ -5464,6 +5464,41 @@ def cushion_ready_bundle_count(size_label):
     return min(counts) if counts else 0
 
 
+def cushion_ready_count_for_variant(stage_key, size_label="", shape_no=0, end_type=""):
+    requirements = cushion_input_requirements(stage_key, size_label, shape_no, end_type)
+    if not requirements:
+        return 0
+
+    required_counts = defaultdict(int)
+    for requirement in requirements:
+        required_counts[requirement] += 1
+
+    ready_counts = []
+    for (input_stage_key, input_size, input_shape, input_end), required_count in required_counts.items():
+        available = cushion_current_count_for_variant(input_stage_key, input_size, input_shape, input_end)
+        ready_counts.append(available // required_count)
+
+    return min(ready_counts) if ready_counts else 0
+
+
+def cushion_ready_count_for_stage(stage_key):
+    stage = CUSHION_STAGE_BY_KEY[stage_key]
+    if stage_key == "bundle":
+        return sum(cushion_ready_bundle_count(size_label) for size_label in CUSHION_SIZES)
+    if stage["variant"] == CUSHION_STAGE_PLAIN:
+        return cushion_ready_count_for_variant(stage_key)
+    if stage["variant"] == CUSHION_STAGE_END_TYPE:
+        return 0
+    if stage["variant"] == CUSHION_STAGE_SIZE_ONLY:
+        return sum(cushion_ready_count_for_variant(stage_key, size_label=size_label) for size_label in CUSHION_SIZES)
+
+    ready_count = 0
+    for size_label in CUSHION_SIZES:
+        for shape_no in CUSHION_SHAPES:
+            ready_count += cushion_ready_count_for_variant(stage_key, size_label=size_label, shape_no=shape_no)
+    return ready_count
+
+
 def build_cushion_stage_context(include_timing=False):
     stage_context = []
     for stage in CUSHION_WORKFLOW_STAGES:
@@ -5543,15 +5578,16 @@ def build_cushion_stage_context(include_timing=False):
                     })
                 groups.append({"label": size_label, "variants": variants})
 
+        ready_to_work_count = cushion_ready_count_for_stage(stage["key"])
         if stage["key"] == "bundle":
-            has_wip = ready_bundle_count > 0
-            status_label = f"{ready_bundle_count} ready to bundle" if ready_bundle_count else ""
+            has_wip = ready_to_work_count > 0
+            status_label = f"{ready_to_work_count} ready to bundle" if ready_to_work_count else ""
         elif stage["key"] == "punch_rubber_ends":
             has_wip = False
             status_label = ""
         else:
-            has_wip = stage_total > 0
-            status_label = f"{stage_total} in progress" if stage_total else ""
+            has_wip = ready_to_work_count > 0
+            status_label = f"{ready_to_work_count} ready to work" if ready_to_work_count else ""
 
         stage_context.append({
             **stage,
@@ -5559,6 +5595,7 @@ def build_cushion_stage_context(include_timing=False):
             "groups": groups,
             "has_wip": has_wip,
             "status_label": status_label,
+            "ready_to_work_count": ready_to_work_count,
             "ready_bundle_count": ready_bundle_count,
         })
 

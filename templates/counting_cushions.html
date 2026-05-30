@@ -415,7 +415,7 @@
         {% for stage in stages %}
             <a class="job-page-card {% if stage.has_wip %}has-wip{% endif %}" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
                 {% if stage.has_wip %}
-                    <span class="wip-badge">{{ stage.status_label or 'Work in progress' }}</span>
+                    <span class="wip-badge">Ready to work</span>
                 {% endif %}
                 <strong>{{ stage.short_label }}</strong>
                 {% if stage.key == 'punch_rubber_ends' %}
@@ -426,6 +426,8 @@
                             {% endfor %}
                         {% endfor %}
                     </span>
+                {% elif stage.status_label %}
+                    <span>{{ stage.status_label }}</span>
                 {% else %}
                     <span>{{ stage.total }} in progress</span>
                 {% endif %}
