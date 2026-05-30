@@ -457,6 +457,7 @@
             <h1>Cushion Production</h1>
         </div>
         <div class="head-actions">
+            <a class="link-btn" href="{{ history_url }}">History</a>
             <a class="link-btn" href="{{ counting_url }}">Counting Page</a>
             <a class="link-btn" href="{{ url_for('home') }}">Home</a>
         </div>
@@ -774,7 +775,7 @@
                 <p class="panel-kicker">History</p>
                 <h2 class="panel-title">Recent Action Log</h2>
             </div>
-            <span class="count-pill">{{ recent_logs|length }}</span>
+            <a class="small-btn" href="{{ history_url }}">Full History</a>
         </summary>
         <div class="panel-body">
             {% if recent_logs %}

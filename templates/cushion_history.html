@@ -1,0 +1,725 @@
+{% extends 'base.html' %}
+
+{% block title %}Cushion History{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        display: block;
+        align-items: stretch;
+        justify-content: flex-start;
+        background: #f4f4f9;
+    }
+
+    .site-header,
+    .site-footer {
+        display: none;
+    }
+
+    .container {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        text-align: left;
+    }
+
+    .history-page {
+        width: min(1500px, calc(100% - 28px));
+        margin: 0 auto;
+        padding: 14px 0 28px;
+        color: #1f2d3d;
+    }
+
+    .page-head,
+    .stat-card,
+    .history-panel {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 12px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+
+    .page-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 16px 18px;
+        margin-bottom: 14px;
+    }
+
+    .page-head h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1;
+    }
+
+    .page-kicker,
+    .panel-kicker {
+        margin: 0 0 6px;
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .head-actions,
+    .form-actions,
+    .pagination {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .link-btn,
+    .small-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 9px;
+        background: #0f172a;
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 900;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .link-btn {
+        min-height: 46px;
+        padding: 0 16px;
+    }
+
+    .small-btn {
+        min-height: 40px;
+        padding: 0 13px;
+        font-size: 0.95rem;
+    }
+
+    .primary-btn {
+        background: #1d4ed8;
+    }
+
+    .link-btn:hover,
+    .small-btn:hover {
+        filter: brightness(0.92);
+    }
+
+    .filter-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        align-items: end;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        color: #334155;
+        font-size: 0.85rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .field select,
+    .field input {
+        min-height: 42px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        padding: 0 10px;
+        background: #ffffff;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 800;
+        text-transform: none;
+        letter-spacing: 0;
+    }
+
+    .form-actions {
+        grid-column: 1 / -1;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .stat-card {
+        padding: 15px;
+        min-height: 104px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-size: 0.82rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+        margin-top: 8px;
+        color: #0f172a;
+        font-size: clamp(1.9rem, 4vw, 2.8rem);
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .stat-meta {
+        margin-top: 7px;
+        color: #64748b;
+        font-size: 0.86rem;
+        font-weight: 800;
+    }
+
+    .history-panel {
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .panel-header,
+    .history-panel > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 15px 16px;
+        list-style: none;
+    }
+
+    .history-panel > summary {
+        cursor: pointer;
+    }
+
+    .history-panel > summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .panel-title {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 900;
+        line-height: 1.1;
+    }
+
+    .panel-body {
+        padding: 0 16px 16px;
+    }
+
+    .count-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 48px;
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #eef2f7;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+    .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+    }
+
+    .data-table {
+        width: 100%;
+        min-width: 840px;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.94rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .data-table th {
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .data-table tbody tr:nth-child(even) {
+        background: #fbfdff;
+    }
+
+    .data-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .compact-table {
+        min-width: 660px;
+    }
+
+    .log-table {
+        min-width: 1080px;
+    }
+
+    .number-cell {
+        width: 110px;
+        color: #0f172a;
+        font-size: 1.08rem;
+        font-weight: 900;
+    }
+
+    .timing-cell {
+        color: #334155;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .variant-cell strong {
+        display: block;
+        color: #0f172a;
+        font-weight: 900;
+    }
+
+    .variant-cell span {
+        display: block;
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 800;
+    }
+
+    .action-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 0 10px;
+        background: #eef2f7;
+        color: #0f172a;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .action-pill.add {
+        background: #dcfce7;
+        color: #14532d;
+    }
+
+    .action-pill.move_out {
+        background: #dbeafe;
+        color: #1e3a8a;
+    }
+
+    .action-pill.correction {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .empty-state {
+        margin: 0;
+        padding: 16px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 800;
+    }
+
+    .pagination {
+        justify-content: space-between;
+        margin-top: 12px;
+    }
+
+    .pagination-meta {
+        color: #475569;
+        font-weight: 900;
+    }
+
+    .disabled-btn {
+        opacity: 0.45;
+        pointer-events: none;
+    }
+
+    @media (max-width: 760px) {
+        .history-page {
+            width: calc(100% - 20px);
+            padding-top: 10px;
+        }
+
+        .page-head {
+            align-items: stretch;
+        }
+
+        .head-actions,
+        .head-actions .link-btn,
+        .form-actions,
+        .form-actions .small-btn {
+            width: 100%;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .stat-card {
+            min-height: 92px;
+            padding: 12px;
+        }
+    }
+</style>
+
+<div class="history-page">
+    <header class="page-head">
+        <div>
+            <p class="page-kicker">Admin View</p>
+            <h1>Cushion History</h1>
+        </div>
+        <div class="head-actions">
+            <a class="link-btn" href="{{ admin_url }}">Cushion Admin</a>
+            <a class="link-btn" href="{{ counting_url }}">Counting Page</a>
+            <a class="link-btn" href="{{ url_for('home') }}">Home</a>
+        </div>
+    </header>
+
+    <section class="history-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">Search</p>
+                <h2 class="panel-title">Filter Historical Data</h2>
+            </div>
+        </div>
+        <div class="panel-body">
+            <form class="filter-form" method="GET" action="{{ url_for('cushion_history') }}">
+                <label class="field">
+                    Date Range
+                    <select name="period">
+                        <option value="today" {% if filters.period == 'today' %}selected{% endif %}>Today</option>
+                        <option value="week" {% if filters.period == 'week' %}selected{% endif %}>This week</option>
+                        <option value="month" {% if filters.period == 'month' %}selected{% endif %}>This month</option>
+                        <option value="custom" {% if filters.period == 'custom' %}selected{% endif %}>Custom</option>
+                        <option value="all" {% if filters.period == 'all' %}selected{% endif %}>All time</option>
+                    </select>
+                </label>
+                <label class="field">
+                    Start
+                    <input type="date" name="start_date" value="{{ filters.start_date_value }}">
+                </label>
+                <label class="field">
+                    End
+                    <input type="date" name="end_date" value="{{ filters.end_date_value }}">
+                </label>
+                <label class="field">
+                    Worker
+                    <select name="worker">
+                        <option value="">All workers</option>
+                        {% for worker in filter_options.workers %}
+                            <option value="{{ worker }}" {% if filters.worker == worker %}selected{% endif %}>{{ worker }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="field">
+                    Stage
+                    <select name="stage_key">
+                        <option value="">All stages</option>
+                        {% for stage in filter_options.stages %}
+                            <option value="{{ stage.key }}" {% if filters.stage_key == stage.key %}selected{% endif %}>{{ stage.label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="field">
+                    Size
+                    <select name="size_label">
+                        <option value="">All sizes</option>
+                        {% for size in filter_options.sizes %}
+                            <option value="{{ size }}" {% if filters.size_label == size %}selected{% endif %}>{{ size }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="field">
+                    Shape
+                    <select name="shape_no">
+                        <option value="">All shapes</option>
+                        {% for shape in filter_options.shapes %}
+                            <option value="{{ shape }}" {% if filters.shape_value == shape|string %}selected{% endif %}>Shape {{ shape }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="field">
+                    End Type
+                    <select name="end_type">
+                        <option value="">All ends</option>
+                        {% for end_type in filter_options.end_types %}
+                            <option value="{{ end_type }}" {% if filters.end_type == end_type %}selected{% endif %}>{{ end_type }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="field">
+                    Action
+                    <select name="action_type">
+                        <option value="">All actions</option>
+                        {% for action_type in filter_options.action_types %}
+                            <option value="{{ action_type }}" {% if filters.action_type == action_type %}selected{% endif %}>{{ action_type }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="field">
+                    Rows
+                    <select name="per_page">
+                        {% for value in [25, 50, 100, 200] %}
+                            <option value="{{ value }}" {% if pagination.per_page == value %}selected{% endif %}>{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <div class="form-actions">
+                    <button class="small-btn primary-btn" type="submit">Apply Filters</button>
+                    <a class="small-btn" href="{{ url_for('cushion_history') }}">Reset</a>
+                    <a class="small-btn" href="{{ export_url }}">Export CSV</a>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Actions Logged</div>
+            <div class="stat-value">{{ summary.total_actions }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Work Added</div>
+            <div class="stat-value">{{ summary.added_units }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Moved Forward</div>
+            <div class="stat-value">{{ summary.moved_out_units }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Completed Sets</div>
+            <div class="stat-value">{{ summary.completed_sets }}</div>
+            <div class="stat-meta">6ft {{ summary.completed_by_size['6ft'] }} | 7ft {{ summary.completed_by_size['7ft'] }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Corrections</div>
+            <div class="stat-value">{{ summary.corrections }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Avg Time</div>
+            <div class="stat-value">{{ summary.average_display }}</div>
+        </div>
+    </section>
+
+    <section class="history-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">Summary</p>
+                <h2 class="panel-title">Production By Stage</h2>
+            </div>
+            <span class="count-pill">{{ stage_summary|length }}</span>
+        </div>
+        <div class="panel-body">
+            <div class="table-wrap">
+                <table class="data-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>Stage</th>
+                            <th>Actions</th>
+                            <th>Added</th>
+                            <th>Moved Out</th>
+                            <th>Corrections</th>
+                            <th>Avg Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in stage_summary %}
+                            <tr>
+                                <td class="variant-cell"><strong>{{ row.label }}</strong></td>
+                                <td class="number-cell">{{ row.actions }}</td>
+                                <td class="number-cell">{{ row.added_units }}</td>
+                                <td class="number-cell">{{ row.moved_out_units }}</td>
+                                <td class="number-cell">{{ row.corrections }}</td>
+                                <td class="timing-cell">{{ row.average_display }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <details class="history-panel" open>
+        <summary>
+            <div>
+                <p class="panel-kicker">History</p>
+                <h2 class="panel-title">Action Log</h2>
+            </div>
+            <span class="count-pill">{{ pagination.total_actions }}</span>
+        </summary>
+        <div class="panel-body">
+            {% if action_logs %}
+                <div class="table-wrap">
+                    <table class="data-table log-table">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Worker</th>
+                                <th>Stage</th>
+                                <th>Action</th>
+                                <th>Delta</th>
+                                <th>Count After</th>
+                                <th>Timing</th>
+                                <th>Note</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in action_logs %}
+                                <tr>
+                                    <td class="timing-cell">{{ entry.created_at.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                                    <td>{{ entry.worker }}</td>
+                                    <td class="variant-cell">
+                                        <strong>{{ entry.stage_label }}</strong>
+                                        {% if entry.size_label or entry.shape_no or entry.end_type %}
+                                            <span>
+                                                {% if entry.size_label %}{{ entry.size_label }}{% endif %}
+                                                {% if entry.shape_no %}{% if entry.size_label %} - {% endif %}Shape {{ entry.shape_no }}{% endif %}
+                                                {% if entry.end_type %}{% if entry.size_label or entry.shape_no %} - {% endif %}{{ entry.end_type }}{% endif %}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="action-pill {{ entry.action_type }}">{{ entry.action_type }}</span></td>
+                                    <td class="number-cell">{{ entry.delta }}</td>
+                                    <td class="number-cell">{{ entry.count_after }}</td>
+                                    <td class="timing-cell">
+                                        {% if entry.seconds_taken %}
+                                            {{ entry.seconds_taken|duration }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ entry.note or '' }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <span class="pagination-meta">
+                        Showing {{ pagination.first_item }}-{{ pagination.last_item }} of {{ pagination.total_actions }}
+                    </span>
+                    <span class="head-actions">
+                        <a class="small-btn {% if not pagination.prev_url %}disabled-btn{% endif %}" href="{{ pagination.prev_url or '#' }}">Previous</a>
+                        <span class="count-pill">Page {{ pagination.page }} / {{ pagination.total_pages }}</span>
+                        <a class="small-btn {% if not pagination.next_url %}disabled-btn{% endif %}" href="{{ pagination.next_url or '#' }}">Next</a>
+                    </span>
+                </div>
+            {% else %}
+                <p class="empty-state">No cushion actions match these filters.</p>
+            {% endif %}
+        </div>
+    </details>
+
+    <details class="history-panel" open>
+        <summary>
+            <div>
+                <p class="panel-kicker">Stock Updates</p>
+                <h2 class="panel-title">Completed Cushion Sets</h2>
+            </div>
+            <span class="count-pill">{{ completed_sets|length }}</span>
+        </summary>
+        <div class="panel-body">
+            {% if completed_sets %}
+                <div class="table-wrap">
+                    <table class="data-table compact-table">
+                        <thead>
+                            <tr>
+                                <th>Completed</th>
+                                <th>Size</th>
+                                <th>Worker</th>
+                                <th>Stock After</th>
+                                <th>Estimated Set Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for completed in completed_sets %}
+                                <tr>
+                                    <td class="timing-cell">{{ completed.completed_at.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                                    <td class="number-cell">{{ completed.size_label }}</td>
+                                    <td>{{ completed.worker }}</td>
+                                    <td class="number-cell">{{ completed.stock_count_after }}</td>
+                                    <td class="timing-cell">
+                                        {% if completed.estimated_seconds %}
+                                            {{ completed.estimated_seconds|duration }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="empty-state">No completed cushion sets match these filters.</p>
+            {% endif %}
+        </div>
+    </details>
+
+    <details class="history-panel">
+        <summary>
+            <div>
+                <p class="panel-kicker">Consumables</p>
+                <h2 class="panel-title">Stock Entry History</h2>
+            </div>
+            <span class="count-pill">{{ consumable_entries|length }}</span>
+        </summary>
+        <div class="panel-body">
+            {% if consumable_entries %}
+                <div class="table-wrap">
+                    <table class="data-table compact-table">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Consumable</th>
+                                <th>Count After</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in consumable_entries %}
+                                <tr>
+                                    <td class="timing-cell">{{ entry.date.strftime('%d/%m/%Y') }} {{ entry.time.strftime('%H:%M:%S') }}</td>
+                                    <td class="variant-cell"><strong>{{ entry.part_name }}</strong></td>
+                                    <td class="number-cell">{{ entry.count }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="empty-state">No cushion consumable stock entries match this date range.</p>
+            {% endif %}
+        </div>
+    </details>
+</div>
+{% endblock %}

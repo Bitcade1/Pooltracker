@@ -5711,6 +5711,227 @@ def cushion_stage_timing(stage_key, worker_name=None):
     }
 
 
+def parse_cushion_history_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def cushion_history_filter_state(args):
+    today = london_now().date()
+    period = args.get("period", "month")
+    if period not in {"today", "week", "month", "custom", "all"}:
+        period = "month"
+
+    start_date = None
+    end_date = None
+    if period == "today":
+        start_date = today
+        end_date = today
+    elif period == "week":
+        start_date = today - timedelta(days=today.weekday())
+        end_date = today
+    elif period == "month":
+        start_date = today.replace(day=1)
+        end_date = today
+    elif period == "custom":
+        start_date = parse_cushion_history_date(args.get("start_date"))
+        end_date = parse_cushion_history_date(args.get("end_date"))
+
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    shape_no = None
+    shape_value = (args.get("shape_no") or "").strip()
+    if shape_value:
+        try:
+            shape_no = int(shape_value)
+        except (TypeError, ValueError):
+            shape_no = None
+        if shape_no not in CUSHION_SHAPES:
+            shape_no = None
+
+    return {
+        "period": period,
+        "start_date": start_date,
+        "end_date": end_date,
+        "start_date_value": start_date.strftime("%Y-%m-%d") if start_date else "",
+        "end_date_value": end_date.strftime("%Y-%m-%d") if end_date else "",
+        "start_dt": datetime.combine(start_date, time.min) if start_date else None,
+        "end_dt": datetime.combine(end_date + timedelta(days=1), time.min) if end_date else None,
+        "worker": (args.get("worker") or "").strip(),
+        "stage_key": (args.get("stage_key") or "").strip(),
+        "size_label": (args.get("size_label") or "").strip(),
+        "shape_no": shape_no,
+        "shape_value": str(shape_no) if shape_no else "",
+        "end_type": (args.get("end_type") or "").strip(),
+        "action_type": (args.get("action_type") or "").strip(),
+    }
+
+
+def cushion_history_filter_options():
+    workers = set()
+    try:
+        workers.update(
+            worker.name
+            for worker in Worker.query.order_by(Worker.name.asc()).all()
+            if worker.name
+        )
+    except OperationalError:
+        db.session.rollback()
+    workers.update(
+        worker
+        for (worker,) in db.session.query(CushionWorkflowLog.worker).distinct().all()
+        if worker
+    )
+    workers.update(
+        worker
+        for (worker,) in db.session.query(CushionCompletedSet.worker).distinct().all()
+        if worker
+    )
+    action_types = [
+        action_type
+        for (action_type,) in (
+            db.session.query(CushionWorkflowLog.action_type)
+            .distinct()
+            .order_by(CushionWorkflowLog.action_type.asc())
+            .all()
+        )
+        if action_type
+    ]
+    return {
+        "workers": sorted(workers, key=lambda name: name.lower()),
+        "stages": CUSHION_WORKFLOW_STAGES,
+        "sizes": CUSHION_SIZES,
+        "shapes": CUSHION_SHAPES,
+        "end_types": CUSHION_END_TYPES,
+        "action_types": action_types,
+    }
+
+
+def cushion_history_log_query(filters):
+    query = CushionWorkflowLog.query
+    if filters.get("start_dt"):
+        query = query.filter(CushionWorkflowLog.created_at >= filters["start_dt"])
+    if filters.get("end_dt"):
+        query = query.filter(CushionWorkflowLog.created_at < filters["end_dt"])
+    if filters.get("worker"):
+        query = query.filter(CushionWorkflowLog.worker == filters["worker"])
+    if filters.get("stage_key"):
+        query = query.filter(CushionWorkflowLog.stage_key == filters["stage_key"])
+    if filters.get("size_label"):
+        query = query.filter(CushionWorkflowLog.size_label == filters["size_label"])
+    if filters.get("shape_no") is not None:
+        query = query.filter(CushionWorkflowLog.shape_no == filters["shape_no"])
+    if filters.get("end_type"):
+        query = query.filter(CushionWorkflowLog.end_type == filters["end_type"])
+    if filters.get("action_type"):
+        query = query.filter(CushionWorkflowLog.action_type == filters["action_type"])
+    return query
+
+
+def cushion_history_completed_query(filters):
+    query = CushionCompletedSet.query
+    if filters.get("start_dt"):
+        query = query.filter(CushionCompletedSet.completed_at >= filters["start_dt"])
+    if filters.get("end_dt"):
+        query = query.filter(CushionCompletedSet.completed_at < filters["end_dt"])
+    if filters.get("worker"):
+        query = query.filter(CushionCompletedSet.worker == filters["worker"])
+    if filters.get("size_label"):
+        query = query.filter(CushionCompletedSet.size_label == filters["size_label"])
+    if filters.get("stage_key") and filters["stage_key"] != "bundle":
+        query = query.filter(CushionCompletedSet.id == -1)
+    if filters.get("shape_no") is not None or filters.get("end_type"):
+        query = query.filter(CushionCompletedSet.id == -1)
+    if filters.get("action_type") and filters["action_type"] != "add":
+        query = query.filter(CushionCompletedSet.id == -1)
+    return query
+
+
+def cushion_history_consumable_query(filters):
+    consumable_names = [item["name"] for item in CUSHION_CONSUMABLES]
+    query = PrintedPartsCount.query.filter(PrintedPartsCount.part_name.in_(consumable_names))
+    if filters.get("start_date"):
+        query = query.filter(PrintedPartsCount.date >= filters["start_date"])
+    if filters.get("end_date"):
+        query = query.filter(PrintedPartsCount.date <= filters["end_date"])
+    return query
+
+
+def cushion_history_sum_delta(query):
+    return int(query.with_entities(func.coalesce(func.sum(CushionWorkflowLog.delta), 0)).scalar() or 0)
+
+
+def cushion_history_summary(filters):
+    log_query = cushion_history_log_query(filters)
+    completed_query = cushion_history_completed_query(filters)
+    average_seconds = (
+        log_query
+        .filter(CushionWorkflowLog.seconds_taken.isnot(None), CushionWorkflowLog.seconds_taken > 0)
+        .with_entities(func.avg(CushionWorkflowLog.seconds_taken))
+        .scalar()
+    )
+    completed_by_size = {
+        size_label: completed_query.filter(CushionCompletedSet.size_label == size_label).count()
+        for size_label in CUSHION_SIZES
+    }
+    return {
+        "total_actions": log_query.count(),
+        "added_units": cushion_history_sum_delta(
+            log_query.filter(CushionWorkflowLog.action_type == "add", CushionWorkflowLog.delta > 0)
+        ),
+        "moved_out_units": abs(cushion_history_sum_delta(
+            log_query.filter(CushionWorkflowLog.action_type == "move_out", CushionWorkflowLog.delta < 0)
+        )),
+        "corrections": log_query.filter(CushionWorkflowLog.action_type == "correction").count(),
+        "completed_sets": completed_query.count(),
+        "completed_by_size": completed_by_size,
+        "average_display": cushion_format_duration(average_seconds) if average_seconds else "N/A",
+    }
+
+
+def cushion_history_stage_summary(filters):
+    rows = []
+    selected_stage = filters.get("stage_key")
+    for stage in CUSHION_WORKFLOW_STAGES:
+        if selected_stage and selected_stage != stage["key"]:
+            continue
+        stage_filters = {**filters, "stage_key": stage["key"]}
+        query = cushion_history_log_query(stage_filters)
+        average_seconds = (
+            query
+            .filter(CushionWorkflowLog.seconds_taken.isnot(None), CushionWorkflowLog.seconds_taken > 0)
+            .with_entities(func.avg(CushionWorkflowLog.seconds_taken))
+            .scalar()
+        )
+        rows.append({
+            "label": stage["label"],
+            "actions": query.count(),
+            "added_units": cushion_history_sum_delta(
+                query.filter(CushionWorkflowLog.action_type == "add", CushionWorkflowLog.delta > 0)
+            ),
+            "moved_out_units": abs(cushion_history_sum_delta(
+                query.filter(CushionWorkflowLog.action_type == "move_out", CushionWorkflowLog.delta < 0)
+            )),
+            "corrections": query.filter(CushionWorkflowLog.action_type == "correction").count(),
+            "average_display": cushion_format_duration(average_seconds) if average_seconds else "N/A",
+        })
+    return rows
+
+
+def cushion_history_clean_query_args(args):
+    cleaned = {}
+    for key, value in args.items():
+        if key == "page" or value in (None, ""):
+            continue
+        cleaned[key] = value
+    return cleaned
+
+
 @app.route('/predicted_finish', methods=['GET', 'POST'])
 def predicted_finish():
     if 'worker' not in session:
@@ -9602,8 +9823,167 @@ def cushion_production_admin():
             size_label: cushion_format_duration(cushion_estimated_set_seconds(size_label))
             for size_label in CUSHION_SIZES
         },
+        counting_url=url_for('counting_cushions'),
+        history_url=url_for('cushion_history')
+    )
+
+
+@app.route('/cushion_history')
+def cushion_history():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_cushion_workflow_tables()
+    ensure_cushion_consumables()
+
+    filters = cushion_history_filter_state(request.args)
+    log_query = cushion_history_log_query(filters)
+    total_actions = log_query.count()
+    per_page = request.args.get('per_page', 50, type=int)
+    per_page = min(max(per_page, 25), 200)
+    total_pages = max(1, int(ceil(total_actions / per_page))) if total_actions else 1
+    page = request.args.get('page', 1, type=int)
+    page = min(max(page, 1), total_pages)
+
+    action_logs = (
+        log_query
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    completed_sets = (
+        cushion_history_completed_query(filters)
+        .order_by(CushionCompletedSet.completed_at.desc(), CushionCompletedSet.id.desc())
+        .all()
+    )
+    consumable_entries = (
+        cushion_history_consumable_query(filters)
+        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc(), PrintedPartsCount.id.desc())
+        .limit(200)
+        .all()
+    )
+
+    query_args = cushion_history_clean_query_args(request.args.to_dict(flat=True))
+    prev_url = None
+    next_url = None
+    if page > 1:
+        prev_url = url_for('cushion_history', **{**query_args, "page": page - 1})
+    if page < total_pages:
+        next_url = url_for('cushion_history', **{**query_args, "page": page + 1})
+
+    return render_template(
+        'cushion_history.html',
+        filters=filters,
+        filter_options=cushion_history_filter_options(),
+        summary=cushion_history_summary(filters),
+        stage_summary=cushion_history_stage_summary(filters),
+        action_logs=action_logs,
+        completed_sets=completed_sets,
+        consumable_entries=consumable_entries,
+        pagination={
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+            "total_actions": total_actions,
+            "first_item": ((page - 1) * per_page + 1) if total_actions else 0,
+            "last_item": min(page * per_page, total_actions),
+            "prev_url": prev_url,
+            "next_url": next_url,
+        },
+        export_url=url_for('cushion_history_export_csv', **query_args),
+        admin_url=url_for('cushion_production_admin'),
         counting_url=url_for('counting_cushions')
     )
+
+
+@app.route('/cushion_history/export.csv')
+def cushion_history_export_csv():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_cushion_workflow_tables()
+    ensure_cushion_consumables()
+
+    filters = cushion_history_filter_state(request.args)
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow(["Cushion History Export"])
+    writer.writerow(["Period", filters["period"]])
+    writer.writerow(["Start Date", filters["start_date_value"]])
+    writer.writerow(["End Date", filters["end_date_value"]])
+    writer.writerow(["Worker", filters["worker"]])
+    writer.writerow(["Stage", filters["stage_key"]])
+    writer.writerow(["Size", filters["size_label"]])
+    writer.writerow(["Shape", filters["shape_value"]])
+    writer.writerow(["End Type", filters["end_type"]])
+    writer.writerow(["Action", filters["action_type"]])
+    writer.writerow([])
+
+    writer.writerow(["Action Log"])
+    writer.writerow([
+        "When", "Worker", "Stage", "Size", "Shape", "End Type",
+        "Action", "Delta", "Count After", "Seconds Taken", "Note"
+    ])
+    for entry in (
+        cushion_history_log_query(filters)
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+        .all()
+    ):
+        writer.writerow([
+            entry.created_at.strftime("%Y-%m-%d %H:%M:%S") if entry.created_at else "",
+            entry.worker,
+            entry.stage_label,
+            entry.size_label,
+            entry.shape_no or "",
+            entry.end_type,
+            entry.action_type,
+            entry.delta,
+            entry.count_after,
+            entry.seconds_taken if entry.seconds_taken is not None else "",
+            entry.note or "",
+        ])
+
+    writer.writerow([])
+    writer.writerow(["Completed Cushion Sets"])
+    writer.writerow(["Completed", "Size", "Worker", "Stock After", "Estimated Seconds"])
+    for completed in (
+        cushion_history_completed_query(filters)
+        .order_by(CushionCompletedSet.completed_at.desc(), CushionCompletedSet.id.desc())
+        .all()
+    ):
+        writer.writerow([
+            completed.completed_at.strftime("%Y-%m-%d %H:%M:%S") if completed.completed_at else "",
+            completed.size_label,
+            completed.worker,
+            completed.stock_count_after,
+            completed.estimated_seconds if completed.estimated_seconds is not None else "",
+        ])
+
+    writer.writerow([])
+    writer.writerow(["Consumable Stock Entries"])
+    writer.writerow(["Date", "Time", "Part", "Count After"])
+    for entry in (
+        cushion_history_consumable_query(filters)
+        .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc(), PrintedPartsCount.id.desc())
+        .all()
+    ):
+        writer.writerow([
+            entry.date.strftime("%Y-%m-%d") if entry.date else "",
+            entry.time.strftime("%H:%M:%S") if entry.time else "",
+            entry.part_name,
+            entry.count,
+        ])
+
+    filename_start = filters["start_date_value"] or "all"
+    filename_end = filters["end_date_value"] or "all"
+    response = make_response(output.getvalue())
+    response.headers["Content-Type"] = "text/csv"
+    response.headers["Content-Disposition"] = f"attachment; filename=cushion_history_{filename_start}_to_{filename_end}.csv"
+    return response
 
 
 @app.route('/counting_cushions_legacy', methods=['GET', 'POST'])
