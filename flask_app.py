@@ -1040,6 +1040,8 @@ def _cnc_wood_job_details(job_name):
         component = "pod_sides"
     elif tokens.intersection({"base", "bases"}):
         component = "bases"
+    elif "black" in tokens and tokens.intersection({"side", "sides"}):
+        component = "body"
     elif tokens.intersection({"body", "bodies"}):
         component = "body"
 
