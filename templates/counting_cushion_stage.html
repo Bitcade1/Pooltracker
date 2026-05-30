@@ -532,7 +532,7 @@
                         {% for batch in recent_batches %}
                             {% set option_value = batch.batch_number|string %}
                             <option value="{{ option_value }}" {{ 'selected' if selected_batch == option_value else '' }}>
-                                Batch #{{ batch.batch_number }} - {{ batch.batch_date.strftime('%d/%m/%Y') }}
+                                {{ batch.batch_name or ('Batch #' ~ batch.batch_number) }} - {{ batch.batch_date.strftime('%d/%m/%Y') }}
                             </option>
                         {% endfor %}
                     </select>

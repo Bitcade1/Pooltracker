@@ -89,6 +89,29 @@
         color: #0f172a;
     }
 
+    .batch-name-input {
+        min-width: 180px;
+        min-height: 38px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0 9px;
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+
+    .batch-date-input {
+        min-height: 38px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0 9px;
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+
+    .danger-btn {
+        background: #b91c1c;
+    }
+
     .link-btn,
     .small-btn {
         display: inline-flex;
@@ -477,7 +500,7 @@
                     {% for batch in recent_batches %}
                         {% set option_value = batch.batch_number|string %}
                         <option value="{{ option_value }}" {{ 'selected' if selected_batch == option_value else '' }}>
-                            Batch #{{ batch.batch_number }} - {{ batch.batch_date.strftime('%d/%m/%Y') }}
+                            {{ cushion_batch_display_name(batch) }} - {{ batch.batch_date.strftime('%d/%m/%Y') }}
                         </option>
                     {% endfor %}
                 </select>
@@ -516,6 +539,72 @@
         <div class="stat-card">
             <div class="stat-label">7ft Est. Set Time</div>
             <div class="stat-value">{{ estimated_set_times['7ft'] }}</div>
+        </div>
+    </section>
+
+    <section class="admin-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">Batch Control</p>
+                <h2 class="panel-title">Batch Manager</h2>
+            </div>
+            <span class="count-pill">{{ batch_admin_rows|length }}</span>
+        </div>
+        <div class="panel-body">
+            {% if batch_admin_rows %}
+                <div class="table-wrap">
+                    <table class="data-table compact-table">
+                        <thead>
+                            <tr>
+                                <th>Batch</th>
+                                <th>Name</th>
+                                <th>Start Date</th>
+                                <th>Started By</th>
+                                <th>Status</th>
+                                <th>Save</th>
+                                <th>Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for batch in batch_admin_rows %}
+                                <tr>
+                                    <td class="number-cell">#{{ batch.batch_number }}</td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('cushion_production_admin', batch=selected_batch) }}" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0;">
+                                            <input type="hidden" name="action" value="update_batch">
+                                            <input type="hidden" name="batch_number" value="{{ batch.batch_number }}">
+                                            <input class="batch-name-input" type="text" name="batch_name" value="{{ batch.batch_name or ('Batch #' ~ batch.batch_number) }}" maxlength="120">
+                                    </td>
+                                    <td>
+                                            <input class="batch-date-input" type="date" name="batch_date" value="{{ batch.batch_date.strftime('%Y-%m-%d') }}">
+                                    </td>
+                                    <td>{{ batch.started_by }}</td>
+                                    <td>
+                                        {% if batch.active %}
+                                            <span class="status-pill done">Current</span>
+                                        {% else %}
+                                            <span class="status-pill missing">Closed</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                            <button class="small-btn" type="submit">Save</button>
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('cushion_production_admin', batch=selected_batch) }}" style="margin:0;" onsubmit="return confirm('Delete batch #{{ batch.batch_number }}? Linked logs will be unassigned from a batch.');">
+                                            <input type="hidden" name="action" value="delete_batch">
+                                            <input type="hidden" name="batch_number" value="{{ batch.batch_number }}">
+                                            <button class="small-btn danger-btn" type="submit">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="empty-state">No batches have been created yet.</p>
+            {% endif %}
         </div>
     </section>
 

@@ -4634,6 +4634,7 @@ class CushionBatch(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     batch_number = db.Column(db.Integer, unique=True, nullable=False)
+    batch_name = db.Column(db.String(120), nullable=True)
     batch_date = db.Column(db.Date, nullable=False, default=date.today)
     started_at = db.Column(db.DateTime, nullable=False, default=london_now)
     started_by = db.Column(db.String(50), nullable=False)
@@ -4695,6 +4696,7 @@ def ensure_cushion_workflow_tables():
     CushionCompressorCheck.__table__.create(db.engine, checkfirst=True)
     CushionStageLock.__table__.create(db.engine, checkfirst=True)
     ensure_cushion_workflow_log_batch_columns()
+    ensure_cushion_batch_columns()
 
 
 def ensure_cushion_workflow_log_batch_columns():
@@ -4711,6 +4713,26 @@ def ensure_cushion_workflow_log_batch_columns():
         columns_added = True
     if columns_added:
         db.session.commit()
+
+
+def ensure_cushion_batch_columns():
+    existing_columns = {
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info(cushion_batch)")).fetchall()
+    }
+    columns_added = False
+    if "batch_name" not in existing_columns:
+        db.session.execute(text("ALTER TABLE cushion_batch ADD COLUMN batch_name VARCHAR(120)"))
+        columns_added = True
+    if columns_added:
+        db.session.commit()
+
+
+def cushion_batch_display_name(batch):
+    if not batch:
+        return ""
+    name = (batch.batch_name or "").strip()
+    return name if name else f"Batch #{batch.batch_number}"
 
 
 def get_active_cushion_batch():
@@ -4742,6 +4764,7 @@ def start_new_cushion_batch(worker_name):
     last_batch_no = db.session.query(func.max(CushionBatch.batch_number)).scalar() or 0
     new_batch = CushionBatch(
         batch_number=last_batch_no + 1,
+        batch_name=f"Batch #{last_batch_no + 1}",
         batch_date=london_now().date(),
         started_at=london_now(),
         started_by=worker_name,
@@ -9834,7 +9857,70 @@ def cushion_production_admin():
     if request.method == 'POST':
         action = request.form.get('action')
         try:
-            if action == "set_count":
+            if action == "update_batch":
+                batch_number = request.form.get('batch_number', '')
+                batch = get_cushion_batch_by_number(batch_number)
+                if not batch:
+                    raise ValueError("Batch not found.")
+
+                batch_name = (request.form.get('batch_name') or '').strip()
+                batch_date_raw = (request.form.get('batch_date') or '').strip()
+                if not batch_date_raw:
+                    raise ValueError("Batch start date is required.")
+                try:
+                    new_batch_date = datetime.strptime(batch_date_raw, "%Y-%m-%d").date()
+                except ValueError:
+                    raise ValueError("Batch start date must use YYYY-MM-DD format.")
+
+                batch.batch_name = batch_name or f"Batch #{batch.batch_number}"
+                batch.batch_date = new_batch_date
+
+                CushionWorkflowLog.query.filter_by(batch_number=batch.batch_number).update(
+                    {CushionWorkflowLog.batch_date: new_batch_date},
+                    synchronize_session=False
+                )
+
+                db.session.commit()
+                flash(f"Updated {cushion_batch_display_name(batch)}.", "success")
+            elif action == "delete_batch":
+                batch_number = request.form.get('batch_number', '')
+                batch = get_cushion_batch_by_number(batch_number)
+                if not batch:
+                    raise ValueError("Batch not found.")
+
+                batch_label = cushion_batch_display_name(batch)
+                was_active = bool(batch.active)
+                linked_logs = CushionWorkflowLog.query.filter_by(batch_number=batch.batch_number).count()
+
+                CushionWorkflowLog.query.filter_by(batch_number=batch.batch_number).update(
+                    {
+                        CushionWorkflowLog.batch_number: None,
+                        CushionWorkflowLog.batch_date: None,
+                    },
+                    synchronize_session=False
+                )
+
+                db.session.delete(batch)
+                db.session.flush()
+
+                if was_active:
+                    replacement_batch = (
+                        CushionBatch.query
+                        .order_by(CushionBatch.batch_number.desc(), CushionBatch.id.desc())
+                        .first()
+                    )
+                    if replacement_batch:
+                        replacement_batch.active = True
+
+                db.session.commit()
+                flash(
+                    f"Deleted {batch_label}. Unlinked {linked_logs} log entr{'y' if linked_logs == 1 else 'ies'} from that batch.",
+                    "success"
+                )
+
+                if selected_batch == str(batch_number):
+                    selected_batch = 'current'
+            elif action == "set_count":
                 stage_key = request.form.get('stage_key', '')
                 size_label = request.form.get('size_label', '')
                 shape_no = request.form.get('shape_no', 0)
@@ -9973,6 +10059,7 @@ def cushion_production_admin():
         .limit(20)
         .all()
     )
+    batch_admin_rows = CushionBatch.query.order_by(CushionBatch.batch_number.desc(), CushionBatch.id.desc()).all()
 
     return render_template(
         'cushion_production_admin.html',
@@ -9993,7 +10080,9 @@ def cushion_production_admin():
         active_batch=active_batch,
         selected_batch=selected_batch,
         timing_batch_number=timing_batch_number,
-        recent_batches=recent_batches
+        recent_batches=recent_batches,
+        batch_admin_rows=batch_admin_rows,
+        cushion_batch_display_name=cushion_batch_display_name,
     )
 
 
