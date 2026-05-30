@@ -620,13 +620,13 @@
         <input type="hidden" name="end_type" class="selected-end" value="{{ single_variant.end_type if single_variant else '' }}">
         <div class="add-panel {% if not single_option %}hidden{% endif %}" id="add-panel">
             <button class="add-btn" type="submit" name="quantity" value="{{ '12' if stage.key == 'spray_glue_join_rubber' else '1' }}" id="add-button">
-                <span class="add-label" id="add-label">{% if single_option %}{{ '+12' if stage.key == 'spray_glue_join_rubber' else '+1' }} {{ single_variant.lock_label }}{% else %}{{ '+12' if stage.key == 'spray_glue_join_rubber' else '+1' }}{% endif %}</span>
+                <span class="add-label" id="add-label">{% if stage.key == 'spray_glue_join_rubber' %}Add 12 Cushions{% elif single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
                 <span class="add-count" id="add-count">{% if single_option %}{{ single_variant.count_label }}{% elif stage.key == 'bundle' %}{% else %}Current 0{% endif %}</span>
             </button>
             <div class="add-side">
                 {% if stage.key == 'spray_glue_join_rubber' %}
-                    <button class="quick-add-btn" type="submit" name="quantity" value="1">+1</button>
-                    <button class="quick-add-btn" type="submit" name="quantity" value="5">+5</button>
+                    <button class="quick-add-btn" type="submit" name="quantity" value="1">Add 1</button>
+                    <button class="quick-add-btn" type="submit" name="quantity" value="5">Add 5</button>
                 {% else %}
                     <button class="quick-add-btn" type="submit" name="quantity" value="5">+5</button>
                     <button class="quick-add-btn" type="submit" name="quantity" value="10">+10</button>
@@ -842,7 +842,7 @@
             const timing = variant.display_timing || variant.timing || {average_display: "N/A", last_display: "N/A"};
             lockedTiming.textContent = `Avg: ${timing.average_display} | Last: ${timing.last_display}`;
         }
-        addLabel.textContent = `${isSprayStage ? "+12" : "+1"} ${variant.lock_label}`;
+        addLabel.textContent = isSprayStage ? "Add 12 Cushions" : `+1 ${variant.lock_label}`;
         addCount.textContent = variant.count_label ?? `Current ${variant.count}`;
         newCount.value = variant.count;
         correctionSummary.textContent = variant.lock_label;
