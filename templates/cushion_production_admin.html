@@ -388,6 +388,29 @@
         font-weight: 800;
     }
 
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 84px;
+        min-height: 30px;
+        border-radius: 999px;
+        padding: 0 10px;
+        font-size: 0.85rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .status-pill.done {
+        background: #dcfce7;
+        color: #14532d;
+    }
+
+    .status-pill.missing {
+        background: #fee2e2;
+        color: #7f1d1d;
+    }
+
     .flash-messages {
         margin: 0 0 14px;
     }
@@ -469,6 +492,56 @@
         <div class="stat-card">
             <div class="stat-label">7ft Est. Set Time</div>
             <div class="stat-value">{{ estimated_set_times['7ft'] }}</div>
+        </div>
+    </section>
+
+    <section class="admin-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">Daily Checks</p>
+                <h2 class="panel-title">Air Compressor</h2>
+            </div>
+            <span class="count-pill">{{ compressor_checks|length }}</span>
+        </div>
+        <div class="panel-body">
+            {% if compressor_checks %}
+                <div class="table-wrap">
+                    <table class="data-table compact-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Worker</th>
+                                <th>On Check</th>
+                                <th>Off Check</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for check in compressor_checks %}
+                                <tr>
+                                    <td class="timing-cell">{{ check.check_date.strftime('%d/%m/%Y') }}</td>
+                                    <td>{{ check.worker }}</td>
+                                    <td>
+                                        {% if check.on_confirmed_at %}
+                                            <span class="status-pill done">{{ check.on_confirmed_at.strftime('%H:%M') }}</span>
+                                        {% else %}
+                                            <span class="status-pill missing">Missing</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if check.off_confirmed_at %}
+                                            <span class="status-pill done">{{ check.off_confirmed_at.strftime('%H:%M') }}</span>
+                                        {% else %}
+                                            <span class="status-pill missing">Missing</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="empty-state">No air compressor checks have been logged yet.</p>
+            {% endif %}
         </div>
     </section>
 

@@ -456,6 +456,8 @@
         {% endif %}
     {% endwith %}
 
+    {% include '_cushion_compressor_check.html' %}
+
     {% set single_option = stage.variant == 'plain' and variants %}
     {% set single_variant = variants[0] if single_option else none %}
 

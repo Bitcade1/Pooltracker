@@ -4638,11 +4638,28 @@ class CushionCompletedSet(db.Model):
     completed_at = db.Column(db.DateTime, nullable=False, default=london_now)
 
 
+class CushionCompressorCheck(db.Model):
+    __tablename__ = 'cushion_compressor_check'
+    __table_args__ = (
+        db.UniqueConstraint('check_date', 'worker', name='uq_cushion_compressor_check_day_worker'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    check_date = db.Column(db.Date, nullable=False)
+    worker = db.Column(db.String(50), nullable=False)
+    on_confirmed_at = db.Column(db.DateTime, nullable=True)
+    off_confirmed_at = db.Column(db.DateTime, nullable=True)
+    on_snoozed_until = db.Column(db.DateTime, nullable=True)
+    off_snoozed_until = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
 def ensure_cushion_workflow_tables():
     TableStock.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowCount.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowLog.__table__.create(db.engine, checkfirst=True)
     CushionCompletedSet.__table__.create(db.engine, checkfirst=True)
+    CushionCompressorCheck.__table__.create(db.engine, checkfirst=True)
 
 
 def ensure_cushion_consumables():
@@ -4737,6 +4754,142 @@ def cushion_all_consumables():
             "count": count,
         })
     return consumables
+
+
+CUSHION_COMPRESSOR_WORKER_NAME = "katie"
+CUSHION_COMPRESSOR_SNOOZE_MINUTES = 5
+CUSHION_COMPRESSOR_OFF_REMINDER_TIME = time(16, 55)
+CUSHION_COMPRESSOR_ACTIONS = {
+    "compressor_confirm_on",
+    "compressor_snooze_on",
+    "compressor_confirm_off",
+    "compressor_snooze_off",
+}
+
+
+def cushion_compressor_applies(worker_name):
+    return CUSHION_COMPRESSOR_WORKER_NAME in (worker_name or "").strip().lower()
+
+
+def get_or_create_cushion_compressor_check(worker_name, target_date=None):
+    target_date = target_date or london_now().date()
+    record = CushionCompressorCheck.query.filter_by(
+        check_date=target_date,
+        worker=worker_name
+    ).first()
+    if not record:
+        record = CushionCompressorCheck(check_date=target_date, worker=worker_name)
+        db.session.add(record)
+        db.session.commit()
+    return record
+
+
+def cushion_compressor_context(worker_name):
+    if not cushion_compressor_applies(worker_name):
+        return {"enabled": False}
+
+    now = london_now()
+    record = get_or_create_cushion_compressor_check(worker_name, now.date())
+    off_due = now.time() >= CUSHION_COMPRESSOR_OFF_REMINDER_TIME
+    on_snoozed = record.on_snoozed_until and record.on_snoozed_until > now
+    off_snoozed = record.off_snoozed_until and record.off_snoozed_until > now
+    prompt_type = None
+    refresh_candidates = []
+
+    if off_due and not record.off_confirmed_at and not off_snoozed:
+        prompt_type = "off"
+    elif not off_due and not record.on_confirmed_at and not on_snoozed:
+        prompt_type = "on"
+
+    if not record.off_confirmed_at:
+        off_due_at = datetime.combine(now.date(), CUSHION_COMPRESSOR_OFF_REMINDER_TIME)
+        if off_due_at > now:
+            refresh_candidates.append(off_due_at)
+    if not record.on_confirmed_at and on_snoozed:
+        refresh_candidates.append(record.on_snoozed_until)
+    if not record.off_confirmed_at and off_snoozed:
+        refresh_candidates.append(record.off_snoozed_until)
+
+    next_refresh_seconds = None
+    if refresh_candidates and not prompt_type:
+        next_refresh_at = min(refresh_candidates)
+        next_refresh_seconds = max(1, int((next_refresh_at - now).total_seconds()))
+
+    if prompt_type == "off":
+        prompt = {
+            "title": "Turn the air compressor off",
+            "message": "It is 4:55pm or later. Please turn the air compressor off before leaving.",
+            "confirm_action": "compressor_confirm_off",
+            "snooze_action": "compressor_snooze_off",
+            "confirm_label": "Done, compressor is off",
+            "snooze_label": "Remind me in 5 minutes",
+        }
+    elif prompt_type == "on":
+        prompt = {
+            "title": "Air compressor on?",
+            "message": "Please turn the air compressor on before starting cushion work.",
+            "confirm_action": "compressor_confirm_on",
+            "snooze_action": "compressor_snooze_on",
+            "confirm_label": "Yes, compressor is on",
+            "snooze_label": "Remind me in 5 minutes",
+        }
+    else:
+        prompt = None
+
+    return {
+        "enabled": True,
+        "prompt_type": prompt_type,
+        "prompt": prompt,
+        "worker": record.worker,
+        "check_date": record.check_date,
+        "on_confirmed_at": record.on_confirmed_at,
+        "off_confirmed_at": record.off_confirmed_at,
+        "on_display": record.on_confirmed_at.strftime("%H:%M") if record.on_confirmed_at else None,
+        "off_display": record.off_confirmed_at.strftime("%H:%M") if record.off_confirmed_at else None,
+        "on_snoozed_until": record.on_snoozed_until,
+        "off_snoozed_until": record.off_snoozed_until,
+        "off_due": off_due,
+        "off_due_display": CUSHION_COMPRESSOR_OFF_REMINDER_TIME.strftime("%H:%M"),
+        "next_refresh_seconds": next_refresh_seconds,
+    }
+
+
+def handle_cushion_compressor_action(action, worker_name):
+    if action not in CUSHION_COMPRESSOR_ACTIONS:
+        return False
+    if not cushion_compressor_applies(worker_name):
+        flash("Compressor reminders are not enabled for this worker.", "info")
+        return True
+
+    now = london_now()
+    record = get_or_create_cushion_compressor_check(worker_name, now.date())
+    if action == "compressor_confirm_on":
+        record.on_confirmed_at = now
+        record.on_snoozed_until = None
+        flash("Air compressor ON check saved.", "success")
+    elif action == "compressor_snooze_on":
+        record.on_snoozed_until = now + timedelta(minutes=CUSHION_COMPRESSOR_SNOOZE_MINUTES)
+        flash("Air compressor ON reminder snoozed for 5 minutes.", "info")
+    elif action == "compressor_confirm_off":
+        record.off_confirmed_at = now
+        record.off_snoozed_until = None
+        flash("Air compressor OFF check saved.", "success")
+    elif action == "compressor_snooze_off":
+        record.off_snoozed_until = now + timedelta(minutes=CUSHION_COMPRESSOR_SNOOZE_MINUTES)
+        flash("Air compressor OFF reminder snoozed for 5 minutes.", "info")
+
+    record.updated_at = now
+    db.session.commit()
+    return True
+
+
+def cushion_compressor_recent_checks(limit=14):
+    return (
+        CushionCompressorCheck.query
+        .order_by(CushionCompressorCheck.check_date.desc(), CushionCompressorCheck.worker.asc())
+        .limit(limit)
+        .all()
+    )
 
 
 def set_consumable_stock(part_name, new_count):
@@ -8838,6 +8991,8 @@ def counting_cushions():
 
     if request.method == 'POST':
         action = request.form.get('action')
+        if handle_cushion_compressor_action(action, worker_name):
+            return redirect(url_for('counting_cushions'))
         try:
             if action == "add":
                 stage_key = request.form.get('stage_key', '')
@@ -8921,6 +9076,7 @@ def counting_cushions():
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
         consumables=cushion_consumables_for_stage(''),
+        compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )
 
@@ -8942,6 +9098,8 @@ def counting_cushion_stage(stage_key):
 
     if request.method == 'POST':
         action = request.form.get('action')
+        if handle_cushion_compressor_action(action, worker_name):
+            return redirect(url_for('counting_cushion_stage', stage_key=stage_key))
         size_label = request.form.get('size_label', '')
         shape_no = request.form.get('shape_no', 0)
         end_type = request.form.get('end_type', '')
@@ -9021,6 +9179,7 @@ def counting_cushion_stage(stage_key):
         admin_url=url_for('cushion_production_admin'),
         previous_stage=previous_stage,
         next_stage=next_stage,
+        compressor_context=cushion_compressor_context(worker_name),
         consumables=cushion_consumables_for_stage(stage_key)
     )
 
@@ -9180,6 +9339,7 @@ def cushion_production_admin():
         consumables=cushion_all_consumables(),
         completed_sets=completed_sets,
         recent_logs=recent_logs,
+        compressor_checks=cushion_compressor_recent_checks(),
         total_wip=sum(stage["total"] for stage in stage_context),
         estimated_set_times={
             size_label: cushion_format_duration(cushion_estimated_set_seconds(size_label))

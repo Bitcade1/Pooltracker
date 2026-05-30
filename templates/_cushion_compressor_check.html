@@ -1,0 +1,133 @@
+{% if compressor_context and compressor_context.enabled %}
+<style>
+    .compressor-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        border: 2px solid #16a34a;
+        border-radius: 12px;
+        padding: 12px 14px;
+        background: #ecfdf5;
+        color: #14532d;
+        font-size: 1.05rem;
+        font-weight: 900;
+    }
+
+    .compressor-status.needs-check {
+        border-color: #dc2626;
+        background: #fff1f2;
+        color: #7f1d1d;
+    }
+
+    .compressor-status span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .compressor-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 3000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(15, 23, 42, 0.82);
+    }
+
+    .compressor-dialog {
+        width: min(760px, 100%);
+        border-radius: 22px;
+        background: #ffffff;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.38);
+    }
+
+    .compressor-dialog h2 {
+        margin: 0;
+        color: #0f172a;
+        font-size: clamp(2.7rem, 7vw, 5.5rem);
+        line-height: 0.95;
+    }
+
+    .compressor-dialog p {
+        margin: 18px auto 24px;
+        max-width: 620px;
+        color: #334155;
+        font-size: clamp(1.35rem, 3vw, 2.1rem);
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .compressor-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin: 0;
+    }
+
+    .compressor-action-btn {
+        min-height: 90px;
+        border: none;
+        border-radius: 16px;
+        background: #16a34a;
+        color: #ffffff;
+        font-size: clamp(1.3rem, 3vw, 2rem);
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+    .compressor-action-btn.snooze {
+        background: #475569;
+    }
+
+    .compressor-action-btn:active {
+        transform: translateY(2px);
+    }
+
+    @media (max-width: 760px) {
+        .compressor-dialog {
+            padding: 22px;
+        }
+
+        .compressor-action-btn {
+            min-height: 82px;
+        }
+    }
+</style>
+
+<section class="compressor-status {% if compressor_context.prompt_type %}needs-check{% endif %}" aria-label="Air compressor status">
+    <span>Air compressor ON: {{ compressor_context.on_display or 'not checked yet' }}</span>
+    <span>OFF reminder: {{ compressor_context.off_due_display }}</span>
+    <span>Air compressor OFF: {{ compressor_context.off_display or 'not checked yet' }}</span>
+</section>
+
+{% if compressor_context.prompt %}
+    <div class="compressor-overlay" role="dialog" aria-modal="true" aria-labelledby="compressor-title">
+        <div class="compressor-dialog">
+            <h2 id="compressor-title">{{ compressor_context.prompt.title }}</h2>
+            <p>{{ compressor_context.prompt.message }}</p>
+            <form class="compressor-actions" method="POST">
+                <button class="compressor-action-btn" type="submit" name="action" value="{{ compressor_context.prompt.confirm_action }}">
+                    {{ compressor_context.prompt.confirm_label }}
+                </button>
+                <button class="compressor-action-btn snooze" type="submit" name="action" value="{{ compressor_context.prompt.snooze_action }}">
+                    {{ compressor_context.prompt.snooze_label }}
+                </button>
+            </form>
+        </div>
+    </div>
+{% endif %}
+
+{% if compressor_context.next_refresh_seconds %}
+    <script>
+        window.setTimeout(function () {
+            window.location.reload();
+        }, {{ compressor_context.next_refresh_seconds }} * 1000);
+    </script>
+{% endif %}
+{% endif %}
