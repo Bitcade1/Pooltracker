@@ -4654,12 +4654,28 @@ class CushionCompressorCheck(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=london_now)
 
 
+class CushionStageLock(db.Model):
+    __tablename__ = 'cushion_stage_lock'
+    __table_args__ = (
+        db.UniqueConstraint('worker', 'stage_key', name='uq_cushion_stage_lock_worker_stage'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    worker = db.Column(db.String(50), nullable=False)
+    stage_key = db.Column(db.String(50), nullable=False)
+    size_label = db.Column(db.String(10), nullable=False, default="")
+    shape_no = db.Column(db.Integer, nullable=False, default=0)
+    end_type = db.Column(db.String(20), nullable=False, default="")
+    updated_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
 def ensure_cushion_workflow_tables():
     TableStock.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowCount.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowLog.__table__.create(db.engine, checkfirst=True)
     CushionCompletedSet.__table__.create(db.engine, checkfirst=True)
     CushionCompressorCheck.__table__.create(db.engine, checkfirst=True)
+    CushionStageLock.__table__.create(db.engine, checkfirst=True)
 
 
 def ensure_cushion_consumables():
@@ -4890,6 +4906,56 @@ def cushion_compressor_recent_checks(limit=14):
         .limit(limit)
         .all()
     )
+
+
+def cushion_stage_lock_payload(record):
+    if not record:
+        return None
+    return {
+        "size_label": record.size_label or "",
+        "shape_no": record.shape_no or 0,
+        "end_type": record.end_type or "",
+    }
+
+
+def get_cushion_stage_lock(worker_name, stage_key):
+    if not worker_name or stage_key not in CUSHION_STAGE_BY_KEY:
+        return None
+    record = CushionStageLock.query.filter_by(worker=worker_name, stage_key=stage_key).first()
+    if not record:
+        return None
+    try:
+        normalize_cushion_variant(stage_key, record.size_label, record.shape_no, record.end_type)
+    except ValueError:
+        db.session.delete(record)
+        db.session.commit()
+        return None
+    return cushion_stage_lock_payload(record)
+
+
+def save_cushion_stage_lock(worker_name, stage_key, size_label="", shape_no=0, end_type="", commit=False):
+    if not worker_name:
+        raise ValueError("Worker is required.")
+    size_label, shape_no, end_type = normalize_cushion_variant(stage_key, size_label, shape_no, end_type)
+    record = CushionStageLock.query.filter_by(worker=worker_name, stage_key=stage_key).first()
+    if not record:
+        record = CushionStageLock(worker=worker_name, stage_key=stage_key)
+        db.session.add(record)
+    record.size_label = size_label
+    record.shape_no = shape_no
+    record.end_type = end_type
+    record.updated_at = london_now()
+    if commit:
+        db.session.commit()
+    return record
+
+
+def clear_cushion_stage_lock(worker_name, stage_key, commit=False):
+    record = CushionStageLock.query.filter_by(worker=worker_name, stage_key=stage_key).first()
+    if record:
+        db.session.delete(record)
+        if commit:
+            db.session.commit()
 
 
 def set_consumable_stock(part_name, new_count):
@@ -9117,6 +9183,7 @@ def counting_cushion_stage(stage_key):
                     quantity,
                     worker_name
                 )
+                save_cushion_stage_lock(worker_name, stage_key, size_label, shape_no, end_type)
                 db.session.commit()
                 if completed_sets:
                     flash(f"Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock.", "success")
@@ -9130,6 +9197,7 @@ def counting_cushion_stage(stage_key):
                     new_count,
                     worker_name
                 )
+                save_cushion_stage_lock(worker_name, stage_key, size_label, shape_no, end_type)
                 db.session.commit()
                 flash(
                     f"Set {cushion_variant_display(stage_key, record.size_label, record.shape_no, record.end_type)} to {record.count}.",
@@ -9180,8 +9248,54 @@ def counting_cushion_stage(stage_key):
         previous_stage=previous_stage,
         next_stage=next_stage,
         compressor_context=cushion_compressor_context(worker_name),
+        stage_lock=get_cushion_stage_lock(worker_name, stage_key),
         consumables=cushion_consumables_for_stage(stage_key)
     )
+
+
+@app.route('/api/cushion_stage_lock', methods=['POST'])
+def api_cushion_stage_lock():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cushion_workflow_tables()
+    data = request.get_json(silent=True) or {}
+    stage_key = data.get('stage_key', '')
+    if stage_key not in CUSHION_STAGE_BY_KEY:
+        return jsonify({"success": False, "error": "Unknown cushion stage."}), 400
+
+    try:
+        record = save_cushion_stage_lock(
+            session['worker'],
+            stage_key,
+            data.get('size_label', ''),
+            data.get('shape_no', 0),
+            data.get('end_type', ''),
+            commit=True
+        )
+    except ValueError as error:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(error)}), 400
+
+    return jsonify({
+        "success": True,
+        "selection": cushion_stage_lock_payload(record)
+    }), 200
+
+
+@app.route('/api/cushion_stage_lock/clear', methods=['POST'])
+def api_clear_cushion_stage_lock():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    ensure_cushion_workflow_tables()
+    data = request.get_json(silent=True) or {}
+    stage_key = data.get('stage_key', '')
+    if stage_key not in CUSHION_STAGE_BY_KEY:
+        return jsonify({"success": False, "error": "Unknown cushion stage."}), 400
+
+    clear_cushion_stage_lock(session['worker'], stage_key, commit=True)
+    return jsonify({"success": True}), 200
 
 
 @app.route('/cushion_production_admin', methods=['GET', 'POST'])

@@ -587,6 +587,7 @@
     const storageKey = `cushion-stage-lock-${stageKey}`;
     const variantMap = {{ variant_map|tojson }};
     const variants = {{ variants|tojson }};
+    const serverSavedSelection = {{ stage_lock|tojson }};
 
     const selectorPanel = document.getElementById("selector-panel");
     const lockedPanel = document.getElementById("locked-panel");
@@ -665,7 +666,37 @@
         });
     }
 
-    function lockSelection(selection) {
+    async function postStageLock(url, payload) {
+        try {
+            await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        } catch (error) {
+            // Browser storage still keeps the lock if the network request fails.
+        }
+    }
+
+    function saveStageLock(selection) {
+        if (stageVariant === "plain") {
+            return;
+        }
+        postStageLock("/api/cushion_stage_lock", {
+            stage_key: stageKey,
+            size_label: selection.size_label || "",
+            shape_no: selection.shape_no || 0,
+            end_type: selection.end_type || ""
+        });
+    }
+
+    function clearStageLock() {
+        postStageLock("/api/cushion_stage_lock/clear", {
+            stage_key: stageKey
+        });
+    }
+
+    function lockSelection(selection, persistServer = true) {
         const key = variantKey(selection.size_label, selection.shape_no, selection.end_type);
         const variant = variantMap[key] || variants[0];
         if (!variant) {
@@ -682,6 +713,9 @@
 
         if (stageVariant !== "plain") {
             localStorage.setItem(storageKey, JSON.stringify(resolvedSelection));
+            if (persistServer) {
+                saveStageLock(resolvedSelection);
+            }
         }
 
         if (lockedLabel) {
@@ -709,6 +743,7 @@
 
     function unlockSelection() {
         localStorage.removeItem(storageKey);
+        clearStageLock();
         if (selectorPanel) {
             selectorPanel.classList.remove("hidden");
         }
@@ -749,10 +784,18 @@
         savedSelection = null;
     }
 
-    if (savedSelection && variantMap[variantKey(savedSelection.size_label, savedSelection.shape_no, savedSelection.end_type)]) {
+    const serverSelectionValid = serverSavedSelection && variantMap[variantKey(
+        serverSavedSelection.size_label,
+        serverSavedSelection.shape_no,
+        serverSavedSelection.end_type
+    )];
+
+    if (serverSelectionValid) {
+        lockSelection(serverSavedSelection, false);
+    } else if (savedSelection && variantMap[variantKey(savedSelection.size_label, savedSelection.shape_no, savedSelection.end_type)]) {
         lockSelection(savedSelection);
     } else if (stageVariant === "plain" && variants.length) {
-        lockSelection(variants[0]);
+        lockSelection(variants[0], false);
     } else if (variants.length) {
         hydrateFields(variants[0]);
     }
