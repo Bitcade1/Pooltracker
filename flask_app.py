@@ -4824,6 +4824,17 @@ def cushion_spindle_reminder_checkpoint(total_after, quantity, interval=CUSHION_
     return None
 
 
+def cushion_current_stage_key(batch_number=None):
+    query = (
+        CushionWorkflowLog.query
+        .filter(CushionWorkflowLog.action_type == "add")
+        .order_by(CushionWorkflowLog.created_at.desc(), CushionWorkflowLog.id.desc())
+    )
+    query = cushion_timing_batch_filter(query, batch_number)
+    latest_log = query.first()
+    return latest_log.stage_key if latest_log else None
+
+
 def ensure_cushion_consumables():
     HardwarePart.__table__.create(db.engine, checkfirst=True)
     PrintedPartsCount.__table__.create(db.engine, checkfirst=True)
@@ -5717,7 +5728,7 @@ def cushion_ready_count_for_stage(stage_key):
     return ready_count
 
 
-def build_cushion_stage_context(include_timing=False, worker_name=None, batch_number=None):
+def build_cushion_stage_context(include_timing=False, worker_name=None, batch_number=None, highlight_stage_key=None):
     stage_context = []
     furthest_in_progress_index = None
     furthest_ready_index = None
@@ -5824,9 +5835,17 @@ def build_cushion_stage_context(include_timing=False, worker_name=None, batch_nu
             "ready_bundle_count": ready_bundle_count,
         })
 
-    # Highlight only one stage card: the furthest stage with WIP.
-    # If no WIP exists, fallback to the furthest stage that is ready to work.
-    highlight_index = furthest_in_progress_index
+    # Highlight only one stage card.
+    # Prefer the stage most recently worked on for the active batch.
+    highlight_index = None
+    if highlight_stage_key:
+        for index, stage_item in enumerate(stage_context):
+            if stage_item["key"] == highlight_stage_key:
+                highlight_index = index
+                break
+    # Fallback to stock-based position if there is no recent activity signal.
+    if highlight_index is None:
+        highlight_index = furthest_in_progress_index
     if highlight_index is None:
         highlight_index = furthest_ready_index
     if highlight_index is not None and 0 <= highlight_index < len(stage_context):
@@ -9712,7 +9731,9 @@ def counting_cushions():
 
         return redirect(url_for('counting_cushions'))
 
-    stage_context = build_cushion_stage_context()
+    active_batch = get_active_cushion_batch()
+    current_stage_key = cushion_current_stage_key(active_batch.batch_number if active_batch else None)
+    stage_context = build_cushion_stage_context(highlight_stage_key=current_stage_key)
     stock_summary = cushion_stock_summary()
 
     return render_template(
