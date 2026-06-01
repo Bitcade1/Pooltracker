@@ -4493,6 +4493,7 @@ CUSHION_CONSUMABLES = [
     CUSHION_CONSUMABLE_TEE_NUTS,
     *CUSHION_CONSUMABLE_SANDING,
 ]
+CUSHION_SPINDLE_REMINDER_INTERVAL = 30
 
 CUSHION_STAGE_PLAIN = "plain"
 CUSHION_STAGE_SIZE_SHAPE = "size_shape"
@@ -4792,6 +4793,35 @@ def cushion_timing_batch_filter(query, batch_number=None):
     if resolved <= 0:
         return query
     return query.filter(CushionWorkflowLog.batch_number == resolved)
+
+
+def cushion_spindle_batch_added_total(batch_number=None):
+    query = (
+        db.session.query(func.coalesce(func.sum(CushionWorkflowLog.delta), 0))
+        .filter(
+            CushionWorkflowLog.action_type == "add",
+            CushionWorkflowLog.stage_key == "spindle_mould",
+            CushionWorkflowLog.delta > 0,
+        )
+    )
+    query = cushion_timing_batch_filter(query, batch_number)
+    return int(query.scalar() or 0)
+
+
+def cushion_spindle_reminder_checkpoint(total_after, quantity, interval=CUSHION_SPINDLE_REMINDER_INTERVAL):
+    try:
+        total_after = max(0, int(total_after or 0))
+        quantity = max(0, int(quantity or 0))
+        interval = max(1, int(interval or 1))
+    except (TypeError, ValueError):
+        return None
+
+    total_before = max(0, total_after - quantity)
+    previous_checkpoint = total_before // interval
+    current_checkpoint = total_after // interval
+    if current_checkpoint > previous_checkpoint:
+        return current_checkpoint * interval
+    return None
 
 
 def ensure_cushion_consumables():
@@ -9727,6 +9757,7 @@ def counting_cushion_stage(stage_key):
         size_label = request.form.get('size_label', '')
         shape_no = request.form.get('shape_no', 0)
         end_type = request.form.get('end_type', '')
+        spindle_reminder_message = None
         try:
             if action == "start_batch":
                 if stage_key != "cut_1m":
@@ -9750,9 +9781,21 @@ def counting_cushion_stage(stage_key):
                     worker_name
                 )
                 save_cushion_stage_lock(worker_name, stage_key, size_label, shape_no, end_type)
+                if stage_key == "spindle_mould":
+                    active_batch_after_add = get_active_cushion_batch()
+                    if active_batch_after_add:
+                        spindle_total = cushion_spindle_batch_added_total(active_batch_after_add.batch_number)
+                        spindle_checkpoint = cushion_spindle_reminder_checkpoint(spindle_total, quantity)
+                        if spindle_checkpoint:
+                            spindle_reminder_message = (
+                                "Please check the rubber length still fit flush. "
+                                f"Batch #{active_batch_after_add.batch_number} has now reached {spindle_checkpoint} spindle lengths."
+                            )
                 db.session.commit()
                 if completed_sets:
                     flash(f"Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock.", "success")
+                if spindle_reminder_message:
+                    flash(spindle_reminder_message, "inspection-warning")
             elif action == "set_count":
                 new_count = request.form.get('new_count', 0)
                 record = set_cushion_stage_count(

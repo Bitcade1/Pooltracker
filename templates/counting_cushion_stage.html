@@ -436,6 +436,62 @@
         background: #1d4ed8;
     }
 
+    .flash.inspection-warning {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #f59e0b;
+        font-weight: 900;
+    }
+
+    .inspection-warning-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(15, 23, 42, 0.72);
+    }
+
+    .inspection-warning-card {
+        width: min(700px, 100%);
+        border-radius: 18px;
+        background: #fff7ed;
+        border: 3px solid #f59e0b;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.32);
+        padding: 24px;
+        text-align: center;
+    }
+
+    .inspection-warning-card h2 {
+        margin: 0 0 12px;
+        color: #9a3412;
+        font-size: clamp(2rem, 5vw, 3.1rem);
+        line-height: 1;
+    }
+
+    .inspection-warning-card p {
+        margin: 0;
+        color: #7c2d12;
+        font-size: clamp(1.3rem, 3vw, 2rem);
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .inspection-warning-card button {
+        min-width: 180px;
+        min-height: 60px;
+        margin-top: 18px;
+        border: none;
+        border-radius: 12px;
+        background: #ea580c;
+        color: #ffffff;
+        font-size: 1.2rem;
+        font-weight: 900;
+        cursor: pointer;
+    }
+
     @media (max-width: 760px) {
         .stage-page {
             padding: 10px;
@@ -502,7 +558,7 @@
         {% if messages %}
             <div class="flash-messages">
                 {% for category, message in messages %}
-                    <p class="flash {{ category }}">{{ message }}</p>
+                    <p class="flash {{ category }}"{% if category == 'inspection-warning' %} data-inspection-warning="true"{% endif %}>{{ message }}</p>
                 {% endfor %}
             </div>
         {% endif %}
@@ -888,6 +944,30 @@
             applyTimingVisibility();
         });
         applyTimingVisibility();
+    }
+
+    const inspectionWarning = document.querySelector("[data-inspection-warning='true']");
+    if (inspectionWarning) {
+        const warningModal = document.createElement("div");
+        warningModal.className = "inspection-warning-modal";
+        warningModal.innerHTML = `
+            <div class="inspection-warning-card" role="alertdialog" aria-modal="true" aria-labelledby="inspection-warning-title">
+                <h2 id="inspection-warning-title">Check Rubber Length</h2>
+                <p>${inspectionWarning.textContent.trim()}</p>
+                <button type="button">OK</button>
+            </div>
+        `;
+        const closeButton = warningModal.querySelector("button");
+        closeButton.addEventListener("click", function () {
+            warningModal.remove();
+        });
+        warningModal.addEventListener("click", function (event) {
+            if (event.target === warningModal) {
+                warningModal.remove();
+            }
+        });
+        document.body.appendChild(warningModal);
+        closeButton.focus();
     }
 
     document.getElementById("add-form").addEventListener("submit", function () {
