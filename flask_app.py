@@ -5807,7 +5807,7 @@ def build_cushion_stage_context(include_timing=False, worker_name=None, batch_nu
         else:
             # For stage cards, highlight where pieces currently are, not the next ready stage.
             has_wip = False
-            status_label = f"{stage_total} in progress" if stage_total else ""
+            status_label = f"{stage_total} at this stage" if stage_total else ""
 
         if stage["key"] != "bundle" and stage_total > 0:
             furthest_in_progress_index = stage_index
