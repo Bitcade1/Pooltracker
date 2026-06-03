@@ -365,7 +365,7 @@
               return;
           }
           const selectedKey = select.value;
-          const selectedLabel = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : 'Jack B';
+          const selectedLabel = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : 'All Workers';
 
           document.querySelectorAll('.selected-worker-label').forEach((element) => {
               element.textContent = selectedLabel;

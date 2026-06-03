@@ -6836,9 +6836,9 @@ def bodies():
             key=lambda item: (item[0] != "jackb", item[0] != "all", item[1].lower())
         )
     ]
-    selected_worker_key = canonical_worker_key(request.args.get("worker") or "Jack B") or "jackb"
+    selected_worker_key = canonical_worker_key(request.args.get("worker") or "All Workers") or "all"
     if selected_worker_key not in worker_options_by_key:
-        selected_worker_key = "jackb"
+        selected_worker_key = "all"
     selected_worker = worker_options_by_key[selected_worker_key]
 
     body_type_totals = {"champion": 0, "lite": 0}
