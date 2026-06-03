@@ -6798,6 +6798,23 @@ def bodies():
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if serial_is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not serial_is_6ft(table.serial_number))
+    worker_options = [
+        (row[0] or "").strip()
+        for row in (
+            db.session.query(CompletedTable.worker)
+            .filter(CompletedTable.worker.isnot(None))
+            .distinct()
+            .order_by(func.lower(CompletedTable.worker))
+            .all()
+        )
+        if (row[0] or "").strip()
+    ]
+    if "Jack B" not in worker_options:
+        worker_options.insert(0, "Jack B")
+    selected_worker = (request.args.get("worker") or "Jack B").strip() or "Jack B"
+    if selected_worker not in worker_options:
+        selected_worker = "Jack B"
+
     body_type_totals = {"champion": 0, "lite": 0}
     body_type_worker_counts = {}
     for table in all_bodies_this_month:
@@ -6831,25 +6848,38 @@ def bodies():
         return working_days
 
     last_working_days = get_last_n_working_days(5, today)
-    daily_history = (
-        db.session.query(
-            CompletedTable.date,
-            func.count(CompletedTable.id).label('count'),
-            func.group_concat(CompletedTable.serial_number, ', ').label('serial_numbers')
-        )
+    daily_bodies = (
+        CompletedTable.query
         .filter(CompletedTable.date.in_(last_working_days))
-        .group_by(CompletedTable.date)
-        .order_by(CompletedTable.date.desc())
+        .order_by(CompletedTable.date.desc(), CompletedTable.id.asc())
         .all()
     )
-    daily_history_formatted = [
-        {
-            "date": row.date.strftime("%A %d/%m/%y"),
-            "count": row.count,
-            "serial_numbers": row.serial_numbers
-        }
-        for row in daily_history
-    ]
+    daily_history_by_date = {}
+    for body in daily_bodies:
+        if body.date not in daily_history_by_date:
+            daily_history_by_date[body.date] = {
+                "date": body.date.strftime("%A %d/%m/%y"),
+                "count": 0,
+                "champion": 0,
+                "lite": 0,
+                "serial_numbers": []
+            }
+        entry = daily_history_by_date[body.date]
+        body_type, _ = get_body_build_metadata(body)
+        type_key = "lite" if body_type == TABLE_TYPE_LITE else "champion"
+        entry[type_key] += 1
+        entry["count"] += 1
+        entry["serial_numbers"].append(body.serial_number)
+
+    daily_history_formatted = []
+    for entry in daily_history_by_date.values():
+        daily_history_formatted.append({
+            "date": entry["date"],
+            "count": entry["count"],
+            "champion": entry["champion"],
+            "lite": entry["lite"],
+            "serial_numbers": ", ".join(entry["serial_numbers"])
+        })
 
     def parse_time_string(value):
         if not value:
@@ -6897,24 +6927,17 @@ def bodies():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    workers_of_interest = ["Jack B", "Tom"]
-    worker_aliases = {
-        "Jack B": ["jackb", "jack"],
-        "Tom": ["tom"]
-    }
-
     def normalize_worker_name(name):
         if not name:
             return ""
         return re.sub(r'[^a-z]', '', name.lower())
 
-    def map_to_worker(name):
-        norm = normalize_worker_name(name)
-        for worker, aliases in worker_aliases.items():
-            for alias in aliases:
-                if norm.startswith(alias):
-                    return worker
-        return None
+    def worker_matches_selected(name, selected):
+        worker_norm = normalize_worker_name(name)
+        selected_norm = normalize_worker_name(selected)
+        if selected_norm in ("jack", "jackb"):
+            return worker_norm.startswith("jack")
+        return worker_norm == selected_norm
 
     monthly_totals = (
         db.session.query(
@@ -6940,38 +6963,45 @@ def bodies():
         # Use actual recorded durations for averages instead of estimated work hours
         total_duration_seconds = 0
         counted_bodies = 0
-        worker_stats = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
+        selected_worker_stats = {"seconds": 0, "count": 0}
+        type_counts = {
+            TABLE_TYPE_CHAMPION: 0,
+            TABLE_TYPE_LITE: 0,
+        }
         type_stats = {
             TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
             TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
         }
         for body in month_bodies:
+            body_type, _ = get_body_build_metadata(body)
+            if body_type not in type_counts:
+                body_type = TABLE_TYPE_CHAMPION
+            type_counts[body_type] += 1
+
             duration = calculate_body_duration(body)
             if duration is None:
                 continue
             total_duration_seconds += duration.total_seconds()
             counted_bodies += 1
-            body_type = table_type_from_serial(body.serial_number)
             if body_type in type_stats:
                 type_stats[body_type]["seconds"] += duration.total_seconds()
                 type_stats[body_type]["count"] += 1
-            mapped_worker = map_to_worker(body.worker)
-            if mapped_worker in worker_stats:
-                worker_stats[mapped_worker]["seconds"] += duration.total_seconds()
-                worker_stats[mapped_worker]["count"] += 1
-
-        worker_avg_formatted = {
-            worker: format_avg_duration(stats["seconds"], stats["count"])
-            for worker, stats in worker_stats.items()
-        }
+            if worker_matches_selected(body.worker, selected_worker):
+                selected_worker_stats["seconds"] += duration.total_seconds()
+                selected_worker_stats["count"] += 1
 
         avg_hours_per_body_formatted = format_avg_duration(total_duration_seconds, counted_bodies)
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
+            "champion_count": type_counts[TABLE_TYPE_CHAMPION],
+            "lite_count": type_counts[TABLE_TYPE_LITE],
             "average_hours_per_body": avg_hours_per_body_formatted,
-            "avg_hours_jack": worker_avg_formatted.get("Jack B", "N/A"),
-            "avg_hours_tom": worker_avg_formatted.get("Tom", "N/A"),
+            "selected_worker_count": selected_worker_stats["count"],
+            "selected_worker_avg": format_avg_duration(
+                selected_worker_stats["seconds"],
+                selected_worker_stats["count"]
+            ),
             "avg_hours_champion": format_avg_duration(
                 type_stats[TABLE_TYPE_CHAMPION]["seconds"],
                 type_stats[TABLE_TYPE_CHAMPION]["count"]
@@ -7018,7 +7048,9 @@ def bodies():
         default_table_type=default_table_type,
         quick_add_parts=quick_add_parts,
         body_type_totals=body_type_totals,
-        body_type_worker_rows=body_type_worker_rows
+        body_type_worker_rows=body_type_worker_rows,
+        worker_options=worker_options,
+        selected_worker=selected_worker
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
