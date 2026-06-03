@@ -131,6 +131,19 @@
         gap: 14px;
     }
 
+    .job-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .job-section-title {
+        margin: 0;
+        color: #1f2d3d;
+        font-size: 1.45rem;
+        font-weight: 900;
+    }
+
     .job-page-card {
         min-height: 150px;
         border-radius: 12px;
@@ -379,6 +392,27 @@
     }
 </style>
 
+{% macro cushion_stage_card(stage) %}
+    <a class="job-page-card {% if stage.has_wip %}has-wip{% endif %}" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
+        {% if stage.has_wip %}
+            <span class="wip-badge">Working on this section</span>
+        {% endif %}
+        <strong>{{ stage.short_label }}</strong>
+        {% if stage.key == 'punch_rubber_ends' %}
+            <span>
+                {% for group in stage.groups %}
+                    {% for variant in group.variants %}
+                        {{ variant.label }}: {{ variant.count }}{% if not loop.last %} | {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </span>
+        {% elif stage.key == 'bundle' %}
+        {% else %}
+            <span>{{ stage.total }} at this stage</span>
+        {% endif %}
+    </a>
+{% endmacro %}
+
 <div class="cushion-page">
     <header class="page-head">
         <h1>Cushion Production</h1>
@@ -411,27 +445,25 @@
         </div>
     </section>
 
-    <section class="job-page-grid" aria-label="Cushion job pages">
-        {% for stage in stages %}
-            <a class="job-page-card {% if stage.has_wip %}has-wip{% endif %}" href="{{ url_for('counting_cushion_stage', stage_key=stage.key) }}">
-                {% if stage.has_wip %}
-                    <span class="wip-badge">Working on this section</span>
+    <section class="job-section" aria-label="Cushion job pages">
+        <div class="job-page-grid">
+            {% for stage in stages %}
+                {% if stage.key != 'punch_rubber_ends' %}
+                    {{ cushion_stage_card(stage) }}
                 {% endif %}
-                <strong>{{ stage.short_label }}</strong>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="job-section" aria-label="Auxiliary jobs">
+        <h2 class="job-section-title">Auxiliary jobs</h2>
+        <div class="job-page-grid">
+            {% for stage in stages %}
                 {% if stage.key == 'punch_rubber_ends' %}
-                    <span>
-                        {% for group in stage.groups %}
-                            {% for variant in group.variants %}
-                                {{ variant.label }}: {{ variant.count }}{% if not loop.last %} | {% endif %}
-                            {% endfor %}
-                        {% endfor %}
-                    </span>
-                {% elif stage.key == 'bundle' %}
-                {% else %}
-                    <span>{{ stage.total }} at this stage</span>
+                    {{ cushion_stage_card(stage) }}
                 {% endif %}
-            </a>
-        {% endfor %}
+            {% endfor %}
+        </div>
     </section>
 
 </div>
