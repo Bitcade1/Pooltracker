@@ -679,7 +679,7 @@
         <label for="worker_stats_select">Worker stats:</label>
         <select id="worker_stats_select" name="worker" onchange="this.form.submit()">
           {% for worker in worker_options %}
-            <option value="{{ worker }}" {% if worker == selected_worker %}selected{% endif %}>{{ worker }}</option>
+            <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
           {% endfor %}
         </select>
         <button type="submit">Show Stats</button>

@@ -6798,7 +6798,13 @@ def bodies():
 
     current_production_6ft = sum(1 for table in all_bodies_this_month if serial_is_6ft(table.serial_number))
     current_production_7ft = sum(1 for table in all_bodies_this_month if not serial_is_6ft(table.serial_number))
-    worker_options = [
+
+    def normalize_worker_name(name):
+        if not name:
+            return ""
+        return re.sub(r'[^a-z]', '', name.lower())
+
+    raw_worker_names = [
         (row[0] or "").strip()
         for row in (
             db.session.query(CompletedTable.worker)
@@ -6809,11 +6815,24 @@ def bodies():
         )
         if (row[0] or "").strip()
     ]
-    if "Jack B" not in worker_options:
-        worker_options.insert(0, "Jack B")
-    selected_worker = (request.args.get("worker") or "Jack B").strip() or "Jack B"
-    if selected_worker not in worker_options:
-        selected_worker = "Jack B"
+    worker_options_by_key = {}
+    for worker_name in raw_worker_names:
+        worker_key = normalize_worker_name(worker_name)
+        if worker_key and worker_key not in worker_options_by_key:
+            worker_options_by_key[worker_key] = worker_name
+    worker_options_by_key.setdefault("jackb", "Jack B")
+
+    worker_options = [
+        {"value": worker_key, "label": worker_label}
+        for worker_key, worker_label in sorted(
+            worker_options_by_key.items(),
+            key=lambda item: (item[0] != "jackb", item[1].lower())
+        )
+    ]
+    selected_worker_key = normalize_worker_name(request.args.get("worker") or "Jack B") or "jackb"
+    if selected_worker_key not in worker_options_by_key:
+        selected_worker_key = "jackb"
+    selected_worker = worker_options_by_key[selected_worker_key]
 
     body_type_totals = {"champion": 0, "lite": 0}
     body_type_worker_counts = {}
@@ -6927,17 +6946,11 @@ def bodies():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    def normalize_worker_name(name):
-        if not name:
-            return ""
-        return re.sub(r'[^a-z]', '', name.lower())
-
-    def worker_matches_selected(name, selected):
+    def worker_matches_selected(name, selected_key):
         worker_norm = normalize_worker_name(name)
-        selected_norm = normalize_worker_name(selected)
-        if selected_norm in ("jack", "jackb"):
+        if selected_key in ("jack", "jackb"):
             return worker_norm.startswith("jack")
-        return worker_norm == selected_norm
+        return worker_norm == selected_key
 
     monthly_totals = (
         db.session.query(
@@ -6986,7 +6999,7 @@ def bodies():
             if body_type in type_stats:
                 type_stats[body_type]["seconds"] += duration.total_seconds()
                 type_stats[body_type]["count"] += 1
-            if worker_matches_selected(body.worker, selected_worker):
+            if worker_matches_selected(body.worker, selected_worker_key):
                 selected_worker_stats["seconds"] += duration.total_seconds()
                 selected_worker_stats["count"] += 1
 
@@ -7050,7 +7063,8 @@ def bodies():
         body_type_totals=body_type_totals,
         body_type_worker_rows=body_type_worker_rows,
         worker_options=worker_options,
-        selected_worker=selected_worker
+        selected_worker=selected_worker,
+        selected_worker_key=selected_worker_key
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
