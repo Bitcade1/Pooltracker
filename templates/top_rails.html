@@ -437,32 +437,34 @@
     <h2>Top Rails Completed Today 
       <span class="monthly-total">Total This Month: {{ top_rails_this_month }}</span>
     </h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Worker</th>
-          <th>Start Time</th>
-          <th>Finish Time</th>
-          <th>Serial Number</th>
-          <th>Issue</th>
-          <th>Lunch</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for table in completed_tables %}
-          <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
-            <td>{{ table.date.strftime('%d/%m/%y') }}</td>
-            <td>{{ table.worker }}</td>
-            <td>{{ table.start_time }}</td>
-            <td>{{ table.finish_time }}</td>
-            <td>{{ table.serial_number }}</td>
-            <td>{{ table.issue }}</td>
-            <td>{{ table.lunch }}</td>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Worker</th>
+            <th>Start Time</th>
+            <th>Finish Time</th>
+            <th>Serial Number</th>
+            <th>Issue</th>
+            <th>Lunch</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for table in completed_tables %}
+            <tr class="{% if table.issue != 'No Issues' %}issue-row{% endif %}">
+              <td>{{ table.date.strftime('%d/%m/%y') }}</td>
+              <td>{{ table.worker }}</td>
+              <td>{{ table.start_time }}</td>
+              <td>{{ table.finish_time }}</td>
+              <td>{{ table.serial_number }}</td>
+              <td>{{ table.issue }}</td>
+              <td>{{ table.lunch }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     
     <!-- Collapsible Section for Daily History -->
     <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>

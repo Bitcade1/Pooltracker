@@ -122,6 +122,17 @@ table {
     overflow: hidden;
 }
 
+.table-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll table {
+    margin-top: 20px;
+}
+
 th, td {
     padding: 12px;
     font-size: 0.9em;
