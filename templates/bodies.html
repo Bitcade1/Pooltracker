@@ -377,12 +377,6 @@
               element.textContent = stats.count;
           });
 
-          document.querySelectorAll('[data-worker-avg-row]').forEach((element) => {
-              const rowIndex = parseInt(element.getAttribute('data-worker-avg-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
-              element.textContent = stats.avg;
-          });
-
           document.querySelectorAll('[data-worker-champion-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-champion-row'), 10);
               const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
@@ -750,7 +744,6 @@
           <tr>
             <th>Month</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
-            <th><span class="selected-worker-label">{{ selected_worker }}</span> Avg Time</th>
             <th>Champion</th>
             <th>Lite</th>
             <th>Avg Time (Champion)</th>
@@ -762,7 +755,6 @@
             <tr>
               <td>{{ month.month }}</td>
               <td data-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
-              <td data-worker-avg-row="{{ loop.index0 }}">{{ month.selected_worker_avg }}</td>
               <td data-worker-champion-row="{{ loop.index0 }}">{{ month.selected_worker_champion_count }}</td>
               <td data-worker-lite-row="{{ loop.index0 }}">{{ month.selected_worker_lite_count }}</td>
               <td data-worker-champion-avg-row="{{ loop.index0 }}">{{ month.selected_worker_champion_avg }}</td>

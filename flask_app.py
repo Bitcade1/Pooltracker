@@ -6827,12 +6827,13 @@ def bodies():
         if worker_key and worker_key not in worker_options_by_key:
             worker_options_by_key[worker_key] = "Jack B" if worker_key == "jackb" else worker_name
     worker_options_by_key.setdefault("jackb", "Jack B")
+    worker_options_by_key.setdefault("all", "All Workers")
 
     worker_options = [
         {"value": worker_key, "label": worker_label}
         for worker_key, worker_label in sorted(
             worker_options_by_key.items(),
-            key=lambda item: (item[0] != "jackb", item[1].lower())
+            key=lambda item: (item[0] != "jackb", item[0] != "all", item[1].lower())
         )
     ]
     selected_worker_key = canonical_worker_key(request.args.get("worker") or "Jack B") or "jackb"
@@ -6991,6 +6992,7 @@ def bodies():
             }
             for worker_key in worker_options_by_key.keys()
         }
+        all_worker_stats = worker_stats["all"]
         type_counts = {
             TABLE_TYPE_CHAMPION: 0,
             TABLE_TYPE_LITE: 0,
@@ -7024,6 +7026,11 @@ def bodies():
                     worker_stats[body_worker_key]["lite_count"] += 1
                 else:
                     worker_stats[body_worker_key]["champion_count"] += 1
+            all_worker_stats["table_count"] += 1
+            if body_type == TABLE_TYPE_LITE:
+                all_worker_stats["lite_count"] += 1
+            else:
+                all_worker_stats["champion_count"] += 1
 
             duration = calculate_body_duration(body)
             if duration is None:
@@ -7042,6 +7049,14 @@ def bodies():
                 else:
                     worker_stats[body_worker_key]["champion_seconds"] += duration.total_seconds()
                     worker_stats[body_worker_key]["champion_duration_count"] += 1
+            all_worker_stats["seconds"] += duration.total_seconds()
+            all_worker_stats["duration_count"] += 1
+            if body_type == TABLE_TYPE_LITE:
+                all_worker_stats["lite_seconds"] += duration.total_seconds()
+                all_worker_stats["lite_duration_count"] += 1
+            else:
+                all_worker_stats["champion_seconds"] += duration.total_seconds()
+                all_worker_stats["champion_duration_count"] += 1
 
         avg_hours_per_body_formatted = format_avg_duration(total_duration_seconds, counted_bodies)
         selected_worker_stats = worker_stats.get(
