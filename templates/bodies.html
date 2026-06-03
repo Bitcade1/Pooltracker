@@ -725,26 +725,26 @@
         <thead>
           <tr>
             <th>Month</th>
-            <th>Champion</th>
-            <th>Lite</th>
-            <th>Total Tables</th>
-            <th>Avg Time (Champion)</th>
-            <th>Avg Time (Lite)</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Avg Time</th>
+            <th>Champion</th>
+            <th>Lite</th>
+            <th>All Workers Total</th>
+            <th>Avg Time (Champion)</th>
+            <th>Avg Time (Lite)</th>
           </tr>
         </thead>
         <tbody>
           {% for month in monthly_totals %}
             <tr>
               <td>{{ month.month }}</td>
+              <td data-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
+              <td data-worker-avg-row="{{ loop.index0 }}">{{ month.selected_worker_avg }}</td>
               <td>{{ month.champion_count }}</td>
               <td>{{ month.lite_count }}</td>
               <td>{{ month.count }}</td>
               <td>{{ month.avg_hours_champion }}</td>
               <td>{{ month.avg_hours_lite }}</td>
-              <td data-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
-              <td data-worker-avg-row="{{ loop.index0 }}">{{ month.selected_worker_avg }}</td>
             </tr>
           {% endfor %}
         </tbody>
