@@ -373,14 +373,38 @@
 
           document.querySelectorAll('[data-worker-count-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-count-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A'};
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
               element.textContent = stats.count;
           });
 
           document.querySelectorAll('[data-worker-avg-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-avg-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A'};
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
               element.textContent = stats.avg;
+          });
+
+          document.querySelectorAll('[data-worker-champion-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-champion-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              element.textContent = stats.champion;
+          });
+
+          document.querySelectorAll('[data-worker-lite-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-lite-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              element.textContent = stats.lite;
+          });
+
+          document.querySelectorAll('[data-worker-champion-avg-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-champion-avg-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              element.textContent = stats.champion_avg;
+          });
+
+          document.querySelectorAll('[data-worker-lite-avg-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-lite-avg-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              element.textContent = stats.lite_avg;
           });
 
           try {
@@ -729,7 +753,6 @@
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Avg Time</th>
             <th>Champion</th>
             <th>Lite</th>
-            <th>All Workers Total</th>
             <th>Avg Time (Champion)</th>
             <th>Avg Time (Lite)</th>
           </tr>
@@ -740,11 +763,10 @@
               <td>{{ month.month }}</td>
               <td data-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
               <td data-worker-avg-row="{{ loop.index0 }}">{{ month.selected_worker_avg }}</td>
-              <td>{{ month.champion_count }}</td>
-              <td>{{ month.lite_count }}</td>
-              <td>{{ month.count }}</td>
-              <td>{{ month.avg_hours_champion }}</td>
-              <td>{{ month.avg_hours_lite }}</td>
+              <td data-worker-champion-row="{{ loop.index0 }}">{{ month.selected_worker_champion_count }}</td>
+              <td data-worker-lite-row="{{ loop.index0 }}">{{ month.selected_worker_lite_count }}</td>
+              <td data-worker-champion-avg-row="{{ loop.index0 }}">{{ month.selected_worker_champion_avg }}</td>
+              <td data-worker-lite-avg-row="{{ loop.index0 }}">{{ month.selected_worker_lite_avg }}</td>
             </tr>
           {% endfor %}
         </tbody>

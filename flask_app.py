@@ -6978,7 +6978,17 @@ def bodies():
         total_duration_seconds = 0
         counted_bodies = 0
         worker_stats = {
-            worker_key: {"seconds": 0, "duration_count": 0, "table_count": 0}
+            worker_key: {
+                "seconds": 0,
+                "duration_count": 0,
+                "table_count": 0,
+                "champion_count": 0,
+                "lite_count": 0,
+                "champion_seconds": 0,
+                "champion_duration_count": 0,
+                "lite_seconds": 0,
+                "lite_duration_count": 0,
+            }
             for worker_key in worker_options_by_key.keys()
         }
         type_counts = {
@@ -6997,9 +7007,23 @@ def bodies():
 
             body_worker_key = canonical_worker_key(body.worker)
             if body_worker_key and body_worker_key not in worker_stats:
-                worker_stats[body_worker_key] = {"seconds": 0, "duration_count": 0, "table_count": 0}
+                worker_stats[body_worker_key] = {
+                    "seconds": 0,
+                    "duration_count": 0,
+                    "table_count": 0,
+                    "champion_count": 0,
+                    "lite_count": 0,
+                    "champion_seconds": 0,
+                    "champion_duration_count": 0,
+                    "lite_seconds": 0,
+                    "lite_duration_count": 0,
+                }
             if body_worker_key:
                 worker_stats[body_worker_key]["table_count"] += 1
+                if body_type == TABLE_TYPE_LITE:
+                    worker_stats[body_worker_key]["lite_count"] += 1
+                else:
+                    worker_stats[body_worker_key]["champion_count"] += 1
 
             duration = calculate_body_duration(body)
             if duration is None:
@@ -7012,16 +7036,42 @@ def bodies():
             if body_worker_key:
                 worker_stats[body_worker_key]["seconds"] += duration.total_seconds()
                 worker_stats[body_worker_key]["duration_count"] += 1
+                if body_type == TABLE_TYPE_LITE:
+                    worker_stats[body_worker_key]["lite_seconds"] += duration.total_seconds()
+                    worker_stats[body_worker_key]["lite_duration_count"] += 1
+                else:
+                    worker_stats[body_worker_key]["champion_seconds"] += duration.total_seconds()
+                    worker_stats[body_worker_key]["champion_duration_count"] += 1
 
         avg_hours_per_body_formatted = format_avg_duration(total_duration_seconds, counted_bodies)
         selected_worker_stats = worker_stats.get(
             selected_worker_key,
-            {"seconds": 0, "duration_count": 0, "table_count": 0}
+            {
+                "seconds": 0,
+                "duration_count": 0,
+                "table_count": 0,
+                "champion_count": 0,
+                "lite_count": 0,
+                "champion_seconds": 0,
+                "champion_duration_count": 0,
+                "lite_seconds": 0,
+                "lite_duration_count": 0,
+            }
         )
         formatted_worker_stats = {
             worker_key: {
                 "count": stats["table_count"],
-                "avg": format_avg_duration(stats["seconds"], stats["duration_count"])
+                "avg": format_avg_duration(stats["seconds"], stats["duration_count"]),
+                "champion": stats["champion_count"],
+                "lite": stats["lite_count"],
+                "champion_avg": format_avg_duration(
+                    stats["champion_seconds"],
+                    stats["champion_duration_count"]
+                ),
+                "lite_avg": format_avg_duration(
+                    stats["lite_seconds"],
+                    stats["lite_duration_count"]
+                ),
             }
             for worker_key, stats in worker_stats.items()
         }
@@ -7036,6 +7086,16 @@ def bodies():
             "selected_worker_avg": format_avg_duration(
                 selected_worker_stats["seconds"],
                 selected_worker_stats["duration_count"]
+            ),
+            "selected_worker_champion_count": selected_worker_stats["champion_count"],
+            "selected_worker_lite_count": selected_worker_stats["lite_count"],
+            "selected_worker_champion_avg": format_avg_duration(
+                selected_worker_stats["champion_seconds"],
+                selected_worker_stats["champion_duration_count"]
+            ),
+            "selected_worker_lite_avg": format_avg_duration(
+                selected_worker_stats["lite_seconds"],
+                selected_worker_stats["lite_duration_count"]
             ),
             "avg_hours_champion": format_avg_duration(
                 type_stats[TABLE_TYPE_CHAMPION]["seconds"],
