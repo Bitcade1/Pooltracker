@@ -448,7 +448,7 @@
     <section class="job-section" aria-label="Cushion job pages">
         <div class="job-page-grid">
             {% for stage in stages %}
-                {% if stage.key != 'punch_rubber_ends' %}
+                {% if stage.key != 'punch_rubber_ends' and stage.key != 'cutting_rubber_1m_lengths' %}
                     {{ cushion_stage_card(stage) }}
                 {% endif %}
             {% endfor %}
@@ -459,7 +459,7 @@
         <h2 class="job-section-title">Auxiliary jobs</h2>
         <div class="job-page-grid">
             {% for stage in stages %}
-                {% if stage.key == 'punch_rubber_ends' %}
+                {% if stage.key == 'punch_rubber_ends' or stage.key == 'cutting_rubber_1m_lengths' %}
                     {{ cushion_stage_card(stage) }}
                 {% endif %}
             {% endfor %}
