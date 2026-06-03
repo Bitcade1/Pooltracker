@@ -6804,6 +6804,12 @@ def bodies():
             return ""
         return re.sub(r'[^a-z]', '', name.lower())
 
+    def canonical_worker_key(name):
+        worker_key = normalize_worker_name(name)
+        if worker_key.startswith("jack"):
+            return "jackb"
+        return worker_key
+
     raw_worker_names = [
         (row[0] or "").strip()
         for row in (
@@ -6817,9 +6823,9 @@ def bodies():
     ]
     worker_options_by_key = {}
     for worker_name in raw_worker_names:
-        worker_key = normalize_worker_name(worker_name)
+        worker_key = canonical_worker_key(worker_name)
         if worker_key and worker_key not in worker_options_by_key:
-            worker_options_by_key[worker_key] = worker_name
+            worker_options_by_key[worker_key] = "Jack B" if worker_key == "jackb" else worker_name
     worker_options_by_key.setdefault("jackb", "Jack B")
 
     worker_options = [
@@ -6829,7 +6835,7 @@ def bodies():
             key=lambda item: (item[0] != "jackb", item[1].lower())
         )
     ]
-    selected_worker_key = normalize_worker_name(request.args.get("worker") or "Jack B") or "jackb"
+    selected_worker_key = canonical_worker_key(request.args.get("worker") or "Jack B") or "jackb"
     if selected_worker_key not in worker_options_by_key:
         selected_worker_key = "jackb"
     selected_worker = worker_options_by_key[selected_worker_key]
@@ -6946,12 +6952,6 @@ def bodies():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    def worker_matches_selected(name, selected_key):
-        worker_norm = normalize_worker_name(name)
-        if selected_key in ("jack", "jackb"):
-            return worker_norm.startswith("jack")
-        return worker_norm == selected_key
-
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -6963,6 +6963,7 @@ def bodies():
         .all()
     )
     monthly_totals_formatted = []
+    monthly_worker_stats = []
     for row in monthly_totals:
         yr = int(row.year)
         mo = int(row.month)
@@ -6976,7 +6977,10 @@ def bodies():
         # Use actual recorded durations for averages instead of estimated work hours
         total_duration_seconds = 0
         counted_bodies = 0
-        selected_worker_stats = {"seconds": 0, "count": 0}
+        worker_stats = {
+            worker_key: {"seconds": 0, "duration_count": 0, "table_count": 0}
+            for worker_key in worker_options_by_key.keys()
+        }
         type_counts = {
             TABLE_TYPE_CHAMPION: 0,
             TABLE_TYPE_LITE: 0,
@@ -6991,6 +6995,12 @@ def bodies():
                 body_type = TABLE_TYPE_CHAMPION
             type_counts[body_type] += 1
 
+            body_worker_key = canonical_worker_key(body.worker)
+            if body_worker_key and body_worker_key not in worker_stats:
+                worker_stats[body_worker_key] = {"seconds": 0, "duration_count": 0, "table_count": 0}
+            if body_worker_key:
+                worker_stats[body_worker_key]["table_count"] += 1
+
             duration = calculate_body_duration(body)
             if duration is None:
                 continue
@@ -6999,21 +7009,33 @@ def bodies():
             if body_type in type_stats:
                 type_stats[body_type]["seconds"] += duration.total_seconds()
                 type_stats[body_type]["count"] += 1
-            if worker_matches_selected(body.worker, selected_worker_key):
-                selected_worker_stats["seconds"] += duration.total_seconds()
-                selected_worker_stats["count"] += 1
+            if body_worker_key:
+                worker_stats[body_worker_key]["seconds"] += duration.total_seconds()
+                worker_stats[body_worker_key]["duration_count"] += 1
 
         avg_hours_per_body_formatted = format_avg_duration(total_duration_seconds, counted_bodies)
+        selected_worker_stats = worker_stats.get(
+            selected_worker_key,
+            {"seconds": 0, "duration_count": 0, "table_count": 0}
+        )
+        formatted_worker_stats = {
+            worker_key: {
+                "count": stats["table_count"],
+                "avg": format_avg_duration(stats["seconds"], stats["duration_count"])
+            }
+            for worker_key, stats in worker_stats.items()
+        }
+        monthly_worker_stats.append(formatted_worker_stats)
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_bodies,
             "champion_count": type_counts[TABLE_TYPE_CHAMPION],
             "lite_count": type_counts[TABLE_TYPE_LITE],
             "average_hours_per_body": avg_hours_per_body_formatted,
-            "selected_worker_count": selected_worker_stats["count"],
+            "selected_worker_count": selected_worker_stats["table_count"],
             "selected_worker_avg": format_avg_duration(
                 selected_worker_stats["seconds"],
-                selected_worker_stats["count"]
+                selected_worker_stats["duration_count"]
             ),
             "avg_hours_champion": format_avg_duration(
                 type_stats[TABLE_TYPE_CHAMPION]["seconds"],
@@ -7064,7 +7086,8 @@ def bodies():
         body_type_worker_rows=body_type_worker_rows,
         worker_options=worker_options,
         selected_worker=selected_worker,
-        selected_worker_key=selected_worker_key
+        selected_worker_key=selected_worker_key,
+        monthly_worker_stats=monthly_worker_stats
     )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():

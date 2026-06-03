@@ -330,6 +330,8 @@
   <!-- Select2 JS -->
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script>
+      const monthlyWorkerStats = {{ monthly_worker_stats|tojson }};
+
       function toggleCollapsible(id) {
           var content = document.getElementById(id);
           content.style.display = content.style.display === "block" ? "none" : "block";
@@ -355,6 +357,39 @@
               return;
           }
           tableTypeSelector.value = inferTableTypeFromSerial(selectedSerialNumber);
+      }
+
+      function updateWorkerStatsDisplay() {
+          const select = document.getElementById('worker_stats_select');
+          if (!select) {
+              return;
+          }
+          const selectedKey = select.value;
+          const selectedLabel = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : 'Jack B';
+
+          document.querySelectorAll('.selected-worker-label').forEach((element) => {
+              element.textContent = selectedLabel;
+          });
+
+          document.querySelectorAll('[data-worker-count-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-count-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A'};
+              element.textContent = stats.count;
+          });
+
+          document.querySelectorAll('[data-worker-avg-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-avg-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A'};
+              element.textContent = stats.avg;
+          });
+
+          try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('worker', selectedKey);
+              window.history.replaceState({}, '', url);
+          } catch (e) {
+              // ignore
+          }
       }
       
       function updateSerialNumber() {
@@ -442,6 +477,8 @@
           if (params.has('worker') && monthlyTotals) {
               monthlyTotals.style.display = "block";
           }
+
+          updateWorkerStatsDisplay();
       });
   </script>
 </head>
@@ -677,12 +714,12 @@
     <div id="monthlyTotals" class="collapsible-content">
       <form method="GET" action="{{ url_for('bodies') }}" class="worker-stats-form">
         <label for="worker_stats_select">Worker stats:</label>
-        <select id="worker_stats_select" name="worker" onchange="this.form.submit()">
+        <select id="worker_stats_select" name="worker" onchange="updateWorkerStatsDisplay()">
           {% for worker in worker_options %}
             <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
           {% endfor %}
         </select>
-        <button type="submit">Show Stats</button>
+        <button type="button" onclick="updateWorkerStatsDisplay()">Show Stats</button>
       </form>
       <table>
         <thead>
@@ -693,8 +730,8 @@
             <th>Total Tables</th>
             <th>Avg Time (Champion)</th>
             <th>Avg Time (Lite)</th>
-            <th>{{ selected_worker }} Tables</th>
-            <th>{{ selected_worker }} Avg Time</th>
+            <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
+            <th><span class="selected-worker-label">{{ selected_worker }}</span> Avg Time</th>
           </tr>
         </thead>
         <tbody>
@@ -706,8 +743,8 @@
               <td>{{ month.count }}</td>
               <td>{{ month.avg_hours_champion }}</td>
               <td>{{ month.avg_hours_lite }}</td>
-              <td>{{ month.selected_worker_count }}</td>
-              <td>{{ month.selected_worker_avg }}</td>
+              <td data-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
+              <td data-worker-avg-row="{{ loop.index0 }}">{{ month.selected_worker_avg }}</td>
             </tr>
           {% endfor %}
         </tbody>
