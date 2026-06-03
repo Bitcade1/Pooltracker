@@ -3544,25 +3544,84 @@ def pods():
         return working_days
     
     last_working_days = get_last_n_working_days(5, today)
-    daily_history = (
-        db.session.query(
-            CompletedPods.date,
-            func.count(CompletedPods.id).label('count'),
-            func.group_concat(CompletedPods.serial_number, ', ').label('serial_numbers')
-        )
+
+    daily_pods = (
+        CompletedPods.query
         .filter(CompletedPods.date.in_(last_working_days))
-        .group_by(CompletedPods.date)
-        .order_by(CompletedPods.date.desc())
+        .order_by(CompletedPods.date.desc(), CompletedPods.id.asc())
         .all()
     )
-    daily_history_formatted = [
-        {
-            "date": row.date.strftime("%A %d/%m/%y"),
-            "count": row.count,
-            "serial_numbers": row.serial_numbers
-        }
-        for row in daily_history
-    ]
+    daily_history_by_date = {}
+    for pod in daily_pods:
+        if pod.date not in daily_history_by_date:
+            daily_history_by_date[pod.date] = {
+                "date": pod.date.strftime("%A %d/%m/%y"),
+                "count": 0,
+                "champion": 0,
+                "lite": 0,
+                "serial_numbers": []
+            }
+        entry = daily_history_by_date[pod.date]
+        type_key = "lite" if table_type_from_serial(pod.serial_number) == TABLE_TYPE_LITE else "champion"
+        entry[type_key] += 1
+        entry["count"] += 1
+        entry["serial_numbers"].append(pod.serial_number)
+
+    daily_history_formatted = []
+    for entry in daily_history_by_date.values():
+        daily_history_formatted.append({
+            "date": entry["date"],
+            "count": entry["count"],
+            "champion": entry["champion"],
+            "lite": entry["lite"],
+            "serial_numbers": ", ".join(entry["serial_numbers"])
+        })
+
+    def parse_time_string(value):
+        if not value:
+            return None
+        if isinstance(value, time):
+            return value
+        for fmt in ("%H:%M", "%H:%M:%S"):
+            try:
+                return datetime.strptime(value, fmt).time()
+            except ValueError:
+                continue
+        return None
+
+    def calculate_pod_duration(pod):
+        start_time_obj = parse_time_string(pod.start_time)
+        finish_time_obj = parse_time_string(pod.finish_time)
+        if not start_time_obj or not finish_time_obj:
+            return None
+
+        start_dt = datetime.combine(pod.date, start_time_obj)
+        finish_dt = datetime.combine(pod.date, finish_time_obj)
+        if finish_time_obj < start_time_obj:
+            overnight_dt = datetime.combine(pod.date + timedelta(days=1), finish_time_obj)
+            if (overnight_dt - start_dt) <= timedelta(hours=12):
+                finish_dt = overnight_dt
+
+        if pod.lunch and str(pod.lunch).lower() == "yes":
+            finish_dt -= timedelta(minutes=30)
+
+        delta = finish_dt - start_dt
+        if delta.total_seconds() < 0:
+            return None
+        if delta < timedelta(minutes=10):
+            return None
+        if delta > timedelta(hours=8):
+            return None
+        return delta
+
+    def format_avg_duration(total_seconds, count):
+        if not count:
+            return "N/A"
+        avg_seconds = total_seconds / count
+        avg_seconds = max(0, int(round(avg_seconds)))
+        hours, remainder = divmod(avg_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
     
     monthly_totals = (
         db.session.query(
@@ -3579,21 +3638,45 @@ def pods():
         yr = int(row.year)
         mo = int(row.month)
         total_pods = row.total
-        last_day = today.day if (yr == today.year and mo == today.month) else monthrange(yr, mo)[1]
-        work_days = sum(1 for day in range(1, last_day + 1) if date(yr, mo, day).weekday() < 5)
-        cumulative_working_hours = work_days * 7.5
-        avg_hours_per_pod = (cumulative_working_hours / total_pods if total_pods > 0 else None)
-        if avg_hours_per_pod is not None:
-            hours = int(avg_hours_per_pod)
-            minutes = int((avg_hours_per_pod - hours) * 60)
-            seconds = int((((avg_hours_per_pod - hours) * 60) - minutes) * 60)
-            avg_hours_per_pod_formatted = f"{hours:02}:{minutes:02}:{seconds:02}"
-        else:
-            avg_hours_per_pod_formatted = "N/A"
+
+        month_pods = CompletedPods.query.filter(
+            extract('year', CompletedPods.date) == yr,
+            extract('month', CompletedPods.date) == mo
+        ).all()
+
+        type_counts = {
+            TABLE_TYPE_CHAMPION: 0,
+            TABLE_TYPE_LITE: 0,
+        }
+        type_stats = {
+            TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
+            TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
+        }
+        for pod in month_pods:
+            pod_type = table_type_from_serial(pod.serial_number)
+            if pod_type not in type_counts:
+                pod_type = TABLE_TYPE_CHAMPION
+            type_counts[pod_type] += 1
+
+            duration = calculate_pod_duration(pod)
+            if duration is None:
+                continue
+            type_stats[pod_type]["seconds"] += duration.total_seconds()
+            type_stats[pod_type]["count"] += 1
+
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
             "count": total_pods,
-            "average_hours_per_pod": avg_hours_per_pod_formatted
+            "champion_count": type_counts[TABLE_TYPE_CHAMPION],
+            "lite_count": type_counts[TABLE_TYPE_LITE],
+            "avg_hours_champion": format_avg_duration(
+                type_stats[TABLE_TYPE_CHAMPION]["seconds"],
+                type_stats[TABLE_TYPE_CHAMPION]["count"]
+            ),
+            "avg_hours_lite": format_avg_duration(
+                type_stats[TABLE_TYPE_LITE]["seconds"],
+                type_stats[TABLE_TYPE_LITE]["count"]
+            )
         })
     
     # Retrieve production schedule targets for current month

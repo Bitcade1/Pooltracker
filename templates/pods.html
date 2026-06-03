@@ -186,6 +186,28 @@
       .type-breakdown table {
           margin-top: 10px;
       }
+      .pod-history-table th,
+      .pod-history-table td {
+          vertical-align: top;
+      }
+      .pod-history-table .serial-number-list {
+          max-width: 360px;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          text-align: left;
+          line-height: 1.35;
+          font-size: 0.85em;
+      }
+      @media (max-width: 600px) {
+          .pod-history-table {
+              min-width: 560px;
+          }
+          .pod-history-table .serial-number-list {
+              min-width: 180px;
+              max-width: 260px;
+          }
+      }
   </style>
   <script>
       function toggleCollapsible(id) {
@@ -427,11 +449,13 @@
     <!-- Collapsible Section for Daily History -->
     <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>
     <div id="dailyHistory" class="collapsible-content">
-      <table>
+      <table class="pod-history-table">
         <thead>
           <tr>
             <th>Date</th>
-            <th>Pods Made</th>
+            <th>Champion</th>
+            <th>Lite</th>
+            <th>Total</th>
             <th>Serial Numbers</th>
           </tr>
         </thead>
@@ -439,8 +463,10 @@
           {% for entry in daily_history %}
             <tr>
               <td>{{ entry.date }}</td>
+              <td>{{ entry.champion }}</td>
+              <td>{{ entry.lite }}</td>
               <td>{{ entry.count }}</td>
-              <td>{{ entry.serial_numbers }}</td>
+              <td class="serial-number-list">{{ entry.serial_numbers }}</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -454,22 +480,22 @@
         <thead>
           <tr>
             <th>Month</th>
-            <th>Total Pods Made</th>
-            <th>Average Hours per Pod</th>
+            <th>Champion</th>
+            <th>Lite</th>
+            <th>Total Pods</th>
+            <th>Avg Time (Champion)</th>
+            <th>Avg Time (Lite)</th>
           </tr>
         </thead>
         <tbody>
           {% for month in monthly_totals %}
             <tr>
               <td>{{ month.month }}</td>
+              <td>{{ month.champion_count }}</td>
+              <td>{{ month.lite_count }}</td>
               <td>{{ month.count }}</td>
-              <td>
-                {% if month.average_hours_per_pod %}
-                  {{ month.average_hours_per_pod }} hours
-                {% else %}
-                  N/A
-                {% endif %}
-              </td>
+              <td>{{ month.avg_hours_champion }}</td>
+              <td>{{ month.avg_hours_lite }}</td>
             </tr>
           {% endfor %}
         </tbody>
