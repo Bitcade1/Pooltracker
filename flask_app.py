@@ -4602,8 +4602,8 @@ CUSHION_WORKFLOW_STAGES = [
     },
     {
         "key": "cutting_rubber_1m_lengths",
-        "label": "Cutting Rubber 1o 1m lengths",
-        "short_label": "Cut Rubber 1m",
+        "label": "Cut Rubber into 1m legths",
+        "short_label": "Cut Rubber into 1m legths",
         "variant": CUSHION_STAGE_PLAIN,
         "unit_label": "lengths",
         "units_per_set": 6,
