@@ -79,7 +79,7 @@
     }
 
     .stat-card.next-serial {
-        grid-column: span 3;
+        grid-column: span 2;
         padding: 0.4rem 0.6rem;
         text-align: center;
         justify-content: center;
@@ -127,6 +127,37 @@
 
     .stat-card.highlight {
         border-left: 4px solid #27ae60;
+    }
+
+    .stat-card.avg-type-card {
+        grid-column: span 2;
+        align-items: flex-start;
+        justify-content: center;
+        text-align: left;
+    }
+
+    .stat-card.avg-type-card .stat-value {
+        font-size: 2rem;
+    }
+
+    .avg-comparison {
+        font-size: 0.95rem;
+        font-weight: 800;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+
+    .avg-comparison.faster {
+        color: #15803d;
+    }
+
+    .avg-comparison.slower {
+        color: #b91c1c;
+    }
+
+    .avg-comparison.same,
+    .avg-comparison.muted {
+        color: #64748b;
     }
 
     .bonus-panel {
@@ -442,7 +473,8 @@
         }
 
         .stat-card.wide,
-        .stat-card.next-serial {
+        .stat-card.next-serial,
+        .stat-card.avg-type-card {
             grid-column: 1 / -1;
         }
 
@@ -538,11 +570,14 @@
             <span class="stat-label">Next Serial ({{ default_size }})</span>
             <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
-        <div class="stat-card">
-            <span class="stat-label">Avg Time (This Month)</span>
-            <span class="stat-value">{{ avg_pod_time }}</span>
-            <span class="stat-label">Last pod: {{ last_pod_time }}</span>
-        </div>
+        {% for avg in pod_type_average_rows %}
+            <div class="stat-card avg-type-card">
+                <span class="stat-label">{{ avg.label }} Avg (This Month)</span>
+                <span class="stat-value">{{ avg.current_avg }}</span>
+                <span class="stat-label">{{ previous_month_label }}: {{ avg.last_month_avg }}</span>
+                <span class="avg-comparison {{ avg.comparison_class }}">{{ avg.comparison_text }}</span>
+            </div>
+        {% endfor %}
     </section>
 
     <section class="bonus-panel">

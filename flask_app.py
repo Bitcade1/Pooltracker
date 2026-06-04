@@ -8248,28 +8248,75 @@ def pod_dashboard_view():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    current_month_pods = CompletedPods.query.filter(
-        extract('year', CompletedPods.date) == today.year,
-        extract('month', CompletedPods.date) == today.month
-    ).all()
-    total_duration_seconds = 0
-    counted_pods = 0
-    last_pod_dt = None
-    last_pod_duration = None
-    for pod in current_month_pods:
-        duration = calculate_pod_duration(pod)
-        if duration is None:
-            continue
-        total_duration_seconds += duration.total_seconds()
-        counted_pods += 1
-        finish_obj = pod.finish_time if isinstance(pod.finish_time, time) else parse_time_string(pod.finish_time)
-        finish_dt = datetime.combine(pod.date, finish_obj) if finish_obj else pod.date
-        if last_pod_dt is None or finish_dt > last_pod_dt:
-            last_pod_dt = finish_dt
-            last_pod_duration = duration
+    previous_month = (start_of_month - timedelta(days=1)).replace(day=1)
 
-    avg_pod_time = format_avg_duration(total_duration_seconds, counted_pods)
-    last_pod_time = format_avg_duration(last_pod_duration.total_seconds(), 1) if last_pod_duration else "N/A"
+    def pod_type_stats_for_month(month_date):
+        month_pods = CompletedPods.query.filter(
+            extract('year', CompletedPods.date) == month_date.year,
+            extract('month', CompletedPods.date) == month_date.month
+        ).all()
+        type_stats = {
+            TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
+            TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
+        }
+        for pod in month_pods:
+            duration = calculate_pod_duration(pod)
+            if duration is None:
+                continue
+            pod_type = table_type_from_serial(pod.serial_number)
+            if pod_type not in type_stats:
+                pod_type = TABLE_TYPE_CHAMPION
+            type_stats[pod_type]["seconds"] += duration.total_seconds()
+            type_stats[pod_type]["count"] += 1
+        return type_stats
+
+    def average_seconds(type_stats):
+        if not type_stats["count"]:
+            return None
+        return type_stats["seconds"] / type_stats["count"]
+
+    def format_avg_seconds(avg_seconds):
+        if avg_seconds is None:
+            return "N/A"
+        return format_avg_duration(avg_seconds, 1)
+
+    def comparison_for_average(current_avg, previous_avg):
+        if current_avg is None or previous_avg is None:
+            return {
+                "text": "No last-month comparison",
+                "class": "muted"
+            }
+        difference = current_avg - previous_avg
+        if abs(difference) < 1:
+            return {
+                "text": "Same as last month",
+                "class": "same"
+            }
+        direction = "slower" if difference > 0 else "faster"
+        status_class = "slower" if difference > 0 else "faster"
+        return {
+            "text": f"{format_avg_duration(abs(difference), 1)} {direction}",
+            "class": status_class
+        }
+
+    current_type_stats = pod_type_stats_for_month(today)
+    previous_type_stats = pod_type_stats_for_month(previous_month)
+    pod_type_average_rows = []
+    for table_type, label in (
+        (TABLE_TYPE_CHAMPION, "Champion"),
+        (TABLE_TYPE_LITE, "Lite"),
+    ):
+        current_avg = average_seconds(current_type_stats[table_type])
+        previous_avg = average_seconds(previous_type_stats[table_type])
+        comparison = comparison_for_average(current_avg, previous_avg)
+        pod_type_average_rows.append({
+            "label": label,
+            "current_avg": format_avg_seconds(current_avg),
+            "last_month_avg": format_avg_seconds(previous_avg),
+            "comparison_text": comparison["text"],
+            "comparison_class": comparison["class"],
+        })
+
     bonus_progress = bonus_goal_progress("pods", today.year, today.month)
 
     return render_template(
@@ -8281,8 +8328,8 @@ def pod_dashboard_view():
         capacity_by_size=capacity_by_size,
         limiting_overall=limiting_overall,
         min_capacity=min_capacity,
-        avg_pod_time=avg_pod_time,
-        last_pod_time=last_pod_time,
+        pod_type_average_rows=pod_type_average_rows,
+        previous_month_label=previous_month.strftime("%B %Y"),
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month)
     )
