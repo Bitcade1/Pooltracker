@@ -612,20 +612,6 @@
         {% endif %}
     </section>
 
-    {% if min_capacity is not none and min_capacity <= 10 %}
-        <section class="warning-banner">
-            <strong>Production Capacity</strong>
-            {% if min_capacity < 5 %}
-                Critical: only {{ min_capacity }} pods can be assembled with current stock.
-            {% else %}
-                Warning: {{ min_capacity }} builds available before parts run out.
-            {% endif %}
-            {% if limiting_overall %}
-                Limiting parts: {{ limiting_overall | join(', ') }}.
-            {% endif %}
-        </section>
-    {% endif %}
-
     <div class="dashboard-body">
         <section class="panel parts-panel">
             <h3>Pod Parts Inventory</h3>
