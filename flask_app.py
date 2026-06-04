@@ -8499,6 +8499,57 @@ def body_dashboard_view():
         dur = latest_body_duration.get(worker)
         last_duration_display[worker] = format_avg_duration(dur.total_seconds(), 1) if dur else "N/A"
 
+    previous_month = (start_of_month - timedelta(days=1)).replace(day=1)
+
+    def average_seconds(stats):
+        if not stats["count"]:
+            return None
+        return stats["seconds"] / stats["count"]
+
+    def format_avg_seconds(avg_seconds):
+        if avg_seconds is None:
+            return "N/A"
+        return format_avg_duration(avg_seconds, 1)
+
+    def comparison_for_average(current_avg, previous_avg):
+        if current_avg is None or previous_avg is None:
+            return {
+                "text": "No last-month comparison",
+                "class": "muted"
+            }
+        difference = current_avg - previous_avg
+        if abs(difference) < 1:
+            return {
+                "text": "Same as last month",
+                "class": "same"
+            }
+        direction = "slower" if difference > 0 else "faster"
+        status_class = "slower" if difference > 0 else "faster"
+        return {
+            "text": f"{format_avg_duration(abs(difference), 1)} {direction}",
+            "class": status_class
+        }
+
+    def worker_stats_for_month(month_date, target_worker):
+        month_bodies = CompletedTable.query.filter(
+            extract('year', CompletedTable.date) == month_date.year,
+            extract('month', CompletedTable.date) == month_date.month
+        ).all()
+        stats = {"seconds": 0, "count": 0}
+        for body in month_bodies:
+            if map_to_worker(body.worker) != target_worker:
+                continue
+            duration = calculate_body_duration(body)
+            if duration is None:
+                continue
+            stats["seconds"] += duration.total_seconds()
+            stats["count"] += 1
+        return stats
+
+    jack_current_avg_seconds = average_seconds(worker_stats_current["Jack B"])
+    jack_last_month_avg_seconds = average_seconds(worker_stats_for_month(previous_month, "Jack B"))
+    jack_average_comparison = comparison_for_average(jack_current_avg_seconds, jack_last_month_avg_seconds)
+
     avg_champion_current_month = format_avg_duration(
         type_stats_current[TABLE_TYPE_CHAMPION]["seconds"],
         type_stats_current[TABLE_TYPE_CHAMPION]["count"]
@@ -8589,6 +8640,11 @@ def body_dashboard_view():
         avg_tom_current_month=avg_times_current_month.get("Tom", "N/A"),
         last_jack_duration=last_duration_display.get("Jack B", "N/A"),
         last_tom_duration=last_duration_display.get("Tom", "N/A"),
+        jack_avg_current_month=format_avg_seconds(jack_current_avg_seconds),
+        jack_avg_last_month=format_avg_seconds(jack_last_month_avg_seconds),
+        jack_avg_comparison_text=jack_average_comparison["text"],
+        jack_avg_comparison_class=jack_average_comparison["class"],
+        previous_month_label=previous_month.strftime("%B %Y"),
         avg_champion_current_month=avg_champion_current_month,
         avg_lite_current_month=avg_lite_current_month,
         last_champion_duration=last_champion_duration,

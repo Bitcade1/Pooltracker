@@ -300,6 +300,26 @@
         line-height: 1.1;
     }
 
+    .avg-comparison {
+        font-size: 0.95rem;
+        font-weight: 800;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+
+    .avg-comparison.faster {
+        color: #15803d;
+    }
+
+    .avg-comparison.slower {
+        color: #b91c1c;
+    }
+
+    .avg-comparison.same,
+    .avg-comparison.muted {
+        color: #64748b;
+    }
+
     .parts-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
@@ -559,6 +579,18 @@
         {% else %}
             <div class="bonus-empty">No body bonus goals are set for this month yet.</div>
         {% endif %}
+    </section>
+
+    <section class="panel">
+        <h3>Jack B Average Time (This Month)</h3>
+        <div class="avg-times">
+            <div class="avg-card">
+                <span class="label">Jack B</span>
+                <span class="value">{{ jack_avg_current_month }}</span>
+                <span class="label">{{ previous_month_label }}: {{ jack_avg_last_month }}</span>
+                <span class="avg-comparison {{ jack_avg_comparison_class }}">{{ jack_avg_comparison_text }}</span>
+            </div>
+        </div>
     </section>
 
     <section class="panel">
