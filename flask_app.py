@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, OperationalError
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta, date, time, timezone
 from collections import defaultdict  # Ensure defaultdict is imported
 from calendar import monthrange
 from sqlalchemy import func, extract, and_, or_, text
@@ -128,19 +128,65 @@ def safe_stock_snapshot_file_path(filename):
     return candidate
 
 
+def last_sunday(year, month):
+    last_day = monthrange(year, month)[1]
+    target = date(year, month, last_day)
+    return target - timedelta(days=(target.weekday() + 1) % 7)
+
+
+def is_bst_utc(utc_value):
+    bst_start = datetime.combine(last_sunday(utc_value.year, 3), time(1, 0))
+    bst_end = datetime.combine(last_sunday(utc_value.year, 10), time(1, 0))
+    return bst_start <= utc_value < bst_end
+
+
+def is_bst_london_local(local_value):
+    bst_start = datetime.combine(last_sunday(local_value.year, 3), time(2, 0))
+    bst_end = datetime.combine(last_sunday(local_value.year, 10), time(2, 0))
+    return bst_start <= local_value < bst_end
+
+
 def london_now():
     utc_now = datetime.utcnow()
+    return utc_now + (timedelta(hours=1) if is_bst_utc(utc_now) else timedelta())
 
-    def last_sunday(year, month):
-        last_day = monthrange(year, month)[1]
-        target = date(year, month, last_day)
-        return target - timedelta(days=(target.weekday() + 1) % 7)
 
-    bst_start = datetime.combine(last_sunday(utc_now.year, 3), time(1, 0))
-    bst_end = datetime.combine(last_sunday(utc_now.year, 10), time(1, 0))
-    if bst_start <= utc_now < bst_end:
-        return utc_now + timedelta(hours=1)
-    return utc_now
+def utc_to_london(value):
+    if not value:
+        return None
+    if value.tzinfo is not None:
+        value = value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value + (timedelta(hours=1) if is_bst_utc(value) else timedelta())
+
+
+@app.template_filter('london_time')
+def london_time_filter(value, fmt="%H:%M"):
+    local_value = utc_to_london(value)
+    return local_value.strftime(fmt) if local_value else "-"
+
+
+def london_period_utc_bounds(year, month=None, day=None):
+    if day is not None:
+        start_date = date(int(year), int(month), int(day))
+        end_date = start_date + timedelta(days=1)
+    elif month is not None:
+        start_date = date(int(year), int(month), 1)
+        if int(month) == 12:
+            end_date = date(int(year) + 1, 1, 1)
+        else:
+            end_date = date(int(year), int(month) + 1, 1)
+    else:
+        start_date = date(int(year), 1, 1)
+        end_date = date(int(year) + 1, 1, 1)
+
+    start_local = datetime.combine(start_date, time.min)
+    end_local = datetime.combine(end_date, time.min)
+    start_offset = timedelta(hours=1) if is_bst_london_local(start_local) else timedelta()
+    end_offset = timedelta(hours=1) if is_bst_london_local(end_local) else timedelta()
+    return (
+        start_local - start_offset,
+        end_local - end_offset,
+    )
 
 # Shared serial parsing helper (works with formats like "1059 - 6 - RB").
 def serial_is_6ft(serial):
@@ -601,12 +647,20 @@ def cnc_completed_quantity_total(year=None, month=None, day=None):
         CncQueueItem.status == CNC_STATUS_COMPLETED,
         CncQueueItem.completed_at.isnot(None),
     ]
-    if year is not None:
-        filters.append(extract('year', CncQueueItem.completed_at) == year)
-    if month is not None:
-        filters.append(extract('month', CncQueueItem.completed_at) == month)
-    if day is not None:
-        filters.append(extract('day', CncQueueItem.completed_at) == day)
+    if year is not None or month is not None or day is not None:
+        now = london_now()
+        target_year = int(year or now.year)
+        target_month = int(month or now.month)
+        if day is not None:
+            start_utc, end_utc = london_period_utc_bounds(target_year, target_month, int(day))
+        elif month is not None:
+            start_utc, end_utc = london_period_utc_bounds(target_year, target_month)
+        else:
+            start_utc, end_utc = london_period_utc_bounds(target_year)
+        filters.extend([
+            CncQueueItem.completed_at >= start_utc,
+            CncQueueItem.completed_at < end_utc,
+        ])
 
     total = (
         db.session.query(func.coalesce(func.sum(CncJob.quantity), 0))
@@ -8696,15 +8750,15 @@ def cnc_dashboard():
 
     ensure_cnc_tables()
     queues = _cnc_queue_snapshot()
-    today = date.today()
+    today = london_now().date()
+    today_start_utc, today_end_utc = london_period_utc_bounds(today.year, today.month, today.day)
     completed_base_filters = (
         CncQueueItem.status == CNC_STATUS_COMPLETED,
         CncQueueItem.completed_at.isnot(None),
     )
     completed_today_filters = completed_base_filters + (
-        extract('year', CncQueueItem.completed_at) == today.year,
-        extract('month', CncQueueItem.completed_at) == today.month,
-        extract('day', CncQueueItem.completed_at) == today.day,
+        CncQueueItem.completed_at >= today_start_utc,
+        CncQueueItem.completed_at < today_end_utc,
     )
     completed_today_count = cnc_completed_quantity_total(year=today.year, month=today.month, day=today.day)
     completed_month_count = cnc_completed_quantity_total(year=today.year, month=today.month)

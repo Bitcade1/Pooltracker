@@ -737,7 +737,7 @@
             </div>
             {% for item in completed_today %}
                 <div class="completed-row">
-                    <div>{{ item.completed_at.strftime('%H:%M') if item.completed_at else '-' }}</div>
+                    <div>{{ item.completed_at|london_time('%H:%M') }}</div>
                     <div>CNC {{ item.machine_number }}</div>
                     <div>{{ item.job.name }} (Qty {{ item.job.quantity }})</div>
                     <div>{{ item.completed_by or '-' }}</div>
