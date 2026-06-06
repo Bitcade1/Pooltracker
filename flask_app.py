@@ -11594,7 +11594,11 @@ def order_chinese_parts():
 
     def part_cost_ex_vat(part_name):
         key = f"parts_inventory__{slugify_key(part_name)}"
-        entry = StockItemCost.query.filter_by(item_key=key).first()
+        try:
+            entry = StockItemCost.query.filter_by(item_key=key).first()
+        except OperationalError:
+            db.session.rollback()
+            return 0.0
         if not entry:
             return 0.0
         # Use material-only (unit + shipping); exclude labour from order cost
@@ -11910,6 +11914,7 @@ def order_chinese_parts():
 
     payments = []
     total_paid = 0.0
+    total_upfront_due = 0.0
     total_balance_due = 0.0
     for key in ["metal", "plastic", "feet", "filament", "sticker", "shipper"]:
         saved_entry = saved_payments.get(key, {})
@@ -11928,6 +11933,7 @@ def order_chinese_parts():
         balance_due_upfront = max(0.0, upfront_required - paid_so_far)
         balance_due_total = max(0.0, order_total - paid_so_far)
         total_paid += paid_so_far
+        total_upfront_due += balance_due_upfront
         total_balance_due += balance_due_total
         payments.append({
             "key": key,
@@ -11946,6 +11952,7 @@ def order_chinese_parts():
         arrival_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "total_paid": total_paid,
+            "total_upfront_due": total_upfront_due,
             "total_balance_due": total_balance_due,
             "payments": [
                 {
@@ -11971,6 +11978,7 @@ def order_chinese_parts():
         arrivals.append({
             "display_time": display_time,
             "total_paid": entry.get("total_paid", 0.0),
+            "total_upfront_due": entry.get("total_upfront_due"),
             "total_balance_due": entry.get("total_balance_due", 0.0),
             "payments": entry.get("payments", []),
         })
@@ -12024,10 +12032,13 @@ def order_chinese_parts():
         metal_parts=metal_parts,
         plastic_rows=plastic_rows,
         gullies_summary=gullies_summary,
+        metal_total_order_cost=metal_total_order_cost,
+        plastic_total_order_cost=plastic_total_order_cost,
         chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
         chinese_parts_order_more_threshold=CHINESE_PARTS_ORDER_MORE_THRESHOLD,
         payments=payments,
         total_paid=total_paid,
+        total_upfront_due=total_upfront_due,
         total_balance_due=total_balance_due,
         arrivals=arrivals
     )

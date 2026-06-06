@@ -3,310 +3,902 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>What Do I Need to Order from China?</title>
+    <title>Chinese Parts Planning</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        .container {
-            max-width: 900px;
-            margin: 20px auto;
-            padding: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            padding: 10px;
-            border: 1px solid #ccc;
-            text-align: center;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        .form-section {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        input[type="number"] {
-            padding: 5px;
-            width: 90px;
-        }
-        .btn {
-            padding: 8px 16px;
-            margin-top: 10px;
-        }
-        .highlight {
-            font-weight: bold;
-            color: green;
-        }
-        .total-cost {
-            margin-top: 10px;
-            font-weight: bold;
-        }
-        .gully-inputs {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 6px;
-            text-align: left;
-        }
-        .gully-label {
+        body {
             display: block;
-            font-size: 0.9em;
+            background: #eef2f6;
+            color: #1f2937;
+            font-family: Arial, sans-serif;
+            align-items: initial;
+            justify-content: initial;
+            overflow-x: hidden;
         }
-        .gully-label input {
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: min(96%, 1280px);
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 24px 0 84px;
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            text-align: left;
+            overflow: visible;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .page-title {
+            margin: 0;
+            color: #172033;
+            font-size: 2rem;
+            line-height: 1.15;
+        }
+
+        .page-subtitle {
+            margin: 8px 0 0;
+            max-width: 760px;
+            color: #52606d;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            padding: 0 14px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            color: #ffffff;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            line-height: 1.2;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+
+        .btn-primary {
+            background: #0f6bcb;
+        }
+
+        .btn-primary:hover {
+            background: #0b579f;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #cfd7e3;
+            color: #1f2937;
+        }
+
+        .btn-secondary:hover {
+            background: #f4f7fb;
+        }
+
+        form.planning-form {
+            display: block;
+            margin: 0;
+        }
+
+        .flash-messages {
+            margin: 0 0 16px;
+        }
+
+        .flash {
+            margin: 0 0 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #d8dee8;
+            background: #ffffff;
+            color: #1f2937;
+        }
+
+        .flash.success {
+            border-color: #badbcc;
+            background: #eaf7ef;
+            color: #0f5132;
+        }
+
+        .flash.error {
+            border-color: #f1b7bd;
+            background: #fdecef;
+            color: #842029;
+        }
+
+        .flash.warning {
+            border-color: #f2d388;
+            background: #fff7df;
+            color: #704d00;
+        }
+
+        .panel {
             width: 100%;
-            margin-top: 4px;
+            max-width: 100%;
+            background: #ffffff;
+            border: 1px solid #dce3ec;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            overflow: hidden;
         }
-        .subtle {
-            font-size: 0.85em;
-            color: #555;
+
+        .target-panel {
+            margin-bottom: 14px;
         }
-        .order-warning {
-            margin-top: 4px;
-            color: #b00020;
-            font-weight: bold;
-        }
-        .supplier-summary {
+
+        .target-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px;
+            grid-template-columns: minmax(210px, 300px) 1fr auto;
+            gap: 14px;
             align-items: end;
-            margin: 8px 0 12px;
         }
-        .supplier-summary label {
-            font-weight: bold;
+
+        .field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #334155;
+            font-weight: 700;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            min-height: 40px;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            background: #ffffff;
+            color: #111827;
+            font-size: 1rem;
+            text-align: right;
+        }
+
+        input[type="number"]:focus {
+            border-color: #0f6bcb;
+            outline: 2px solid rgba(15, 107, 203, 0.15);
+        }
+
+        .target-copy strong {
             display: block;
             margin-bottom: 4px;
+            color: #172033;
         }
-        .supplier-value {
-            font-weight: bold;
+
+        .target-copy span,
+        .muted {
+            color: #64748b;
+            font-size: 0.9rem;
+            overflow-wrap: anywhere;
         }
-        .payments-section {
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 2px solid #ddd;
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
         }
-        .payments-table th,
-        .payments-table td {
+
+        .summary-tile {
+            min-height: 92px;
+            padding: 14px;
+            background: #ffffff;
+            border: 1px solid #dce3ec;
+            border-radius: 8px;
+        }
+
+        .summary-label {
+            margin-bottom: 8px;
+            color: #64748b;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .summary-value {
+            color: #111827;
+            font-size: 1.55rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .summary-value.good {
+            color: #126b39;
+        }
+
+        .summary-value.warning {
+            color: #a34700;
+        }
+
+        .summary-note {
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 0.84rem;
+            line-height: 1.35;
+        }
+
+        .supplier-section {
+            margin-top: 14px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 12px;
+            min-width: 0;
+        }
+
+        .section-header > div {
+            min-width: 0;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            color: #172033;
+            font-size: 1.3rem;
+        }
+
+        .section-subtitle {
+            margin: 5px 0 0;
+            color: #64748b;
+            font-size: 0.9rem;
+            overflow-wrap: anywhere;
+        }
+
+        .supplier-total {
+            min-width: 160px;
+            padding: 9px 10px;
+            border: 1px solid #dce3ec;
+            border-radius: 8px;
+            background: #f8fafc;
+            text-align: right;
+        }
+
+        .supplier-total span {
+            display: block;
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .supplier-total strong {
+            color: #111827;
+            font-size: 1.15rem;
+        }
+
+        .table-wrap {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .inventory-table,
+        .payments-table,
+        .log-table {
+            width: 100%;
+            min-width: 980px;
+            margin: 0;
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid #dce3ec;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #ffffff;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .payments-table {
+            min-width: 1050px;
+        }
+
+        .log-table {
+            min-width: 620px;
+        }
+
+        th,
+        td {
+            padding: 10px 12px;
+            border: 0;
+            border-bottom: 1px solid #e6edf5;
+            text-align: right;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        tbody tr:hover td {
+            background: #f8fbff;
+        }
+
+        .part-name,
+        .supplier-name,
+        th:first-child,
+        td:first-child {
             text-align: left;
         }
-        .payments-table input[type="number"] {
-            width: 120px;
+
+        .inventory-table .part-name,
+        .inventory-table th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 1;
+            background: inherit;
+            box-shadow: 1px 0 0 #e6edf5;
+            min-width: 220px;
+            max-width: 300px;
+            white-space: normal;
         }
-        .arrival-log {
-            margin-top: 18px;
+
+        .inventory-table th:first-child {
+            z-index: 2;
+            background: #f1f5f9;
+        }
+
+        .shortage-row td {
+            background: #fff8ed;
+        }
+
+        .on-order-input,
+        .money-input {
+            width: 110px;
+        }
+
+        .build-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .build-value {
+            color: #111827;
+            font-weight: 800;
+        }
+
+        .qty-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-weight: 800;
+        }
+
+        .qty-ok {
+            background: #eaf7ef;
+            color: #126b39;
+        }
+
+        .qty-warning {
+            background: #fff0d9;
+            color: #a34700;
+        }
+
+        .order-warning {
+            display: inline-flex;
+            margin-top: 4px;
+            padding: 3px 7px;
+            border-radius: 999px;
+            background: #fdecef;
+            color: #b00020;
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .total-strip {
+            display: flex;
+            justify-content: flex-end;
+            gap: 18px;
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f8fafc;
+            color: #334155;
+            font-weight: 700;
+        }
+
+        .payment-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+
+        .log-panel {
+            margin-top: 14px;
+        }
+
+        .log-panel summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            font-weight: 800;
+            color: #172033;
+            list-style: none;
+        }
+
+        .log-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .log-panel summary::after {
+            content: "Show";
+            color: #0f6bcb;
+            font-size: 0.88rem;
+        }
+
+        .log-panel[open] summary::after {
+            content: "Hide";
+        }
+
+        .log-content {
+            margin-top: 12px;
+        }
+
+        .sticky-actions {
+            position: sticky;
+            bottom: 0;
+            z-index: 5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-top: 16px;
+            padding: 12px;
+            border: 1px solid #cfd7e3;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.08);
+        }
+
+        .sticky-copy strong {
+            display: block;
+            color: #172033;
+        }
+
+        .sticky-copy span {
+            color: #64748b;
+            font-size: 0.88rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        @media (max-width: 1100px) {
+            .summary-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 760px) {
+            .container {
+                width: 100%;
+                padding: 16px 12px 48px;
+            }
+
+            .page-header,
+            .section-header,
+            .sticky-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .sticky-actions {
+                position: static;
+            }
+
+            .target-row,
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-tile {
+                min-height: auto;
+            }
+
+            .page-subtitle {
+                max-width: 38ch;
+            }
+
+            .target-copy,
+            .section-header > div:first-child {
+                max-width: 36ch;
+            }
+
+            .supplier-total {
+                width: auto;
+                text-align: left;
+            }
+
+            .btn,
+            .action-buttons,
+            .action-buttons .btn,
+            .payment-actions,
+            .payment-actions .btn {
+                width: 100%;
+            }
+
+            .total-strip {
+                flex-direction: column;
+                gap: 6px;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>What Do I Need to Order from China?</h1>
-        <p>Current stock and how many tables you can build. Enter target tables and saved on-order figures to see combined totals.</p>
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Chinese Parts Planning</h1>
+                <p class="page-subtitle">Plan stock, saved orders, supplier costs, and payments.</p>
+            </div>
+            <a href="{{ url_for('home') }}" class="btn btn-secondary">Back to Main Menu</a>
+        </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
             {% endif %}
         {% endwith %}
 
-        <form method="post">
-            <div class="form-section">
-                <label for="target_tables"><strong>Target Tables:</strong></label>
-                <input type="number" id="target_tables" name="target_tables" min="1" required value="{{ target_table_count or '' }}">
-                <button type="submit" class="btn btn-primary">Calculate</button>
-            </div>
-
-            <h3>Tables buildable now (stock only): <span class="highlight">{{ max_tables_possible }}</span></h3>
-            <h4>Tables buildable including on-order: <span class="highlight">{{ max_tables_possible_with_on_order }}</span></h4>
-
-            <h3>Metal Supplier</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Part</th>
-                        <th>Stock</th>
-                        <th>Saved On Order</th>
-                        <th>Total Available</th>
-                        <th>Per Table</th>
-                        <th>Can Build (stock + on-order)</th>
-                        <th>Cost Each (ex VAT)</th>
-                        {% if target_table_count %}
-                        <th>Need to Order</th>
-                        <th>Order Cost</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in metal_parts %}
-                    <tr>
-                        <td>{{ row.display_name }}</td>
-                        <td>{{ row.stock }}</td>
-                        <td>
-                            <input type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0">
-                        </td>
-                        <td>{{ row.total_available }}</td>
-                        <td>{{ row.per_table }}</td>
-                        <td>{{ row.can_build }} <span class="subtle">(now: {{ row.can_build_now }})</span></td>
-                        <td>&pound;{{ row.cost_each|format_number }}</td>
-                        {% if target_table_count %}
-                        <td>{{ row.need_to_order }}</td>
-                        <td>&pound;{{ row.order_cost|format_number }}</td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-
-            <h3>Plastic Supplier</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Part</th>
-                        <th>Stock</th>
-                        <th>Saved On Order</th>
-                        <th>Total Available</th>
-                        <th>Per Table</th>
-                        <th>Can Build (stock + on-order)</th>
-                        <th>Cost Each (ex VAT)</th>
-                        {% if target_table_count %}
-                        <th>Need to Order</th>
-                        <th>Order Cost</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in plastic_rows %}
-                        {% if row.type == 'gullies' %}
-                        {% set g = row.data %}
-                        <tr>
-                            <td>{{ g.name }}</td>
-                            <td>{{ g.stock }}</td>
-                            <td>
-                                <input type="number" name="gullies_on_order_units" value="{{ g.on_order_units or 0 }}" min="0">
-                            </td>
-                            <td>{{ g.total_available }}</td>
-                            <td>{{ g.per_table }}</td>
-                            <td>{{ g.can_build }} <span class="subtle">(now: {{ g.can_build_now }})</span></td>
-                            <td>-</td>
-                            {% if target_table_count %}
-                            <td>{{ g.need_to_order }}</td>
-                            <td>&pound;{{ g.order_cost|format_number if g.order_cost is not none else "0.00" }}</td>
-                            {% endif %}
-                        </tr>
-                        {% else %}
-                        {% set p = row.data %}
-                        <tr>
-                            <td>{{ p.display_name }}</td>
-                            <td>{{ p.stock }}</td>
-                            <td>
-                                <input type="number" name="on_order_{{ p.name|slugify_key }}" value="{{ p.on_order }}" min="0">
-                            </td>
-                            <td>{{ p.total_available }}</td>
-                            <td>{{ p.per_table }}</td>
-                            <td>
-                                {{ p.can_build }} <span class="subtle">(now: {{ p.can_build_now }})</span>
-                                {% if p.name == chinese_parts_order_more_part and p.can_build < chinese_parts_order_more_threshold %}
-                                    <div class="order-warning">Order more Chinese parts</div>
-                                {% endif %}
-                            </td>
-                            <td>&pound;{{ p.cost_each|format_number }}</td>
-                            {% if target_table_count %}
-                            <td>{{ p.need_to_order }}</td>
-                            <td>&pound;{{ p.order_cost|format_number }}</td>
-                            {% endif %}
-                        </tr>
-                        {% endif %}
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% if target_table_count %}
-            <div class="total-cost">
-                Total Order Cost (ex VAT): &pound;{{ total_order_cost|format_number }}
-            </div>
-            {% endif %}
-
-            <div class="payments-section">
-                <h3>Payment Tracking</h3>
-                <table class="payments-table">
-                    <thead>
-                        <tr>
-                            <th>Supplier</th>
-                            <th>Order Total (ex VAT)</th>
-                            <th>Upfront %</th>
-                            <th>Upfront Amount</th>
-                            <th>Paid so far</th>
-                            <th>Balance due</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for payment in payments %}
-                        <tr>
-                            <td>{{ payment.label }}</td>
-                            <td>&pound;{{ payment.order_total|format_number }}</td>
-                            <td>{{ payment.upfront_percent }}%</td>
-                            <td>&pound;{{ payment.upfront_required|format_number }}</td>
-                            <td>
-                                <input type="number" name="{{ payment.key }}_paid_so_far" min="0" step="0.01" value="{{ '%.2f'|format(payment.paid_so_far or 0) }}">
-                            </td>
-                            <td>&pound;{{ payment.balance_due|format_number }}</td>
-                            <td>
-                                {% if payment.show_paid_all %}
-                                    <button type="submit" class="btn btn-primary" name="action" value="paid_all:{{ payment.key }}" formnovalidate>Paid All</button>
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <div class="total-cost">
-                    Total Paid: &pound;{{ total_paid|format_number }} | Total to Pay Now: &pound;{{ total_balance_due|format_number }}
+        <form method="post" class="planning-form">
+            <section class="panel target-panel">
+                <div class="target-row">
+                    <div class="field">
+                        <label for="target_tables">Target tables</label>
+                        <input type="number" id="target_tables" name="target_tables" min="1" required inputmode="numeric" value="{{ target_table_count or '' }}">
+                    </div>
+                    <div class="target-copy">
+                        <strong>Update the target to calculate shortages.</strong>
+                        <span>Saved on-order figures are included in buildable totals and order cost.</span>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update Plan</button>
                 </div>
-                <div class="form-section">
-                    <button type="submit" class="btn btn-primary" name="action" value="save_payments" formnovalidate>Save Payments</button>
-                    <button type="submit" class="btn btn-primary" name="action" value="parts_arrived" formnovalidate>Parts Arrived</button>
-                </div>
-            </div>
+            </section>
 
-            <div class="payments-section arrival-log">
-                <h3>Arrival Log</h3>
-                {% if arrivals and arrivals|length > 0 %}
-                    <table class="payments-table">
+            <section class="summary-grid" aria-label="Planning summary">
+                <div class="summary-tile">
+                    <div class="summary-label">Target</div>
+                    <div class="summary-value">{{ target_table_count if target_table_count is not none else '-' }}</div>
+                    <div class="summary-note">Tables to cover</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Buildable Now</div>
+                    <div class="summary-value good">{{ max_tables_possible }}</div>
+                    <div class="summary-note">Stock only</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">With On-Order</div>
+                    <div class="summary-value good">{{ max_tables_possible_with_on_order }}</div>
+                    <div class="summary-note">Stock plus saved orders</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Order Cost</div>
+                    <div class="summary-value">&pound;{{ total_order_cost|format_number }}</div>
+                    <div class="summary-note">Ex VAT{% if target_table_count is none %}; set a target first{% endif %}</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Upfront Due</div>
+                    <div class="summary-value warning">&pound;{{ total_upfront_due|format_number }}</div>
+                    <div class="summary-note">Deposit still required</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Remaining Balance</div>
+                    <div class="summary-value">&pound;{{ total_balance_due|format_number }}</div>
+                    <div class="summary-note">Total unpaid amount</div>
+                </div>
+            </section>
+
+            <section class="panel supplier-section">
+                <div class="section-header">
+                    <div>
+                        <h2>Metal Supplier</h2>
+                        <p class="section-subtitle">Current stock, saved orders, and shortages by part.</p>
+                    </div>
+                    {% if target_table_count is not none %}
+                    <div class="supplier-total">
+                        <span>Order Cost</span>
+                        <strong>&pound;{{ metal_total_order_cost|format_number }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="table-wrap">
+                    <table class="inventory-table">
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Total Paid</th>
-                                <th>Total to Pay Now</th>
+                                <th>Part</th>
+                                <th>Stock</th>
+                                <th>Saved On Order</th>
+                                <th>Total Available</th>
+                                <th>Per Table</th>
+                                <th>Can Build</th>
+                                <th>Cost Each</th>
+                                {% if target_table_count is not none %}
+                                <th>Need to Order</th>
+                                <th>Order Cost</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
-                            {% for entry in arrivals|reverse %}
-                            <tr>
-                                <td>{{ entry.display_time }}</td>
-                                <td>&pound;{{ entry.total_paid|format_number }}</td>
-                                <td>&pound;{{ entry.total_balance_due|format_number }}</td>
+                            {% for row in metal_parts %}
+                            <tr class="{% if target_table_count is not none and row.need_to_order > 0 %}shortage-row{% endif %}">
+                                <td class="part-name">{{ row.display_name }}</td>
+                                <td>{{ row.stock }}</td>
+                                <td>
+                                    <input class="on-order-input" type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0" inputmode="numeric">
+                                </td>
+                                <td>{{ row.total_available }}</td>
+                                <td>{{ row.per_table }}</td>
+                                <td>
+                                    <span class="build-stack">
+                                        <span class="build-value">{{ row.can_build }}</span>
+                                        <span class="muted">now: {{ row.can_build_now }}</span>
+                                    </span>
+                                </td>
+                                <td>&pound;{{ row.cost_each|format_number }}</td>
+                                {% if target_table_count is not none %}
+                                <td>
+                                    <span class="qty-pill {% if row.need_to_order > 0 %}qty-warning{% else %}qty-ok{% endif %}">{{ row.need_to_order }}</span>
+                                </td>
+                                <td>&pound;{{ row.order_cost|format_number }}</td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
-                {% else %}
-                    <p>No arrivals logged yet.</p>
-                {% endif %}
-            </div>
+                </div>
+            </section>
 
-            <div class="form-section">
-                <button type="submit" class="btn btn-primary">Save On-Order Figures</button>
+            <section class="panel supplier-section">
+                <div class="section-header">
+                    <div>
+                        <h2>Plastic Supplier</h2>
+                        <p class="section-subtitle">Plastic parts and gullies grouped for ordering.</p>
+                    </div>
+                    {% if target_table_count is not none %}
+                    <div class="supplier-total">
+                        <span>Order Cost</span>
+                        <strong>&pound;{{ plastic_total_order_cost|format_number }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="table-wrap">
+                    <table class="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>Part</th>
+                                <th>Stock</th>
+                                <th>Saved On Order</th>
+                                <th>Total Available</th>
+                                <th>Per Table</th>
+                                <th>Can Build</th>
+                                <th>Cost Each</th>
+                                {% if target_table_count is not none %}
+                                <th>Need to Order</th>
+                                <th>Order Cost</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in plastic_rows %}
+                                {% if row.type == 'gullies' %}
+                                {% set g = row.data %}
+                                <tr class="{% if target_table_count is not none and g.need_to_order > 0 %}shortage-row{% endif %}">
+                                    <td class="part-name">{{ g.name }}</td>
+                                    <td>{{ g.stock }}</td>
+                                    <td>
+                                        <input class="on-order-input" type="number" name="gullies_on_order_units" value="{{ g.on_order_units or 0 }}" min="0" inputmode="numeric">
+                                    </td>
+                                    <td>{{ g.total_available }}</td>
+                                    <td>{{ g.per_table }}</td>
+                                    <td>
+                                        <span class="build-stack">
+                                            <span class="build-value">{{ g.can_build }}</span>
+                                            <span class="muted">now: {{ g.can_build_now }}</span>
+                                        </span>
+                                    </td>
+                                    <td><span class="muted">-</span></td>
+                                    {% if target_table_count is not none %}
+                                    <td>
+                                        <span class="qty-pill {% if g.need_to_order > 0 %}qty-warning{% else %}qty-ok{% endif %}">{{ g.need_to_order }}</span>
+                                    </td>
+                                    <td>&pound;{{ g.order_cost|format_number if g.order_cost is not none else "0.00" }}</td>
+                                    {% endif %}
+                                </tr>
+                                {% else %}
+                                {% set p = row.data %}
+                                <tr class="{% if target_table_count is not none and p.need_to_order > 0 %}shortage-row{% endif %}">
+                                    <td class="part-name">{{ p.display_name }}</td>
+                                    <td>{{ p.stock }}</td>
+                                    <td>
+                                        <input class="on-order-input" type="number" name="on_order_{{ p.name|slugify_key }}" value="{{ p.on_order }}" min="0" inputmode="numeric">
+                                    </td>
+                                    <td>{{ p.total_available }}</td>
+                                    <td>{{ p.per_table }}</td>
+                                    <td>
+                                        <span class="build-stack">
+                                            <span class="build-value">{{ p.can_build }}</span>
+                                            <span class="muted">now: {{ p.can_build_now }}</span>
+                                        </span>
+                                        {% if p.name == chinese_parts_order_more_part and p.can_build < chinese_parts_order_more_threshold %}
+                                            <span class="order-warning">Order more Chinese parts</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>&pound;{{ p.cost_each|format_number }}</td>
+                                    {% if target_table_count is not none %}
+                                    <td>
+                                        <span class="qty-pill {% if p.need_to_order > 0 %}qty-warning{% else %}qty-ok{% endif %}">{{ p.need_to_order }}</span>
+                                    </td>
+                                    <td>&pound;{{ p.order_cost|format_number }}</td>
+                                    {% endif %}
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if target_table_count is not none %}
+                <div class="total-strip">
+                    <span>Total order cost ex VAT: &pound;{{ total_order_cost|format_number }}</span>
+                    <span>Target: {{ target_table_count }} tables</span>
+                </div>
+                {% endif %}
+            </section>
+
+            <section class="panel supplier-section">
+                <div class="section-header">
+                    <div>
+                        <h2>Payment Tracking</h2>
+                        <p class="section-subtitle">Track deposits, payments, and remaining balance.</p>
+                    </div>
+                    <div class="supplier-total">
+                        <span>Total Paid</span>
+                        <strong>&pound;{{ total_paid|format_number }}</strong>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table class="payments-table">
+                        <thead>
+                            <tr>
+                                <th>Supplier</th>
+                                <th>Order Total</th>
+                                <th>Upfront %</th>
+                                <th>Upfront Required</th>
+                                <th>Paid So Far</th>
+                                <th>Upfront Due</th>
+                                <th>Remaining Balance</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in payments %}
+                            <tr>
+                                <td class="supplier-name">{{ payment.label }}</td>
+                                <td>&pound;{{ payment.order_total|format_number }}</td>
+                                <td>{{ payment.upfront_percent }}%</td>
+                                <td>&pound;{{ payment.upfront_required|format_number }}</td>
+                                <td>
+                                    <input class="money-input" type="number" name="{{ payment.key }}_paid_so_far" min="0" step="0.01" value="{{ '%.2f'|format(payment.paid_so_far or 0) }}">
+                                </td>
+                                <td>&pound;{{ payment.balance_due_upfront|format_number }}</td>
+                                <td>&pound;{{ payment.balance_due|format_number }}</td>
+                                <td>
+                                    {% if payment.show_paid_all %}
+                                        <button type="submit" class="btn btn-primary" name="action" value="paid_all:{{ payment.key }}" formnovalidate>Paid All</button>
+                                    {% else %}
+                                        <span class="muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="total-strip">
+                    <span>Upfront due now: &pound;{{ total_upfront_due|format_number }}</span>
+                    <span>Remaining balance: &pound;{{ total_balance_due|format_number }}</span>
+                </div>
+            </section>
+
+            <details class="panel log-panel">
+                <summary>
+                    <span>Arrival Log</span>
+                    <span class="muted">{{ arrivals|length }} entries</span>
+                </summary>
+                <div class="log-content">
+                    {% if arrivals and arrivals|length > 0 %}
+                        <div class="table-wrap">
+                            <table class="log-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Total Paid</th>
+                                        <th>Upfront Due</th>
+                                        <th>Remaining Balance</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in arrivals|reverse %}
+                                    <tr>
+                                        <td>{{ entry.display_time }}</td>
+                                        <td>&pound;{{ entry.total_paid|format_number }}</td>
+                                        <td>
+                                            {% if entry.total_upfront_due is not none %}
+                                                &pound;{{ entry.total_upfront_due|format_number }}
+                                            {% else %}
+                                                <span class="muted">Not recorded</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>&pound;{{ entry.total_balance_due|format_number }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="muted">No arrivals logged yet.</p>
+                    {% endif %}
+                </div>
+            </details>
+
+            <div class="sticky-actions">
+                <div class="sticky-copy">
+                    <strong>Save changes</strong>
+                    <span>Use this after editing on-order quantities or payment amounts.</span>
+                </div>
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-primary">Save On-Order Figures</button>
+                    <button type="submit" class="btn btn-secondary" name="action" value="save_payments" formnovalidate>Save Payments</button>
+                    <button type="submit" class="btn btn-secondary" name="action" value="parts_arrived" formnovalidate>Parts Arrived</button>
+                </div>
             </div>
         </form>
-
-        <div class="form-section">
-            <a href="{{ url_for('home') }}" class="btn">Back to Main Menu</a>
-        </div>
     </div>
 </body>
 </html>
