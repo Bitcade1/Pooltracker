@@ -285,6 +285,42 @@
             font-size: 1.15rem;
         }
 
+        .manual-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+
+        .manual-field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #334155;
+            font-weight: 700;
+        }
+
+        .manual-total {
+            min-height: 74px;
+            padding: 12px;
+            border: 1px solid #dce3ec;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .manual-total span {
+            display: block;
+            margin-bottom: 8px;
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .manual-total strong {
+            color: #111827;
+            font-size: 1.35rem;
+        }
+
         .table-wrap {
             width: 100%;
             max-width: 100%;
@@ -528,7 +564,8 @@
             }
 
             .target-row,
-            .summary-grid {
+            .summary-grid,
+            .manual-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -619,8 +656,8 @@
                 </div>
                 <div class="summary-tile">
                     <div class="summary-label">Order Cost</div>
-                    <div class="summary-value">&pound;{{ total_order_cost|format_number }}</div>
-                    <div class="summary-note">Ex VAT{% if target_table_count is none %}; set a target first{% endif %}</div>
+                    <div class="summary-value">&pound;{{ combined_total_order_cost|format_number }}</div>
+                    <div class="summary-note">Ex VAT{% if target_table_count is none and latches_supplier.order_total <= 0 %}; set a target first{% endif %}</div>
                 </div>
                 <div class="summary-tile">
                     <div class="summary-label">Upfront Due</div>
@@ -785,10 +822,41 @@
 
                 {% if target_table_count is not none %}
                 <div class="total-strip">
-                    <span>Total order cost ex VAT: &pound;{{ total_order_cost|format_number }}</span>
+                    <span>Parts order cost ex VAT: &pound;{{ total_order_cost|format_number }}</span>
                     <span>Target: {{ target_table_count }} tables</span>
                 </div>
                 {% endif %}
+            </section>
+
+            <section class="panel supplier-section">
+                <div class="section-header">
+                    <div>
+                        <h2>Latches Supplier</h2>
+                        <p class="section-subtitle">Manual stock and cost entry for now.</p>
+                    </div>
+                    <div class="supplier-total">
+                        <span>Order Cost</span>
+                        <strong>&pound;{{ latches_supplier.order_total|format_number }}</strong>
+                    </div>
+                </div>
+                <div class="manual-grid">
+                    <div class="manual-field">
+                        <label for="latches_stock">Stock</label>
+                        <input type="number" id="latches_stock" name="latches_stock" min="0" inputmode="numeric" value="{{ latches_supplier.stock }}">
+                    </div>
+                    <div class="manual-field">
+                        <label for="latches_order_quantity">Quantity to order</label>
+                        <input type="number" id="latches_order_quantity" name="latches_order_quantity" min="0" inputmode="numeric" value="{{ latches_supplier.order_quantity }}">
+                    </div>
+                    <div class="manual-field">
+                        <label for="latches_order_total">Order cost ex VAT</label>
+                        <input type="number" id="latches_order_total" name="latches_order_total" min="0" step="0.01" value="{{ '%.2f'|format(latches_supplier.order_total or 0) }}">
+                    </div>
+                    <div class="manual-total">
+                        <span>Saved manually</span>
+                        <strong>&pound;{{ latches_supplier.order_total|format_number }}</strong>
+                    </div>
+                </div>
             </section>
 
             <section class="panel supplier-section">

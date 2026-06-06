@@ -781,7 +781,14 @@ def _split_legacy_quantity(value):
 
 
 def default_chinese_parts_on_order():
-    return {"parts": {}, "gullies_units": 0, "payments": {}, "last_target_tables": None, "arrivals": []}
+    return {
+        "parts": {},
+        "gullies_units": 0,
+        "payments": {},
+        "manual_suppliers": {},
+        "last_target_tables": None,
+        "arrivals": [],
+    }
 
 
 def load_chinese_parts_on_order():
@@ -11668,8 +11675,20 @@ def order_chinese_parts():
         for part, multiplier in hidden_gully_parts.items()
     )
     saved_payments = saved_on_order.get("payments", {})
+    saved_manual_suppliers = saved_on_order.get("manual_suppliers", {})
+    if not isinstance(saved_manual_suppliers, dict):
+        saved_manual_suppliers = {}
+    saved_latches = saved_manual_suppliers.get("latches", {})
+    if not isinstance(saved_latches, dict):
+        saved_latches = {}
     saved_arrivals = saved_on_order.get("arrivals", [])
     saved_target_tables = safe_int(saved_on_order.get("last_target_tables"), None)
+    saved_latches_stock = safe_int(saved_latches.get("stock"), 0)
+    saved_latches_order_quantity = safe_int(saved_latches.get("order_quantity"), 0)
+    saved_latches_order_total = safe_float(
+        saved_latches.get("order_total"),
+        safe_float(saved_payments.get("latches", {}).get("order_total") if isinstance(saved_payments.get("latches"), dict) else 0.0),
+    )
 
     target_table_count = None
     action = None
@@ -11677,9 +11696,15 @@ def order_chinese_parts():
     if request.method == 'GET':
         gullies_units_on_order = saved_gullies_units + saved_hidden_gully_units
         target_table_count = saved_target_tables
+        latches_stock = saved_latches_stock
+        latches_order_quantity = saved_latches_order_quantity
+        latches_order_total = saved_latches_order_total
     else:
         # On POST, always take the submitted units; if blank/invalid, default to 0
         gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
+        latches_stock = safe_int(request.form.get('latches_stock'), saved_latches_stock)
+        latches_order_quantity = safe_int(request.form.get('latches_order_quantity'), saved_latches_order_quantity)
+        latches_order_total = safe_float(request.form.get('latches_order_total'), saved_latches_order_total)
         action = request.form.get('action')
         if action and action.startswith('paid_all:'):
             paid_all_supplier = action.split(':', 1)[1]
@@ -11886,10 +11911,17 @@ def order_chinese_parts():
     for row in plastic_rows:
         data = row.get("data", {})
         plastic_total_order_cost += data.get("order_cost") or 0.0
+    combined_total_order_cost = total_order_cost + latches_order_total
+    latches_supplier = {
+        "stock": latches_stock,
+        "order_quantity": latches_order_quantity,
+        "order_total": latches_order_total,
+    }
 
     supplier_defaults = {
         "metal": metal_total_order_cost,
         "plastic": plastic_total_order_cost,
+        "latches": latches_order_total,
         "feet": order_costs.get("Feet", 0.0),
         "filament": 0.0,
         "sticker": order_costs.get("Sticker Set", 0.0),
@@ -11898,6 +11930,7 @@ def order_chinese_parts():
     supplier_upfront = {
         "metal": 0.30,
         "plastic": 0.70,
+        "latches": 0.50,
         "feet": 0.50,
         "filament": 0.50,
         "sticker": 0.50,
@@ -11906,6 +11939,7 @@ def order_chinese_parts():
     supplier_labels = {
         "metal": "Metal Supplier",
         "plastic": "Plastic Supplier",
+        "latches": "Latches Supplier",
         "feet": "Feet Supplier",
         "filament": "3D Printing Filament Supplier",
         "sticker": "Sticker Supplier",
@@ -11916,10 +11950,11 @@ def order_chinese_parts():
     total_paid = 0.0
     total_upfront_due = 0.0
     total_balance_due = 0.0
-    for key in ["metal", "plastic", "feet", "filament", "sticker", "shipper"]:
+    supplier_keys = ["metal", "plastic", "latches", "feet", "filament", "sticker", "shipper"]
+    for key in supplier_keys:
         saved_entry = saved_payments.get(key, {})
         order_total = supplier_defaults.get(key, 0.0)
-        if key not in {"metal", "plastic"} and saved_entry.get("order_total") is not None:
+        if key not in {"metal", "plastic", "latches"} and saved_entry.get("order_total") is not None:
             order_total = safe_float(saved_entry.get("order_total"), order_total)
         paid_so_far = safe_float(
             request.form.get(f"{key}_paid_so_far") if request.method == 'POST' else saved_entry.get("paid_so_far"),
@@ -11944,7 +11979,7 @@ def order_chinese_parts():
             "upfront_required": upfront_required,
             "balance_due": balance_due_total,
             "balance_due_upfront": balance_due_upfront,
-            "show_paid_all": key in {"feet", "filament", "sticker", "shipper"},
+            "show_paid_all": key in {"latches", "feet", "filament", "sticker", "shipper"},
         })
         saved_payments[key] = {"order_total": order_total, "paid_so_far": paid_so_far}
 
@@ -11984,10 +12019,13 @@ def order_chinese_parts():
         })
 
     if request.method == 'POST':
+        manual_suppliers_to_save = dict(saved_manual_suppliers)
+        manual_suppliers_to_save["latches"] = latches_supplier
         saved_successfully = save_on_order({
             "parts": {part: part_on_order.get(part, 0) for part in chinese_parts if part not in gullies_parts},
             "gullies_units": gullies_units_on_order,
             "payments": saved_payments,
+            "manual_suppliers": manual_suppliers_to_save,
             "last_target_tables": saved_target_tables,
             "arrivals": saved_arrivals
         })
@@ -12029,11 +12067,13 @@ def order_chinese_parts():
         part_costs=part_costs,
         order_costs=order_costs,
         total_order_cost=total_order_cost,
+        combined_total_order_cost=combined_total_order_cost,
         metal_parts=metal_parts,
         plastic_rows=plastic_rows,
         gullies_summary=gullies_summary,
         metal_total_order_cost=metal_total_order_cost,
         plastic_total_order_cost=plastic_total_order_cost,
+        latches_supplier=latches_supplier,
         chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
         chinese_parts_order_more_threshold=CHINESE_PARTS_ORDER_MORE_THRESHOLD,
         payments=payments,
