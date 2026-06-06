@@ -11611,6 +11611,8 @@ def order_chinese_parts():
         # Use material-only (unit + shipping); exclude labour from order cost
         return (entry.unit_cost or 0.0) + (entry.shipping_cost or 0.0)
 
+    latches_per_table = 12
+
     # Parts that are planned against a generic table target on this page.
     chinese_parts = {
         "Table legs": 4,
@@ -11689,6 +11691,9 @@ def order_chinese_parts():
         saved_latches.get("order_total"),
         safe_float(saved_payments.get("latches", {}).get("order_total") if isinstance(saved_payments.get("latches"), dict) else 0.0),
     )
+    saved_latches_cost_each = safe_float(saved_latches.get("cost_each"), 0.0)
+    if saved_latches_cost_each <= 0 and saved_latches_order_quantity > 0 and saved_latches_order_total > 0:
+        saved_latches_cost_each = saved_latches_order_total / saved_latches_order_quantity
 
     target_table_count = None
     action = None
@@ -11697,14 +11702,12 @@ def order_chinese_parts():
         gullies_units_on_order = saved_gullies_units + saved_hidden_gully_units
         target_table_count = saved_target_tables
         latches_stock = saved_latches_stock
-        latches_order_quantity = saved_latches_order_quantity
-        latches_order_total = saved_latches_order_total
+        latches_cost_each = saved_latches_cost_each
     else:
         # On POST, always take the submitted units; if blank/invalid, default to 0
         gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
         latches_stock = safe_int(request.form.get('latches_stock'), saved_latches_stock)
-        latches_order_quantity = safe_int(request.form.get('latches_order_quantity'), saved_latches_order_quantity)
-        latches_order_total = safe_float(request.form.get('latches_order_total'), saved_latches_order_total)
+        latches_cost_each = safe_float(request.form.get('latches_cost_each'), saved_latches_cost_each)
         action = request.form.get('action')
         if action and action.startswith('paid_all:'):
             paid_all_supplier = action.split(':', 1)[1]
@@ -11911,10 +11914,19 @@ def order_chinese_parts():
     for row in plastic_rows:
         data = row.get("data", {})
         plastic_total_order_cost += data.get("order_cost") or 0.0
+    latches_required = target_table_count * latches_per_table if target_table_count is not None else None
+    latches_need_to_order = max(0, latches_required - latches_stock) if latches_required is not None else None
+    latches_order_quantity = latches_need_to_order if latches_need_to_order is not None else 0
+    latches_order_total = latches_order_quantity * latches_cost_each
     combined_total_order_cost = total_order_cost + latches_order_total
     latches_supplier = {
         "stock": latches_stock,
+        "per_table": latches_per_table,
+        "required": latches_required,
+        "can_build_now": latches_stock // latches_per_table if latches_per_table else 0,
+        "need_to_order": latches_need_to_order,
         "order_quantity": latches_order_quantity,
+        "cost_each": latches_cost_each,
         "order_total": latches_order_total,
     }
 
