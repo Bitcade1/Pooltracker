@@ -20,7 +20,7 @@
         align-items: stretch;
         background-color: #f4f4f9;
         min-width: 0;
-        overflow-x: hidden;
+        overflow: hidden;
     }
 
     .site-header,
@@ -41,33 +41,36 @@
     }
 
     .dashboard-wrapper {
-        padding: 1.1rem 1.2rem 1.2rem;
+        min-height: 100vh;
+        max-height: 100vh;
+        padding: 0.55rem 0.75rem;
         display: flex;
         flex-direction: column;
-        gap: 0.8rem;
+        gap: 0.45rem;
         width: 100%;
         max-width: none;
         min-width: 0;
         margin: 0 auto;
+        overflow: hidden;
     }
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
-        gap: 0.6rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.4rem;
         align-items: stretch;
         justify-content: stretch;
     }
 
     .stat-card {
         background: #ffffff;
-        border-radius: 10px;
-        padding: 0.55rem 0.65rem;
+        border-radius: 8px;
+        padding: 0.35rem 0.5rem;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
         display: flex;
         flex-direction: column;
-        gap: 0.25rem;
-        min-height: 90px;
+        gap: 0.15rem;
+        min-height: 58px;
         align-items: center;
         text-align: center;
         width: 100%;
@@ -79,7 +82,7 @@
     }
 
     .stat-card .stat-label {
-        font-size: 0.95rem;
+        font-size: 0.78rem;
         font-weight: 600;
         color: #566573;
         text-transform: uppercase;
@@ -88,7 +91,7 @@
     }
 
     .stat-card .stat-value {
-        font-size: 2.4rem;
+        font-size: 1.85rem;
         font-weight: 800;
         color: #1f2d3d;
         line-height: 1;
@@ -101,12 +104,12 @@
 
     .bonus-panel {
         background: #ffffff;
-        border-radius: 10px;
+        border-radius: 8px;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-        padding: 0.85rem 1rem;
+        padding: 0.45rem 0.6rem;
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 0.35rem;
         min-width: 0;
     }
 
@@ -120,7 +123,7 @@
 
     .bonus-head h3 {
         margin: 0;
-        font-size: 1.75rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #1f2d3d;
         line-height: 1.15;
@@ -131,7 +134,7 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0.55rem 0.8rem;
+        padding: 0.35rem 0.55rem;
         border-radius: 999px;
         background: #0f172a;
         color: #ffffff;
@@ -146,17 +149,17 @@
     .bonus-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-        gap: 0.75rem;
+        gap: 0.4rem;
     }
 
     .bonus-card {
         border: 1px solid #dbe4ef;
-        border-radius: 10px;
-        padding: 0.85rem;
+        border-radius: 8px;
+        padding: 0.4rem 0.55rem;
         background: #f8fafc;
         display: flex;
         flex-direction: column;
-        gap: 0.55rem;
+        gap: 0.25rem;
         min-width: 0;
     }
 
@@ -170,7 +173,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 0.6rem;
-        font-size: 1.25rem;
+        font-size: 0.95rem;
         font-weight: 800;
         color: #1f2d3d;
         min-width: 0;
@@ -187,7 +190,7 @@
     }
 
     .bonus-track {
-        height: 22px;
+        height: 12px;
         border-radius: 999px;
         background: #dbe4ef;
         overflow: hidden;
@@ -210,6 +213,7 @@
         gap: 0.6rem;
         color: #475569;
         font-weight: 700;
+        font-size: 0.8rem;
     }
 
     .bonus-empty {
@@ -240,25 +244,27 @@
     .dashboard-body {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        gap: 0.8rem;
+        gap: 0.45rem;
+        flex: 1;
         min-width: 0;
+        min-height: 0;
     }
 
     .panel {
         background: #ffffff;
-        border-radius: 10px;
+        border-radius: 8px;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-        padding: 0.75rem 1rem;
+        padding: 0.45rem 0.6rem;
         display: flex;
         flex-direction: column;
-        gap: 0.6rem;
+        gap: 0.35rem;
         min-height: 0;
         min-width: 0;
     }
 
     .panel h3 {
         margin: 0;
-        font-size: 1.75rem;
+        font-size: 1rem;
         font-weight: 700;
         color: #2c3e50;
         line-height: 1.15;
@@ -268,23 +274,23 @@
     .avg-times {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-        gap: 0.5rem;
+        gap: 0.35rem;
     }
 
     .avg-card {
         background: #ffffff;
         border: 1px solid #d6e2f0;
-        border-radius: 10px;
-        padding: 0.7rem 0.9rem;
+        border-radius: 8px;
+        padding: 0.4rem 0.55rem;
         display: flex;
         flex-direction: column;
-        gap: 0.2rem;
+        gap: 0.1rem;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         min-width: 0;
     }
 
     .avg-card .label {
-        font-size: 0.9rem;
+        font-size: 0.72rem;
         color: #607d8b;
         text-transform: uppercase;
         letter-spacing: 0.04em;
@@ -294,14 +300,14 @@
     }
 
     .avg-card .value {
-        font-size: 1.35rem;
+        font-size: 1rem;
         font-weight: 800;
         color: #1f2d3d;
         line-height: 1.1;
     }
 
     .avg-comparison {
-        font-size: 0.95rem;
+        font-size: 0.76rem;
         font-weight: 800;
         line-height: 1.2;
         overflow-wrap: anywhere;
@@ -320,21 +326,50 @@
         color: #64748b;
     }
 
+    .time-panels {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        gap: 0.45rem;
+    }
+
+    .parts-panel {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .parts-sections {
+        display: grid;
+        grid-template-columns: 0.85fr 1.15fr 1.25fr;
+        gap: 0.45rem;
+        min-height: 0;
+        height: 100%;
+    }
+
+    .parts-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        min-width: 0;
+        min-height: 0;
+    }
+
     .parts-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-        gap: 0.35rem;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 118px), 1fr));
+        gap: 0.22rem;
+        align-content: start;
+        min-height: 0;
     }
 
     .part-card {
-        border-radius: 6px;
-        padding: 0.3rem 0.35rem;
+        border-radius: 5px;
+        padding: 0.2rem 0.25rem;
         background: #e8f5e9;
         border: 1px solid #388e3c;
         display: flex;
         flex-direction: column;
-        gap: 0.2rem;
-        min-height: 115px;
+        gap: 0.1rem;
+        min-height: 68px;
         min-width: 0;
     }
 
@@ -349,7 +384,7 @@
     }
 
     .part-card .part-name {
-        font-size: 1.1rem;
+        font-size: 0.74rem;
         font-weight: 600;
         color: #2d3436;
         line-height: 1.15;
@@ -357,7 +392,7 @@
     }
 
     .part-card .part-stock {
-        font-size: 2rem;
+        font-size: 1.15rem;
         font-weight: 700;
         color: #2c3e50;
         line-height: 1;
@@ -373,9 +408,9 @@
     }
 
     .part-card .part-footnote {
-        font-size: 0.95rem;
+        font-size: 0.62rem;
         color: #546e7a;
-        line-height: 1.25;
+        line-height: 1.12;
         overflow-wrap: anywhere;
     }
 
@@ -449,7 +484,25 @@
     }
 
     @media (max-width: 1200px) {
+        body {
+            overflow-y: auto;
+        }
+
+        .dashboard-wrapper {
+            max-height: none;
+            overflow: visible;
+        }
+
+        .stat-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .time-panels,
         .dashboard-body {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .parts-sections {
             grid-template-columns: minmax(0, 1fr);
         }
     }
@@ -513,18 +566,18 @@
 
     @media (min-width: 1500px) {
         .dashboard-wrapper {
-            padding: 1.4rem 1.6rem 1.6rem;
-            gap: 1rem;
+            padding: 0.65rem 0.85rem;
+            gap: 0.5rem;
         }
 
         .parts-grid {
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 0.55rem;
+            grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+            gap: 0.28rem;
         }
 
         .part-card {
-            padding: 0.45rem 0.55rem;
-            min-height: 128px;
+            padding: 0.24rem 0.3rem;
+            min-height: 70px;
         }
     }
 </style>
@@ -581,67 +634,77 @@
         {% endif %}
     </section>
 
-    <section class="panel">
-        <h3>Jack B Average Time (This Month)</h3>
-        <div class="avg-times">
-            <div class="avg-card">
-                <span class="label">Jack B</span>
-                <span class="value">{{ jack_avg_current_month }}</span>
-                <span class="label">{{ previous_month_label }}: {{ jack_avg_last_month }}</span>
-                <span class="avg-comparison {{ jack_avg_comparison_class }}">{{ jack_avg_comparison_text }}</span>
+    <div class="time-panels">
+        <section class="panel">
+            <h3>Jack B Average Time</h3>
+            <div class="avg-times">
+                <div class="avg-card">
+                    <span class="label">This month</span>
+                    <span class="value">{{ jack_avg_current_month }}</span>
+                    <span class="label">{{ previous_month_label }}: {{ jack_avg_last_month }}</span>
+                    <span class="avg-comparison {{ jack_avg_comparison_class }}">{{ jack_avg_comparison_text }}</span>
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <section class="panel">
-        <h3>Average Time By Table Type (This Month)</h3>
-        <div class="avg-times">
-            <div class="avg-card">
-                <span class="label">Champion</span>
-                <span class="value">{{ avg_champion_current_month }}</span>
-                <span class="label">Last body time: {{ last_champion_duration }}</span>
+        <section class="panel">
+            <h3>Average Time By Type</h3>
+            <div class="avg-times">
+                <div class="avg-card">
+                    <span class="label">Champion</span>
+                    <span class="value">{{ avg_champion_current_month }}</span>
+                    <span class="label">Last body: {{ last_champion_duration }}</span>
+                </div>
+                <div class="avg-card">
+                    <span class="label">Lite</span>
+                    <span class="value">{{ avg_lite_current_month }}</span>
+                    <span class="label">Last body: {{ last_lite_duration }}</span>
+                </div>
             </div>
-            <div class="avg-card">
-                <span class="label">Lite</span>
-                <span class="value">{{ avg_lite_current_month }}</span>
-                <span class="label">Last body time: {{ last_lite_duration }}</span>
-            </div>
-        </div>
-    </section>
+        </section>
+    </div>
 
     <div class="dashboard-body">
         <section class="panel parts-panel">
-            <h3>3D Printed Body Parts</h3>
-            <div class="parts-grid">
-                {% for part in printed_parts_data %}
-                    <div class="part-card {{ part.status }}">
-                        <span class="part-name">{{ part.name }}</span>
-                        <span class="part-stock">{{ part.stock }}</span>
-                        <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
+            <div class="parts-sections">
+                <div class="parts-section">
+                    <h3>3D Printed Body Parts</h3>
+                    <div class="parts-grid">
+                        {% for part in printed_parts_data %}
+                            <div class="part-card {{ part.status }}">
+                                <span class="part-name">{{ part.name }}</span>
+                                <span class="part-stock">{{ part.stock }}</span>
+                                <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
+                            </div>
+                        {% endfor %}
                     </div>
-                {% endfor %}
-            </div>
-            <h3>Wrap / Supports / Bolts / Laminate</h3>
-            <div class="parts-grid">
-                {% for part in support_parts_data %}
-                    <div class="part-card {{ part.status }}">
-                        <span class="part-name">{{ part.name }}</span>
-                        <span class="part-stock">{{ part.stock }}</span>
-                        <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
-                    </div>
-                {% endfor %}
-            </div>
-            <h3>Other Body Parts</h3>
-            <div class="parts-grid">
-                {% for part in other_parts_data %}
-                    <div class="part-card {{ part.status }}">
-                        <span class="part-name">{{ part.name }}</span>
-                    <span class="part-stock">{{ part.stock }}</span>
-                    <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
                 </div>
-            {% endfor %}
-        </div>
-    </section>
+                <div class="parts-section">
+                    <h3>Wrap / Supports / Bolts / Laminate</h3>
+                    <div class="parts-grid">
+                        {% for part in support_parts_data %}
+                            <div class="part-card {{ part.status }}">
+                                <span class="part-name">{{ part.name }}</span>
+                                <span class="part-stock">{{ part.stock }}</span>
+                                <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="parts-section">
+                    <h3>Other Body Parts</h3>
+                    <div class="parts-grid">
+                        {% for part in other_parts_data %}
+                            <div class="part-card {{ part.status }}">
+                                <span class="part-name">{{ part.name }}</span>
+                                <span class="part-stock">{{ part.stock }}</span>
+                                <span class="part-footnote">Per body: {{ part.per_body_display }} | Can build: {{ part.bodies_possible }} | Sizes: {{ part.sizes_display }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </section>
     </div>
 </div>
 
