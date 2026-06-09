@@ -328,7 +328,7 @@
 
     .time-panels {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        grid-template-columns: minmax(0, 1fr);
         gap: 0.45rem;
     }
 
@@ -636,30 +636,16 @@
 
     <div class="time-panels">
         <section class="panel">
-            <h3>Jack B Average Time</h3>
+            <h3>Jack B Average Time Per Table</h3>
             <div class="avg-times">
-                <div class="avg-card">
-                    <span class="label">This month</span>
-                    <span class="value">{{ jack_avg_current_month }}</span>
-                    <span class="label">{{ previous_month_label }}: {{ jack_avg_last_month }}</span>
-                    <span class="avg-comparison {{ jack_avg_comparison_class }}">{{ jack_avg_comparison_text }}</span>
-                </div>
-            </div>
-        </section>
-
-        <section class="panel">
-            <h3>Average Time By Type</h3>
-            <div class="avg-times">
-                <div class="avg-card">
-                    <span class="label">Champion</span>
-                    <span class="value">{{ avg_champion_current_month }}</span>
-                    <span class="label">Last body: {{ last_champion_duration }}</span>
-                </div>
-                <div class="avg-card">
-                    <span class="label">Lite</span>
-                    <span class="value">{{ avg_lite_current_month }}</span>
-                    <span class="label">Last body: {{ last_lite_duration }}</span>
-                </div>
+                {% for avg in jack_type_average_rows %}
+                    <div class="avg-card">
+                        <span class="label">{{ avg.label }}</span>
+                        <span class="value">{{ avg.current_avg }}</span>
+                        <span class="label">{{ previous_month_label }}: {{ avg.last_month_avg }}</span>
+                        <span class="avg-comparison {{ avg.comparison_class }}">{{ avg.comparison_text }}</span>
+                    </div>
+                {% endfor %}
             </div>
         </section>
     </div>

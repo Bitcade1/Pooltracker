@@ -8671,10 +8671,8 @@ def body_dashboard_view():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    workers_of_interest = ["Jack B", "Tom"]
     worker_aliases = {
         "Jack B": ["jackb", "jack"],
-        "Tom": ["tom"]
     }
 
     def normalize_worker_name(name):
@@ -8690,55 +8688,25 @@ def body_dashboard_view():
                     return worker
         return None
 
-    # Current month per-worker averages using actual recorded durations
+    # Current month Jack-only averages using actual recorded durations.
     current_month_bodies = CompletedTable.query.filter(
         extract('year', CompletedTable.date) == today.year,
         extract('month', CompletedTable.date) == today.month
     ).all()
-    worker_stats_current = {worker: {"seconds": 0, "count": 0} for worker in workers_of_interest}
-    latest_body_time = {worker: None for worker in workers_of_interest}
-    latest_body_duration = {worker: None for worker in workers_of_interest}
-    type_stats_current = {
+    jack_type_stats_current = {
         TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
         TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
     }
-    latest_type_time = {
-        TABLE_TYPE_CHAMPION: None,
-        TABLE_TYPE_LITE: None,
-    }
-    latest_type_duration = {
-        TABLE_TYPE_CHAMPION: None,
-        TABLE_TYPE_LITE: None,
-    }
     for body in current_month_bodies:
+        if map_to_worker(body.worker) != "Jack B":
+            continue
         duration = calculate_body_duration(body)
         if duration is None:
             continue
         body_type = table_type_from_serial(body.serial_number)
-        completed_dt = datetime.combine(body.date, parse_time_string(body.finish_time) or datetime.min.time())
-        if body_type in type_stats_current:
-            type_stats_current[body_type]["seconds"] += duration.total_seconds()
-            type_stats_current[body_type]["count"] += 1
-            if latest_type_time[body_type] is None or completed_dt > latest_type_time[body_type]:
-                latest_type_time[body_type] = completed_dt
-                latest_type_duration[body_type] = duration
-
-        mapped = map_to_worker(body.worker)
-        if mapped in worker_stats_current:
-            worker_stats_current[mapped]["seconds"] += duration.total_seconds()
-            worker_stats_current[mapped]["count"] += 1
-            # track latest completion timestamp and duration for the worker
-            if latest_body_time[mapped] is None or completed_dt > latest_body_time[mapped]:
-                latest_body_time[mapped] = completed_dt
-                latest_body_duration[mapped] = duration
-    avg_times_current_month = {
-        worker: format_avg_duration(stats["seconds"], stats["count"])
-        for worker, stats in worker_stats_current.items()
-    }
-    last_duration_display = {}
-    for worker in workers_of_interest:
-        dur = latest_body_duration.get(worker)
-        last_duration_display[worker] = format_avg_duration(dur.total_seconds(), 1) if dur else "N/A"
+        if body_type in jack_type_stats_current:
+            jack_type_stats_current[body_type]["seconds"] += duration.total_seconds()
+            jack_type_stats_current[body_type]["count"] += 1
 
     previous_month = (start_of_month - timedelta(days=1)).replace(day=1)
 
@@ -8771,44 +8739,43 @@ def body_dashboard_view():
             "class": status_class
         }
 
-    def worker_stats_for_month(month_date, target_worker):
+    def jack_type_stats_for_month(month_date):
         month_bodies = CompletedTable.query.filter(
             extract('year', CompletedTable.date) == month_date.year,
             extract('month', CompletedTable.date) == month_date.month
         ).all()
-        stats = {"seconds": 0, "count": 0}
+        stats = {
+            TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
+            TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
+        }
         for body in month_bodies:
-            if map_to_worker(body.worker) != target_worker:
+            if map_to_worker(body.worker) != "Jack B":
                 continue
             duration = calculate_body_duration(body)
             if duration is None:
                 continue
-            stats["seconds"] += duration.total_seconds()
-            stats["count"] += 1
+            body_type = table_type_from_serial(body.serial_number)
+            if body_type in stats:
+                stats[body_type]["seconds"] += duration.total_seconds()
+                stats[body_type]["count"] += 1
         return stats
 
-    jack_current_avg_seconds = average_seconds(worker_stats_current["Jack B"])
-    jack_last_month_avg_seconds = average_seconds(worker_stats_for_month(previous_month, "Jack B"))
-    jack_average_comparison = comparison_for_average(jack_current_avg_seconds, jack_last_month_avg_seconds)
-
-    avg_champion_current_month = format_avg_duration(
-        type_stats_current[TABLE_TYPE_CHAMPION]["seconds"],
-        type_stats_current[TABLE_TYPE_CHAMPION]["count"]
-    )
-    avg_lite_current_month = format_avg_duration(
-        type_stats_current[TABLE_TYPE_LITE]["seconds"],
-        type_stats_current[TABLE_TYPE_LITE]["count"]
-    )
-    last_champion_duration = (
-        format_avg_duration(latest_type_duration[TABLE_TYPE_CHAMPION].total_seconds(), 1)
-        if latest_type_duration[TABLE_TYPE_CHAMPION]
-        else "N/A"
-    )
-    last_lite_duration = (
-        format_avg_duration(latest_type_duration[TABLE_TYPE_LITE].total_seconds(), 1)
-        if latest_type_duration[TABLE_TYPE_LITE]
-        else "N/A"
-    )
+    jack_type_stats_previous = jack_type_stats_for_month(previous_month)
+    jack_type_average_rows = []
+    for table_type, label in (
+        (TABLE_TYPE_CHAMPION, "Champion"),
+        (TABLE_TYPE_LITE, "Lite"),
+    ):
+        current_avg = average_seconds(jack_type_stats_current[table_type])
+        previous_avg = average_seconds(jack_type_stats_previous[table_type])
+        comparison = comparison_for_average(current_avg, previous_avg)
+        jack_type_average_rows.append({
+            "label": label,
+            "current_avg": format_avg_seconds(current_avg),
+            "last_month_avg": format_avg_seconds(previous_avg),
+            "comparison_text": comparison["text"],
+            "comparison_class": comparison["class"],
+        })
 
     parts_data = []
     for part in BODY_PARTS_REQUIREMENTS:
@@ -8881,19 +8848,8 @@ def body_dashboard_view():
         capacity_by_size=capacity_by_size,
         limiting_overall=limiting_overall,
         min_capacity=min_capacity,
-        avg_jack_current_month=avg_times_current_month.get("Jack B", "N/A"),
-        avg_tom_current_month=avg_times_current_month.get("Tom", "N/A"),
-        last_jack_duration=last_duration_display.get("Jack B", "N/A"),
-        last_tom_duration=last_duration_display.get("Tom", "N/A"),
-        jack_avg_current_month=format_avg_seconds(jack_current_avg_seconds),
-        jack_avg_last_month=format_avg_seconds(jack_last_month_avg_seconds),
-        jack_avg_comparison_text=jack_average_comparison["text"],
-        jack_avg_comparison_class=jack_average_comparison["class"],
         previous_month_label=previous_month.strftime("%B %Y"),
-        avg_champion_current_month=avg_champion_current_month,
-        avg_lite_current_month=avg_lite_current_month,
-        last_champion_duration=last_champion_duration,
-        last_lite_duration=last_lite_duration,
+        jack_type_average_rows=jack_type_average_rows,
         printed_parts_data=printed_parts_data,
         support_parts_data=support_parts_data,
         other_parts_data=other_parts_data,
