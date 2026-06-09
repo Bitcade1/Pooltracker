@@ -837,6 +837,20 @@ def bonus_goal_progress(area, year=None, month=None):
     return sorted(progress_rows, key=lambda row: (-row["percentage"], row["worker"].lower()))
 
 
+def normalize_bonus_worker_name(name):
+    return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+
+
+def bonus_worker_matches(worker_name, target_name):
+    return normalize_bonus_worker_name(worker_name) == normalize_bonus_worker_name(target_name)
+
+
+def relabel_bonus_progress_row(row, worker_label):
+    updated = dict(row)
+    updated["worker"] = worker_label
+    return updated
+
+
 def bonus_goal_month_label(year=None, month=None):
     today = date.today()
     year = int(year or today.year)
@@ -8529,7 +8543,22 @@ def pod_dashboard_view():
             "comparison_class": comparison["class"],
         })
 
-    bonus_progress = bonus_goal_progress("pods", today.year, today.month)
+    pod_bonus_progress = []
+    for goal in bonus_goal_progress("pods", today.year, today.month):
+        if bonus_worker_matches(goal["worker"], "Tom F"):
+            pod_bonus_progress.append(relabel_bonus_progress_row(goal, "Tom F Pod Goal"))
+        else:
+            pod_bonus_progress.append(goal)
+
+    tom_f_body_bonus = [
+        relabel_bonus_progress_row(goal, "Tom F Body Goal")
+        for goal in bonus_goal_progress("bodies", today.year, today.month)
+        if bonus_worker_matches(goal["worker"], "Tom F")
+    ]
+    bonus_progress = sorted(
+        [*pod_bonus_progress, *tom_f_body_bonus],
+        key=lambda row: (-row["percentage"], row["worker"].lower())
+    )
 
     return render_template(
         'pod_dashboard.html',
@@ -8837,7 +8866,11 @@ def body_dashboard_view():
         if data["bodies_possible"] == min_capacity
         for part_name in data["limiting_parts"]
     })
-    bonus_progress = bonus_goal_progress("bodies", today.year, today.month)
+    bonus_progress = [
+        goal
+        for goal in bonus_goal_progress("bodies", today.year, today.month)
+        if not bonus_worker_matches(goal["worker"], "Tom F")
+    ]
 
     return render_template(
         'body_dashboard.html',
