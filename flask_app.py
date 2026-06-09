@@ -525,6 +525,98 @@ class TableStock(db.Model):
     count = db.Column(db.Integer, default=0, nullable=False)
 
 
+class TableStockLog(db.Model):
+    __tablename__ = 'table_stock_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    stock_type = db.Column(db.String(50), nullable=False, index=True)
+    action_type = db.Column(db.String(30), nullable=False)
+    worker = db.Column(db.String(50), nullable=False, default="Unknown")
+    delta = db.Column(db.Integer, nullable=False, default=0)
+    count_before = db.Column(db.Integer, nullable=False, default=0)
+    count_after = db.Column(db.Integer, nullable=False, default=0)
+    note = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
+TABLE_STOCK_ACTION_LABELS = {
+    "add": "Added",
+    "remove": "Removed",
+    "set": "Set count",
+    "complete_body": "Body completed",
+    "delete_body": "Body deleted",
+    "complete_top_rail": "Top rail completed",
+    "delete_top_rail": "Top rail deleted",
+    "complete_cushion_set": "Cushion set completed",
+    "correction": "Correction",
+}
+
+
+def ensure_table_stock_log_table():
+    if app.config.get("_table_stock_log_table_ready"):
+        return
+    TableStockLog.__table__.create(db.engine, checkfirst=True)
+    app.config["_table_stock_log_table_ready"] = True
+
+
+def table_stock_type_label(stock_type):
+    stock_type = stock_type or ""
+    if stock_type.startswith("body_"):
+        parts = stock_type.split("_")
+        size_label = parts[1] if len(parts) > 1 else ""
+        if len(parts) > 2 and parts[2] == "lite":
+            return f"{size_label} Lite Body"
+        color_key = "_".join(parts[2:]) if len(parts) > 2 else "black"
+        color_label = LAMINATE_COLOR_KEY_TO_LABEL.get(color_key, color_key.replace("_", " ").title())
+        return f"{size_label} {color_label} Body"
+
+    if stock_type.startswith("top_rail_"):
+        parts = stock_type.split("_")
+        size_label = parts[2] if len(parts) > 2 else ""
+        color_key = "_".join(parts[3:]) if len(parts) > 3 else "black"
+        color_label = LAMINATE_COLOR_KEY_TO_LABEL.get(color_key, color_key.replace("_", " ").title())
+        return f"{size_label} {color_label} Top Rail"
+
+    if stock_type.startswith("cushion_set_"):
+        size_label = stock_type.replace("cushion_set_", "")
+        return f"{size_label} Cushion Set"
+
+    return stock_type.replace("_", " ").title()
+
+
+def table_stock_action_label(action_type):
+    return TABLE_STOCK_ACTION_LABELS.get(
+        action_type,
+        (action_type or "").replace("_", " ").title() or "Stock change"
+    )
+
+
+def record_table_stock_log(stock_type, action_type, worker, delta, count_before, count_after, note=None):
+    try:
+        delta = int(delta)
+        count_before = int(count_before)
+        count_after = int(count_after)
+    except (TypeError, ValueError):
+        return None
+
+    if delta == 0 and count_before == count_after:
+        return None
+
+    ensure_table_stock_log_table()
+    log_entry = TableStockLog(
+        stock_type=stock_type,
+        action_type=action_type,
+        worker=(worker or "Unknown").strip() or "Unknown",
+        delta=delta,
+        count_before=count_before,
+        count_after=count_after,
+        note=(note or "").strip() or None,
+        created_at=london_now()
+    )
+    db.session.add(log_entry)
+    return log_entry
+
+
 class StockItemCost(db.Model):
     __tablename__ = 'stock_item_cost'
     id = db.Column(db.Integer, primary_key=True)
@@ -944,6 +1036,7 @@ def ensure_legacy_inventory_names_migrated():
 @app.before_request
 def run_legacy_inventory_name_migrations():
     ensure_legacy_inventory_names_migrated()
+    ensure_table_stock_log_table()
 
 
 class CncJob(db.Model):
@@ -3910,7 +4003,17 @@ def manage_raw_data():
 
                     stock_entry = TableStock.query.filter_by(type=stock_type).first()
                     if stock_entry and stock_entry.count > 0:
+                        old_count = stock_entry.count
                         stock_entry.count -= 1
+                        record_table_stock_log(
+                            stock_type,
+                            "delete_body",
+                            session.get('worker'),
+                            -1,
+                            old_count,
+                            stock_entry.count,
+                            f"Deleted body {entry.serial_number}"
+                        )
                         db.session.commit()
                     delete_body_build_metadata(entry.id)
                 # If deleting a top rail, also update the table stock
@@ -3936,7 +4039,17 @@ def manage_raw_data():
 
                     stock_entry = TableStock.query.filter_by(type=stock_type).first()
                     if stock_entry and stock_entry.count > 0:
+                        old_count = stock_entry.count
                         stock_entry.count -= 1
+                        record_table_stock_log(
+                            stock_type,
+                            "delete_top_rail",
+                            session.get('worker'),
+                            -1,
+                            old_count,
+                            stock_entry.count,
+                            f"Deleted top rail {entry.serial_number}"
+                        )
                         db.session.commit()
                 
                 db.session.delete(entry)
@@ -5585,7 +5698,17 @@ def add_cushion_set_to_stock(size_label, worker, estimated_seconds=None):
         stock_entry = TableStock(type=stock_type, count=0)
         db.session.add(stock_entry)
         db.session.flush()
+    old_count = stock_entry.count
     stock_entry.count += 1
+    record_table_stock_log(
+        stock_type,
+        "complete_cushion_set",
+        worker,
+        1,
+        old_count,
+        stock_entry.count,
+        f"Completed {size_label} cushion set"
+    )
 
     completed_set = CushionCompletedSet(
         size_label=size_label,
@@ -5773,6 +5896,15 @@ def set_cushion_stage_count(stage_key, size_label, shape_no, end_type, new_count
                 count_after=new_count,
                 note="Manual finished cushion stock correction"
             ))
+            record_table_stock_log(
+                stock_type,
+                "correction",
+                worker,
+                new_count - old_count,
+                old_count,
+                new_count,
+                "Manual finished cushion stock correction"
+            )
         return record
 
     record = get_cushion_count_record(stage_key, size_label, shape_no, end_type, create=True)
@@ -6836,7 +6968,17 @@ def bodies():
         if not stock_entry:
             stock_entry = TableStock(type=stock_type, count=0)
             db.session.add(stock_entry)
+        old_count = stock_entry.count
         stock_entry.count += 1
+        record_table_stock_log(
+            stock_type,
+            "complete_body",
+            worker,
+            1,
+            old_count,
+            stock_entry.count,
+            f"Completed body {serial_number}"
+        )
         db.session.commit()
 
         return redirect(url_for('bodies'))
@@ -7481,7 +7623,17 @@ def top_rails():
             if not stock_entry:
                 stock_entry = TableStock(type=stock_type, count=0)
                 db.session.add(stock_entry)
+            old_count = stock_entry.count
             stock_entry.count += 1
+            record_table_stock_log(
+                stock_type,
+                "complete_top_rail",
+                worker,
+                1,
+                old_count,
+                stock_entry.count,
+                f"Completed top rail {serial_number}"
+            )
             db.session.commit()
 
             
@@ -9412,6 +9564,9 @@ def table_stock():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    ensure_table_stock_log_table()
+    worker_name = session.get('worker', 'Unknown')
+
     # Process POST submissions (stock adjustments)
     if request.method == 'POST':
         stock_type = request.form.get('stock_type')
@@ -9439,8 +9594,18 @@ def table_stock():
                 db.session.commit()
                 flash(f"Created new stock entry for '{stock_type}'.", "info")
 
+        old_count = stock_entry.count
         if action == 'add':
             stock_entry.count += amount
+            record_table_stock_log(
+                stock_type,
+                "add",
+                worker_name,
+                amount,
+                old_count,
+                stock_entry.count,
+                "Manual table stock adjustment"
+            )
             db.session.commit()
             flash(f"Added {amount} to {stock_type} stock. New count: {stock_entry.count}", "success")
         elif action == 'remove':
@@ -9448,11 +9613,29 @@ def table_stock():
                 flash(f"Not enough stock to remove. Current count for '{stock_type}': {stock_entry.count}", "error")
             else:
                 stock_entry.count -= amount
+                record_table_stock_log(
+                    stock_type,
+                    "remove",
+                    worker_name,
+                    -amount,
+                    old_count,
+                    stock_entry.count,
+                    "Manual table stock adjustment"
+                )
                 db.session.commit()
                 flash(f"Removed {amount} from {stock_type} stock. New count: {stock_entry.count}", "success")
         elif action == 'set':
             # Additional action to directly set the stock count
             stock_entry.count = amount
+            record_table_stock_log(
+                stock_type,
+                "set",
+                worker_name,
+                stock_entry.count - old_count,
+                old_count,
+                stock_entry.count,
+                "Manual table stock correction"
+            )
             db.session.commit()
             flash(f"Set {stock_type} stock to {amount}", "success")
 
@@ -9514,6 +9697,25 @@ def table_stock():
     )
     total_cushions = sum(value for key, value in cushion_data.items() if key.startswith('cushion_set_'))
 
+    recent_stock_logs = []
+    for entry in (
+        TableStockLog.query
+        .order_by(TableStockLog.created_at.desc(), TableStockLog.id.desc())
+        .limit(100)
+        .all()
+    ):
+        recent_stock_logs.append({
+            "created_at": entry.created_at,
+            "worker": entry.worker,
+            "action_label": table_stock_action_label(entry.action_type),
+            "stock_label": table_stock_type_label(entry.stock_type),
+            "stock_type": entry.stock_type,
+            "delta": entry.delta,
+            "count_before": entry.count_before,
+            "count_after": entry.count_after,
+            "note": entry.note,
+        })
+
     # Calculate costs for stock value panel
     stock_costs = {size: {} for size in sizes}
     stock_costs_raw = {size: {} for size in sizes}  # Store raw numeric values
@@ -9567,7 +9769,8 @@ def table_stock():
         total_bodies=total_bodies,
         total_lite_bodies=total_lite_bodies,
         total_rails=total_rails,
-        total_cushions=total_cushions
+        total_cushions=total_cushions,
+        recent_stock_logs=recent_stock_logs
     )
 
 

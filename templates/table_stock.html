@@ -185,6 +185,39 @@
           border: 1px solid #ddd;
           border-radius: 4px;
       }
+      .log-table th,
+      .log-table td {
+          font-size: 0.95em;
+      }
+      .log-item {
+          font-weight: bold;
+      }
+      .stock-key {
+          display: block;
+          color: #6c757d;
+          font-size: 0.85em;
+          margin-top: 3px;
+      }
+      .delta-positive {
+          color: #155724;
+          font-weight: bold;
+      }
+      .delta-negative {
+          color: #721c24;
+          font-weight: bold;
+      }
+      .note-cell {
+          text-align: left;
+          max-width: 260px;
+      }
+      .empty-log {
+          padding: 18px;
+          text-align: center;
+          color: #6c757d;
+          background: #f8f9fa;
+          border: 1px solid #ddd;
+          border-top: none;
+      }
   </style>
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -211,6 +244,54 @@
         </div>
       {% endif %}
     {% endwith %}
+
+    <!-- TABLE STOCK LOG -->
+    <div class="section-header" id="stock-log-header">
+      <span>
+        <i class="fas fa-caret-right section-indicator" id="stock-log-indicator"></i>
+        Recent Stock Log
+        <span class="section-count">{{ recent_stock_logs|length }}</span>
+      </span>
+    </div>
+    <div class="section-content" id="stock-log-content">
+      {% if recent_stock_logs %}
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Worker</th>
+              <th>Action</th>
+              <th>Item</th>
+              <th>Change</th>
+              <th>Before</th>
+              <th>After</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in recent_stock_logs %}
+              <tr>
+                <td>{{ log.created_at.strftime('%d/%m/%Y %H:%M') if log.created_at else '-' }}</td>
+                <td>{{ log.worker }}</td>
+                <td>{{ log.action_label }}</td>
+                <td>
+                  <span class="log-item">{{ log.stock_label }}</span>
+                  <span class="stock-key">{{ log.stock_type }}</span>
+                </td>
+                <td class="{% if log.delta > 0 %}delta-positive{% elif log.delta < 0 %}delta-negative{% endif %}">
+                  {% if log.delta > 0 %}+{{ log.delta }}{% else %}{{ log.delta }}{% endif %}
+                </td>
+                <td>{{ log.count_before }}</td>
+                <td>{{ log.count_after }}</td>
+                <td class="note-cell">{{ log.note or '-' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="empty-log">No stock changes have been logged yet.</div>
+      {% endif %}
+    </div>
     
     <!-- 1. TABLE BODIES SECTION -->
     <div class="section-header" id="bodies-header">
@@ -686,6 +767,7 @@
       }
       
       // Initialize togglable sections
+      toggleSection('stock-log-header', 'stock-log-content', 'stock-log-indicator');
       toggleSection('bodies-header', 'bodies-content', 'bodies-indicator');
       toggleSection('top-rails-header', 'top-rails-content', 'top-rails-indicator');
       toggleSection('cushions-header', 'cushions-content', 'cushions-indicator');
