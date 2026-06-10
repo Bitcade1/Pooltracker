@@ -764,6 +764,15 @@ def cnc_completed_quantity_total(year=None, month=None, day=None):
     return int(total or 0)
 
 
+def elapsed_weekdays_in_month(target_date):
+    month_start = target_date.replace(day=1)
+    return sum(
+        1
+        for offset in range((target_date - month_start).days + 1)
+        if (month_start + timedelta(days=offset)).weekday() < 5
+    )
+
+
 def bonus_goal_progress(area, year=None, month=None):
     ensure_bonus_goal_tables()
     today = date.today()
@@ -8909,6 +8918,9 @@ def cnc_dashboard():
     )
     completed_today_count = cnc_completed_quantity_total(year=today.year, month=today.month, day=today.day)
     completed_month_count = cnc_completed_quantity_total(year=today.year, month=today.month)
+    elapsed_workdays = elapsed_weekdays_in_month(today)
+    avg_sheets_per_day = completed_month_count / elapsed_workdays if elapsed_workdays else 0
+    avg_sheets_per_day_display = f"{avg_sheets_per_day:.1f}".rstrip("0").rstrip(".")
     completed_today = (
         CncQueueItem.query
         .options(joinedload(CncQueueItem.job))
@@ -8928,6 +8940,7 @@ def cnc_dashboard():
         machine_numbers=CNC_MACHINE_NUMBERS,
         completed_today=completed_today,
         completed_today_count=completed_today_count,
+        avg_sheets_per_day=avg_sheets_per_day_display,
         completed_month_count=completed_month_count,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),

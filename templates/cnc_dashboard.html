@@ -85,7 +85,7 @@
 
     .headline-stats {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
     }
 
@@ -105,6 +105,10 @@
 
     .headline-stat.month {
         background: #1d4ed8;
+    }
+
+    .headline-stat.average {
+        background: #9333ea;
     }
 
     .headline-stat-label {
@@ -641,6 +645,10 @@
         <article class="headline-stat today">
             <div class="headline-stat-label">Completed Today</div>
             <div class="headline-stat-value" id="completed-today-count">{{ completed_today_count }}</div>
+        </article>
+        <article class="headline-stat average">
+            <div class="headline-stat-label">Avg Sheets Per Day</div>
+            <div class="headline-stat-value">{{ avg_sheets_per_day }}</div>
         </article>
         <article class="headline-stat month">
             <div class="headline-stat-label">Completed This Month</div>
