@@ -573,8 +573,8 @@
     const celebrationTitle = document.getElementById("goalCelebrationTitle");
     const celebrationText = document.getElementById("goalCelebrationText");
     const celebrationImage = document.getElementById("goalCelebrationImage");
-    const goalCelebrationGif = "https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif";
-    const milestoneCelebrationGifs = [
+    const lastCelebrationGifKey = "top-rail-last-celebration-gif";
+    const celebrationGifs = [
         "https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif",
         "https://media1.tenor.com/m/4gwgdvPrIxUAAAAC/just-flexing-arnold-schwarzenegger.gif",
         "https://media1.tenor.com/m/gNVtdIjW3mQAAAAC/terminator-smiling.gif",
@@ -602,8 +602,25 @@
         return `${goal.worker}|${goal.target}`;
     }
 
-    function randomMilestoneGif() {
-        return milestoneCelebrationGifs[Math.floor(Math.random() * milestoneCelebrationGifs.length)];
+    function randomCelebrationGif() {
+        let lastGif = "";
+        try {
+            lastGif = localStorage.getItem(lastCelebrationGifKey) || "";
+        } catch (error) {
+            lastGif = "";
+        }
+
+        const gifPool = celebrationGifs.filter((gif) => gif !== lastGif);
+        const availableGifs = gifPool.length ? gifPool : celebrationGifs;
+        const selectedGif = availableGifs[Math.floor(Math.random() * availableGifs.length)];
+
+        try {
+            localStorage.setItem(lastCelebrationGifKey, selectedGif);
+        } catch (error) {
+            // Ignore storage failures so celebrations still display.
+        }
+
+        return selectedGif;
     }
 
     function showCelebration(title, message, imageUrl) {
@@ -641,7 +658,7 @@
             goals.length === 1
                 ? `${names} completed their top rail goal.`
                 : `${names} completed their top rail goals.`,
-            goalCelebrationGif
+            randomCelebrationGif()
         );
         return true;
     }
@@ -673,7 +690,7 @@
         showCelebration(
             `${milestone} Top Rails`,
             `${milestone} top rails completed this month.`,
-            randomMilestoneGif()
+            randomCelebrationGif()
         );
         return true;
     }
