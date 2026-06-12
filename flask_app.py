@@ -2454,6 +2454,18 @@ def build_stock_snapshot():
         cost_locked=False,
         count_display="-",
     )
+    add_item(
+        "Chinese Parts",
+        "parts_on_water_2",
+        "Parts on the water 2",
+        1,
+        key_category="Parts Inventory",
+        unit_cost=0.0,
+        shipping_cost=0.0,
+        labour_cost=0.0,
+        cost_locked=False,
+        count_display="-",
+    )
 
     wood_sections = [
         ("Body Wood Sets", "Body"),
