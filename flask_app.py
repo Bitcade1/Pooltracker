@@ -6481,6 +6481,43 @@ def cushion_completed_size_stats(today=None):
     ]
 
 
+def cushion_completed_previous_month_stats(today=None, month_count=6):
+    today = today or london_now().date()
+    current_month_start = today.replace(day=1)
+
+    def previous_month_start(month_start):
+        return (month_start - timedelta(days=1)).replace(day=1)
+
+    def next_month_start(month_start):
+        if month_start.month == 12:
+            return date(month_start.year + 1, 1, 1)
+        return date(month_start.year, month_start.month + 1, 1)
+
+    rows = []
+    month_start = previous_month_start(current_month_start)
+    for _ in range(month_count):
+        start_dt = datetime.combine(month_start, time.min)
+        end_dt = datetime.combine(next_month_start(month_start), time.min)
+        query_rows = (
+            db.session.query(CushionCompletedSet.size_label, func.count(CushionCompletedSet.id))
+            .filter(
+                CushionCompletedSet.completed_at >= start_dt,
+                CushionCompletedSet.completed_at < end_dt
+            )
+            .group_by(CushionCompletedSet.size_label)
+            .all()
+        )
+        counts = {size_label: int(count or 0) for size_label, count in query_rows}
+        rows.append({
+            "label": month_start.strftime("%B %Y"),
+            "sizes": {size_label: counts.get(size_label, 0) for size_label in CUSHION_SIZES},
+            "total": sum(counts.get(size_label, 0) for size_label in CUSHION_SIZES),
+        })
+        month_start = previous_month_start(month_start)
+
+    return rows
+
+
 def cushion_history_stage_summary(filters):
     rows = []
     selected_stage = filters.get("stage_key")
@@ -10397,6 +10434,7 @@ def counting_cushions():
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
         completed_size_stats=cushion_completed_size_stats(),
+        previous_month_size_stats=cushion_completed_previous_month_stats(),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )

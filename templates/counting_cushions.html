@@ -143,6 +143,46 @@
         font-size: 1.6rem;
     }
 
+    .monthly-history {
+        margin-top: 14px;
+    }
+
+    .monthly-history-title {
+        margin: 0 0 8px;
+        color: #1f2d3d;
+        font-size: 1.1rem;
+        font-weight: 900;
+    }
+
+    .monthly-history-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 1rem;
+    }
+
+    .monthly-history-table th,
+    .monthly-history-table td {
+        border-top: 1px solid #e5e7eb;
+        padding: 9px 10px;
+        text-align: right;
+    }
+
+    .monthly-history-table th:first-child,
+    .monthly-history-table td:first-child {
+        text-align: left;
+    }
+
+    .monthly-history-table th {
+        color: #475569;
+        font-weight: 900;
+        background: #f8fafc;
+    }
+
+    .monthly-history-table td {
+        color: #1f2d3d;
+        font-weight: 800;
+    }
+
     .stage-panel,
     .info-panel {
         background: #ffffff;
@@ -508,6 +548,31 @@
                     </div>
                 </article>
             {% endfor %}
+        </div>
+        <div class="monthly-history">
+            <h3 class="monthly-history-title">Previous Months</h3>
+            <table class="monthly-history-table">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        {% for size in sizes %}
+                            <th>{{ size }}</th>
+                        {% endfor %}
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in previous_month_size_stats %}
+                        <tr>
+                            <td>{{ row.label }}</td>
+                            {% for size in sizes %}
+                                <td>{{ row.sizes.get(size, 0) }}</td>
+                            {% endfor %}
+                            <td>{{ row.total }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </section>
 
