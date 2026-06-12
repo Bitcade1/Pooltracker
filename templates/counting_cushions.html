@@ -117,6 +117,32 @@
         line-height: 1;
     }
 
+    .production-stats {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 10px;
+        padding: 14px;
+    }
+
+    .production-stats .stats-grid {
+        margin-top: 10px;
+    }
+
+    .period-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        margin-top: 10px;
+        color: #334155;
+        font-weight: 900;
+    }
+
+    .period-row strong {
+        color: #0f172a;
+        font-size: 1.6rem;
+    }
+
     .stage-panel,
     .info-panel {
         background: #ffffff;
@@ -462,6 +488,25 @@
                 {% if stage.key == 'punch_rubber_ends' or stage.key == 'cutting_rubber_1m_lengths' %}
                     {{ cushion_stage_card(stage) }}
                 {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="production-stats" aria-label="Completed cushion sets by size">
+        <h2 class="job-section-title">Completed Cushion Sets</h2>
+        <div class="stats-grid">
+            {% for row in completed_size_stats %}
+                <article class="stat-card">
+                    <div class="stat-label">{{ row.size }}</div>
+                    <div class="period-row">
+                        <span>This Month</span>
+                        <strong>{{ row.month }}</strong>
+                    </div>
+                    <div class="period-row">
+                        <span>This Year</span>
+                        <strong>{{ row.year }}</strong>
+                    </div>
+                </article>
             {% endfor %}
         </div>
     </section>

@@ -6451,6 +6451,36 @@ def cushion_history_summary(filters):
     }
 
 
+def cushion_completed_size_stats(today=None):
+    today = today or london_now().date()
+    month_start = datetime.combine(today.replace(day=1), time.min)
+    year_start = datetime.combine(date(today.year, 1, 1), time.min)
+    end_dt = datetime.combine(today + timedelta(days=1), time.min)
+
+    def counts_since(start_dt):
+        rows = (
+            db.session.query(CushionCompletedSet.size_label, func.count(CushionCompletedSet.id))
+            .filter(
+                CushionCompletedSet.completed_at >= start_dt,
+                CushionCompletedSet.completed_at < end_dt
+            )
+            .group_by(CushionCompletedSet.size_label)
+            .all()
+        )
+        return {size_label: int(count or 0) for size_label, count in rows}
+
+    month_counts = counts_since(month_start)
+    year_counts = counts_since(year_start)
+    return [
+        {
+            "size": size_label,
+            "month": month_counts.get(size_label, 0),
+            "year": year_counts.get(size_label, 0),
+        }
+        for size_label in CUSHION_SIZES
+    ]
+
+
 def cushion_history_stage_summary(filters):
     rows = []
     selected_stage = filters.get("stage_key")
@@ -10366,6 +10396,7 @@ def counting_cushions():
         sizes=CUSHION_SIZES,
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
+        completed_size_stats=cushion_completed_size_stats(),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )
