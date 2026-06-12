@@ -7954,12 +7954,24 @@ TOP_RAIL_PARTS_REQUIREMENTS = [
 ]
 
 TOP_RAIL_TABLE_STOCK_CONFIGS = [
-    {"size": "7ft", "color": "Black", "body_key": "body_7ft_black", "rail_key": "top_rail_7ft_black"},
+    {
+        "size": "7ft",
+        "color": "Black",
+        "body_key": "body_7ft_black",
+        "body_extra_keys": ["body_7ft_lite"],
+        "rail_key": "top_rail_7ft_black",
+    },
     {"size": "7ft", "color": "Rustic Oak", "body_key": "body_7ft_rustic_oak", "rail_key": "top_rail_7ft_rustic_oak"},
     {"size": "7ft", "color": "Grey Oak", "body_key": "body_7ft_grey_oak", "rail_key": "top_rail_7ft_grey_oak"},
     {"size": "7ft", "color": "Stone", "body_key": "body_7ft_stone", "rail_key": "top_rail_7ft_stone"},
     {"size": "7ft", "color": "Rustic Black", "body_key": "body_7ft_rustic_black", "rail_key": "top_rail_7ft_rustic_black"},
-    {"size": "6ft", "color": "Black", "body_key": "body_6ft_black", "rail_key": "top_rail_6ft_black"},
+    {
+        "size": "6ft",
+        "color": "Black",
+        "body_key": "body_6ft_black",
+        "body_extra_keys": ["body_6ft_lite"],
+        "rail_key": "top_rail_6ft_black",
+    },
     {"size": "6ft", "color": "Rustic Oak", "body_key": "body_6ft_rustic_oak", "rail_key": "top_rail_6ft_rustic_oak"},
     {"size": "6ft", "color": "Grey Oak", "body_key": "body_6ft_grey_oak", "rail_key": "top_rail_6ft_grey_oak"},
     {"size": "6ft", "color": "Stone", "body_key": "body_6ft_stone", "rail_key": "top_rail_6ft_stone"},
@@ -8005,6 +8017,13 @@ def _latest_part_count(part_name):
 def _table_stock_count(stock_key):
     entry = TableStock.query.filter_by(type=stock_key).first()
     return entry.count if entry else 0
+
+
+def _top_rail_balance_body_stock(config):
+    body_stock = _table_stock_count(config["body_key"])
+    for stock_key in config.get("body_extra_keys", []):
+        body_stock += _table_stock_count(stock_key)
+    return body_stock
 
 
 def _is_6ft_table(serial):
@@ -8252,7 +8271,7 @@ def top_rail_dashboard_view():
 
     deficits_by_size = {"7ft": [], "6ft": []}
     for config in TOP_RAIL_TABLE_STOCK_CONFIGS:
-        body_stock = _table_stock_count(config["body_key"])
+        body_stock = _top_rail_balance_body_stock(config)
         rail_stock = _table_stock_count(config["rail_key"])
 
         if body_stock == 0 and rail_stock == 0:
@@ -8919,8 +8938,8 @@ def cnc_dashboard():
     completed_today_count = cnc_completed_quantity_total(year=today.year, month=today.month, day=today.day)
     completed_month_count = cnc_completed_quantity_total(year=today.year, month=today.month)
     elapsed_workdays = elapsed_weekdays_in_month(today)
-    avg_sheets_per_day = completed_month_count / elapsed_workdays if elapsed_workdays else 0
-    avg_sheets_per_day_display = f"{avg_sheets_per_day:.1f}".rstrip("0").rstrip(".")
+    daily_avg_sheets = completed_month_count / elapsed_workdays if elapsed_workdays else 0
+    daily_avg_sheets_display = f"{daily_avg_sheets:.1f}".rstrip("0").rstrip(".")
     completed_today = (
         CncQueueItem.query
         .options(joinedload(CncQueueItem.job))
@@ -8940,7 +8959,7 @@ def cnc_dashboard():
         machine_numbers=CNC_MACHINE_NUMBERS,
         completed_today=completed_today,
         completed_today_count=completed_today_count,
-        avg_sheets_per_day=avg_sheets_per_day_display,
+        daily_avg_sheets=daily_avg_sheets_display,
         completed_month_count=completed_month_count,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
