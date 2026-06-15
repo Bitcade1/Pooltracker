@@ -85,7 +85,7 @@
 
     .headline-stats {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
     }
 
@@ -111,6 +111,10 @@
         background: #9333ea;
     }
 
+    .headline-stat.required {
+        background: #b45309;
+    }
+
     .headline-stat-label {
         font-size: clamp(1.1rem, 1.8vw, 1.8rem);
         font-weight: 800;
@@ -122,6 +126,14 @@
         font-size: clamp(4rem, 8vw, 8rem);
         line-height: 0.95;
         font-weight: 900;
+    }
+
+    .headline-stat-note {
+        display: block;
+        margin-top: 8px;
+        font-size: clamp(0.95rem, 1.3vw, 1.25rem);
+        font-weight: 800;
+        color: rgba(255, 255, 255, 0.9);
     }
 
     .inventory-stats {
@@ -649,6 +661,11 @@
         <article class="headline-stat average">
             <div class="headline-stat-label">Daily Avg</div>
             <div class="headline-stat-value">{{ daily_avg_sheets }}</div>
+        </article>
+        <article class="headline-stat required">
+            <div class="headline-stat-label">Needed / Day</div>
+            <div class="headline-stat-value">{{ required_sheets_per_day }}</div>
+            <span class="headline-stat-note">{{ goal_pacing_note }}</span>
         </article>
         <article class="headline-stat month">
             <div class="headline-stat-label">Completed This Month</div>

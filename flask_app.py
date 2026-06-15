@@ -773,6 +773,15 @@ def elapsed_weekdays_in_month(target_date):
     )
 
 
+def remaining_weekdays_in_month(target_date):
+    month_end = date(target_date.year, target_date.month, monthrange(target_date.year, target_date.month)[1])
+    return sum(
+        1
+        for offset in range((month_end - target_date).days + 1)
+        if (target_date + timedelta(days=offset)).weekday() < 5
+    )
+
+
 def bonus_goal_progress(area, year=None, month=None):
     ensure_bonus_goal_tables()
     today = date.today()
@@ -9034,6 +9043,22 @@ def cnc_dashboard():
         .all()
     )
     bonus_progress = bonus_goal_progress("cnc", today.year, today.month)
+    cnc_goal_target = max((goal.get("target", 0) for goal in bonus_progress), default=0)
+    cnc_goal_remaining = max(cnc_goal_target - completed_month_count, 0)
+    remaining_workdays = remaining_weekdays_in_month(today)
+    if cnc_goal_target <= 0:
+        required_sheets_per_day_display = "No Goal"
+        goal_pacing_note = "Set a CNC goal"
+    elif cnc_goal_remaining <= 0:
+        required_sheets_per_day_display = "0"
+        goal_pacing_note = "Goal reached"
+    elif remaining_workdays <= 0:
+        required_sheets_per_day_display = "N/A"
+        goal_pacing_note = f"{cnc_goal_remaining} left"
+    else:
+        required_sheets_per_day = cnc_goal_remaining / remaining_workdays
+        required_sheets_per_day_display = f"{required_sheets_per_day:.1f}".rstrip("0").rstrip(".")
+        goal_pacing_note = f"{cnc_goal_remaining} left / {remaining_workdays} days"
     mdf_inventory = _get_or_create_mdf_inventory()
     if mdf_inventory in db.session.new:
         db.session.commit()
@@ -9045,6 +9070,8 @@ def cnc_dashboard():
         completed_today=completed_today,
         completed_today_count=completed_today_count,
         daily_avg_sheets=daily_avg_sheets_display,
+        required_sheets_per_day=required_sheets_per_day_display,
+        goal_pacing_note=goal_pacing_note,
         completed_month_count=completed_month_count,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
