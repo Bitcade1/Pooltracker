@@ -2289,6 +2289,9 @@ def inventory():
         table_parts_counts[part] = latest_entry[0] if latest_entry else 0
 
     table_parts_on_order_counts = saved_chinese_parts_on_order_counts()
+    max_tables_possible_stock, tables_possible_per_part_stock = calculate_chinese_parts_build_capacity(
+        table_parts_counts
+    )
     max_tables_possible, tables_possible_per_part = calculate_chinese_parts_build_capacity(
         table_parts_counts,
         table_parts_on_order_counts
@@ -2319,6 +2322,8 @@ def inventory():
         parts_status=parts_status,
         table_parts_counts=table_parts_counts,
         table_parts_on_order_counts=table_parts_on_order_counts,
+        max_tables_possible_stock=max_tables_possible_stock,
+        tables_possible_per_part_stock=tables_possible_per_part_stock,
         max_tables_possible=max_tables_possible,
         tables_possible_per_part=tables_possible_per_part,
         chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,

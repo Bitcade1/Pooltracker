@@ -68,10 +68,9 @@
                 // Store original order before first sort
                 originalTablePartsOrder = rows.map(row => row.cloneNode(true));
                 
-                // Sort rows by the "Can Build" column (4th column, index 3)
                 rows.sort((a, b) => {
-                    const tablesA = parseInt(a.cells[3].textContent);
-                    const tablesB = parseInt(b.cells[3].textContent);
+                    const tablesA = parseInt(a.dataset.canBuild || '0');
+                    const tablesB = parseInt(b.dataset.canBuild || '0');
                     return tablesA - tablesB; // Ascending order (lowest first)
                 });
                 
@@ -168,16 +167,19 @@
                     <tr>
                         <th>Part</th>
                         <th>Current Stock</th>
+                        <th>Can Build With Stock</th>
                         <th>Saved On Order</th>
                         <th>Can Build</th>
                     </tr>
                 </thead>
                 <tbody id="tablePartsBody">
                     {% for part, count in table_parts_counts.items() %}
+                    {% set part_can_build_stock = tables_possible_per_part_stock.get(part) %}
                     {% set part_can_build = tables_possible_per_part.get(part) %}
-                    <tr>
+                    <tr data-can-build="{{ part_can_build if part_can_build is not none else 0 }}">
                         <td><strong>{{ part }}</strong></td>
                         <td>{{ count }}</td>
+                        <td>{{ part_can_build_stock if part_can_build_stock is not none else '-' }}</td>
                         <td>{{ table_parts_on_order_counts.get(part, 0) }}</td>
                         <td>
                             {{ part_can_build if part_can_build is not none else '-' }}
@@ -189,7 +191,8 @@
                     {% endfor %}
                 </tbody>
             </table>
-            <p><strong>Maximum Tables Possible:</strong> {{ max_tables_possible }}</p>
+            <p><strong>Maximum Tables Possible With Stock:</strong> {{ max_tables_possible_stock }}</p>
+            <p><strong>Maximum Tables Possible Including Saved On Order:</strong> {{ max_tables_possible }}</p>
         </div>
 
         <!-- Collapsible Section for Hardware Parts -->
