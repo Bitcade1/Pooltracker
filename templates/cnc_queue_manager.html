@@ -398,8 +398,6 @@
                 <label for="job-pool-filter">Filter:</label>
                 <select id="job-pool-filter">
                     <option value="all">All Jobs</option>
-                    <option value="7ft">7ft Only</option>
-                    <option value="6ft">6ft Only</option>
                     <option value="7ft-lite">7ft Lite</option>
                     <option value="7ft-champ">7ft Champ</option>
                     <option value="6ft-lite">6ft Lite</option>
@@ -706,11 +704,7 @@
             const isLite = jobName.includes("lite");
             const isChamp = jobName.includes("champ") || jobName.includes("champion");
             let show = true;
-            if (selected === "7ft") {
-                show = jobName.includes("7ft");
-            } else if (selected === "6ft") {
-                show = jobName.includes("6ft");
-            } else if (selected === "7ft-lite") {
+            if (selected === "7ft-lite") {
                 show = jobName.includes("7ft") && isLite;
             } else if (selected === "7ft-champ") {
                 show = jobName.includes("7ft") && isChamp;
