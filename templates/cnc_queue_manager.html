@@ -400,6 +400,11 @@
                     <option value="all">All Jobs</option>
                     <option value="7ft">7ft Only</option>
                     <option value="6ft">6ft Only</option>
+                    <option value="7ft-lite">7ft Lite</option>
+                    <option value="7ft-champ">7ft Champ</option>
+                    <option value="6ft-lite">6ft Lite</option>
+                    <option value="6ft-champ">6ft Champ</option>
+                    <option value="plywood">Ply Wood</option>
                 </select>
                 <button type="button" id="delete-selected-jobs" class="btn btn-danger">Delete Selected Jobs</button>
             </div>
@@ -698,11 +703,23 @@
         const selected = filterSelect.value;
         document.querySelectorAll(".job-card").forEach((card) => {
             const jobName = (card.getAttribute("data-job-name") || "").toLowerCase();
+            const isLite = jobName.includes("lite");
+            const isChamp = jobName.includes("champ") || jobName.includes("champion");
             let show = true;
             if (selected === "7ft") {
                 show = jobName.includes("7ft");
             } else if (selected === "6ft") {
                 show = jobName.includes("6ft");
+            } else if (selected === "7ft-lite") {
+                show = jobName.includes("7ft") && isLite;
+            } else if (selected === "7ft-champ") {
+                show = jobName.includes("7ft") && isChamp;
+            } else if (selected === "6ft-lite") {
+                show = jobName.includes("6ft") && isLite;
+            } else if (selected === "6ft-champ") {
+                show = jobName.includes("6ft") && isChamp;
+            } else if (selected === "plywood") {
+                show = jobName.includes("ply");
             }
             card.style.display = show ? "" : "none";
         });
