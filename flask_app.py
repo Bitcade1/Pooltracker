@@ -9042,6 +9042,16 @@ def cnc_dashboard():
         .limit(200)
         .all()
     )
+    last_recorded_rows = (
+        db.session.query(CncQueueItem.machine_number, func.max(CncQueueItem.completed_at))
+        .filter(*completed_today_filters)
+        .group_by(CncQueueItem.machine_number)
+        .all()
+    )
+    last_recorded_by_machine = {
+        machine_number: completed_at
+        for machine_number, completed_at in last_recorded_rows
+    }
     bonus_progress = bonus_goal_progress("cnc", today.year, today.month)
     cnc_goal_target = max((goal.get("target", 0) for goal in bonus_progress), default=0)
     cnc_goal_remaining = max(cnc_goal_target - completed_month_count, 0)
@@ -9069,6 +9079,7 @@ def cnc_dashboard():
         machine_numbers=CNC_MACHINE_NUMBERS,
         completed_today=completed_today,
         completed_today_count=completed_today_count,
+        last_recorded_by_machine=last_recorded_by_machine,
         daily_avg_sheets=daily_avg_sheets_display,
         required_sheets_per_day=required_sheets_per_day_display,
         goal_pacing_note=goal_pacing_note,

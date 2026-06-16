@@ -316,6 +316,17 @@
         margin: 0;
         font-size: clamp(1.5rem, 2.5vw, 2.2rem);
         color: var(--machine-accent);
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .machine-last-recorded {
+        color: #334155;
+        font-size: clamp(0.95rem, 1.4vw, 1.2rem);
+        font-weight: 800;
     }
 
     .queue-count {
@@ -719,7 +730,13 @@
     <section class="queues-grid">
         {% for machine in machine_numbers %}
             <article class="queue-column machine-{{ machine }}" data-machine-number="{{ machine }}">
-                <h2 class="queue-heading">CNC {{ machine }}</h2>
+                {% set last_recorded = last_recorded_by_machine.get(machine) %}
+                <h2 class="queue-heading">
+                    <span>CNC {{ machine }}</span>
+                    <span class="machine-last-recorded">
+                        Last: {{ last_recorded|london_time('%H:%M') if last_recorded else '-' }}
+                    </span>
+                </h2>
                 <div class="queue-count">{{ queues[machine]|length }} queued</div>
                 <div class="queue-list">
                     {% set queue_ns = namespace(previous_job_name='') %}
