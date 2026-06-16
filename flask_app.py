@@ -9052,6 +9052,17 @@ def cnc_dashboard():
         machine_number: completed_at
         for machine_number, completed_at in last_recorded_rows
     }
+    machine_run_rows = (
+        db.session.query(CncQueueItem.machine_number, func.count(CncQueueItem.id))
+        .filter(*completed_today_filters)
+        .group_by(CncQueueItem.machine_number)
+        .all()
+    )
+    machine_runs_today_by_machine = {machine_number: 0 for machine_number in CNC_MACHINE_NUMBERS}
+    for machine_number, run_count in machine_run_rows:
+        if machine_number in machine_runs_today_by_machine:
+            machine_runs_today_by_machine[machine_number] = int(run_count or 0)
+    total_machine_runs_today = sum(machine_runs_today_by_machine.values())
     bonus_progress = bonus_goal_progress("cnc", today.year, today.month)
     cnc_goal_target = max((goal.get("target", 0) for goal in bonus_progress), default=0)
     cnc_goal_remaining = max(cnc_goal_target - completed_month_count, 0)
@@ -9080,6 +9091,8 @@ def cnc_dashboard():
         completed_today=completed_today,
         completed_today_count=completed_today_count,
         last_recorded_by_machine=last_recorded_by_machine,
+        machine_runs_today_by_machine=machine_runs_today_by_machine,
+        total_machine_runs_today=total_machine_runs_today,
         daily_avg_sheets=daily_avg_sheets_display,
         required_sheets_per_day=required_sheets_per_day_display,
         goal_pacing_note=goal_pacing_note,
