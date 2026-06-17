@@ -1648,11 +1648,12 @@ def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4,
         (units_per_strip - (new_available_units % units_per_strip)) % units_per_strip
     )
 
+    now = london_now()
     new_entry = PrintedPartsCount(
         part_name=canonical_name,
         count=new_strips,
-        date=date.today(),
-        time=datetime.utcnow().time()
+        date=now.date(),
+        time=now.time()
     )
     db.session.add(new_entry)
     if remainder_entry:
@@ -3402,11 +3403,12 @@ def counting_hardware():
                 if new_count < current_count:
                     check_and_notify_low_stock(part_name, current_count, new_count)
 
+                now = london_now()
                 new_entry = PrintedPartsCount(
                     part_name=part_name,
                     count=new_count,
-                    date=datetime.utcnow().date(),
-                    time=datetime.utcnow().time()
+                    date=now.date(),
+                    time=now.time()
                 )
                 db.session.add(new_entry)
                 if remainder_entry:
@@ -3471,11 +3473,12 @@ def counting_hardware():
                 check_and_notify_low_stock(part_name, current_count, new_count)
 
             # Record the new count in the PrintedPartsCount table
+            now = london_now()
             new_entry = PrintedPartsCount(
                 part_name=part_name,
                 count=new_count,
-                date=datetime.utcnow().date(),
-                time=datetime.utcnow().time()
+                date=now.date(),
+                time=now.time()
             )
             db.session.add(new_entry)
             db.session.commit()
