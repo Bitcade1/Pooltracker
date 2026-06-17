@@ -8432,28 +8432,42 @@ def top_rail_dashboard_view():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
+    def top_rail_duration_summary(rails):
+        total_duration_seconds = 0
+        counted_rails = 0
+        last_rail_dt = None
+        last_rail_duration = None
+        for rail in rails:
+            duration = calculate_top_rail_duration(rail)
+            if duration is None:
+                continue
+            total_duration_seconds += duration.total_seconds()
+            counted_rails += 1
+            finish_obj = parse_time_string(rail.finish_time)
+            finish_dt = datetime.combine(rail.date, finish_obj) if finish_obj else rail.date
+            if last_rail_dt is None or finish_dt > last_rail_dt:
+                last_rail_dt = finish_dt
+                last_rail_duration = duration
+        return total_duration_seconds, counted_rails, last_rail_duration
+
     current_month_rails = TopRail.query.filter(
         extract('year', TopRail.date) == today.year,
         extract('month', TopRail.date) == today.month
     ).all()
-    total_duration_seconds = 0
-    counted_rails = 0
-    last_rail_dt = None
-    last_rail_duration = None
-    for rail in current_month_rails:
-        duration = calculate_top_rail_duration(rail)
-        if duration is None:
-            continue
-        total_duration_seconds += duration.total_seconds()
-        counted_rails += 1
-        finish_obj = parse_time_string(rail.finish_time)
-        finish_dt = datetime.combine(rail.date, finish_obj) if finish_obj else rail.date
-        if last_rail_dt is None or finish_dt > last_rail_dt:
-            last_rail_dt = finish_dt
-            last_rail_duration = duration
+    total_duration_seconds, counted_rails, last_rail_duration = top_rail_duration_summary(current_month_rails)
 
     avg_top_rail_time = format_avg_duration(total_duration_seconds, counted_rails)
     last_top_rail_time = format_avg_duration(last_rail_duration.total_seconds(), 1) if last_rail_duration else "N/A"
+
+    start_of_month = today.replace(day=1)
+    previous_month_end = start_of_month - timedelta(days=1)
+    previous_month_start = previous_month_end.replace(day=1)
+    previous_month_rails = TopRail.query.filter(
+        TopRail.date >= previous_month_start,
+        TopRail.date <= previous_month_end
+    ).all()
+    previous_total_seconds, previous_counted_rails, _ = top_rail_duration_summary(previous_month_rails)
+    last_month_avg_top_rail_time = format_avg_duration(previous_total_seconds, previous_counted_rails)
     bonus_progress = bonus_goal_progress("top_rails", today.year, today.month)
 
     return render_template(
@@ -8468,6 +8482,7 @@ def top_rail_dashboard_view():
         min_rails_possible=min_rails_possible,
         deficits_by_size=deficits_by_size,
         avg_top_rail_time=avg_top_rail_time,
+        last_month_avg_top_rail_time=last_month_avg_top_rail_time,
         last_top_rail_time=last_top_rail_time,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month)
