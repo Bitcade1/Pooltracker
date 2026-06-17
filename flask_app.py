@@ -7528,6 +7528,182 @@ def bodies():
         selected_worker_key=selected_worker_key,
         monthly_worker_stats=monthly_worker_stats
     )
+
+
+@app.route('/body_pod_audit')
+def body_pod_audit():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    def clean_pod_serial(serial):
+        cleaned = (serial or "").strip()
+        if "**Pod Serial Number:" in cleaned:
+            cleaned = cleaned.replace("**Pod Serial Number:", "").strip()
+        return cleaned
+
+    def picker_base_key(serial):
+        return base_serial_for_pod_matching(clean_pod_serial(serial))
+
+    def normalized_base_key(serial):
+        base_serial = base_serial_for_pod_matching(clean_pod_serial(serial))
+        return re.sub(r"[^A-Z0-9]+", "", base_serial.upper())
+
+    def serial_root_key(serial):
+        cleaned = strip_table_serial_suffixes(clean_pod_serial(serial), remove_color=True, remove_lite=True)
+        match = re.search(r"\d+", cleaned)
+        return match.group(0) if match else normalized_base_key(cleaned)
+
+    def table_type_label(table_type):
+        return "Lite" if table_type == TABLE_TYPE_LITE else "Champion"
+
+    def serial_size_label(serial):
+        return "6ft" if serial_is_6ft(serial) else "7ft"
+
+    def format_entry_date(value):
+        return value.strftime("%d/%m/%Y") if value else "-"
+
+    completed_bodies = CompletedTable.query.order_by(CompletedTable.date.desc(), CompletedTable.id.desc()).all()
+    completed_base_serials = {picker_base_key(body.serial_number) for body in completed_bodies}
+
+    body_records = []
+    body_by_normalized_key = defaultdict(list)
+    body_by_root_key = defaultdict(list)
+    for body in completed_bodies:
+        body_type, _ = get_body_build_metadata(body)
+        normalized_key = normalized_base_key(body.serial_number)
+        root_key = serial_root_key(body.serial_number)
+        record = {
+            "id": body.id,
+            "serial": body.serial_number,
+            "worker": body.worker,
+            "date": format_entry_date(body.date),
+            "size": serial_size_label(body.serial_number),
+            "table_type": body_type,
+            "type_label": table_type_label(body_type),
+            "normalized_key": normalized_key,
+            "root_key": root_key,
+        }
+        body_records.append(record)
+        if normalized_key:
+            body_by_normalized_key[normalized_key].append(record)
+        if root_key:
+            body_by_root_key[root_key].append(record)
+
+    completed_pods = CompletedPods.query.order_by(CompletedPods.date.desc(), CompletedPods.id.desc()).all()
+    picker_rows = []
+    mismatch_rows = []
+    all_pod_rows = []
+
+    for pod in completed_pods:
+        pod_serial = clean_pod_serial(pod.serial_number)
+        pod_type = table_type_from_serial(pod_serial)
+        pod_record = {
+            "id": pod.id,
+            "serial": pod_serial,
+            "worker": pod.worker,
+            "date": format_entry_date(pod.date),
+            "size": serial_size_label(pod_serial),
+            "table_type": pod_type,
+            "type_label": table_type_label(pod_type),
+            "picker_key": picker_base_key(pod_serial),
+            "normalized_key": normalized_base_key(pod_serial),
+            "root_key": serial_root_key(pod_serial),
+        }
+        all_pod_rows.append(pod_record)
+
+        normalized_matches = body_by_normalized_key.get(pod_record["normalized_key"], [])
+        root_matches = [
+            body
+            for body in body_by_root_key.get(pod_record["root_key"], [])
+            if body not in normalized_matches
+        ]
+        candidate_matches = normalized_matches or root_matches
+        best_match = candidate_matches[0] if candidate_matches else None
+
+        notes = []
+        if best_match:
+            if pod_record["size"] != best_match["size"]:
+                notes.append(f"Size mismatch: pod {pod_record['size']}, body {best_match['size']}")
+            if pod_record["table_type"] != best_match["table_type"]:
+                notes.append(f"Type mismatch: pod {pod_record['type_label']}, body {best_match['type_label']}")
+
+            if not notes and normalized_matches:
+                notes.append("Same serial after normalising formatting.")
+            elif not notes and root_matches:
+                notes.append("Same number, but serial format differs.")
+
+        if normalized_matches:
+            match_status = "Matched"
+            match_quality = "Normalised serial match"
+        elif root_matches:
+            match_status = "Possible Match"
+            match_quality = "Same serial number root"
+        else:
+            match_status = "No Body Found"
+            match_quality = "No completed body has the same serial"
+
+        if pod_record["picker_key"] not in completed_base_serials:
+            if best_match and normalized_matches:
+                picker_status = "Still in picker, but likely already built"
+            elif best_match:
+                picker_status = "Still in picker with possible body match"
+            else:
+                picker_status = "Still in picker, no body match found"
+
+            picker_rows.append({
+                "pod": pod_record,
+                "body": best_match,
+                "status": picker_status,
+                "match_status": match_status,
+                "match_quality": match_quality,
+                "notes": notes,
+                "match_count": len(candidate_matches),
+            })
+
+        for body in normalized_matches:
+            mismatch_notes = []
+            if pod_record["size"] != body["size"]:
+                mismatch_notes.append(f"Size mismatch: pod {pod_record['size']}, body {body['size']}")
+            if pod_record["table_type"] != body["table_type"]:
+                mismatch_notes.append(f"Type mismatch: pod {pod_record['type_label']}, body {body['type_label']}")
+            if mismatch_notes:
+                mismatch_rows.append({
+                    "pod": pod_record,
+                    "body": body,
+                    "notes": mismatch_notes,
+                })
+
+    likely_built_rows = [row for row in picker_rows if row["body"]]
+    no_match_rows = [row for row in picker_rows if not row["body"]]
+    type_mismatch_count = sum(
+        1
+        for row in mismatch_rows
+        if any(note.startswith("Type mismatch") for note in row["notes"])
+    )
+    size_mismatch_count = sum(
+        1
+        for row in mismatch_rows
+        if any(note.startswith("Size mismatch") for note in row["notes"])
+    )
+
+    summary = {
+        "total_pods": len(all_pod_rows),
+        "total_bodies": len(body_records),
+        "pods_in_picker": len(picker_rows),
+        "likely_already_built": len(likely_built_rows),
+        "no_body_match": len(no_match_rows),
+        "type_mismatches": type_mismatch_count,
+        "size_mismatches": size_mismatch_count,
+    }
+
+    return render_template(
+        'body_pod_audit.html',
+        summary=summary,
+        picker_rows=picker_rows,
+        mismatch_rows=mismatch_rows,
+        logged_in_worker=session.get('worker')
+    )
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     if 'worker' not in session:

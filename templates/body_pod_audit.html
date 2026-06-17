@@ -1,0 +1,283 @@
+{% extends 'base.html' %}
+
+{% block title %}Body Pod Audit{% endblock %}
+
+{% block content %}
+<style>
+    .audit-page {
+        text-align: left;
+    }
+
+    .audit-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+
+    .audit-header h1 {
+        margin: 0;
+    }
+
+    .audit-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        background: #0f172a;
+        color: #ffffff;
+        padding: 9px 12px;
+        text-decoration: none;
+        font-weight: 800;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .summary-card {
+        border: 1px solid #dbe4ef;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 12px;
+        text-align: center;
+    }
+
+    .summary-label {
+        color: #475569;
+        font-weight: 800;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+    }
+
+    .summary-value {
+        color: #0f172a;
+        font-size: 2rem;
+        font-weight: 900;
+        line-height: 1.1;
+        margin-top: 6px;
+    }
+
+    .audit-section {
+        background: #ffffff;
+        border: 1px solid #dbe4ef;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 18px;
+    }
+
+    .audit-section h2 {
+        margin: 0 0 12px 0;
+        color: #1f2d3d;
+    }
+
+    .table-wrap {
+        overflow-x: auto;
+    }
+
+    .audit-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 980px;
+    }
+
+    .audit-table th,
+    .audit-table td {
+        border-bottom: 1px solid #e2e8f0;
+        padding: 8px;
+        vertical-align: top;
+        text-align: left;
+    }
+
+    .audit-table th {
+        background: #f8fafc;
+        color: #0f172a;
+        font-weight: 900;
+    }
+
+    .serial-main {
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .serial-meta,
+    .note-list {
+        color: #475569;
+        font-size: 0.92rem;
+        line-height: 1.35;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: 0.82rem;
+        font-weight: 900;
+        background: #e0f2fe;
+        color: #075985;
+    }
+
+    .status-pill.warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-pill.danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .empty-state {
+        color: #475569;
+        font-weight: 800;
+        margin: 0;
+    }
+</style>
+
+<div class="audit-page">
+    <div class="audit-header">
+        <h1>Body Pod Audit</h1>
+        <a class="audit-link" href="{{ url_for('bodies') }}">Back to Bodies</a>
+    </div>
+
+    <section class="summary-grid" aria-label="Audit summary">
+        <article class="summary-card">
+            <div class="summary-label">Pods Logged</div>
+            <div class="summary-value">{{ summary.total_pods }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Bodies Logged</div>
+            <div class="summary-value">{{ summary.total_bodies }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Still In Picker</div>
+            <div class="summary-value">{{ summary.pods_in_picker }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Likely Built</div>
+            <div class="summary-value">{{ summary.likely_already_built }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">No Body Match</div>
+            <div class="summary-value">{{ summary.no_body_match }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Type Mismatches</div>
+            <div class="summary-value">{{ summary.type_mismatches }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Size Mismatches</div>
+            <div class="summary-value">{{ summary.size_mismatches }}</div>
+        </article>
+    </section>
+
+    <section class="audit-section">
+        <h2>Pods Still In The Body Picker</h2>
+        {% if picker_rows %}
+            <div class="table-wrap">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Pod</th>
+                            <th>Status</th>
+                            <th>Matched Body</th>
+                            <th>Match</th>
+                            <th>Checks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in picker_rows %}
+                            <tr>
+                                <td>
+                                    <div class="serial-main">{{ row.pod.serial }}</div>
+                                    <div class="serial-meta">{{ row.pod.size }} {{ row.pod.type_label }}</div>
+                                    <div class="serial-meta">{{ row.pod.date }} | {{ row.pod.worker }}</div>
+                                </td>
+                                <td>
+                                    <span class="status-pill {% if row.body %}warning{% else %}danger{% endif %}">{{ row.status }}</span>
+                                </td>
+                                <td>
+                                    {% if row.body %}
+                                        <div class="serial-main">{{ row.body.serial }}</div>
+                                        <div class="serial-meta">{{ row.body.size }} {{ row.body.type_label }}</div>
+                                        <div class="serial-meta">{{ row.body.date }} | {{ row.body.worker }}</div>
+                                    {% else %}
+                                        <div class="serial-main">-</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="serial-main">{{ row.match_status }}</div>
+                                    <div class="serial-meta">{{ row.match_quality }}</div>
+                                    {% if row.match_count > 1 %}
+                                        <div class="serial-meta">{{ row.match_count }} possible bodies found</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if row.notes %}
+                                        <div class="note-list">
+                                            {% for note in row.notes %}
+                                                <div>{{ note }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <div class="note-list">No extra checks flagged.</div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="empty-state">No pods are currently stuck in the body picker.</p>
+        {% endif %}
+    </section>
+
+    <section class="audit-section">
+        <h2>Type Or Size Mismatches</h2>
+        {% if mismatch_rows %}
+            <div class="table-wrap">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Pod</th>
+                            <th>Body</th>
+                            <th>Checks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in mismatch_rows %}
+                            <tr>
+                                <td>
+                                    <div class="serial-main">{{ row.pod.serial }}</div>
+                                    <div class="serial-meta">{{ row.pod.size }} {{ row.pod.type_label }}</div>
+                                    <div class="serial-meta">{{ row.pod.date }} | {{ row.pod.worker }}</div>
+                                </td>
+                                <td>
+                                    <div class="serial-main">{{ row.body.serial }}</div>
+                                    <div class="serial-meta">{{ row.body.size }} {{ row.body.type_label }}</div>
+                                    <div class="serial-meta">{{ row.body.date }} | {{ row.body.worker }}</div>
+                                </td>
+                                <td>
+                                    <div class="note-list">
+                                        {% for note in row.notes %}
+                                            <div>{{ note }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="empty-state">No type or size mismatches were found.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

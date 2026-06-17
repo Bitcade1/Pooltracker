@@ -324,6 +324,13 @@
           border-radius: 4px;
           display: inline-block;
       }
+      .body-tools {
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+          margin: 0 0 18px 0;
+          flex-wrap: wrap;
+      }
   </style>
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -506,6 +513,9 @@
 <body>
   <div class="container">
     <h1>Bodies</h1>
+    <div class="body-tools">
+      <a href="{{ url_for('body_pod_audit') }}" class="menu-button">Pod Audit</a>
+    </div>
     <!-- Enhanced production targets section -->
     <div class="production-target-toggle">
       <button type="button" id="productionTargetsToggle" onclick="toggleProductionTargets()">Show Production Targets</button>
