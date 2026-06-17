@@ -76,6 +76,46 @@
         color: #1f2d3d;
     }
 
+    .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
+    .section-head h2 {
+        margin: 0;
+    }
+
+    .action-form {
+        margin: 0;
+    }
+
+    .action-button {
+        border: none;
+        border-radius: 6px;
+        background: #1d4ed8;
+        color: #ffffff;
+        padding: 8px 11px;
+        font-weight: 900;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .action-button:hover {
+        background: #1e40af;
+    }
+
+    .action-button.bulk {
+        background: #0f766e;
+    }
+
+    .action-button.bulk:hover {
+        background: #115e59;
+    }
+
     .table-wrap {
         overflow-x: auto;
     }
@@ -239,7 +279,15 @@
     </section>
 
     <section class="audit-section">
-        <h2>Type Or Size Mismatches</h2>
+        <div class="section-head">
+            <h2>Type Or Size Mismatches</h2>
+            {% if mismatch_rows %}
+                <form class="action-form" method="POST" action="{{ url_for('body_pod_audit_fix') }}">
+                    <input type="hidden" name="action" value="fix_all">
+                    <button class="action-button bulk" type="submit">Fix All Mismatches</button>
+                </form>
+            {% endif %}
+        </div>
         {% if mismatch_rows %}
             <div class="table-wrap">
                 <table class="audit-table">
@@ -248,6 +296,7 @@
                             <th>Pod</th>
                             <th>Body</th>
                             <th>Checks</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -269,6 +318,14 @@
                                             <div>{{ note }}</div>
                                         {% endfor %}
                                     </div>
+                                </td>
+                                <td>
+                                    <form class="action-form" method="POST" action="{{ url_for('body_pod_audit_fix') }}">
+                                        <input type="hidden" name="action" value="fix_one">
+                                        <input type="hidden" name="pod_id" value="{{ row.pod.id }}">
+                                        <input type="hidden" name="body_id" value="{{ row.body.id }}">
+                                        <button class="action-button" type="submit">Fix Body</button>
+                                    </form>
                                 </td>
                             </tr>
                         {% endfor %}

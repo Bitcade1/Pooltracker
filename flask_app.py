@@ -7704,6 +7704,224 @@ def body_pod_audit():
         mismatch_rows=mismatch_rows,
         logged_in_worker=session.get('worker')
     )
+
+
+def _body_audit_clean_pod_serial(serial):
+    cleaned = (serial or "").strip()
+    if "**Pod Serial Number:" in cleaned:
+        cleaned = cleaned.replace("**Pod Serial Number:", "").strip()
+    return cleaned
+
+
+def _body_audit_normalized_base_key(serial):
+    base_serial = base_serial_for_pod_matching(_body_audit_clean_pod_serial(serial))
+    return re.sub(r"[^A-Z0-9]+", "", base_serial.upper())
+
+
+def _body_audit_size_label(serial):
+    return "6ft" if serial_is_6ft(serial) else "7ft"
+
+
+def _body_audit_type_label(table_type):
+    return "Lite" if table_type == TABLE_TYPE_LITE else "Champion"
+
+
+def _body_serial_root_without_size(serial):
+    cleaned = strip_table_serial_suffixes(
+        _body_audit_clean_pod_serial(serial),
+        remove_color=True,
+        remove_lite=True
+    )
+    cleaned = re.sub(r"\s*-\s*[67]\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned
+
+
+def _corrected_body_serial_from_pod(pod_serial, target_table_type, target_size, color_key):
+    root_serial = _body_serial_root_without_size(pod_serial)
+    if not root_serial:
+        raise ValueError("Could not work out the corrected serial number.")
+
+    if target_table_type == TABLE_TYPE_LITE:
+        size_code = "6" if target_size == "6ft" else "7"
+        return f"{root_serial} - {size_code} - L"
+
+    serial = f"{root_serial} - 6" if target_size == "6ft" else root_serial
+    color_suffixes = {
+        "grey_oak": "GO",
+        "rustic_oak": "O",
+        "stone": "C",
+        "rustic_black": "RB",
+    }
+    suffix = color_suffixes.get(color_key)
+    return f"{serial} - {suffix}" if suffix else serial
+
+
+def _get_or_create_table_stock(stock_type):
+    stock_entry = TableStock.query.filter_by(type=stock_type).first()
+    if not stock_entry:
+        stock_entry = TableStock(type=stock_type, count=0)
+        db.session.add(stock_entry)
+        db.session.flush()
+    return stock_entry
+
+
+def _correct_body_to_match_pod(pod, body, worker_name=None):
+    if not pod or not body:
+        raise ValueError("Pod or body entry could not be found.")
+
+    old_serial = body.serial_number
+    old_table_type, color_key = get_body_build_metadata(body)
+    old_size = _body_audit_size_label(body.serial_number)
+    target_table_type = table_type_from_serial(pod.serial_number)
+    target_size = _body_audit_size_label(pod.serial_number)
+
+    if old_table_type == target_table_type and old_size == target_size:
+        return {
+            "changed": False,
+            "message": f"{old_serial} already matches pod {pod.serial_number}."
+        }
+
+    new_serial = _corrected_body_serial_from_pod(
+        pod.serial_number,
+        target_table_type,
+        target_size,
+        color_key
+    )
+    duplicate_body = (
+        CompletedTable.query
+        .filter(CompletedTable.serial_number == new_serial, CompletedTable.id != body.id)
+        .first()
+    )
+    if duplicate_body:
+        raise ValueError(
+            f"Cannot correct {old_serial}: another body already uses serial {new_serial}."
+        )
+
+    old_stock_type = body_stock_type_key(old_size, old_table_type, color_key)
+    new_stock_type = body_stock_type_key(target_size, target_table_type, color_key)
+    stock_warning = None
+
+    if old_stock_type != new_stock_type:
+        old_stock_entry = TableStock.query.filter_by(type=old_stock_type).first()
+        if old_stock_entry and old_stock_entry.count > 0:
+            old_before = old_stock_entry.count
+            old_stock_entry.count -= 1
+            record_table_stock_log(
+                old_stock_type,
+                "correction",
+                worker_name,
+                -1,
+                old_before,
+                old_stock_entry.count,
+                f"Corrected body {old_serial} to {new_serial} from pod {pod.serial_number}"
+            )
+        else:
+            stock_warning = f"No stock count was available to move from {table_stock_type_label(old_stock_type)}."
+
+        new_stock_entry = _get_or_create_table_stock(new_stock_type)
+        new_before = new_stock_entry.count
+        new_stock_entry.count += 1
+        record_table_stock_log(
+            new_stock_type,
+            "correction",
+            worker_name,
+            1,
+            new_before,
+            new_stock_entry.count,
+            f"Corrected body {old_serial} to {new_serial} from pod {pod.serial_number}"
+        )
+
+    body.serial_number = new_serial
+    save_body_build_metadata(body.id, target_table_type, color_key)
+
+    return {
+        "changed": True,
+        "old_serial": old_serial,
+        "new_serial": new_serial,
+        "old_type": _body_audit_type_label(old_table_type),
+        "new_type": _body_audit_type_label(target_table_type),
+        "old_size": old_size,
+        "new_size": target_size,
+        "old_stock_type": old_stock_type,
+        "new_stock_type": new_stock_type,
+        "warning": stock_warning,
+    }
+
+
+@app.route('/body_pod_audit/fix', methods=['POST'])
+def body_pod_audit_fix():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    action = request.form.get("action")
+    worker_name = session.get("worker", "Unknown")
+
+    try:
+        if action == "fix_one":
+            pod_id = int(request.form.get("pod_id", 0))
+            body_id = int(request.form.get("body_id", 0))
+            pod = CompletedPods.query.get(pod_id)
+            body = CompletedTable.query.get(body_id)
+            result = _correct_body_to_match_pod(pod, body, worker_name)
+            db.session.commit()
+            if result.get("changed"):
+                flash(
+                    f"Corrected body {result['old_serial']} to {result['new_serial']} "
+                    f"({result['old_size']} {result['old_type']} -> {result['new_size']} {result['new_type']}).",
+                    "success"
+                )
+                if result.get("warning"):
+                    flash(result["warning"], "warning")
+            else:
+                flash(result["message"], "info")
+        elif action == "fix_all":
+            completed_bodies = CompletedTable.query.order_by(CompletedTable.date.desc(), CompletedTable.id.desc()).all()
+            bodies_by_key = defaultdict(list)
+            for body in completed_bodies:
+                bodies_by_key[_body_audit_normalized_base_key(body.serial_number)].append(body)
+
+            fixed_count = 0
+            warnings = []
+            fixed_body_ids = set()
+            completed_pods = CompletedPods.query.order_by(CompletedPods.date.desc(), CompletedPods.id.desc()).all()
+            for pod in completed_pods:
+                pod_key = _body_audit_normalized_base_key(pod.serial_number)
+                pod_type = table_type_from_serial(pod.serial_number)
+                pod_size = _body_audit_size_label(pod.serial_number)
+                for body in bodies_by_key.get(pod_key, []):
+                    if body.id in fixed_body_ids:
+                        continue
+                    body_type, _ = get_body_build_metadata(body)
+                    body_size = _body_audit_size_label(body.serial_number)
+                    if body_type == pod_type and body_size == pod_size:
+                        continue
+                    result = _correct_body_to_match_pod(pod, body, worker_name)
+                    fixed_body_ids.add(body.id)
+                    if result.get("changed"):
+                        fixed_count += 1
+                    if result.get("warning"):
+                        warnings.append(result["warning"])
+
+            db.session.commit()
+            if fixed_count:
+                flash(f"Corrected {fixed_count} body/pod mismatch(es).", "success")
+                for warning in warnings[:3]:
+                    flash(warning, "warning")
+                if len(warnings) > 3:
+                    flash(f"{len(warnings) - 3} more stock movement warning(s) were hidden.", "warning")
+            else:
+                flash("No body/pod mismatches needed correcting.", "info")
+        else:
+            flash("Invalid pod audit action.", "error")
+    except (TypeError, ValueError) as error:
+        db.session.rollback()
+        flash(str(error), "error")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Could not correct the mismatch because the corrected serial would not be unique.", "error")
+
+    return redirect(url_for('body_pod_audit'))
 @app.route('/top_rails', methods=['GET', 'POST'])
 def top_rails():
     if 'worker' not in session:
