@@ -33,6 +33,62 @@
         font-weight: 800;
     }
 
+    .flash-messages {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .flash {
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin: 0;
+        font-weight: 800;
+    }
+
+    .flash.success {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .flash.error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .flash.warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .flash.info {
+        background: #e0f2fe;
+        color: #075985;
+    }
+
+    .undo-panel {
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        background: #eff6ff;
+        padding: 12px;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .undo-panel strong {
+        color: #0f172a;
+    }
+
+    .undo-panel span {
+        color: #334155;
+        font-weight: 700;
+    }
+
     .summary-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -116,6 +172,22 @@
         background: #115e59;
     }
 
+    .action-button.danger {
+        background: #991b1b;
+    }
+
+    .action-button.danger:hover {
+        background: #7f1d1d;
+    }
+
+    .action-button.secondary {
+        background: #475569;
+    }
+
+    .action-button.secondary:hover {
+        background: #334155;
+    }
+
     .table-wrap {
         overflow-x: auto;
     }
@@ -185,6 +257,28 @@
         <a class="audit-link" href="{{ url_for('bodies') }}">Back to Bodies</a>
     </div>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <p class="flash {{ category }}">{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% if undo_available %}
+        <section class="undo-panel">
+            <div>
+                <strong>Undo available</strong>
+                <span>Last correction: {{ undo_count }} item{% if undo_count != 1 %}s{% endif %}{% if undo_created_at %} at {{ undo_created_at }}{% endif %}</span>
+            </div>
+            <form class="action-form" method="POST" action="{{ url_for('body_pod_audit_undo') }}">
+                <button class="action-button" type="submit">Undo Last Correction</button>
+            </form>
+        </section>
+    {% endif %}
+
     <section class="summary-grid" aria-label="Audit summary">
         <article class="summary-card">
             <div class="summary-label">Pods Logged</div>
@@ -197,6 +291,10 @@
         <article class="summary-card">
             <div class="summary-label">Still In Picker</div>
             <div class="summary-value">{{ summary.pods_in_picker }}</div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-label">Hidden Old Pods</div>
+            <div class="summary-value">{{ summary.hidden_old_pods }}</div>
         </article>
         <article class="summary-card">
             <div class="summary-label">Likely Built</div>
@@ -228,6 +326,7 @@
                             <th>Matched Body</th>
                             <th>Match</th>
                             <th>Checks</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -268,6 +367,17 @@
                                         <div class="note-list">No extra checks flagged.</div>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    {% if row.pod.can_hide %}
+                                        <form class="action-form" method="POST" action="{{ url_for('body_pod_audit_hide_pod') }}">
+                                            <input type="hidden" name="action" value="hide">
+                                            <input type="hidden" name="pod_id" value="{{ row.pod.id }}">
+                                            <button class="action-button danger" type="submit">Hide From Picker</button>
+                                        </form>
+                                    {% else %}
+                                        <div class="serial-meta">Can hide after {{ hide_min_age_days }} days.</div>
+                                    {% endif %}
+                                </td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -275,6 +385,59 @@
             </div>
         {% else %}
             <p class="empty-state">No pods are currently stuck in the body picker.</p>
+        {% endif %}
+    </section>
+
+    <section class="audit-section">
+        <div class="section-head">
+            <h2>Hidden Old Pods</h2>
+        </div>
+        {% if hidden_picker_rows %}
+            <div class="table-wrap">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Pod</th>
+                            <th>Status</th>
+                            <th>Matched Body</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in hidden_picker_rows %}
+                            <tr>
+                                <td>
+                                    <div class="serial-main">{{ row.pod.serial }}</div>
+                                    <div class="serial-meta">{{ row.pod.size }} {{ row.pod.type_label }}</div>
+                                    <div class="serial-meta">{{ row.pod.date }} | {{ row.pod.worker }}</div>
+                                    <div class="serial-meta">{{ row.pod.age_days }} days old</div>
+                                </td>
+                                <td>
+                                    <span class="status-pill warning">Hidden from picker</span>
+                                </td>
+                                <td>
+                                    {% if row.body %}
+                                        <div class="serial-main">{{ row.body.serial }}</div>
+                                        <div class="serial-meta">{{ row.body.size }} {{ row.body.type_label }}</div>
+                                        <div class="serial-meta">{{ row.body.date }} | {{ row.body.worker }}</div>
+                                    {% else %}
+                                        <div class="serial-main">-</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form class="action-form" method="POST" action="{{ url_for('body_pod_audit_hide_pod') }}">
+                                        <input type="hidden" name="action" value="unhide">
+                                        <input type="hidden" name="pod_id" value="{{ row.pod.id }}">
+                                        <button class="action-button secondary" type="submit">Unhide</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="empty-state">No old pods are hidden from the body picker.</p>
         {% endif %}
     </section>
 

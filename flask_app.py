@@ -12,6 +12,7 @@ import os
 import re  # Add this import at the top of the file
 import csv
 import json
+import uuid
 from math import ceil, floor
 from io import StringIO
 
@@ -503,6 +504,8 @@ CHINESE_PARTS_CAPACITY = {
 CHINESE_PARTS_ORDER_MORE_PART = "Sticker Set"
 CHINESE_PARTS_ORDER_MORE_THRESHOLD = 300
 CHINESE_PARTS_ON_ORDER_FILE = os.path.join(basedir, "on_order_chinese_parts.json")
+HIDDEN_BODY_PICKER_PODS_FILE = os.path.join(basedir, "hidden_body_picker_pods.json")
+BODY_PICKER_HIDE_MIN_AGE_DAYS = 60
 BRAD_NAILS_PART_NAME = "18G 10mm Brad Nails"
 BRAD_NAILS_UNITS_PER_STRIP = 4  # Track quarter-strip usage (0.25 = 1 unit, 0.5 = 2 units)
 
@@ -924,6 +927,33 @@ def load_chinese_parts_on_order():
     except (json.JSONDecodeError, OSError):
         return default_chinese_parts_on_order()
     return data if isinstance(data, dict) else default_chinese_parts_on_order()
+
+
+def load_hidden_body_picker_pod_ids():
+    if not os.path.exists(HIDDEN_BODY_PICKER_PODS_FILE):
+        return set()
+    try:
+        with open(HIDDEN_BODY_PICKER_PODS_FILE, "r") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+    raw_ids = data.get("pod_ids", []) if isinstance(data, dict) else data
+    hidden_ids = set()
+    if not isinstance(raw_ids, list):
+        return hidden_ids
+    for raw_id in raw_ids:
+        try:
+            hidden_ids.add(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+    return hidden_ids
+
+
+def save_hidden_body_picker_pod_ids(hidden_ids):
+    payload = {"pod_ids": sorted(int(pod_id) for pod_id in hidden_ids)}
+    with open(HIDDEN_BODY_PICKER_PODS_FILE, "w") as f:
+        json.dump(payload, f, indent=2)
 
 
 def ensure_legacy_inventory_names_migrated():
@@ -6727,10 +6757,13 @@ def bodies():
     
     for (serial,) in completed_table_serials:
         completed_base_serials.append(base_serial_for_pod_matching(serial))
+    hidden_body_picker_pod_ids = load_hidden_body_picker_pod_ids()
     
     # Find pods that haven't been converted to tables (considering base serial numbers)
     unconverted_pods = []
     for pod in CompletedPods.query.all():
+        if pod.id in hidden_body_picker_pod_ids:
+            continue
         # Clean the pod serial number if it has the prefix
         pod_serial = pod.serial_number
         if "**Pod Serial Number:" in pod_serial:
@@ -7563,6 +7596,9 @@ def body_pod_audit():
     def format_entry_date(value):
         return value.strftime("%d/%m/%Y") if value else "-"
 
+    today = london_now().date()
+    hide_cutoff_date = today - timedelta(days=BODY_PICKER_HIDE_MIN_AGE_DAYS)
+    hidden_body_picker_pod_ids = load_hidden_body_picker_pod_ids()
     completed_bodies = CompletedTable.query.order_by(CompletedTable.date.desc(), CompletedTable.id.desc()).all()
     completed_base_serials = {picker_base_key(body.serial_number) for body in completed_bodies}
 
@@ -7592,17 +7628,22 @@ def body_pod_audit():
 
     completed_pods = CompletedPods.query.order_by(CompletedPods.date.desc(), CompletedPods.id.desc()).all()
     picker_rows = []
+    hidden_picker_rows = []
     mismatch_rows = []
     all_pod_rows = []
 
     for pod in completed_pods:
         pod_serial = clean_pod_serial(pod.serial_number)
         pod_type = table_type_from_serial(pod_serial)
+        age_days = max((today - pod.date).days, 0) if pod.date else 0
         pod_record = {
             "id": pod.id,
             "serial": pod_serial,
             "worker": pod.worker,
             "date": format_entry_date(pod.date),
+            "age_days": age_days,
+            "can_hide": bool(pod.date and pod.date <= hide_cutoff_date),
+            "hidden": pod.id in hidden_body_picker_pod_ids,
             "size": serial_size_label(pod_serial),
             "table_type": pod_type,
             "type_label": table_type_label(pod_type),
@@ -7651,7 +7692,7 @@ def body_pod_audit():
             else:
                 picker_status = "Still in picker, no body match found"
 
-            picker_rows.append({
+            picker_row = {
                 "pod": pod_record,
                 "body": best_match,
                 "status": picker_status,
@@ -7659,7 +7700,11 @@ def body_pod_audit():
                 "match_quality": match_quality,
                 "notes": notes,
                 "match_count": len(candidate_matches),
-            })
+            }
+            if pod_record["hidden"]:
+                hidden_picker_rows.append(picker_row)
+            else:
+                picker_rows.append(picker_row)
 
         for body in normalized_matches:
             mismatch_notes = []
@@ -7691,19 +7736,79 @@ def body_pod_audit():
         "total_pods": len(all_pod_rows),
         "total_bodies": len(body_records),
         "pods_in_picker": len(picker_rows),
+        "hidden_old_pods": len(hidden_picker_rows),
         "likely_already_built": len(likely_built_rows),
         "no_body_match": len(no_match_rows),
         "type_mismatches": type_mismatch_count,
         "size_mismatches": size_mismatch_count,
     }
+    undo_payload = _get_body_pod_audit_undo_payload() or {}
+    undo_items = undo_payload.get("items") if isinstance(undo_payload, dict) else []
+    undo_items = undo_items if isinstance(undo_items, list) else []
 
     return render_template(
         'body_pod_audit.html',
         summary=summary,
         picker_rows=picker_rows,
+        hidden_picker_rows=hidden_picker_rows,
+        hide_min_age_days=BODY_PICKER_HIDE_MIN_AGE_DAYS,
         mismatch_rows=mismatch_rows,
+        undo_available=bool(undo_items),
+        undo_count=len(undo_items),
+        undo_created_at=undo_payload.get("created_at") if isinstance(undo_payload, dict) else None,
         logged_in_worker=session.get('worker')
     )
+
+
+@app.route('/body_pod_audit/hide_pod', methods=['POST'])
+def body_pod_audit_hide_pod():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    action = (request.form.get("action") or "").strip().lower()
+    try:
+        pod_id = int(request.form.get("pod_id", 0))
+    except (TypeError, ValueError):
+        flash("Invalid pod selected.", "error")
+        return redirect(url_for('body_pod_audit'))
+
+    pod = CompletedPods.query.get(pod_id)
+    if not pod:
+        flash("Pod could not be found.", "error")
+        return redirect(url_for('body_pod_audit'))
+
+    hidden_ids = load_hidden_body_picker_pod_ids()
+    try:
+        if action == "hide":
+            hide_cutoff_date = london_now().date() - timedelta(days=BODY_PICKER_HIDE_MIN_AGE_DAYS)
+            if not pod.date or pod.date > hide_cutoff_date:
+                flash("Only pods older than 2 months can be hidden from the picker.", "error")
+                return redirect(url_for('body_pod_audit'))
+            hidden_ids.add(pod.id)
+            save_hidden_body_picker_pod_ids(hidden_ids)
+            flash(f"Hidden pod {pod.serial_number} from the body picker.", "success")
+        elif action == "unhide":
+            hidden_ids.discard(pod.id)
+            save_hidden_body_picker_pod_ids(hidden_ids)
+            flash(f"Restored pod {pod.serial_number} to the body picker.", "success")
+        else:
+            flash("Invalid hide action.", "error")
+    except OSError:
+        flash("Could not save the hidden pod list.", "error")
+
+    return redirect(url_for('body_pod_audit'))
+
+
+BODY_POD_AUDIT_UNDO_SESSION_KEY = "body_pod_audit_last_undo_id"
+BODY_POD_AUDIT_UNDO_CACHE = {}
+
+
+def _get_body_pod_audit_undo_payload():
+    undo_id = session.get(BODY_POD_AUDIT_UNDO_SESSION_KEY)
+    if not undo_id:
+        return None
+    return BODY_POD_AUDIT_UNDO_CACHE.get(undo_id)
 
 
 def _body_audit_clean_pod_serial(serial):
@@ -7799,37 +7904,10 @@ def _correct_body_to_match_pod(pod, body, worker_name=None):
 
     old_stock_type = body_stock_type_key(old_size, old_table_type, color_key)
     new_stock_type = body_stock_type_key(target_size, target_table_type, color_key)
-    stock_warning = None
-
-    if old_stock_type != new_stock_type:
-        old_stock_entry = TableStock.query.filter_by(type=old_stock_type).first()
-        if old_stock_entry and old_stock_entry.count > 0:
-            old_before = old_stock_entry.count
-            old_stock_entry.count -= 1
-            record_table_stock_log(
-                old_stock_type,
-                "correction",
-                worker_name,
-                -1,
-                old_before,
-                old_stock_entry.count,
-                f"Corrected body {old_serial} to {new_serial} from pod {pod.serial_number}"
-            )
-        else:
-            stock_warning = f"No stock count was available to move from {table_stock_type_label(old_stock_type)}."
-
-        new_stock_entry = _get_or_create_table_stock(new_stock_type)
-        new_before = new_stock_entry.count
-        new_stock_entry.count += 1
-        record_table_stock_log(
-            new_stock_type,
-            "correction",
-            worker_name,
-            1,
-            new_before,
-            new_stock_entry.count,
-            f"Corrected body {old_serial} to {new_serial} from pod {pod.serial_number}"
-        )
+    # Audit fixes only correct the completed body record. Table stock is left alone
+    # because stock corrections may already have been handled manually.
+    old_stock_decremented = False
+    new_stock_incremented = False
 
     body.serial_number = new_serial
     save_body_build_metadata(body.id, target_table_type, color_key)
@@ -7838,14 +7916,59 @@ def _correct_body_to_match_pod(pod, body, worker_name=None):
         "changed": True,
         "old_serial": old_serial,
         "new_serial": new_serial,
+        "body_id": body.id,
+        "pod_id": pod.id,
+        "pod_serial": pod.serial_number,
+        "old_table_type": old_table_type,
+        "new_table_type": target_table_type,
+        "color_key": color_key,
         "old_type": _body_audit_type_label(old_table_type),
         "new_type": _body_audit_type_label(target_table_type),
         "old_size": old_size,
         "new_size": target_size,
         "old_stock_type": old_stock_type,
         "new_stock_type": new_stock_type,
-        "warning": stock_warning,
+        "old_stock_decremented": old_stock_decremented,
+        "new_stock_incremented": new_stock_incremented,
+        "warning": None,
     }
+
+
+def _body_pod_audit_undo_item(result):
+    return {
+        "body_id": result["body_id"],
+        "pod_id": result["pod_id"],
+        "pod_serial": result["pod_serial"],
+        "old_serial": result["old_serial"],
+        "new_serial": result["new_serial"],
+        "old_table_type": result["old_table_type"],
+        "new_table_type": result["new_table_type"],
+        "color_key": result["color_key"],
+        "old_size": result["old_size"],
+        "new_size": result["new_size"],
+        "old_type": result["old_type"],
+        "new_type": result["new_type"],
+        "old_stock_type": result["old_stock_type"],
+        "new_stock_type": result["new_stock_type"],
+        "old_stock_decremented": result["old_stock_decremented"],
+        "new_stock_incremented": result["new_stock_incremented"],
+    }
+
+
+def _store_body_pod_audit_undo(items, action_label):
+    if not items:
+        return
+    previous_undo_id = session.get(BODY_POD_AUDIT_UNDO_SESSION_KEY)
+    if previous_undo_id:
+        BODY_POD_AUDIT_UNDO_CACHE.pop(previous_undo_id, None)
+    undo_id = uuid.uuid4().hex
+    BODY_POD_AUDIT_UNDO_CACHE[undo_id] = {
+        "action": action_label,
+        "created_at": london_now().strftime("%d/%m/%Y %H:%M"),
+        "items": items,
+    }
+    session[BODY_POD_AUDIT_UNDO_SESSION_KEY] = undo_id
+    session.modified = True
 
 
 @app.route('/body_pod_audit/fix', methods=['POST'])
@@ -7859,6 +7982,7 @@ def body_pod_audit_fix():
 
     try:
         if action == "fix_one":
+            undo_items = []
             pod_id = int(request.form.get("pod_id", 0))
             body_id = int(request.form.get("body_id", 0))
             pod = CompletedPods.query.get(pod_id)
@@ -7866,6 +7990,8 @@ def body_pod_audit_fix():
             result = _correct_body_to_match_pod(pod, body, worker_name)
             db.session.commit()
             if result.get("changed"):
+                undo_items.append(_body_pod_audit_undo_item(result))
+                _store_body_pod_audit_undo(undo_items, "Fix Body")
                 flash(
                     f"Corrected body {result['old_serial']} to {result['new_serial']} "
                     f"({result['old_size']} {result['old_type']} -> {result['new_size']} {result['new_type']}).",
@@ -7883,6 +8009,7 @@ def body_pod_audit_fix():
 
             fixed_count = 0
             warnings = []
+            undo_items = []
             fixed_body_ids = set()
             completed_pods = CompletedPods.query.order_by(CompletedPods.date.desc(), CompletedPods.id.desc()).all()
             for pod in completed_pods:
@@ -7900,11 +8027,13 @@ def body_pod_audit_fix():
                     fixed_body_ids.add(body.id)
                     if result.get("changed"):
                         fixed_count += 1
+                        undo_items.append(_body_pod_audit_undo_item(result))
                     if result.get("warning"):
                         warnings.append(result["warning"])
 
             db.session.commit()
             if fixed_count:
+                _store_body_pod_audit_undo(undo_items, "Fix All Mismatches")
                 flash(f"Corrected {fixed_count} body/pod mismatch(es).", "success")
                 for warning in warnings[:3]:
                     flash(warning, "warning")
@@ -7920,6 +8049,116 @@ def body_pod_audit_fix():
     except IntegrityError:
         db.session.rollback()
         flash("Could not correct the mismatch because the corrected serial would not be unique.", "error")
+
+    return redirect(url_for('body_pod_audit'))
+
+
+@app.route('/body_pod_audit/undo', methods=['POST'])
+def body_pod_audit_undo():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    undo_id = session.get(BODY_POD_AUDIT_UNDO_SESSION_KEY)
+    undo_payload = BODY_POD_AUDIT_UNDO_CACHE.get(undo_id) if undo_id else {}
+    undo_items = undo_payload.get("items") if isinstance(undo_payload, dict) else []
+    if not undo_items:
+        session.pop(BODY_POD_AUDIT_UNDO_SESSION_KEY, None)
+        flash("There is no pod audit correction to undo.", "info")
+        return redirect(url_for('body_pod_audit'))
+
+    worker_name = session.get("worker", "Unknown")
+    warnings = []
+    undone_count = 0
+
+    try:
+        for item in reversed(undo_items):
+            body = CompletedTable.query.get(item.get("body_id"))
+            if not body:
+                warnings.append(f"Body ID {item.get('body_id')} was not found.")
+                continue
+
+            old_serial = item.get("old_serial")
+            new_serial = item.get("new_serial")
+            if body.serial_number == old_serial:
+                continue
+            if body.serial_number != new_serial:
+                raise ValueError(
+                    f"Cannot undo {new_serial}: that body is now saved as {body.serial_number}."
+                )
+
+            duplicate_body = (
+                CompletedTable.query
+                .filter(CompletedTable.serial_number == old_serial, CompletedTable.id != body.id)
+                .first()
+            )
+            if duplicate_body:
+                raise ValueError(
+                    f"Cannot undo {new_serial}: another body already uses serial {old_serial}."
+                )
+
+            old_stock_type = item.get("old_stock_type")
+            new_stock_type = item.get("new_stock_type")
+            if old_stock_type and new_stock_type and old_stock_type != new_stock_type:
+                if item.get("new_stock_incremented"):
+                    new_stock_entry = TableStock.query.filter_by(type=new_stock_type).first()
+                    if new_stock_entry and new_stock_entry.count > 0:
+                        new_before = new_stock_entry.count
+                        new_stock_entry.count -= 1
+                        record_table_stock_log(
+                            new_stock_type,
+                            "correction",
+                            worker_name,
+                            -1,
+                            new_before,
+                            new_stock_entry.count,
+                            f"Undid pod audit correction for body {new_serial}"
+                        )
+                    else:
+                        warnings.append(
+                            f"No stock count was available to remove from {table_stock_type_label(new_stock_type)}."
+                        )
+
+                if item.get("old_stock_decremented"):
+                    old_stock_entry = _get_or_create_table_stock(old_stock_type)
+                    old_before = old_stock_entry.count
+                    old_stock_entry.count += 1
+                    record_table_stock_log(
+                        old_stock_type,
+                        "correction",
+                        worker_name,
+                        1,
+                        old_before,
+                        old_stock_entry.count,
+                        f"Undid pod audit correction for body {new_serial}"
+                    )
+
+            body.serial_number = old_serial
+            save_body_build_metadata(
+                body.id,
+                item.get("old_table_type", TABLE_TYPE_CHAMPION),
+                item.get("color_key", "black")
+            )
+            undone_count += 1
+
+        db.session.commit()
+        if undo_id:
+            BODY_POD_AUDIT_UNDO_CACHE.pop(undo_id, None)
+        session.pop(BODY_POD_AUDIT_UNDO_SESSION_KEY, None)
+        if undone_count:
+            flash(f"Undid {undone_count} pod audit correction(s).", "success")
+        else:
+            flash("The last pod audit correction had already been undone.", "info")
+        for warning in warnings[:3]:
+            flash(warning, "warning")
+        if len(warnings) > 3:
+            flash(f"{len(warnings) - 3} more undo warning(s) were hidden.", "warning")
+    except (TypeError, ValueError) as error:
+        db.session.rollback()
+        flash(str(error), "error")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Could not undo the correction because the restored serial would not be unique.", "error")
 
     return redirect(url_for('body_pod_audit'))
 @app.route('/top_rails', methods=['GET', 'POST'])
