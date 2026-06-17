@@ -6747,6 +6747,23 @@ def bodies():
             db.session.flush()
         return part_name
 
+    def remember_body_completion_form():
+        session["body_completion_form_values"] = {
+            "start_time": request.form.get("start_time", ""),
+            "finish_time": request.form.get("finish_time", ""),
+            "serial_number": request.form.get("serial_number", ""),
+            "formatted_serial_number": request.form.get("formatted_serial_number", ""),
+            "table_type": request.form.get("table_type", "Champion"),
+            "color_selector": request.form.get("color_selector", "Black"),
+            "issue": request.form.get("issue", ""),
+            "lunch": request.form.get("lunch", "No"),
+        }
+        session.modified = True
+
+    def redirect_back_to_body_form():
+        remember_body_completion_form()
+        return redirect(url_for('bodies'))
+
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'quick_add_body_part':
@@ -6861,14 +6878,14 @@ def bodies():
                 if not part_entry:
                     flash(f"No inventory set up for body piece {part_key}!", "error")
                     db.session.rollback()
-                    return redirect(url_for('bodies'))
+                    return redirect_back_to_body_form()
                 if part_entry.count < 1:
                     flash(
                         f"Not enough inventory for body piece {part_key}! Need 1, have {part_entry.count}",
                         "error"
                     )
                     db.session.rollback()
-                    return redirect(url_for('bodies'))
+                    return redirect_back_to_body_form()
                 body_piece_entries.append(part_entry)
             for part_entry in body_piece_entries:
                 old_count = part_entry.count
@@ -6895,7 +6912,7 @@ def bodies():
                         "error"
                     )
                     db.session.rollback()
-                    return redirect(url_for('bodies'))
+                    return redirect_back_to_body_form()
                 continue
             part_entry = (PrintedPartsCount.query
                             .filter_by(part_name=part_name)
@@ -6931,7 +6948,7 @@ def bodies():
             else:
                 flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {part_entry.count}) to complete the body!", "error")
                 db.session.rollback()
-                return redirect(url_for('bodies'))
+                return redirect_back_to_body_form()
 
         # Deduct pallet wrap: 1 roll covers 7 bodies
         pallet_wrap_name = "Pallet Wrap"
@@ -6962,7 +6979,7 @@ def bodies():
         if current_wrap_stock is None:
             flash(f"{pallet_wrap_name} is not set up in inventory yet. Please add it before completing bodies.", "error")
             db.session.rollback()
-            return redirect(url_for('bodies'))
+            return redirect_back_to_body_form()
 
         remainder_entry = TableStock.query.filter_by(type=wrap_remainder_key).first()
         used_in_current_roll = remainder_entry.count if remainder_entry else 0  # bodies already wrapped on the current roll
@@ -6972,7 +6989,7 @@ def bodies():
         if bodies_available <= 0:
             flash(f"Not enough {pallet_wrap_name} in stock to wrap this body.", "error")
             db.session.rollback()
-            return redirect(url_for('bodies'))
+            return redirect_back_to_body_form()
 
         bodies_available -= 1  # wrap this body
 
@@ -7072,7 +7089,7 @@ def bodies():
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('bodies'))
+            return redirect_back_to_body_form()
 
         # Persist body metadata (type/color) so Lite rows stay reversible without color in serial.
         save_body_build_metadata(new_table.id, actual_table_type, laminate_color_key)
@@ -7097,6 +7114,7 @@ def bodies():
             f"Completed body {serial_number}"
         )
         db.session.commit()
+        session.pop("body_completion_form_values", None)
 
         return redirect(url_for('bodies'))
 
@@ -7462,6 +7480,15 @@ def bodies():
     # Get the current finish time to pre-populate the form
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
+    body_form_values = session.get("body_completion_form_values") or {}
+    form_start_time = body_form_values.get("start_time") or current_time
+    form_finish_time = body_form_values.get("finish_time") or current_time
+    form_serial_number = body_form_values.get("serial_number") or ""
+    form_table_type = body_form_values.get("table_type") or default_table_type
+    form_color = body_form_values.get("color_selector") or default_color
+    form_issue = body_form_values.get("issue") or ""
+    form_lunch = body_form_values.get("lunch") or "No"
+    unconverted_pod_serials = [pod.serial_number for pod in unconverted_pods]
     quick_add_parts = []
     for quick_part in BODIES_QUICK_ADD_PARTS:
         quick_add_parts.append({
@@ -7473,6 +7500,15 @@ def bodies():
         'bodies.html',
         issues=issues,
         current_time=current_time,
+        form_start_time=form_start_time,
+        form_finish_time=form_finish_time,
+        form_serial_number=form_serial_number,
+        form_table_type=form_table_type,
+        form_color=form_color,
+        form_issue=form_issue,
+        form_lunch=form_lunch,
+        body_form_restored=bool(body_form_values),
+        unconverted_pod_serials=unconverted_pod_serials,
         unconverted_pods=unconverted_pods,
         completed_tables=completed_tables,
         current_month_bodies_count=current_month_bodies_count,

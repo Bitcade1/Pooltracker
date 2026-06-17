@@ -331,6 +331,7 @@
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script>
       const monthlyWorkerStats = {{ monthly_worker_stats|tojson }};
+      const bodyFormRestored = {{ body_form_restored|tojson }};
 
       function toggleCollapsible(id) {
           var content = document.getElementById(id);
@@ -487,7 +488,9 @@
           $('#table_type').on('change', updateSerialNumber);
           
           // Initialize the formatted serial number
-          syncTableTypeFromSelectedSerial();
+          if (!bodyFormRestored) {
+              syncTableTypeFromSelectedSerial();
+          }
           updateSerialNumber();
 
           const params = new URLSearchParams(window.location.search);
@@ -607,17 +610,20 @@
     <!-- Form to Add a New Completed Table -->
     <form method="POST" action="{{ url_for('bodies') }}">
       <label for="start_time">Start Time:</label>
-      <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
+      <input type="time" id="start_time" name="start_time" value="{{ form_start_time }}" required>
 
       <label for="finish_time">Finish Time:</label>
-      <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
+      <input type="time" id="finish_time" name="finish_time" value="{{ form_finish_time }}" required>
 
       <label for="serial_number">Pod Serial Number:</label>
       <!-- The select element will be enhanced by Select2 -->
       <select id="serial_number" name="serial_number" required>
+        {% if form_serial_number and form_serial_number not in unconverted_pod_serials %}
+          <option value="{{ form_serial_number }}" selected>{{ form_serial_number }}</option>
+        {% endif %}
         {% if unconverted_pods %}
           {% for pod in unconverted_pods %}
-            <option value="{{ pod.serial_number }}">{{ pod.serial_number }}</option>
+            <option value="{{ pod.serial_number }}" {% if pod.serial_number == form_serial_number %}selected{% endif %}>{{ pod.serial_number }}</option>
           {% endfor %}
         {% else %}
           <option value="" disabled selected>No unconverted pods available</option>
@@ -626,8 +632,8 @@
       <div class="color-field">
         <label for="table_type">Table Type:</label>
         <select id="table_type" name="table_type">
-          <option value="Champion" {% if default_table_type == 'Champion' %}selected{% endif %}>Champion Premium</option>
-          <option value="Lite" {% if default_table_type == 'Lite' %}selected{% endif %}>Champion Lite</option>
+          <option value="Champion" {% if form_table_type == 'Champion' %}selected{% endif %}>Champion Premium</option>
+          <option value="Lite" {% if form_table_type == 'Lite' %}selected{% endif %}>Champion Lite</option>
         </select>
       </div>
       <div class="size-indicator">Auto-selected from pod serial (`-L` = Lite), but you can override for older pods.</div>
@@ -636,11 +642,11 @@
       <div class="color-field">
         <label for="color_selector">Laminate Color:</label>
         <select id="color_selector" name="color_selector">
-          <option value="Black" {% if default_color == 'Black' %}selected{% endif %}>Black</option>
-          <option value="Rustic Black" {% if default_color == 'Rustic Black' %}selected{% endif %}>Rustic Black</option>
-          <option value="Rustic Oak" {% if default_color == 'Rustic Oak' %}selected{% endif %}>Rustic Oak</option>
-          <option value="Grey Oak" {% if default_color == 'Grey Oak' %}selected{% endif %}>Grey Oak</option>
-          <option value="Stone" {% if default_color == 'Stone' %}selected{% endif %}>Stone</option>
+          <option value="Black" {% if form_color == 'Black' %}selected{% endif %}>Black</option>
+          <option value="Rustic Black" {% if form_color == 'Rustic Black' %}selected{% endif %}>Rustic Black</option>
+          <option value="Rustic Oak" {% if form_color == 'Rustic Oak' %}selected{% endif %}>Rustic Oak</option>
+          <option value="Grey Oak" {% if form_color == 'Grey Oak' %}selected{% endif %}>Grey Oak</option>
+          <option value="Stone" {% if form_color == 'Stone' %}selected{% endif %}>Stone</option>
         </select>
       </div>
       
@@ -653,14 +659,14 @@
       <label for="issue">Did anything slow you down this build?:</label>
       <select name="issue" id="issue" required>
         {% for issue in issues %}
-          <option value="{{ issue }}">{{ issue }}</option>
+          <option value="{{ issue }}" {% if issue == form_issue %}selected{% endif %}>{{ issue }}</option>
         {% endfor %}
       </select>
 
       <label for="lunch">Have I had lunch during this build?</label>
       <select name="lunch" id="lunch">
-        <option value="No" selected>No</option>
-        <option value="Yes">Yes</option>
+        <option value="No" {% if form_lunch != 'Yes' %}selected{% endif %}>No</option>
+        <option value="Yes" {% if form_lunch == 'Yes' %}selected{% endif %}>Yes</option>
       </select>
 
       <button type="submit" class="button">Submit</button>
