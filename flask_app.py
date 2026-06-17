@@ -4818,7 +4818,7 @@ CUSHION_CONSUMABLE_GLOVES = [
     {"name": "Work Gloves", "label": "Work Gloves"},
 ]
 CUSHION_CONSUMABLE_PAINT_BRUSH = {"name": "Paint Brush", "label": "Paint Brush"}
-CUSHION_CONSUMABLE_TEE_NUTS = {"name": "M10x13mm Tee Nut", "label": "Tee Nuts"}
+CUSHION_CONSUMABLE_TEE_NUTS = {"name": "M6 x 19mm Tee Nut", "label": "Tee Nuts"}
 CUSHION_CONSUMABLE_SANDING = [
     {"name": "Sanding Belts", "label": "Sanding Belts"},
     {"name": "Sanding Pads", "label": "Sanding Pads"},
