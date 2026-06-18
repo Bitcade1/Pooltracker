@@ -282,6 +282,206 @@
         font-weight: 800;
     }
 
+    .brainrot-celebration {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        border: 2px solid #111827;
+        border-radius: 10px;
+        padding: 1rem;
+        min-height: 136px;
+        color: #0f172a;
+        background:
+            linear-gradient(135deg, rgba(255, 235, 59, 0.92), rgba(255, 64, 129, 0.82) 44%, rgba(20, 184, 166, 0.9));
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .brainrot-celebration::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background:
+            repeating-linear-gradient(
+                -18deg,
+                rgba(255, 255, 255, 0.32) 0,
+                rgba(255, 255, 255, 0.32) 10px,
+                transparent 10px,
+                transparent 22px
+            );
+        opacity: 0.55;
+        animation: brainrotStripeShift 1.4s linear infinite;
+    }
+
+    .brainrot-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 0;
+    }
+
+    .brainrot-kicker {
+        width: fit-content;
+        max-width: 100%;
+        border-radius: 999px;
+        padding: 0.28rem 0.55rem;
+        background: #ffffff;
+        border: 2px solid #111827;
+        font-size: 0.95rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        color: #111827;
+    }
+
+    .brainrot-title {
+        font-size: clamp(2rem, 5vw, 4.8rem);
+        line-height: 0.95;
+        font-weight: 950;
+        color: #111827;
+        text-shadow: 3px 3px 0 #ffffff;
+        overflow-wrap: anywhere;
+    }
+
+    .brainrot-subtitle {
+        font-size: clamp(1rem, 2vw, 1.55rem);
+        font-weight: 900;
+        color: #111827;
+        overflow-wrap: anywhere;
+    }
+
+    .brainrot-token-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        min-width: 0;
+    }
+
+    .brainrot-token {
+        border: 2px solid #111827;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #111827;
+        padding: 0.45rem 0.65rem;
+        font-size: clamp(0.85rem, 1.5vw, 1.1rem);
+        font-weight: 950;
+        box-shadow: 3px 3px 0 rgba(17, 24, 39, 0.8);
+        transform: rotate(var(--tilt));
+        animation: brainrotTokenFloat 1.9s ease-in-out infinite alternate;
+    }
+
+    .brainrot-token:nth-child(2n) {
+        animation-delay: 0.25s;
+    }
+
+    .brainrot-token:nth-child(3n) {
+        animation-delay: 0.5s;
+    }
+
+    .brainrot-burst {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: none;
+        overflow: hidden;
+        pointer-events: none;
+        background:
+            linear-gradient(rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0.1));
+    }
+
+    .brainrot-burst.is-active {
+        display: block;
+    }
+
+    .brainrot-burst-core {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(86vw, 720px);
+        transform: translate(-50%, -50%);
+        border: 3px solid #ffffff;
+        border-radius: 10px;
+        padding: clamp(1rem, 4vw, 2.5rem);
+        background: #111827;
+        color: #ffffff;
+        text-align: center;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
+        animation: brainrotCorePop 0.75s cubic-bezier(.2, 1.4, .3, 1) both;
+    }
+
+    .brainrot-burst-core span {
+        display: block;
+        font-size: clamp(1rem, 2vw, 1.4rem);
+        font-weight: 900;
+        color: #facc15;
+    }
+
+    .brainrot-burst-core strong {
+        display: block;
+        margin-top: 0.35rem;
+        font-size: clamp(2.2rem, 8vw, 6.2rem);
+        line-height: 0.95;
+        font-weight: 950;
+        color: #ffffff;
+        text-shadow: 4px 4px 0 #ec4899, 8px 8px 0 #14b8a6;
+        overflow-wrap: anywhere;
+    }
+
+    .brainrot-fall {
+        position: absolute;
+        top: -10vh;
+        left: var(--x);
+        color: var(--c);
+        font-size: clamp(1rem, 3vw, 2.4rem);
+        font-weight: 950;
+        text-shadow: 2px 2px 0 #111827;
+        transform: rotate(var(--r));
+        animation: brainrotFall var(--d) linear var(--delay) forwards;
+        white-space: nowrap;
+    }
+
+    @keyframes brainrotStripeShift {
+        from {
+            background-position: 0 0;
+        }
+        to {
+            background-position: 44px 0;
+        }
+    }
+
+    @keyframes brainrotTokenFloat {
+        from {
+            transform: translateY(0) rotate(var(--tilt));
+        }
+        to {
+            transform: translateY(-8px) rotate(calc(var(--tilt) * -1));
+        }
+    }
+
+    @keyframes brainrotCorePop {
+        0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.72) rotate(-2deg);
+        }
+        100% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1) rotate(0);
+        }
+    }
+
+    @keyframes brainrotFall {
+        0% {
+            transform: translateY(-10vh) rotate(var(--r));
+        }
+        100% {
+            transform: translateY(120vh) rotate(calc(var(--r) + 110deg));
+        }
+    }
+
     .warning-banner {
         background: #ffebee;
         border: 1px solid #c62828;
@@ -521,12 +721,33 @@
             flex-direction: column;
         }
 
+        .brainrot-celebration {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .brainrot-token-grid {
+            justify-content: flex-start;
+        }
+
         .panel h3 {
             font-size: 1.2rem;
         }
 
         .part-card {
             min-height: 0;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .brainrot-celebration::before,
+        .brainrot-token,
+        .brainrot-burst-core,
+        .brainrot-fall {
+            animation: none;
+        }
+
+        .brainrot-burst {
+            display: none;
         }
     }
 
@@ -612,6 +833,40 @@
         {% endif %}
     </section>
 
+    {% if pod_goal_celebration %}
+        <section class="brainrot-celebration" data-brainrot-celebration-key="{{ pod_goal_celebration_key }}" role="status" aria-live="polite">
+            <div class="brainrot-copy">
+                <span class="brainrot-kicker">Both goals hit</span>
+                <strong class="brainrot-title">MAX AURA UNLOCKED</strong>
+                <span class="brainrot-subtitle">Pod dash is fully cooked. W mode activated.</span>
+            </div>
+            <div class="brainrot-token-grid" aria-hidden="true">
+                <span class="brainrot-token" style="--tilt: -6deg;">NO CAP</span>
+                <span class="brainrot-token" style="--tilt: 5deg;">SIGMA MODE</span>
+                <span class="brainrot-token" style="--tilt: -3deg;">RIZZ +100</span>
+                <span class="brainrot-token" style="--tilt: 7deg;">BIG W</span>
+                <span class="brainrot-token" style="--tilt: -8deg;">AURA FARM</span>
+                <span class="brainrot-token" style="--tilt: 4deg;">POD STREAK</span>
+            </div>
+        </section>
+
+        <div class="brainrot-burst" data-brainrot-burst aria-hidden="true">
+            <div class="brainrot-burst-core">
+                <span>Bonus goals complete</span>
+                <strong>MAX AURA</strong>
+            </div>
+            <span class="brainrot-fall" style="--x: 4%; --d: 5.2s; --delay: 0s; --r: -12deg; --c: #facc15;">NO CAP</span>
+            <span class="brainrot-fall" style="--x: 14%; --d: 4.7s; --delay: .35s; --r: 16deg; --c: #22d3ee;">RIZZ +100</span>
+            <span class="brainrot-fall" style="--x: 24%; --d: 5.5s; --delay: .1s; --r: -20deg; --c: #fb7185;">BIG W</span>
+            <span class="brainrot-fall" style="--x: 35%; --d: 4.9s; --delay: .55s; --r: 9deg; --c: #a3e635;">SIGMA MODE</span>
+            <span class="brainrot-fall" style="--x: 47%; --d: 5.8s; --delay: .2s; --r: -6deg; --c: #f472b6;">MAX AURA</span>
+            <span class="brainrot-fall" style="--x: 59%; --d: 4.6s; --delay: .75s; --r: 14deg; --c: #facc15;">POD STREAK</span>
+            <span class="brainrot-fall" style="--x: 70%; --d: 5.4s; --delay: .25s; --r: -18deg; --c: #38bdf8;">BRAIN ROT BONUS</span>
+            <span class="brainrot-fall" style="--x: 82%; --d: 4.8s; --delay: .65s; --r: 11deg; --c: #34d399;">W MODE</span>
+            <span class="brainrot-fall" style="--x: 91%; --d: 5.7s; --delay: .05s; --r: -9deg; --c: #fb923c;">FULL SEND</span>
+        </div>
+    {% endif %}
+
     <div class="dashboard-body">
         <section class="panel parts-panel">
             <h3>Pod Parts Inventory</h3>
@@ -630,6 +885,35 @@
 </div>
 
 <script>
+    (function () {
+        const celebration = document.querySelector('[data-brainrot-celebration-key]');
+        const burst = document.querySelector('[data-brainrot-burst]');
+        if (!celebration || !burst) {
+            return;
+        }
+
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const celebrationKey = 'pod-dashboard-brainrot-celebration-' + celebration.dataset.brainrotCelebrationKey;
+        let alreadySeen = false;
+        try {
+            alreadySeen = window.localStorage.getItem(celebrationKey) === '1';
+        } catch (error) {
+            alreadySeen = false;
+        }
+
+        if (!alreadySeen && !reduceMotion) {
+            burst.classList.add('is-active');
+            try {
+                window.localStorage.setItem(celebrationKey, '1');
+            } catch (error) {
+                // Ignore browsers that block localStorage.
+            }
+            window.setTimeout(function () {
+                burst.classList.remove('is-active');
+            }, 7800);
+        }
+    })();
+
     setInterval(function () {
         window.location.reload();
     }, 10000);
