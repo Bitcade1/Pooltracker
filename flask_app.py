@@ -232,6 +232,21 @@ def table_type_from_serial(serial):
     return TABLE_TYPE_LITE if serial_is_lite(serial) else TABLE_TYPE_CHAMPION
 
 
+def table_type_display_label(table_type):
+    return "Lite" if table_type == TABLE_TYPE_LITE else "Champion"
+
+
+def serial_size_display_label(serial):
+    return "6ft" if serial_is_6ft(serial) else "7ft"
+
+
+def clean_pod_serial_value(serial):
+    cleaned = (serial or "").strip()
+    if "**Pod Serial Number:" in cleaned:
+        cleaned = cleaned.replace("**Pod Serial Number:", "").strip()
+    return cleaned
+
+
 def color_key_from_selector(color_name):
     return COLOR_SELECTOR_TO_KEY.get(color_name, "black")
 
@@ -6843,6 +6858,7 @@ def bodies():
         start_time = request.form['start_time']
         finish_time = request.form['finish_time']
         serial_number = request.form['serial_number']
+        selected_pod_serial = clean_pod_serial_value(serial_number)
         color_selector = request.form.get('color_selector', 'Black')
         table_type_selector = request.form.get('table_type', 'Champion')
         selected_table_type = (
@@ -6888,6 +6904,20 @@ def bodies():
         # ---------------------------
         low_stock_messages = []
         actual_table_type = table_type_from_serial(serial_number)
+        selected_pod_table_type = table_type_from_serial(selected_pod_serial)
+        selected_pod_size = serial_size_display_label(selected_pod_serial)
+        completed_body_size = serial_size_display_label(serial_number)
+        body_pod_mismatch_messages = []
+        if selected_pod_size != completed_body_size:
+            body_pod_mismatch_messages.append(
+                f"Size mismatch: pod {selected_pod_size}, body {completed_body_size}"
+            )
+        if selected_pod_table_type != actual_table_type:
+            body_pod_mismatch_messages.append(
+                "Type mismatch: "
+                f"pod {table_type_display_label(selected_pod_table_type)}, "
+                f"body {table_type_display_label(actual_table_type)}"
+            )
         selected_color_key = color_key_from_selector(color_selector)
         laminate_color_key = (
             selected_color_key
@@ -7098,23 +7128,33 @@ def bodies():
 
 
             # --- NTFY Notification ---
-            size = "6ft" if serial_is_6ft(serial_number) else "7ft"
+            size = completed_body_size
             color = laminate_color_key.replace('_', ' ').title()
-            type_label = "Lite" if actual_table_type == TABLE_TYPE_LITE else "Champion"
+            type_label = table_type_display_label(actual_table_type)
             message_lines = []
+            if body_pod_mismatch_messages:
+                message_lines.append("BODY/POD MISMATCH WARNING")
+                for mismatch_message in body_pod_mismatch_messages:
+                    message_lines.append(f"- {mismatch_message}")
+                message_lines.append("")
             if low_stock_messages:
                 message_lines.append("LOW STOCK WARNING")
                 for warning in low_stock_messages:
                     message_lines.append(f"- {warning}")
                 message_lines.append("")
+            if body_pod_mismatch_messages or low_stock_messages:
                 message_lines.append("Completion Details:")
-            message_lines.append(f"Serial: {serial_number}")
+            message_lines.append(f"Selected Pod: {selected_pod_serial}")
+            message_lines.append(f"Completed Body: {serial_number}")
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
+            title_prefixes = []
+            if body_pod_mismatch_messages:
+                title_prefixes.append("[MISMATCH]")
             if low_stock_messages:
-                title = f"[LOW STOCK] Body Completed: {type_label} {size} {color}"
-            else:
-                title = f"Body Completed: {type_label} {size} {color}"
+                title_prefixes.append("[LOW STOCK]")
+            title_prefix = " ".join(title_prefixes)
+            title = f"{title_prefix} Body Completed: {type_label} {size} {color}".strip()
             try:
                 requests.post("https://ntfy.sh/PoolTableTracker",
                               data=message,
@@ -7122,6 +7162,12 @@ def bodies():
             except requests.RequestException as e:
                 print(f"Ntfy notification failed: {e}")
             # --- End NTFY Notification ---
+            if body_pod_mismatch_messages:
+                flash(
+                    "Warning: selected pod does not match the completed body. "
+                    + "; ".join(body_pod_mismatch_messages),
+                    "warning"
+                )
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
