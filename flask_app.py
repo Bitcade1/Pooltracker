@@ -9414,6 +9414,16 @@ def pod_dashboard_view():
         [*pod_bonus_progress, *tom_f_body_bonus],
         key=lambda row: (-row["percentage"], row["worker"].lower())
     )
+    celebration_goal_labels = {"Tom F Pod Goal", "Tom F Body Goal"}
+    celebration_goals = [
+        goal for goal in bonus_progress
+        if goal["worker"] in celebration_goal_labels
+    ]
+    pod_goal_celebration = (
+        len(celebration_goals) == len(celebration_goal_labels)
+        and all(goal.get("target_hit") for goal in celebration_goals)
+    )
+    pod_goal_celebration_key = f"{today.year}-{today.month:02d}"
 
     return render_template(
         'pod_dashboard.html',
@@ -9427,7 +9437,9 @@ def pod_dashboard_view():
         pod_type_average_rows=pod_type_average_rows,
         previous_month_label=previous_month.strftime("%B %Y"),
         bonus_progress=bonus_progress,
-        bonus_month_label=bonus_goal_month_label(today.year, today.month)
+        bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        pod_goal_celebration=pod_goal_celebration,
+        pod_goal_celebration_key=pod_goal_celebration_key
     )
 
 
