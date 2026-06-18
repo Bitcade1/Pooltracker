@@ -458,7 +458,7 @@
             transform: translateY(0) rotate(var(--tilt));
         }
         to {
-            transform: translateY(-8px) rotate(calc(var(--tilt) * -1));
+            transform: translateY(-8px) rotate(var(--tilt-end));
         }
     }
 
@@ -746,7 +746,8 @@
             animation: none;
         }
 
-        .brainrot-burst {
+        .brainrot-burst,
+        .brainrot-burst.is-active {
             display: none;
         }
     }
@@ -841,12 +842,12 @@
                 <span class="brainrot-subtitle">Pod dash is fully cooked. W mode activated.</span>
             </div>
             <div class="brainrot-token-grid" aria-hidden="true">
-                <span class="brainrot-token" style="--tilt: -6deg;">NO CAP</span>
-                <span class="brainrot-token" style="--tilt: 5deg;">SIGMA MODE</span>
-                <span class="brainrot-token" style="--tilt: -3deg;">RIZZ +100</span>
-                <span class="brainrot-token" style="--tilt: 7deg;">BIG W</span>
-                <span class="brainrot-token" style="--tilt: -8deg;">AURA FARM</span>
-                <span class="brainrot-token" style="--tilt: 4deg;">POD STREAK</span>
+                <span class="brainrot-token" style="--tilt: -6deg; --tilt-end: 4deg;">NO CAP</span>
+                <span class="brainrot-token" style="--tilt: 5deg; --tilt-end: -5deg;">SIGMA MODE</span>
+                <span class="brainrot-token" style="--tilt: -3deg; --tilt-end: 6deg;">RIZZ +100</span>
+                <span class="brainrot-token" style="--tilt: 7deg; --tilt-end: -4deg;">BIG W</span>
+                <span class="brainrot-token" style="--tilt: -8deg; --tilt-end: 3deg;">AURA FARM</span>
+                <span class="brainrot-token" style="--tilt: 4deg; --tilt-end: -6deg;">POD STREAK</span>
             </div>
         </section>
 
