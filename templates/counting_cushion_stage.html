@@ -417,6 +417,13 @@
         font-weight: 900;
     }
 
+    .consumable-capacity {
+        display: block;
+        margin-top: 3px;
+        color: #1d4ed8;
+        font-weight: 900;
+    }
+
     .consumable-actions {
         display: flex;
         gap: 8px;
@@ -723,6 +730,9 @@
                     <div>
                         <span class="consumable-name">{{ item.label }}</span>
                         <span class="consumable-count">Stock {{ item.count }}</span>
+                        {% if item.can_make_label %}
+                            <span class="consumable-capacity">{{ item.can_make_label }}</span>
+                        {% endif %}
                     </div>
                     <form class="consumable-actions" method="POST" action="{{ url_for('counting_cushion_stage', stage_key=stage.key, batch=selected_batch) }}">
                         <input type="hidden" name="action" value="consumable_adjust">

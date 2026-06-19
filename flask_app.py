@@ -4848,6 +4848,7 @@ CUSHION_CONSUMABLES = [
     *CUSHION_CONSUMABLE_SANDING,
 ]
 CUSHION_SPINDLE_REMINDER_INTERVAL = 30
+CUSHION_GLUE_END_TEE_NUTS_PER_CUSHION = 4
 
 CUSHION_STAGE_PLAIN = "plain"
 CUSHION_STAGE_SIZE_SHAPE = "size_shape"
@@ -5301,10 +5302,19 @@ def cushion_consumables_for_stage(stage_key):
     consumables = []
     for item in items:
         count, canonical_name = consumable_stock_state(item["name"])
+        can_make_label = None
+        if stage_key == "glue_ends" and item["name"] == CUSHION_CONSUMABLE_TEE_NUTS["name"]:
+            can_make_count = max(0, int(count or 0)) // CUSHION_GLUE_END_TEE_NUTS_PER_CUSHION
+            cushion_label = "cushion" if can_make_count == 1 else "cushions"
+            can_make_label = (
+                f"Can make {can_make_count} {cushion_label} "
+                f"({CUSHION_GLUE_END_TEE_NUTS_PER_CUSHION} each)"
+            )
         consumables.append({
             **item,
             "name": canonical_name,
             "count": count,
+            "can_make_label": can_make_label,
         })
     return consumables
 
@@ -5837,10 +5847,8 @@ def complete_available_cushion_sets(size_label, worker):
 
 
 def cushion_tee_nuts_required_for_glue_ends(size_label, quantity=1):
-    if size_label == "6ft":
-        return 3 * int(quantity)
-    if size_label == "7ft":
-        return 4 * int(quantity)
+    if size_label in CUSHION_SIZES:
+        return CUSHION_GLUE_END_TEE_NUTS_PER_CUSHION * int(quantity)
     return 0
 
 
