@@ -45,7 +45,10 @@
 
         function onPartChange() {
             syncSelectedPartFields();
-            document.getElementById("partsForm").submit();
+            const selectedPart = document.getElementById("table_part").value;
+            const url = new URL(window.location.href);
+            url.searchParams.set("selected", selectedPart);
+            window.location.href = url.toString();
         }
 
         function toggleSection(sectionId, buttonId) {

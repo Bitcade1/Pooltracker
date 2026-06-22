@@ -1116,6 +1116,20 @@ def run_legacy_inventory_name_migrations():
     ensure_table_stock_log_table()
 
 
+@app.after_request
+def prevent_stale_count_pages(response):
+    if request.method == "POST" and response.status_code in (301, 302):
+        response.status_code = 303
+
+    content_type = response.headers.get("Content-Type", "")
+    if "text/html" in content_type:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+    return response
+
+
 class CncJob(db.Model):
     __tablename__ = 'cnc_job'
     id = db.Column(db.Integer, primary_key=True)
