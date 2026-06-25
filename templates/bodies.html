@@ -256,6 +256,22 @@
           line-height: 1;
           font-weight: bold;
       }
+      .type-stat-percent {
+          margin-top: 6px;
+          font-size: 1.05em;
+          font-weight: bold;
+          opacity: 0.92;
+      }
+      .split-cell {
+          line-height: 1.35;
+      }
+      .type-percent {
+          display: block;
+          margin-top: 2px;
+          color: #475569;
+          font-size: 0.86em;
+          font-weight: bold;
+      }
       .type-breakdown table {
           margin-top: 10px;
       }
@@ -386,31 +402,43 @@
 
           document.querySelectorAll('[data-worker-count-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-count-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
               element.textContent = stats.count;
           });
 
           document.querySelectorAll('[data-worker-champion-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-champion-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
               element.textContent = stats.champion;
           });
 
           document.querySelectorAll('[data-worker-lite-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-lite-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
               element.textContent = stats.lite;
+          });
+
+          document.querySelectorAll('[data-worker-champion-percent-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-champion-percent-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              element.textContent = stats.champion_percent;
+          });
+
+          document.querySelectorAll('[data-worker-lite-percent-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-worker-lite-percent-row'), 10);
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              element.textContent = stats.lite_percent;
           });
 
           document.querySelectorAll('[data-worker-champion-avg-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-champion-avg-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
               element.textContent = stats.champion_avg;
           });
 
           document.querySelectorAll('[data-worker-lite-avg-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-lite-avg-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
               element.textContent = stats.lite_avg;
           });
 
@@ -556,10 +584,12 @@
         <div class="type-stat champion">
           <div class="type-stat-label">Champion Premium</div>
           <div class="type-stat-value">{{ body_type_totals.champion }}</div>
+          <div class="type-stat-percent">{{ body_type_split.champion }} of bodies</div>
         </div>
         <div class="type-stat lite">
           <div class="type-stat-label">Champion Lite</div>
           <div class="type-stat-value">{{ body_type_totals.lite }}</div>
+          <div class="type-stat-percent">{{ body_type_split.lite }} of bodies</div>
         </div>
       </div>
       <table>
@@ -575,8 +605,8 @@
           {% for row in body_type_worker_rows %}
             <tr>
               <td>{{ row.worker }}</td>
-              <td>{{ row.champion }}</td>
-              <td>{{ row.lite }}</td>
+              <td class="split-cell">{{ row.champion }}<span class="type-percent">{{ row.champion_percent }}</span></td>
+              <td class="split-cell">{{ row.lite }}<span class="type-percent">{{ row.lite_percent }}</span></td>
               <td>{{ row.total }}</td>
             </tr>
           {% else %}
@@ -776,8 +806,14 @@
             <tr>
               <td>{{ month.month }}</td>
               <td data-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
-              <td data-worker-champion-row="{{ loop.index0 }}">{{ month.selected_worker_champion_count }}</td>
-              <td data-worker-lite-row="{{ loop.index0 }}">{{ month.selected_worker_lite_count }}</td>
+              <td class="split-cell">
+                <span data-worker-champion-row="{{ loop.index0 }}">{{ month.selected_worker_champion_count }}</span>
+                <span class="type-percent" data-worker-champion-percent-row="{{ loop.index0 }}">{{ month.selected_worker_champion_percent }}</span>
+              </td>
+              <td class="split-cell">
+                <span data-worker-lite-row="{{ loop.index0 }}">{{ month.selected_worker_lite_count }}</span>
+                <span class="type-percent" data-worker-lite-percent-row="{{ loop.index0 }}">{{ month.selected_worker_lite_percent }}</span>
+              </td>
               <td data-worker-champion-avg-row="{{ loop.index0 }}">{{ month.selected_worker_champion_avg }}</td>
               <td data-worker-lite-avg-row="{{ loop.index0 }}">{{ month.selected_worker_lite_avg }}</td>
             </tr>

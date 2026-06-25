@@ -7394,6 +7394,13 @@ def bodies():
         selected_worker_key = "all"
     selected_worker = worker_options_by_key[selected_worker_key]
 
+    def format_split_percentage(count, total):
+        if not total:
+            return "0%"
+        percentage = (count / total) * 100
+        percentage_text = f"{percentage:.1f}".rstrip("0").rstrip(".")
+        return f"{percentage_text}%"
+
     body_type_totals = {"champion": 0, "lite": 0}
     body_type_worker_counts = {}
     for table in all_bodies_this_month:
@@ -7411,6 +7418,14 @@ def bodies():
             }
         body_type_worker_counts[worker_name][type_key] += 1
         body_type_worker_counts[worker_name]["total"] += 1
+    body_type_total_count = body_type_totals["champion"] + body_type_totals["lite"]
+    body_type_split = {
+        "champion": format_split_percentage(body_type_totals["champion"], body_type_total_count),
+        "lite": format_split_percentage(body_type_totals["lite"], body_type_total_count),
+    }
+    for row in body_type_worker_counts.values():
+        row["champion_percent"] = format_split_percentage(row["champion"], row["total"])
+        row["lite_percent"] = format_split_percentage(row["lite"], row["total"])
     body_type_worker_rows = sorted(
         body_type_worker_counts.values(),
         key=lambda row: (-row["total"], row["worker"].lower())
@@ -7632,6 +7647,14 @@ def bodies():
                 "avg": format_avg_duration(stats["seconds"], stats["duration_count"]),
                 "champion": stats["champion_count"],
                 "lite": stats["lite_count"],
+                "champion_percent": format_split_percentage(
+                    stats["champion_count"],
+                    stats["table_count"]
+                ),
+                "lite_percent": format_split_percentage(
+                    stats["lite_count"],
+                    stats["table_count"]
+                ),
                 "champion_avg": format_avg_duration(
                     stats["champion_seconds"],
                     stats["champion_duration_count"]
@@ -7657,6 +7680,14 @@ def bodies():
             ),
             "selected_worker_champion_count": selected_worker_stats["champion_count"],
             "selected_worker_lite_count": selected_worker_stats["lite_count"],
+            "selected_worker_champion_percent": format_split_percentage(
+                selected_worker_stats["champion_count"],
+                selected_worker_stats["table_count"]
+            ),
+            "selected_worker_lite_percent": format_split_percentage(
+                selected_worker_stats["lite_count"],
+                selected_worker_stats["table_count"]
+            ),
             "selected_worker_champion_avg": format_avg_duration(
                 selected_worker_stats["champion_seconds"],
                 selected_worker_stats["champion_duration_count"]
@@ -7729,6 +7760,7 @@ def bodies():
         default_table_type=default_table_type,
         quick_add_parts=quick_add_parts,
         body_type_totals=body_type_totals,
+        body_type_split=body_type_split,
         body_type_worker_rows=body_type_worker_rows,
         worker_options=worker_options,
         selected_worker=selected_worker,
