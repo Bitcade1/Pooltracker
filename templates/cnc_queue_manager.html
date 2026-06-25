@@ -59,6 +59,140 @@
         color: #0f172a;
     }
 
+    .cut-history-panel {
+        padding: 0;
+        overflow: hidden;
+    }
+
+    .cut-history-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        cursor: pointer;
+        list-style: none;
+    }
+
+    .cut-history-toggle::-webkit-details-marker,
+    .month-cut-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .cut-history-toggle::after,
+    .month-cut-summary::after {
+        content: "+";
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: #e2e8f0;
+        color: #0f172a;
+        font-weight: 900;
+    }
+
+    .cut-history-panel[open] > .cut-history-toggle::after,
+    .month-cut-card[open] > .month-cut-summary::after {
+        content: "-";
+    }
+
+    .cut-history-subtitle,
+    .cut-history-count,
+    .month-cut-meta {
+        color: #475569;
+        font-size: 0.92rem;
+        font-weight: 700;
+    }
+
+    .cut-history-subtitle {
+        display: block;
+        margin-top: 4px;
+    }
+
+    .cut-history-body {
+        border-top: 1px solid #dfe3eb;
+        padding: 12px;
+    }
+
+    .month-cut-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .month-cut-card {
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #ffffff;
+        overflow: hidden;
+    }
+
+    .month-cut-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        cursor: pointer;
+        list-style: none;
+        background: #f8fafc;
+    }
+
+    .month-cut-title {
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+    .month-table-wrap {
+        overflow-x: auto;
+    }
+
+    .cut-history-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .cut-history-table th,
+    .cut-history-table td {
+        padding: 8px 12px;
+        border-top: 1px solid #e2e8f0;
+        color: #1e293b;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .cut-history-table th {
+        background: #ffffff;
+        color: #334155;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .cut-history-table th:nth-child(2),
+    .cut-history-table th:nth-child(3),
+    .cut-history-table td:nth-child(2),
+    .cut-history-table td:nth-child(3) {
+        width: 120px;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .cut-file-name {
+        overflow-wrap: anywhere;
+        font-weight: 800;
+    }
+
+    .month-total-row td {
+        background: #f8fafc;
+        font-weight: 900;
+    }
+
     .panel-head {
         display: flex;
         align-items: center;
@@ -425,6 +559,59 @@
             {% endfor %}
         </div>
     </section>
+
+    <details class="panel cut-history-panel">
+        <summary class="cut-history-toggle">
+            <div>
+                <h2>Monthly CNC Cut History</h2>
+                <span class="cut-history-subtitle">Completed queue items grouped by month and file</span>
+            </div>
+            <span class="cut-history-count">{{ monthly_cut_history|length }} month{% if monthly_cut_history|length != 1 %}s{% endif %}</span>
+        </summary>
+        <div class="cut-history-body">
+            {% if monthly_cut_history %}
+                <div class="month-cut-list">
+                    {% for month in monthly_cut_history %}
+                        <details class="month-cut-card" {% if loop.first %}open{% endif %}>
+                            <summary class="month-cut-summary">
+                                <span class="month-cut-title">{{ month.label }}</span>
+                                <span class="month-cut-meta">
+                                    {{ month.total_quantity }} cut across {{ month.file_count }} file{% if month.file_count != 1 %}s{% endif %}
+                                </span>
+                            </summary>
+                            <div class="month-table-wrap">
+                                <table class="cut-history-table">
+                                    <thead>
+                                        <tr>
+                                            <th>File</th>
+                                            <th>Qty Cut</th>
+                                            <th>Runs</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for file in month.files %}
+                                            <tr>
+                                                <td class="cut-file-name">{{ file.name }}</td>
+                                                <td>{{ file.quantity }}</td>
+                                                <td>{{ file.runs }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                        <tr class="month-total-row">
+                                            <td>Total</td>
+                                            <td>{{ month.total_quantity }}</td>
+                                            <td>{{ month.total_runs }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-text">No CNC files have been completed yet.</p>
+            {% endif %}
+        </div>
+    </details>
 
     <section class="panel">
         <h2>CNC Queues</h2>

@@ -782,6 +782,65 @@ def cnc_completed_quantity_total(year=None, month=None, day=None):
     return int(total or 0)
 
 
+def cnc_monthly_cut_file_history():
+    completed_rows = (
+        db.session.query(CncQueueItem.completed_at, CncJob.name, CncJob.quantity)
+        .select_from(CncQueueItem)
+        .join(CncJob, CncQueueItem.job_id == CncJob.id)
+        .filter(
+            CncQueueItem.status == CNC_STATUS_COMPLETED,
+            CncQueueItem.completed_at.isnot(None),
+        )
+        .order_by(CncQueueItem.completed_at.desc(), CncQueueItem.id.desc())
+        .all()
+    )
+
+    months = {}
+    for completed_at, job_name, quantity in completed_rows:
+        completed_local = utc_to_london(completed_at)
+        if not completed_local:
+            continue
+
+        month_start = date(completed_local.year, completed_local.month, 1)
+        month_key = month_start.strftime("%Y-%m")
+        month_data = months.setdefault(month_key, {
+            "key": month_key,
+            "label": month_start.strftime("%B %Y"),
+            "sort_date": month_start,
+            "total_quantity": 0,
+            "total_runs": 0,
+            "files_map": {},
+        })
+
+        try:
+            cut_quantity = int(quantity or 1)
+        except (TypeError, ValueError):
+            cut_quantity = 1
+        cut_quantity = max(cut_quantity, 1)
+
+        file_name = (job_name or "").strip() or "Unknown file"
+        file_data = month_data["files_map"].setdefault(file_name, {
+            "name": file_name,
+            "quantity": 0,
+            "runs": 0,
+        })
+        file_data["quantity"] += cut_quantity
+        file_data["runs"] += 1
+        month_data["total_quantity"] += cut_quantity
+        month_data["total_runs"] += 1
+
+    history = sorted(months.values(), key=lambda month: month["sort_date"], reverse=True)
+    for month_data in history:
+        files = list(month_data["files_map"].values())
+        files.sort(key=lambda file_data: (-file_data["quantity"], file_data["name"].lower()))
+        month_data["files"] = files
+        month_data["file_count"] = len(files)
+        del month_data["files_map"]
+        del month_data["sort_date"]
+
+    return history
+
+
 def elapsed_weekdays_in_month(target_date):
     month_start = target_date.replace(day=1)
     return sum(
@@ -9770,12 +9829,14 @@ def cnc_queue_manager():
     )
     queued_counts = {job_id: count for job_id, count in queue_counts_rows}
     queues = _cnc_queue_snapshot()
+    monthly_cut_history = cnc_monthly_cut_file_history()
 
     return render_template(
         'cnc_queue_manager.html',
         jobs=jobs,
         queued_counts=queued_counts,
         queues=queues,
+        monthly_cut_history=monthly_cut_history,
         machine_numbers=CNC_MACHINE_NUMBERS
     )
 
