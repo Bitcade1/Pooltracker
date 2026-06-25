@@ -7401,6 +7401,72 @@ def bodies():
         percentage_text = f"{percentage:.1f}".rstrip("0").rstrip(".")
         return f"{percentage_text}%"
 
+    def empty_count_stats(include_serials=False):
+        stats = {
+            "table_count": 0,
+            "champion_count": 0,
+            "lite_count": 0,
+        }
+        if include_serials:
+            stats["serial_numbers"] = []
+        return stats
+
+    def empty_formatted_count_stats(include_serials=False):
+        stats = {
+            "count": 0,
+            "champion": 0,
+            "lite": 0,
+            "champion_percent": "0%",
+            "lite_percent": "0%",
+        }
+        if include_serials:
+            stats["serial_numbers"] = ""
+        return stats
+
+    def build_count_worker_stats(bodies, include_serials=False):
+        worker_stats = {
+            worker_key: empty_count_stats(include_serials)
+            for worker_key in worker_options_by_key.keys()
+        }
+        worker_stats.setdefault("all", empty_count_stats(include_serials))
+
+        for body in bodies:
+            body_type, _ = get_body_build_metadata(body)
+            type_key = "lite" if body_type == TABLE_TYPE_LITE else "champion"
+            worker_keys = ["all"]
+            body_worker_key = canonical_worker_key(body.worker)
+            if body_worker_key:
+                worker_stats.setdefault(body_worker_key, empty_count_stats(include_serials))
+                worker_keys.append(body_worker_key)
+
+            for worker_key in worker_keys:
+                stats = worker_stats[worker_key]
+                stats["table_count"] += 1
+                stats[f"{type_key}_count"] += 1
+                if include_serials:
+                    stats["serial_numbers"].append(body.serial_number)
+
+        formatted_stats = {}
+        for worker_key, stats in worker_stats.items():
+            formatted = {
+                "count": stats["table_count"],
+                "champion": stats["champion_count"],
+                "lite": stats["lite_count"],
+                "champion_percent": format_split_percentage(
+                    stats["champion_count"],
+                    stats["table_count"]
+                ),
+                "lite_percent": format_split_percentage(
+                    stats["lite_count"],
+                    stats["table_count"]
+                ),
+            }
+            if include_serials:
+                formatted["serial_numbers"] = ", ".join(stats["serial_numbers"])
+            formatted_stats[worker_key] = formatted
+
+        return formatted_stats
+
     body_type_totals = {"champion": 0, "lite": 0}
     body_type_worker_counts = {}
     for table in all_bodies_this_month:
@@ -7456,7 +7522,8 @@ def bodies():
                 "count": 0,
                 "champion": 0,
                 "lite": 0,
-                "serial_numbers": []
+                "serial_numbers": [],
+                "bodies": []
             }
         entry = daily_history_by_date[body.date]
         body_type, _ = get_body_build_metadata(body)
@@ -7464,15 +7531,69 @@ def bodies():
         entry[type_key] += 1
         entry["count"] += 1
         entry["serial_numbers"].append(body.serial_number)
+        entry["bodies"].append(body)
 
     daily_history_formatted = []
+    daily_worker_stats = []
     for entry in daily_history_by_date.values():
+        worker_stats = build_count_worker_stats(entry["bodies"], include_serials=True)
+        selected_stats = worker_stats.get(
+            selected_worker_key,
+            empty_formatted_count_stats(include_serials=True)
+        )
+        daily_worker_stats.append(worker_stats)
         daily_history_formatted.append({
             "date": entry["date"],
             "count": entry["count"],
             "champion": entry["champion"],
             "lite": entry["lite"],
+            "selected_worker_count": selected_stats["count"],
+            "selected_worker_champion": selected_stats["champion"],
+            "selected_worker_lite": selected_stats["lite"],
+            "selected_worker_champion_percent": selected_stats["champion_percent"],
+            "selected_worker_lite_percent": selected_stats["lite_percent"],
+            "selected_worker_serial_numbers": selected_stats["serial_numbers"],
             "serial_numbers": ", ".join(entry["serial_numbers"])
+        })
+
+    # Weekly history (current week and previous 5 weeks)
+    current_week_start = today - timedelta(days=today.weekday())
+    weekly_history_by_start = {}
+    for week_offset in range(6):
+        week_start = current_week_start - timedelta(weeks=week_offset)
+        week_end = week_start + timedelta(days=6)
+        weekly_history_by_start[week_start] = {
+            "week_start": week_start,
+            "label": f"{week_start.strftime('%d/%m/%y')} - {week_end.strftime('%d/%m/%y')}",
+            "bodies": [],
+        }
+
+    oldest_week_start = min(weekly_history_by_start.keys())
+    weekly_bodies = (
+        CompletedTable.query
+        .filter(CompletedTable.date >= oldest_week_start, CompletedTable.date <= today)
+        .order_by(CompletedTable.date.desc(), CompletedTable.id.asc())
+        .all()
+    )
+    for body in weekly_bodies:
+        week_start = body.date - timedelta(days=body.date.weekday())
+        if week_start in weekly_history_by_start:
+            weekly_history_by_start[week_start]["bodies"].append(body)
+
+    weekly_history_formatted = []
+    weekly_worker_stats = []
+    for week_start in sorted(weekly_history_by_start.keys(), reverse=True):
+        entry = weekly_history_by_start[week_start]
+        worker_stats = build_count_worker_stats(entry["bodies"])
+        selected_stats = worker_stats.get(selected_worker_key, empty_formatted_count_stats())
+        weekly_worker_stats.append(worker_stats)
+        weekly_history_formatted.append({
+            "week": entry["label"],
+            "selected_worker_count": selected_stats["count"],
+            "selected_worker_champion": selected_stats["champion"],
+            "selected_worker_lite": selected_stats["lite"],
+            "selected_worker_champion_percent": selected_stats["champion_percent"],
+            "selected_worker_lite_percent": selected_stats["lite_percent"],
         })
 
     def parse_time_string(value):
@@ -7751,6 +7872,9 @@ def bodies():
         completed_tables=completed_tables,
         current_month_bodies_count=current_month_bodies_count,
         daily_history=daily_history_formatted,
+        daily_worker_stats=daily_worker_stats,
+        weekly_history=weekly_history_formatted,
+        weekly_worker_stats=weekly_worker_stats,
         monthly_totals=monthly_totals_formatted,
         target_7ft=target_7ft,
         target_6ft=target_6ft,

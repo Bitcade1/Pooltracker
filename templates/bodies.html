@@ -358,6 +358,8 @@
   <!-- Select2 JS -->
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script>
+      const dailyWorkerStats = {{ daily_worker_stats|tojson }};
+      const weeklyWorkerStats = {{ weekly_worker_stats|tojson }};
       const monthlyWorkerStats = {{ monthly_worker_stats|tojson }};
       const bodyFormRestored = {{ body_form_restored|tojson }};
 
@@ -388,57 +390,132 @@
           tableTypeSelector.value = inferTableTypeFromSerial(selectedSerialNumber);
       }
 
-      function updateWorkerStatsDisplay() {
-          const select = document.getElementById('worker_stats_select');
+      function emptyWorkerStats(includeSerials = false) {
+          const stats = {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+          if (includeSerials) {
+              stats.serial_numbers = '';
+          }
+          return stats;
+      }
+
+      function statsFor(statsRows, rowIndex, selectedKey, includeSerials = false) {
+          return (statsRows[rowIndex] && statsRows[rowIndex][selectedKey]) || emptyWorkerStats(includeSerials);
+      }
+
+      function updateWorkerStatsDisplay(sourceSelect) {
+          const select = sourceSelect || document.querySelector('.worker-stats-select');
           if (!select) {
               return;
           }
           const selectedKey = select.value;
           const selectedLabel = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : 'All Workers';
 
+          document.querySelectorAll('.worker-stats-select').forEach((workerSelect) => {
+              const hasOption = Array.from(workerSelect.options).some((option) => option.value === selectedKey);
+              if (hasOption) {
+                  workerSelect.value = selectedKey;
+              }
+          });
+
           document.querySelectorAll('.selected-worker-label').forEach((element) => {
               element.textContent = selectedLabel;
           });
 
+          document.querySelectorAll('[data-daily-worker-count-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-daily-worker-count-row'), 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).count;
+          });
+
+          document.querySelectorAll('[data-daily-worker-champion-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-daily-worker-champion-row'), 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).champion;
+          });
+
+          document.querySelectorAll('[data-daily-worker-lite-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-daily-worker-lite-row'), 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).lite;
+          });
+
+          document.querySelectorAll('[data-daily-worker-champion-percent-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-daily-worker-champion-percent-row'), 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).champion_percent;
+          });
+
+          document.querySelectorAll('[data-daily-worker-lite-percent-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-daily-worker-lite-percent-row'), 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).lite_percent;
+          });
+
+          document.querySelectorAll('[data-daily-worker-serials-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-daily-worker-serials-row'), 10);
+              const serials = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).serial_numbers;
+              element.textContent = serials || '-';
+          });
+
+          document.querySelectorAll('[data-weekly-worker-count-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-weekly-worker-count-row'), 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).count;
+          });
+
+          document.querySelectorAll('[data-weekly-worker-champion-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-weekly-worker-champion-row'), 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).champion;
+          });
+
+          document.querySelectorAll('[data-weekly-worker-lite-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-weekly-worker-lite-row'), 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).lite;
+          });
+
+          document.querySelectorAll('[data-weekly-worker-champion-percent-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-weekly-worker-champion-percent-row'), 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).champion_percent;
+          });
+
+          document.querySelectorAll('[data-weekly-worker-lite-percent-row]').forEach((element) => {
+              const rowIndex = parseInt(element.getAttribute('data-weekly-worker-lite-percent-row'), 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).lite_percent;
+          });
+
           document.querySelectorAll('[data-worker-count-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-count-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = statsFor(monthlyWorkerStats, rowIndex, selectedKey);
               element.textContent = stats.count;
           });
 
           document.querySelectorAll('[data-worker-champion-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-champion-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = statsFor(monthlyWorkerStats, rowIndex, selectedKey);
               element.textContent = stats.champion;
           });
 
           document.querySelectorAll('[data-worker-lite-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-lite-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = statsFor(monthlyWorkerStats, rowIndex, selectedKey);
               element.textContent = stats.lite;
           });
 
           document.querySelectorAll('[data-worker-champion-percent-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-champion-percent-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = statsFor(monthlyWorkerStats, rowIndex, selectedKey);
               element.textContent = stats.champion_percent;
           });
 
           document.querySelectorAll('[data-worker-lite-percent-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-lite-percent-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = statsFor(monthlyWorkerStats, rowIndex, selectedKey);
               element.textContent = stats.lite_percent;
           });
 
           document.querySelectorAll('[data-worker-champion-avg-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-champion-avg-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = statsFor(monthlyWorkerStats, rowIndex, selectedKey);
               element.textContent = stats.champion_avg;
           });
 
           document.querySelectorAll('[data-worker-lite-avg-row]').forEach((element) => {
               const rowIndex = parseInt(element.getAttribute('data-worker-lite-avg-row'), 10);
-              const stats = (monthlyWorkerStats[rowIndex] && monthlyWorkerStats[rowIndex][selectedKey]) || {count: 0, avg: 'N/A', champion: 0, lite: 0, champion_percent: '0%', lite_percent: '0%', champion_avg: 'N/A', lite_avg: 'N/A'};
+              const stats = statsFor(monthlyWorkerStats, rowIndex, selectedKey);
               element.textContent = stats.lite_avg;
           });
 
@@ -534,9 +611,19 @@
           updateSerialNumber();
 
           const params = new URLSearchParams(window.location.search);
+          const dailyHistory = document.getElementById('dailyHistory');
+          const weeklyHistory = document.getElementById('weeklyHistory');
           const monthlyTotals = document.getElementById('monthlyTotals');
-          if (params.has('worker') && monthlyTotals) {
-              monthlyTotals.style.display = "block";
+          if (params.has('worker')) {
+              if (dailyHistory) {
+                  dailyHistory.style.display = "block";
+              }
+              if (weeklyHistory) {
+                  weeklyHistory.style.display = "block";
+              }
+              if (monthlyTotals) {
+                  monthlyTotals.style.display = "block";
+              }
           }
 
           updateWorkerStatsDisplay();
@@ -754,13 +841,22 @@
     <!-- Collapsible Section for Daily History -->
     <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>
     <div id="dailyHistory" class="collapsible-content">
+      <form method="GET" action="{{ url_for('bodies') }}" class="worker-stats-form">
+        <label for="daily_worker_stats_select">Worker stats:</label>
+        <select id="daily_worker_stats_select" name="worker" class="worker-stats-select" onchange="updateWorkerStatsDisplay(this)">
+          {% for worker in worker_options %}
+            <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" onclick="updateWorkerStatsDisplay(document.getElementById('daily_worker_stats_select'))">Show Stats</button>
+      </form>
       <table class="body-history-table">
         <thead>
           <tr>
             <th>Date</th>
+            <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
             <th>Champion</th>
             <th>Lite</th>
-            <th>Total</th>
             <th>Serial Numbers</th>
           </tr>
         </thead>
@@ -768,10 +864,64 @@
           {% for entry in daily_history %}
             <tr>
               <td>{{ entry.date }}</td>
-              <td>{{ entry.champion }}</td>
-              <td>{{ entry.lite }}</td>
-              <td>{{ entry.count }}</td>
-              <td class="serial-number-list">{{ entry.serial_numbers }}</td>
+              <td data-daily-worker-count-row="{{ loop.index0 }}">{{ entry.selected_worker_count }}</td>
+              <td class="split-cell">
+                <span data-daily-worker-champion-row="{{ loop.index0 }}">{{ entry.selected_worker_champion }}</span>
+                <span class="type-percent" data-daily-worker-champion-percent-row="{{ loop.index0 }}">{{ entry.selected_worker_champion_percent }}</span>
+              </td>
+              <td class="split-cell">
+                <span data-daily-worker-lite-row="{{ loop.index0 }}">{{ entry.selected_worker_lite }}</span>
+                <span class="type-percent" data-daily-worker-lite-percent-row="{{ loop.index0 }}">{{ entry.selected_worker_lite_percent }}</span>
+              </td>
+              <td class="serial-number-list" data-daily-worker-serials-row="{{ loop.index0 }}">{{ entry.selected_worker_serial_numbers or '-' }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">No daily body history available.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Collapsible Section for Weekly History -->
+    <button class="collapsible" onclick="toggleCollapsible('weeklyHistory')">Weekly History</button>
+    <div id="weeklyHistory" class="collapsible-content">
+      <form method="GET" action="{{ url_for('bodies') }}" class="worker-stats-form">
+        <label for="weekly_worker_stats_select">Worker stats:</label>
+        <select id="weekly_worker_stats_select" name="worker" class="worker-stats-select" onchange="updateWorkerStatsDisplay(this)">
+          {% for worker in worker_options %}
+            <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" onclick="updateWorkerStatsDisplay(document.getElementById('weekly_worker_stats_select'))">Show Stats</button>
+      </form>
+      <table class="body-history-table">
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
+            <th>Champion</th>
+            <th>Lite</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for week in weekly_history %}
+            <tr>
+              <td>{{ week.week }}</td>
+              <td data-weekly-worker-count-row="{{ loop.index0 }}">{{ week.selected_worker_count }}</td>
+              <td class="split-cell">
+                <span data-weekly-worker-champion-row="{{ loop.index0 }}">{{ week.selected_worker_champion }}</span>
+                <span class="type-percent" data-weekly-worker-champion-percent-row="{{ loop.index0 }}">{{ week.selected_worker_champion_percent }}</span>
+              </td>
+              <td class="split-cell">
+                <span data-weekly-worker-lite-row="{{ loop.index0 }}">{{ week.selected_worker_lite }}</span>
+                <span class="type-percent" data-weekly-worker-lite-percent-row="{{ loop.index0 }}">{{ week.selected_worker_lite_percent }}</span>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="4">No weekly body history available.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -782,13 +932,13 @@
     <button class="collapsible" id="monthlyTotalsToggle" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
     <div id="monthlyTotals" class="collapsible-content">
       <form method="GET" action="{{ url_for('bodies') }}" class="worker-stats-form">
-        <label for="worker_stats_select">Worker stats:</label>
-        <select id="worker_stats_select" name="worker" onchange="updateWorkerStatsDisplay()">
+        <label for="monthly_worker_stats_select">Worker stats:</label>
+        <select id="monthly_worker_stats_select" name="worker" class="worker-stats-select" onchange="updateWorkerStatsDisplay(this)">
           {% for worker in worker_options %}
             <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
           {% endfor %}
         </select>
-        <button type="button" onclick="updateWorkerStatsDisplay()">Show Stats</button>
+        <button type="button" onclick="updateWorkerStatsDisplay(document.getElementById('monthly_worker_stats_select'))">Show Stats</button>
       </form>
       <table>
         <thead>
