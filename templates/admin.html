@@ -63,6 +63,19 @@
             width: 90px;
         }
 
+        .threshold-alert-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .threshold-alert-toggle input {
+            width: 18px;
+            height: 18px;
+        }
+
         .threshold-table form {
             margin: 0;
         }
@@ -124,6 +137,11 @@
             .threshold-input {
                 width: 100%;
                 min-width: 0;
+            }
+
+            .threshold-alert-toggle {
+                justify-content: flex-start;
+                white-space: normal;
             }
 
             .threshold-update-button {
@@ -226,22 +244,30 @@
         <button class="collapsible {% if threshold_section_open %}active{% endif %}">Manage Low Stock Thresholds</button>
         <div class="collapsible-content" style="display: {% if threshold_section_open %}block{% else %}none{% endif %};">
             <h2>Set Low Stock Notification Thresholds</h2>
-            <p>Set a threshold for a part. A notification will be sent when the stock level drops to or below this number. Set to 0 to disable notifications for a part.</p>
+            <p>Set a threshold for a part and choose whether low-stock notifications are sent. Untick Send alerts to pause notifications while keeping the threshold value.</p>
             <div class="threshold-table-wrap">
                 <table class="threshold-table">
                     <thead>
                         <tr>
                             <th>Part Name</th>
                             <th>Current Threshold</th>
+                            <th>Alert</th>
                             <th>New Threshold</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for part_name in all_part_names %}
+                        {% set alerts_enabled = threshold_alerts_enabled_map.get(part_name, True) %}
                         <tr>
                             <td data-label="Part Name">{{ part_name }}</td>
                             <td data-label="Current Threshold">{{ thresholds_map.get(part_name, 0) }}</td>
+                            <td data-label="Alert">
+                                <label class="threshold-alert-toggle">
+                                    <input type="checkbox" name="alerts_enabled" value="1" form="threshold-form-{{ loop.index }}" {% if alerts_enabled %}checked{% endif %}>
+                                    Send alerts
+                                </label>
+                            </td>
                             <td data-label="New Threshold">
                                 <input class="threshold-input" type="number" name="threshold" value="{{ thresholds_map.get(part_name, 0) }}" min="0" form="threshold-form-{{ loop.index }}">
                             </td>

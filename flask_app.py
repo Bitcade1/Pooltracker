@@ -965,6 +965,25 @@ class PartThreshold(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_name = db.Column(db.String(100), unique=True, nullable=False)
     threshold = db.Column(db.Integer, default=0, nullable=False)
+    alerts_enabled = db.Column(db.Boolean, default=True, nullable=False)
+
+
+def ensure_part_threshold_schema():
+    if app.config.get("_part_threshold_schema_checked"):
+        return
+
+    PartThreshold.__table__.create(db.engine, checkfirst=True)
+    columns = {
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info(part_threshold)")).fetchall()
+    }
+    if "alerts_enabled" not in columns:
+        db.session.execute(
+            text("ALTER TABLE part_threshold ADD COLUMN alerts_enabled BOOLEAN NOT NULL DEFAULT 1")
+        )
+        db.session.commit()
+
+    app.config["_part_threshold_schema_checked"] = True
 
 
 def _coerce_int(value, default=0):
@@ -1035,6 +1054,7 @@ def ensure_legacy_inventory_names_migrated():
         return
 
     try:
+        ensure_part_threshold_schema()
         migration_changed = False
 
         for old_name, new_name in LEGACY_PRINTED_PART_RENAMES.items():
@@ -1048,6 +1068,8 @@ def ensure_legacy_inventory_names_migrated():
                 new_threshold = PartThreshold.query.filter_by(part_name=new_name).first()
                 if new_threshold:
                     new_threshold.threshold = max(new_threshold.threshold or 0, old_threshold.threshold or 0)
+                    if not old_threshold.alerts_enabled:
+                        new_threshold.alerts_enabled = False
                     db.session.delete(old_threshold)
                 else:
                     old_threshold.part_name = new_name
@@ -1098,8 +1120,14 @@ def ensure_legacy_inventory_names_migrated():
                     threshold_entry = PartThreshold.query.filter_by(part_name=new_name).first()
                     if threshold_entry:
                         threshold_entry.threshold = max(threshold_entry.threshold or 0, old_threshold.threshold or 0)
+                        if not old_threshold.alerts_enabled:
+                            threshold_entry.alerts_enabled = False
                     else:
-                        db.session.add(PartThreshold(part_name=new_name, threshold=old_threshold.threshold or 0))
+                        db.session.add(PartThreshold(
+                            part_name=new_name,
+                            threshold=old_threshold.threshold or 0,
+                            alerts_enabled=bool(old_threshold.alerts_enabled)
+                        ))
                 db.session.delete(old_threshold)
                 migration_changed = True
 
@@ -1666,8 +1694,9 @@ def check_and_notify_chinese_parts_order_more(
 LOW_STOCK_LAST_ALERT = {}
 
 def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnings=None):
+    ensure_part_threshold_schema()
     threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
-    if threshold_entry and threshold_entry.threshold > 0:
+    if threshold_entry and threshold_entry.alerts_enabled and threshold_entry.threshold > 0:
         # Reset alert state if stock recovered above threshold
         if new_count > threshold_entry.threshold:
             LOW_STOCK_LAST_ALERT.pop(part_name, None)
@@ -1702,6 +1731,7 @@ def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnin
                 except requests.RequestException as e:
                     print(f"Ntfy notification failed for low stock: {e}")
         return message
+    LOW_STOCK_LAST_ALERT.pop(part_name, None)
     return None
 
 
@@ -1822,6 +1852,7 @@ def admin():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    ensure_part_threshold_schema()
     BodyPieceCount.__table__.create(db.engine, checkfirst=True)
     ensure_cushion_consumables()
 
@@ -1878,15 +1909,23 @@ def admin():
             threshold = int(request.form.get('threshold', 0))
             if threshold < 0:
                 threshold = 0
+            alerts_enabled = request.form.get('alerts_enabled') == '1'
             
             threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
             if not threshold_entry:
-                threshold_entry = PartThreshold(part_name=part_name, threshold=threshold)
+                threshold_entry = PartThreshold(
+                    part_name=part_name,
+                    threshold=threshold,
+                    alerts_enabled=alerts_enabled
+                )
                 db.session.add(threshold_entry)
             else:
                 threshold_entry.threshold = threshold
+                threshold_entry.alerts_enabled = alerts_enabled
             
             db.session.commit()
+            if not alerts_enabled or threshold <= 0:
+                LOW_STOCK_LAST_ALERT.pop(part_name, None)
 
             # --- Check for immediate low stock after threshold update ---
             # Get current stock count
@@ -1910,7 +1949,7 @@ def admin():
                 )
 
             # If stock is already below the new threshold, notify
-            if threshold > 0 and current_stock <= threshold:
+            if alerts_enabled and threshold > 0 and current_stock <= threshold:
                 try:
                     message = f"Stock for {part_name} is low ({current_stock} remaining, threshold is {threshold})."
                     title = "Low Stock Warning"
@@ -1922,7 +1961,8 @@ def admin():
                     print(f"Ntfy notification failed for low stock: {e}")
             # --- End check ---
 
-            flash(f"Threshold for {part_name} updated to {threshold}.", "success")
+            alert_state = "on" if alerts_enabled else "off"
+            flash(f"Threshold for {part_name} updated to {threshold}. Low stock alerts are {alert_state}.", "success")
         except ValueError:
             flash("Invalid threshold value.", "error")
         # Keep the threshold section open after updating
@@ -1979,6 +2019,7 @@ def admin():
     # Get all current thresholds
     thresholds = PartThreshold.query.all()
     thresholds_map = {t.part_name: t.threshold for t in thresholds}
+    threshold_alerts_enabled_map = {t.part_name: bool(t.alerts_enabled) for t in thresholds}
 
     if request.method == 'POST' and 'table' in request.form:
         table = request.form.get('table')
@@ -2078,6 +2119,7 @@ def admin():
         hardware_parts=hardware_parts,
         all_part_names=all_part_names,
         thresholds_map=thresholds_map,
+        threshold_alerts_enabled_map=threshold_alerts_enabled_map,
         threshold_section_open=threshold_section_open
     )
 
@@ -5276,7 +5318,7 @@ def cushion_current_stage_key(batch_number=None):
 def ensure_cushion_consumables():
     HardwarePart.__table__.create(db.engine, checkfirst=True)
     PrintedPartsCount.__table__.create(db.engine, checkfirst=True)
-    PartThreshold.__table__.create(db.engine, checkfirst=True)
+    ensure_part_threshold_schema()
 
     created_any = False
     for item in CUSHION_CONSUMABLES:
