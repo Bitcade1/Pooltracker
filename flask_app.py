@@ -746,6 +746,13 @@ BONUS_GOAL_AREAS = [
     {"key": "cnc", "label": "CNC"},
 ]
 BONUS_GOAL_AREA_LABELS = {area["key"]: area["label"] for area in BONUS_GOAL_AREAS}
+PRODUCTION_BONUS_GOAL_AREAS = ("pods", "bodies", "top_rails")
+BONUS_GOAL_AREA_SHORT_LABELS = {
+    "pods": "Pod",
+    "bodies": "Body",
+    "top_rails": "Top Rail",
+    "cnc": "CNC",
+}
 
 
 def ensure_bonus_goal_tables():
@@ -920,6 +927,8 @@ def bonus_goal_progress(area, year=None, month=None):
         percentage = round((current_count / target_count) * 100) if target_count else 0
         remaining = max(target_count - current_count, 0)
         progress_rows.append({
+            "area": area,
+            "area_label": BONUS_GOAL_AREA_LABELS.get(area, area.replace("_", " ").title()),
             "worker": goal.worker_name,
             "current": current_count,
             "target": target_count,
@@ -944,6 +953,104 @@ def relabel_bonus_progress_row(row, worker_label):
     updated = dict(row)
     updated["worker"] = worker_label
     return updated
+
+
+def bonus_area_goal_label(area):
+    return BONUS_GOAL_AREA_SHORT_LABELS.get(
+        area,
+        BONUS_GOAL_AREA_LABELS.get(area, area.replace("_", " ").title())
+    )
+
+
+def dashboard_bonus_progress(
+    primary_area,
+    year=None,
+    month=None,
+    always_include=None,
+    exclude_primary_until_next=None
+):
+    rows_by_area = {
+        area: bonus_goal_progress(area, year, month)
+        for area in PRODUCTION_BONUS_GOAL_AREAS
+    }
+    completed_areas_by_worker = defaultdict(set)
+    for area, rows in rows_by_area.items():
+        for row in rows:
+            if row.get("target_hit"):
+                completed_areas_by_worker[normalize_bonus_worker_name(row.get("worker"))].add(area)
+
+    always_include_keys = {
+        (normalize_bonus_worker_name(worker_name), area)
+        for area, worker_name in (always_include or [])
+    }
+    excluded_primary_workers = {
+        normalize_bonus_worker_name(worker_name)
+        for worker_name in (exclude_primary_until_next or [])
+    }
+
+    selected_rows = []
+    selected_keys = set()
+
+    def row_key(row):
+        return (normalize_bonus_worker_name(row.get("worker")), row.get("area"))
+
+    def is_next_bonus(row):
+        worker_key = normalize_bonus_worker_name(row.get("worker"))
+        completed_areas = completed_areas_by_worker.get(worker_key, set())
+        return bool(
+            not row.get("target_hit")
+            and any(completed_area != row.get("area") for completed_area in completed_areas)
+        )
+
+    def add_row(row):
+        key = row_key(row)
+        if key in selected_keys:
+            return
+        selected_keys.add(key)
+        selected_rows.append(row)
+
+    for row in rows_by_area.get(primary_area, []):
+        worker_key = normalize_bonus_worker_name(row.get("worker"))
+        if worker_key in excluded_primary_workers and not is_next_bonus(row):
+            continue
+        add_row(row)
+
+    for area, rows in rows_by_area.items():
+        if area == primary_area:
+            continue
+        for row in rows:
+            if is_next_bonus(row) or row_key(row) in always_include_keys:
+                add_row(row)
+
+    selected_count_by_worker = defaultdict(int)
+    for row in selected_rows:
+        selected_count_by_worker[normalize_bonus_worker_name(row.get("worker"))] += 1
+
+    decorated_rows = []
+    for row in selected_rows:
+        updated = dict(row)
+        worker_key = normalize_bonus_worker_name(updated.get("worker"))
+        include_area_in_name = (
+            selected_count_by_worker[worker_key] > 1
+            or updated.get("area") != primary_area
+        )
+        if include_area_in_name:
+            updated["display_worker"] = f"{updated['worker']} {bonus_area_goal_label(updated.get('area'))} Goal"
+        else:
+            updated["display_worker"] = updated["worker"]
+        updated["next_bonus"] = is_next_bonus(updated)
+        updated["sort_priority"] = 0 if updated.get("area") == primary_area else 1
+        decorated_rows.append(updated)
+
+    return sorted(
+        decorated_rows,
+        key=lambda row: (
+            row.get("sort_priority", 1),
+            0 if row.get("next_bonus") else 1,
+            -row.get("percentage", 0),
+            row.get("display_worker", row.get("worker", "")).lower()
+        )
+    )
 
 
 def bonus_goal_month_label(year=None, month=None):
@@ -9467,7 +9574,7 @@ def top_rail_dashboard_view():
     ).all()
     previous_total_seconds, previous_counted_rails, _ = top_rail_duration_summary(previous_month_rails)
     last_month_avg_top_rail_time = format_avg_duration(previous_total_seconds, previous_counted_rails)
-    bonus_progress = bonus_goal_progress("top_rails", today.year, today.month)
+    bonus_progress = dashboard_bonus_progress("top_rails", today.year, today.month)
 
     return render_template(
         'top_rail_dashboard.html',
@@ -9679,26 +9786,16 @@ def pod_dashboard_view():
             "comparison_class": comparison["class"],
         })
 
-    pod_bonus_progress = []
-    for goal in bonus_goal_progress("pods", today.year, today.month):
-        if bonus_worker_matches(goal["worker"], "Tom F"):
-            pod_bonus_progress.append(relabel_bonus_progress_row(goal, "Tom F Pod Goal"))
-        else:
-            pod_bonus_progress.append(goal)
-
-    tom_f_body_bonus = [
-        relabel_bonus_progress_row(goal, "Tom F Body Goal")
-        for goal in bonus_goal_progress("bodies", today.year, today.month)
-        if bonus_worker_matches(goal["worker"], "Tom F")
-    ]
-    bonus_progress = sorted(
-        [*pod_bonus_progress, *tom_f_body_bonus],
-        key=lambda row: (-row["percentage"], row["worker"].lower())
+    bonus_progress = dashboard_bonus_progress(
+        "pods",
+        today.year,
+        today.month,
+        always_include=[("bodies", "Tom F")]
     )
     celebration_goal_labels = {"Tom F Pod Goal", "Tom F Body Goal"}
     celebration_goals = [
         goal for goal in bonus_progress
-        if goal["worker"] in celebration_goal_labels
+        if goal.get("display_worker", goal.get("worker")) in celebration_goal_labels
     ]
     pod_goal_celebration = (
         len(celebration_goals) == len(celebration_goal_labels)
@@ -9981,11 +10078,12 @@ def body_dashboard_view():
         if data["bodies_possible"] == min_capacity
         for part_name in data["limiting_parts"]
     })
-    bonus_progress = [
-        goal
-        for goal in bonus_goal_progress("bodies", today.year, today.month)
-        if not bonus_worker_matches(goal["worker"], "Tom F")
-    ]
+    bonus_progress = dashboard_bonus_progress(
+        "bodies",
+        today.year,
+        today.month,
+        exclude_primary_until_next=["Tom F"]
+    )
 
     return render_template(
         'body_dashboard.html',

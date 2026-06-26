@@ -504,16 +504,18 @@
                 {% for goal in bonus_progress %}
                     <article class="bonus-card {% if goal.target_hit %}is-complete{% endif %}">
                         <div class="bonus-worker">
-                            <span>{{ goal.worker }}</span>
+                            <span>{{ goal.display_worker|default(goal.worker) }}</span>
                             <span class="bonus-count">{{ goal.current }} / {{ goal.target }}</span>
                         </div>
-                        <div class="bonus-track" aria-label="{{ goal.worker }} bonus progress">
+                        <div class="bonus-track" aria-label="{{ goal.display_worker|default(goal.worker) }} bonus progress">
                             <div class="bonus-fill" style="width: {{ goal.percentage_capped }}%;"></div>
                         </div>
                         <div class="bonus-meta">
                             <span>{{ goal.percentage }}%</span>
                             {% if goal.target_hit %}
                                 <span>Target hit</span>
+                            {% elif goal.next_bonus %}
+                                <span>Next bonus: {{ goal.remaining }} to go</span>
                             {% else %}
                                 <span>{{ goal.remaining }} to go</span>
                             {% endif %}
