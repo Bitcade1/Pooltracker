@@ -1013,9 +1013,6 @@ def dashboard_bonus_progress(
     for row in bonus_goal_progress(area, year, month):
         if not worker_is_visible(row.get("worker")):
             continue
-        updated = dict(row)
-        updated["display_worker"] = display_name_for(updated)
-        rows.append(updated)
 
         next_goal = next_goals.get(normalize_bonus_worker_name(row.get("worker")))
         if row.get("target_hit") and next_goal:
@@ -1032,6 +1029,11 @@ def dashboard_bonus_progress(
             if worker_is_visible(next_row.get("worker")):
                 next_row["display_worker"] = display_name_for(next_row)
                 rows.append(next_row)
+            continue
+
+        updated = dict(row)
+        updated["display_worker"] = display_name_for(updated)
+        rows.append(updated)
 
     return sorted(
         rows,
