@@ -5165,7 +5165,10 @@ CUSHION_WORKFLOW_STAGES = [
 CUSHION_STAGE_BY_KEY = {stage["key"]: stage for stage in CUSHION_WORKFLOW_STAGES}
 CUSHION_STAGE_INPUTS = {
     "spindle_mould": [("cut_1m", "", 0, "")],
-    "spray_glue_join_rubber": [("cutting_rubber_1m_lengths", "", 0, "")],
+    "spray_glue_join_rubber": [
+        ("spindle_mould", "", 0, ""),
+        ("cutting_rubber_1m_lengths", "", 0, ""),
+    ],
     "router_slot": [("spray_glue_join_rubber", "", 0, "")],
     "shape_cushions": [("router_slot", "", 0, "")],
     "sand_ends": [("glue_ends", None, None, "")],
