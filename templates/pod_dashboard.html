@@ -820,10 +820,12 @@
                         </div>
                         <div class="bonus-meta">
                             <span>{{ goal.percentage }}%</span>
-                            {% if goal.target_hit %}
-                                <span>Target hit</span>
+                            {% if goal.next_bonus and goal.target_hit %}
+                                <span>Next bonus hit</span>
                             {% elif goal.next_bonus %}
-                                <span>Next bonus: {{ goal.remaining }} to go</span>
+                                <span>Next bonus ({{ goal.period_label }}): {{ goal.remaining }} to go</span>
+                            {% elif goal.target_hit %}
+                                <span>Target hit</span>
                             {% else %}
                                 <span>{{ goal.remaining }} to go</span>
                             {% endif %}
