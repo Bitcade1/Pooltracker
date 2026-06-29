@@ -565,7 +565,7 @@ def inventory_summary():
             wooden_counts[full_section_name.replace(" ", "_").lower()] = latest_entry[0] if latest_entry else 0
             
     tables_possible_per_part = {
-        part: table_parts_counts[part] // req
+        part: max(table_parts_counts[part], 0) // req
         for part, req in table_parts_capacity.items() if req > 0 and table_parts_counts.get(part, 0) is not None
     }
     max_tables_possible = min(tables_possible_per_part.values()) if tables_possible_per_part else 0

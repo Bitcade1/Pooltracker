@@ -178,7 +178,7 @@
                     {% set part_can_build = tables_possible_per_part.get(part) %}
                     <tr data-can-build="{{ part_can_build if part_can_build is not none else 0 }}">
                         <td><strong>{{ part }}</strong></td>
-                        <td>{{ count }}</td>
+                        <td class="{% if count < 0 %}shortage{% endif %}">{{ count }}</td>
                         <td>{{ part_can_build_stock if part_can_build_stock is not none else '-' }}</td>
                         <td>{{ table_parts_on_order_counts.get(part, 0) }}</td>
                         <td>

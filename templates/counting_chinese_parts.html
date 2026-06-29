@@ -14,6 +14,7 @@
         .form-group { margin-bottom: 14px; }
         .form-group label { font-weight: bold; display: block; margin-bottom: 6px; }
         .count-display { font-size: 1.5em; margin: 10px 0 0; color: green; font-weight: bold; }
+        .count-display.count-negative { color: #b00020; }
         .can-build-display { color: #1f2937; }
         .subtle { color: #666; font-size: 0.75em; font-weight: normal; }
         .order-warning { margin: 8px 0 0; color: #b00020; font-weight: bold; }
@@ -89,8 +90,8 @@
                         </select>
                     </div>
 
-                    <div class="count-display">
-                        {% set current_stock = table_parts_counts[selected_part] %}
+                    {% set current_stock = table_parts_counts[selected_part] %}
+                    <div class="count-display {% if current_stock < 0 %}count-negative{% endif %}">
                         <strong>Current Stock:</strong> <span id="current_stock">{{ current_stock }}</span>
                     </div>
                     {% if selected_part_can_build is not none %}

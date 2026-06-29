@@ -516,6 +516,7 @@ CHINESE_PARTS_CAPACITY = {
     "Corner pockets": 4,
     "Sticker Set": 1,
 }
+CHINESE_PARTS_ALLOW_NEGATIVE = set(ALL_CHINESE_PARTS)
 CHINESE_PARTS_ORDER_MORE_PART = "Sticker Set"
 CHINESE_PARTS_ORDER_MORE_THRESHOLD = 300
 CHINESE_PARTS_ON_ORDER_FILE = os.path.join(basedir, "on_order_chinese_parts.json")
@@ -523,6 +524,10 @@ HIDDEN_BODY_PICKER_PODS_FILE = os.path.join(basedir, "hidden_body_picker_pods.js
 BODY_PICKER_HIDE_MIN_AGE_DAYS = 60
 BRAD_NAILS_PART_NAME = "18G 10mm Brad Nails"
 BRAD_NAILS_UNITS_PER_STRIP = 4  # Track quarter-strip usage (0.25 = 1 unit, 0.5 = 2 units)
+
+
+def allows_negative_inventory(part_name):
+    return part_name in CHINESE_PARTS_ALLOW_NEGATIVE
 
 # Models
 class CompletedTable(db.Model):
@@ -1739,7 +1744,7 @@ def calculate_chinese_parts_build_capacity(counts, on_order_counts=None):
         if req_per_table <= 0:
             continue
         available_count = (counts.get(part, 0) or 0) + (on_order_counts.get(part, 0) or 0)
-        tables_possible_per_part[part] = int(available_count // req_per_table)
+        tables_possible_per_part[part] = int(max(available_count, 0) // req_per_table)
     max_tables_possible = min(tables_possible_per_part.values()) if tables_possible_per_part else 0
     return max_tables_possible, tables_possible_per_part
 
@@ -1766,8 +1771,8 @@ def check_and_notify_chinese_parts_order_more(
 
     old_available_count = (old_count or 0) + (old_on_order_count or 0)
     new_available_count = (new_count or 0) + (new_on_order_count or 0)
-    old_can_build = int(old_available_count // req_per_table)
-    new_can_build = int(new_available_count // req_per_table)
+    old_can_build = int(max(old_available_count, 0) // req_per_table)
+    new_can_build = int(max(new_available_count, 0) // req_per_table)
     if old_can_build < CHINESE_PARTS_ORDER_MORE_THRESHOLD or new_can_build >= CHINESE_PARTS_ORDER_MORE_THRESHOLD:
         return None
 
@@ -3344,22 +3349,14 @@ def counting_chinese_parts():
             new_count = current_count + abs(amount)
 
         elif action == 'decrement':
-            if current_count > 0:
-                new_count = current_count - 1
-                check_and_notify_low_stock(selected_part, current_count, new_count)
-            else:
-                flash("Cannot decrement below zero.", "error")
-                return redirect(url_for('counting_chinese_parts', selected=selected_part))
+            new_count = current_count - 1
+            check_and_notify_low_stock(selected_part, current_count, new_count)
 
         elif action == 'bulk':
             try:
                 amount = int(request.form.get('amount', 1))
             except ValueError:
                 flash("Amount must be a number.", "error")
-                return redirect(url_for('counting_chinese_parts', selected=selected_part))
-            # Positive bulk = add stock; negative bulk = remove stock if sufficient
-            if amount < 0 and current_count < abs(amount):
-                flash(f"Not enough stock to remove. Current count for '{selected_part}': {current_count}", "error")
                 return redirect(url_for('counting_chinese_parts', selected=selected_part))
 
             new_count = current_count + amount
@@ -7223,8 +7220,9 @@ def bodies():
                 db.session.commit()
             
             old_count = part_entry.count
-            if old_count >= quantity_needed:
-                part_entry.count -= quantity_needed
+            allow_negative_stock = allows_negative_inventory(part_name)
+            if old_count >= quantity_needed or allow_negative_stock:
+                part_entry.count = old_count - quantity_needed
                 check_and_notify_low_stock(
                     part_name,
                     old_count,
@@ -8712,16 +8710,26 @@ def top_rails():
                                 .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                                 .first())
 
+                allow_negative_stock = allows_negative_inventory(part_name)
+                if not latest_entry and allow_negative_stock:
+                    latest_entry = PrintedPartsCount(
+                        part_name=part_name,
+                        count=0,
+                        date=date.today(),
+                        time=datetime.utcnow().time()
+                    )
+                    db.session.add(latest_entry)
+
                 if not latest_entry:
                     flash(f"No inventory set up for {part_name}!", "error")
                     return redirect(url_for('top_rails'))
 
-                if latest_entry.count < quantity_needed:
+                if latest_entry.count < quantity_needed and not allow_negative_stock:
                     flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {latest_entry.count}", "error")
                     return redirect(url_for('top_rails'))
 
                 old_count = latest_entry.count
-                latest_entry.count -= quantity_needed
+                latest_entry.count = old_count - quantity_needed
 
                 check_and_notify_low_stock(
                     part_name,
@@ -9440,7 +9448,7 @@ def top_rail_dashboard_view():
     min_rails_possible = None
     for part_name, qty_per_rail in TOP_RAIL_PARTS_REQUIREMENTS:
         stock = _latest_part_count(part_name)
-        rails_possible = stock // qty_per_rail if qty_per_rail else stock
+        rails_possible = max(stock, 0) // qty_per_rail if qty_per_rail else max(stock, 0)
         status = 'ok'
         if rails_possible < 5:
             status = 'critical'
@@ -13240,11 +13248,11 @@ def order_chinese_parts():
 
     # Calculate how many tables can be built based on current part limits
     tables_possible_per_part_stock = {
-        part: part_stock[part] // qty
+        part: max(part_stock[part], 0) // qty
         for part, qty in chinese_parts.items()
     }
     tables_possible_per_part_total = {
-        part: part_total_available[part] // qty
+        part: max(part_total_available[part], 0) // qty
         for part, qty in chinese_parts.items()
     }
 
@@ -13281,8 +13289,8 @@ def order_chinese_parts():
         for part, multiplier in hidden_gully_parts.items()
     )
     gullies_total_available = gullies_stock + gullies_on_order
-    gullies_can_build = (gullies_stock // gullies_per_table) if gullies_per_table else 0
-    gullies_can_build_total = (gullies_total_available // gullies_per_table) if gullies_per_table else 0
+    gullies_can_build = (max(gullies_stock, 0) // gullies_per_table) if gullies_per_table else 0
+    gullies_can_build_total = (max(gullies_total_available, 0) // gullies_per_table) if gullies_per_table else 0
 
     if request.method == 'POST':
         target_tables_raw = request.form.get('target_tables')

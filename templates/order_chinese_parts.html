@@ -423,6 +423,11 @@
             font-weight: 800;
         }
 
+        .stock-negative {
+            color: #b00020;
+            font-weight: 800;
+        }
+
         .qty-pill {
             display: inline-flex;
             align-items: center;
@@ -705,11 +710,11 @@
                             {% for row in metal_parts %}
                             <tr class="{% if target_table_count is not none and row.need_to_order > 0 %}shortage-row{% endif %}">
                                 <td class="part-name">{{ row.display_name }}</td>
-                                <td>{{ row.stock }}</td>
+                                <td class="{% if row.stock < 0 %}stock-negative{% endif %}">{{ row.stock }}</td>
                                 <td>
                                     <input class="on-order-input" type="number" name="on_order_{{ row.name|slugify_key }}" value="{{ row.on_order }}" min="0" inputmode="numeric">
                                 </td>
-                                <td>{{ row.total_available }}</td>
+                                <td class="{% if row.total_available < 0 %}stock-negative{% endif %}">{{ row.total_available }}</td>
                                 <td>{{ row.per_table }}</td>
                                 <td>
                                     <span class="build-stack">
@@ -767,11 +772,11 @@
                                 {% set g = row.data %}
                                 <tr class="{% if target_table_count is not none and g.need_to_order > 0 %}shortage-row{% endif %}">
                                     <td class="part-name">{{ g.name }}</td>
-                                    <td>{{ g.stock }}</td>
+                                    <td class="{% if g.stock < 0 %}stock-negative{% endif %}">{{ g.stock }}</td>
                                     <td>
                                         <input class="on-order-input" type="number" name="gullies_on_order_units" value="{{ g.on_order_units or 0 }}" min="0" inputmode="numeric">
                                     </td>
-                                    <td>{{ g.total_available }}</td>
+                                    <td class="{% if g.total_available < 0 %}stock-negative{% endif %}">{{ g.total_available }}</td>
                                     <td>{{ g.per_table }}</td>
                                     <td>
                                         <span class="build-stack">
@@ -791,11 +796,11 @@
                                 {% set p = row.data %}
                                 <tr class="{% if target_table_count is not none and p.need_to_order > 0 %}shortage-row{% endif %}">
                                     <td class="part-name">{{ p.display_name }}</td>
-                                    <td>{{ p.stock }}</td>
+                                    <td class="{% if p.stock < 0 %}stock-negative{% endif %}">{{ p.stock }}</td>
                                     <td>
                                         <input class="on-order-input" type="number" name="on_order_{{ p.name|slugify_key }}" value="{{ p.on_order }}" min="0" inputmode="numeric">
                                     </td>
-                                    <td>{{ p.total_available }}</td>
+                                    <td class="{% if p.total_available < 0 %}stock-negative{% endif %}">{{ p.total_available }}</td>
                                     <td>{{ p.per_table }}</td>
                                     <td>
                                         <span class="build-stack">
