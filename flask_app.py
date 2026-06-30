@@ -978,6 +978,7 @@ def dashboard_bonus_progress(
     today = date.today()
     year = int(year or today.year)
     month = int(month or today.month)
+    ensure_bonus_goal_tables()
     include_worker_keys = {
         normalize_bonus_worker_name(worker_name)
         for worker_name in (include_workers or [])
@@ -10207,9 +10208,9 @@ def cnc_dashboard():
         if machine_number in machine_runs_today_by_machine:
             machine_runs_today_by_machine[machine_number] = int(run_count or 0)
     total_machine_runs_today = sum(machine_runs_today_by_machine.values())
-    bonus_progress = bonus_goal_progress("cnc", today.year, today.month)
+    bonus_progress = dashboard_bonus_progress("cnc", today.year, today.month)
     cnc_goal_target = max((goal.get("target", 0) for goal in bonus_progress), default=0)
-    cnc_goal_remaining = max(cnc_goal_target - completed_month_count, 0)
+    cnc_goal_remaining = max((goal.get("remaining", 0) for goal in bonus_progress), default=0)
     remaining_workdays = remaining_weekdays_in_month(today)
     if cnc_goal_target <= 0:
         required_sheets_per_day_display = "No Goal"
