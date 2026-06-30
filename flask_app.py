@@ -3788,6 +3788,28 @@ def pods():
         return redirect(url_for('login'))
     
     issues = [issue.description for issue in Issue.query.all()]
+
+    def pod_base_serial_for_form(serial):
+        cleaned = strip_table_serial_suffixes(serial, remove_color=True, remove_lite=True)
+        return re.sub(r"\s*-\s*[67]\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+
+    def remember_pod_completion_form():
+        submitted_serial = request.form.get("serial_number", "")
+        session["pod_completion_form_values"] = {
+            "start_time": request.form.get("start_time", ""),
+            "finish_time": request.form.get("finish_time", ""),
+            "serial_number": submitted_serial,
+            "base_serial_number": pod_base_serial_for_form(submitted_serial),
+            "size_selector": request.form.get("size_selector", "7ft"),
+            "table_type": request.form.get("table_type", "Champion"),
+            "issue": request.form.get("issue", ""),
+            "lunch": request.form.get("lunch", "No"),
+        }
+        session.modified = True
+
+    def redirect_back_to_pod_form():
+        remember_pod_completion_form()
+        return redirect(url_for('pods'))
     
     if request.method == 'POST':
         worker = session['worker']
@@ -3806,7 +3828,7 @@ def pods():
         clean_serial = re.sub(r"\s*-\s*[67]\s*$", "", clean_serial, flags=re.IGNORECASE).strip()
         if not clean_serial:
             flash("Please enter a valid serial number.", "error")
-            return redirect(url_for('pods'))
+            return redirect_back_to_pod_form()
 
         if selected_table_type == TABLE_TYPE_LITE:
             if size_selector == '6ft':
@@ -3841,14 +3863,14 @@ def pods():
             felt_count = get_felt_count()
             if felt_count < 2:
                 flash(f"Not enough {felt_part} in stock!", "error")
-                return redirect(url_for('pods'))
+                return redirect_back_to_pod_form()
             parts_to_deduct.append((felt_part, felt_count, 2))
 
             carpet_entry = PrintedPartsCount.query.filter_by(part_name=carpet_part).order_by(
                 PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
             if not carpet_entry or carpet_entry.count < 1:
                 flash(f"Not enough {carpet_part} in stock!", "error")
-                return redirect(url_for('pods'))
+                return redirect_back_to_pod_form()
             parts_to_deduct.append((carpet_part, carpet_entry.count, 1))
 
         # Check and deduct Tee Nuts
@@ -3856,7 +3878,7 @@ def pods():
             PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
         if not tee_nuts_entry or tee_nuts_entry.count < 16:
             flash("Not enough M10x13mm Tee Nuts in stock! Need 16 per pod.", "error")
-            return redirect(url_for('pods'))
+            return redirect_back_to_pod_form()
         parts_to_deduct.append(("M10x13mm Tee Nut", tee_nuts_entry.count, 16))
 
         if actual_table_type == TABLE_TYPE_CHAMPION:
@@ -3864,7 +3886,7 @@ def pods():
                 PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc()).first()
             if not black_staples_entry or black_staples_entry.count < 2:
                 flash("Not enough Rows of Black Staples in stock! Need 2 per pod.", "error")
-                return redirect(url_for('pods'))
+                return redirect_back_to_pod_form()
             parts_to_deduct.append(("Rows of Black Staples", black_staples_entry.count, 2))
         
         try:
@@ -3954,8 +3976,9 @@ def pods():
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('pods'))
+            return redirect_back_to_pod_form()
 
+        session.pop("pod_completion_form_values", None)
         return redirect(url_for('pods'))
 
     today = date.today()
@@ -4161,11 +4184,29 @@ def pods():
     
     # Next serial number generation logic
     next_serial_number, default_size = _next_pod_serial_and_size()
+    pod_form_values = session.get("pod_completion_form_values") or {}
+    form_start_time = pod_form_values.get("start_time") or current_time
+    form_finish_time = pod_form_values.get("finish_time") or current_time
+    form_serial_number = pod_form_values.get("serial_number") or next_serial_number
+    form_base_serial_number = pod_form_values.get("base_serial_number") or pod_base_serial_for_form(form_serial_number)
+    form_size = pod_form_values.get("size_selector") or default_size
+    form_table_type = pod_form_values.get("table_type") or default_table_type
+    form_issue = pod_form_values.get("issue") or ""
+    form_lunch = pod_form_values.get("lunch") or "No"
     
     return render_template(
         'pods.html',
         issues=issues,
         current_time=current_time,
+        form_start_time=form_start_time,
+        form_finish_time=form_finish_time,
+        form_serial_number=form_serial_number,
+        form_base_serial_number=form_base_serial_number,
+        form_size=form_size,
+        form_table_type=form_table_type,
+        form_issue=form_issue,
+        form_lunch=form_lunch,
+        pod_form_restored=bool(pod_form_values),
         completed_pods=completed_pods,
         pods_this_month=pods_this_month,
         current_production_pods_7ft=current_production_pods_7ft,
@@ -8607,6 +8648,28 @@ def top_rails():
 
     issues = [issue.description for issue in Issue.query.all()]
 
+    def top_rail_base_serial_for_form(serial):
+        cleaned = strip_table_serial_suffixes(serial, remove_color=True, remove_lite=True)
+        return re.sub(r"\s*-\s*[67]\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+
+    def remember_top_rail_completion_form():
+        submitted_serial = request.form.get("serial_number", "")
+        session["top_rail_completion_form_values"] = {
+            "start_time": request.form.get("start_time", ""),
+            "finish_time": request.form.get("finish_time", ""),
+            "serial_number": submitted_serial,
+            "base_serial_number": top_rail_base_serial_for_form(submitted_serial),
+            "size_selector": request.form.get("size_selector", "7ft"),
+            "color_selector": request.form.get("color_selector", "Black"),
+            "issue": request.form.get("issue", ""),
+            "lunch": request.form.get("lunch", "No"),
+        }
+        session.modified = True
+
+    def redirect_back_to_top_rail_form():
+        remember_top_rail_completion_form()
+        return redirect(url_for('top_rails'))
+
     if request.method == 'POST':
         worker = session['worker']
         start_time = request.form['start_time']
@@ -8688,7 +8751,7 @@ def top_rails():
                         "error"
                     )
                     db.session.rollback()
-                    return redirect(url_for('top_rails'))
+                    return redirect_back_to_top_rail_form()
                 db.session.commit()
                 continue
             if part_name in [short_piece_name, long_piece_name]:
@@ -8696,12 +8759,12 @@ def top_rails():
                 part_entry = TopRailPieceCount.query.filter_by(part_key=part_name).first()
                 if not part_entry:
                     flash(f"No inventory set up for {part_name}!", "error")
-                    return redirect(url_for('top_rails'))
+                    return redirect_back_to_top_rail_form()
                 
                 # Check if we have enough
                 if part_entry.count < quantity_needed:
                     flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {part_entry.count}", "error")
-                    return redirect(url_for('top_rails'))
+                    return redirect_back_to_top_rail_form()
                 
                 # Deduct from inventory
                 old_piece_count = part_entry.count
@@ -8731,11 +8794,11 @@ def top_rails():
 
                 if not latest_entry:
                     flash(f"No inventory set up for {part_name}!", "error")
-                    return redirect(url_for('top_rails'))
+                    return redirect_back_to_top_rail_form()
 
                 if latest_entry.count < quantity_needed and not allow_negative_stock:
                     flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {latest_entry.count}", "error")
-                    return redirect(url_for('top_rails'))
+                    return redirect_back_to_top_rail_form()
 
                 old_count = latest_entry.count
                 latest_entry.count = old_count - quantity_needed
@@ -8901,12 +8964,13 @@ def top_rails():
         except IntegrityError:
             db.session.rollback()
             flash("Error: Serial number already exists. Please use a unique serial number.", "error")
-            return redirect(url_for('top_rails'))
+            return redirect_back_to_top_rail_form()
         except Exception as e:
             db.session.rollback()
             flash(f"Error creating top rail entry: {str(e)}", "error")
-            return redirect(url_for('top_rails'))
+            return redirect_back_to_top_rail_form()
         
+        session.pop("top_rail_completion_form_values", None)
         return redirect(url_for('top_rails'))
 
     # GET request handling
@@ -9057,10 +9121,32 @@ def top_rails():
         target_7ft = 60
         target_6ft = 60
 
+    top_rail_form_values = session.get("top_rail_completion_form_values") or {}
+    form_start_time = top_rail_form_values.get("start_time") or current_time
+    form_finish_time = top_rail_form_values.get("finish_time") or current_time
+    form_serial_number = top_rail_form_values.get("serial_number") or next_serial_number
+    form_base_serial_number = (
+        top_rail_form_values.get("base_serial_number")
+        or top_rail_base_serial_for_form(form_serial_number)
+    )
+    form_size = top_rail_form_values.get("size_selector") or default_size
+    form_color = top_rail_form_values.get("color_selector") or default_color
+    form_issue = top_rail_form_values.get("issue") or ""
+    form_lunch = top_rail_form_values.get("lunch") or "No"
+
     return render_template(
         'top_rails.html',
         issues=issues,
         current_time=current_time,
+        form_start_time=form_start_time,
+        form_finish_time=form_finish_time,
+        form_serial_number=form_serial_number,
+        form_base_serial_number=form_base_serial_number,
+        form_size=form_size,
+        form_color=form_color,
+        form_issue=form_issue,
+        form_lunch=form_lunch,
+        top_rail_form_restored=bool(top_rail_form_values),
         completed_tables=completed_top_rails,
         daily_history=daily_history_formatted,
         monthly_totals=monthly_totals_formatted,

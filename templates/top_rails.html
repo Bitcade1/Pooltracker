@@ -228,6 +228,8 @@
     }
   </style>
   <script>
+    const topRailFormRestored = {{ top_rail_form_restored|tojson }};
+
     function toggleCollapsible(id) {
       var content = document.getElementById(id);
       content.style.display = content.style.display === "block" ? "none" : "block";
@@ -309,7 +311,9 @@
     // Initialize when the page loads
     document.addEventListener('DOMContentLoaded', function() {
       // Set initial values
-      updateSerialNumber();
+      if (!topRailFormRestored) {
+        updateSerialNumber();
+      }
       
       // Add event listeners for selector changes
       document.getElementById('size_selector').addEventListener('change', updateSerialNumber);
@@ -375,17 +379,17 @@
     <!-- Form to Add a New Top Rail Entry -->
     <form method="POST" action="{{ url_for('top_rails') }}">
       <label for="start_time">Start Time:</label>
-      <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
+      <input type="time" id="start_time" name="start_time" value="{{ form_start_time }}" required>
       
       <label for="finish_time">Finish Time:</label>
-      <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
+      <input type="time" id="finish_time" name="finish_time" value="{{ form_finish_time }}" required>
       
       <!-- Size Selector -->
       <div class="size-field">
         <label for="size_selector">Top Rail Size:</label>
         <select id="size_selector" name="size_selector">
-          <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
-          <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
+          <option value="7ft" {% if form_size == '7ft' %}selected{% endif %}>7ft</option>
+          <option value="6ft" {% if form_size == '6ft' %}selected{% endif %}>6ft</option>
         </select>
       </div>
       
@@ -393,41 +397,41 @@
       <div class="color-field">
         <label for="color_selector">Top Rail Color:</label>
         <select id="color_selector" name="color_selector">
-          <option value="Black" {% if default_color == 'Black' %}selected{% endif %}>
+          <option value="Black" {% if form_color == 'Black' %}selected{% endif %}>
             <span class="color-option black-swatch"></span> Black
           </option>
-          <option value="Rustic Black" {% if default_color == 'Rustic Black' %}selected{% endif %}>
+          <option value="Rustic Black" {% if form_color == 'Rustic Black' %}selected{% endif %}>
             <span class="color-option rustic-black-swatch"></span> Rustic Black
           </option>
-          <option value="Rustic Oak" {% if default_color == 'Rustic Oak' %}selected{% endif %}>
+          <option value="Rustic Oak" {% if form_color == 'Rustic Oak' %}selected{% endif %}>
             <span class="color-option rustic-oak-swatch"></span> Rustic Oak
           </option>
-          <option value="Grey Oak" {% if default_color == 'Grey Oak' %}selected{% endif %}>
+          <option value="Grey Oak" {% if form_color == 'Grey Oak' %}selected{% endif %}>
             <span class="color-option grey-oak-swatch"></span> Grey Oak
           </option>
-          <option value="Stone" {% if default_color == 'Stone' %}selected{% endif %}>
+          <option value="Stone" {% if form_color == 'Stone' %}selected{% endif %}>
             <span class="color-option stone-swatch"></span> Stone
           </option>
         </select>
       </div>
       
       <!-- Hidden field to store the base serial number -->
-      <input type="hidden" id="base_serial_number" value="{{ next_serial_number }}">
+      <input type="hidden" id="base_serial_number" value="{{ form_base_serial_number }}">
       
       <label for="serial_number">Serial Number:</label>
-      <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ next_serial_number }}">
+      <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ form_serial_number }}">
       
       <label for="issue">Any issues with the build?:</label>
       <select name="issue" id="issue" required>
         {% for issue in issues %}
-          <option value="{{ issue }}">{{ issue }}</option>
+          <option value="{{ issue }}" {% if issue == form_issue %}selected{% endif %}>{{ issue }}</option>
         {% endfor %}
       </select>
       
       <label for="lunch">Have I had lunch during this build?</label>
       <select name="lunch" id="lunch">
-        <option value="No" selected>No</option>
-        <option value="Yes">Yes</option>
+        <option value="No" {% if form_lunch != 'Yes' %}selected{% endif %}>No</option>
+        <option value="Yes" {% if form_lunch == 'Yes' %}selected{% endif %}>Yes</option>
       </select>
       
       <button type="submit" class="button">Submit</button>

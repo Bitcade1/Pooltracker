@@ -210,6 +210,8 @@
       }
   </style>
   <script>
+      const podFormRestored = {{ pod_form_restored|tojson }};
+
       function toggleCollapsible(id) {
           var content = document.getElementById(id);
           content.style.display = content.style.display === "block" ? "none" : "block";
@@ -267,7 +269,9 @@
       // Initialize when the page loads
       document.addEventListener('DOMContentLoaded', function() {
           // Set initial value
-          updateSerialNumber();
+          if (!podFormRestored) {
+              updateSerialNumber();
+          }
           
           // Add event listener for size selector changes
           document.getElementById('size_selector').addEventListener('change', updateSerialNumber);
@@ -370,44 +374,44 @@
     <!-- Form to Add a New Completed Pod -->
     <form method="POST" action="{{ url_for('pods') }}">
       <label for="start_time">Start Time:</label>
-      <input type="time" id="start_time" name="start_time" value="{{ current_time }}" required>
+      <input type="time" id="start_time" name="start_time" value="{{ form_start_time }}" required>
       
       <label for="finish_time">Finish Time:</label>
-      <input type="time" id="finish_time" name="finish_time" value="{{ current_time }}" required>
+      <input type="time" id="finish_time" name="finish_time" value="{{ form_finish_time }}" required>
       
       <!-- Size Selector moved here between finish time and serial number -->
       <div class="size-field">
         <label for="size_selector">Pod Size:</label>
         <select id="size_selector" name="size_selector">
-          <option value="7ft" {% if default_size == '7ft' %}selected{% endif %}>7ft</option>
-          <option value="6ft" {% if default_size == '6ft' %}selected{% endif %}>6ft</option>
+          <option value="7ft" {% if form_size == '7ft' %}selected{% endif %}>7ft</option>
+          <option value="6ft" {% if form_size == '6ft' %}selected{% endif %}>6ft</option>
         </select>
       </div>
       <div class="size-field">
         <label for="table_type_selector">Table Type:</label>
         <select id="table_type_selector" name="table_type">
-          <option value="Champion" {% if default_table_type == 'Champion' %}selected{% endif %}>Champion</option>
-          <option value="Lite" {% if default_table_type == 'Lite' %}selected{% endif %}>Lite</option>
+          <option value="Champion" {% if form_table_type == 'Champion' %}selected{% endif %}>Champion</option>
+          <option value="Lite" {% if form_table_type == 'Lite' %}selected{% endif %}>Lite</option>
         </select>
       </div>
       
       <!-- Hidden field to store the base serial number -->
-      <input type="hidden" id="base_serial_number" value="{{ next_serial_number }}">
+      <input type="hidden" id="base_serial_number" value="{{ form_base_serial_number }}">
       
       <label for="serial_number">Serial Number:</label>
-      <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ next_serial_number }}">
+      <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ form_serial_number }}">
       
       <label for="issue">Any issues with the build?:</label>
       <select name="issue" id="issue" required>
         {% for issue in issues %}
-          <option value="{{ issue }}">{{ issue }}</option>
+          <option value="{{ issue }}" {% if issue == form_issue %}selected{% endif %}>{{ issue }}</option>
         {% endfor %}
       </select>
       
       <label for="lunch">Have I had lunch during this build?</label>
       <select name="lunch" id="lunch">
-        <option value="No" selected>No</option>
-        <option value="Yes">Yes</option>
+        <option value="No" {% if form_lunch != 'Yes' %}selected{% endif %}>No</option>
+        <option value="Yes" {% if form_lunch == 'Yes' %}selected{% endif %}>Yes</option>
       </select>
       
       <button type="submit" class="button">Submit</button>
