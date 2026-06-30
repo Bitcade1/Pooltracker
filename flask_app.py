@@ -3959,6 +3959,7 @@ def pods():
                     message_lines.append(f"- {warning}")
                 message_lines.append("")
                 message_lines.append("Completion Details:")
+            message_lines.append(f"Worker: {worker}")
             message_lines.append(f"Serial: {serial_number}")
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
@@ -7418,6 +7419,7 @@ def bodies():
                 message_lines.append("")
             if body_pod_mismatch_messages or low_stock_messages:
                 message_lines.append("Completion Details:")
+            message_lines.append(f"Worker: {worker}")
             message_lines.append(f"Selected Pod: {selected_pod_serial}")
             message_lines.append(f"Completed Body: {serial_number}")
             message_lines.append(f"Time Taken: {time_taken_str}")
@@ -8943,6 +8945,7 @@ def top_rails():
                     message_lines.append(f"- {warning}")
                 message_lines.append("")
                 message_lines.append("Completion Details:")
+            message_lines.append(f"Worker: {worker}")
             message_lines.append(f"Serial: {serial_number}")
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
