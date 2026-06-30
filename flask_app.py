@@ -864,6 +864,14 @@ def remaining_weekdays_in_month(target_date):
     )
 
 
+def weekdays_in_month(year, month):
+    return sum(
+        1
+        for day in range(1, monthrange(int(year), int(month))[1] + 1)
+        if date(int(year), int(month), day).weekday() < 5
+    )
+
+
 def next_bonus_goal_month(year, month):
     if int(month) == 12:
         return int(year) + 1, 1
@@ -10209,9 +10217,14 @@ def cnc_dashboard():
             machine_runs_today_by_machine[machine_number] = int(run_count or 0)
     total_machine_runs_today = sum(machine_runs_today_by_machine.values())
     bonus_progress = dashboard_bonus_progress("cnc", today.year, today.month)
-    cnc_goal_target = max((goal.get("target", 0) for goal in bonus_progress), default=0)
-    cnc_goal_remaining = max((goal.get("remaining", 0) for goal in bonus_progress), default=0)
+    pacing_goal = max(bonus_progress, key=lambda goal: goal.get("remaining", 0), default=None)
+    cnc_goal_target = pacing_goal.get("target", 0) if pacing_goal else 0
+    cnc_goal_remaining = pacing_goal.get("remaining", 0) if pacing_goal else 0
     remaining_workdays = remaining_weekdays_in_month(today)
+    if pacing_goal and pacing_goal.get("next_bonus"):
+        next_bonus_year = pacing_goal.get("period_year")
+        next_bonus_month = pacing_goal.get("period_month")
+        remaining_workdays += weekdays_in_month(next_bonus_year, next_bonus_month)
     if cnc_goal_target <= 0:
         required_sheets_per_day_display = "No Goal"
         goal_pacing_note = "Set a CNC goal"
