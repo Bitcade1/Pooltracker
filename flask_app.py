@@ -878,6 +878,12 @@ def next_bonus_goal_month(year, month):
     return int(year), int(month) + 1
 
 
+def previous_bonus_goal_month(year, month):
+    if int(month) == 1:
+        return int(year) - 1, 12
+    return int(year), int(month) - 1
+
+
 def make_bonus_goal_progress_row(area, worker_name, current_count, target_count, year, month, next_bonus=False):
     target_count = int(target_count or 0)
     current_count = int(current_count or 0)
@@ -975,6 +981,64 @@ def normalize_bonus_worker_name(name):
     return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
 
 
+def bonus_goal_actual_count(area, worker_name, year, month):
+    year = int(year)
+    month = int(month)
+    if area == "cnc":
+        return cnc_completed_quantity_total(year=year, month=month)
+
+    model = {
+        "bodies": CompletedTable,
+        "pods": CompletedPods,
+        "top_rails": TopRail,
+    }.get(area)
+    if not model:
+        return 0
+
+    worker_column = model.worker
+    query = model.query.filter(
+        extract('year', model.date) == year,
+        extract('month', model.date) == month
+    )
+    if normalize_bonus_worker_name(worker_name) == "unknown":
+        query = query.filter(or_(worker_column.is_(None), worker_column == "", worker_column == "Unknown"))
+    else:
+        query = query.filter(worker_column == worker_name)
+    return int(query.count() or 0)
+
+
+def bonus_goal_for_worker(area, worker_name, year, month):
+    worker_key = normalize_bonus_worker_name(worker_name)
+    goals = (
+        BonusGoal.query
+        .filter_by(area=area, year=int(year), month=int(month), active=True)
+        .filter(BonusGoal.target_count > 0)
+        .all()
+    )
+    return next(
+        (goal for goal in goals if normalize_bonus_worker_name(goal.worker_name) == worker_key),
+        None
+    )
+
+
+def bonus_goal_carryover_count(area, worker_name, year, month, max_months=36):
+    goal_chain = []
+    cursor_year, cursor_month = previous_bonus_goal_month(year, month)
+    for _ in range(max_months):
+        goal = bonus_goal_for_worker(area, worker_name, cursor_year, cursor_month)
+        if not goal:
+            break
+        goal_chain.append(goal)
+        cursor_year, cursor_month = previous_bonus_goal_month(cursor_year, cursor_month)
+
+    carryover = 0
+    for goal in reversed(goal_chain):
+        actual_count = bonus_goal_actual_count(area, goal.worker_name, goal.year, goal.month)
+        effective_count = actual_count + carryover
+        carryover = max(effective_count - int(goal.target_count or 0), 0)
+    return carryover
+
+
 def dashboard_bonus_progress(
     area,
     year=None,
@@ -1027,6 +1091,18 @@ def dashboard_bonus_progress(
     for row in bonus_goal_progress(area, year, month):
         if not worker_is_visible(row.get("worker")):
             continue
+
+        carryover_count = bonus_goal_carryover_count(area, row.get("worker"), year, month)
+        if carryover_count:
+            row = make_bonus_goal_progress_row(
+                area,
+                row.get("worker"),
+                row.get("current", 0) + carryover_count,
+                row.get("target", 0),
+                year,
+                month
+            )
+            row["carryover"] = carryover_count
 
         next_goal = next_goals.get(normalize_bonus_worker_name(row.get("worker")))
         if row.get("target_hit") and next_goal:
