@@ -757,6 +757,17 @@ def ensure_bonus_goal_tables():
     BonusGoal.__table__.create(db.engine, checkfirst=True)
 
 
+def cnc_effective_completed_quantity(job_name, quantity):
+    try:
+        completed_quantity = int(quantity or 1)
+    except (TypeError, ValueError):
+        completed_quantity = 1
+    completed_quantity = max(completed_quantity, 1)
+    if "egger" in (job_name or "").lower():
+        completed_quantity *= 2
+    return completed_quantity
+
+
 def cnc_completed_quantity_total(year=None, month=None, day=None):
     filters = [
         CncQueueItem.status == CNC_STATUS_COMPLETED,
@@ -777,14 +788,17 @@ def cnc_completed_quantity_total(year=None, month=None, day=None):
             CncQueueItem.completed_at < end_utc,
         ])
 
-    total = (
-        db.session.query(func.coalesce(func.sum(CncJob.quantity), 0))
+    completed_rows = (
+        db.session.query(CncJob.name, CncJob.quantity)
         .select_from(CncQueueItem)
         .join(CncJob, CncQueueItem.job_id == CncJob.id)
         .filter(*filters)
-        .scalar() or 0
+        .all()
     )
-    return int(total or 0)
+    return sum(
+        cnc_effective_completed_quantity(job_name, quantity)
+        for job_name, quantity in completed_rows
+    )
 
 
 def cnc_monthly_cut_file_history():
@@ -817,13 +831,8 @@ def cnc_monthly_cut_file_history():
             "files_map": {},
         })
 
-        try:
-            cut_quantity = int(quantity or 1)
-        except (TypeError, ValueError):
-            cut_quantity = 1
-        cut_quantity = max(cut_quantity, 1)
-
         file_name = (job_name or "").strip() or "Unknown file"
+        cut_quantity = cnc_effective_completed_quantity(file_name, quantity)
         file_data = month_data["files_map"].setdefault(file_name, {
             "name": file_name,
             "quantity": 0,
