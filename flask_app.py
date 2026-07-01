@@ -9714,7 +9714,7 @@ def top_rail_dashboard_view():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    def top_rail_duration_summary(rails):
+    def top_rail_duration_summary(rails, max_count=None):
         total_duration_seconds = 0
         counted_rails = 0
         last_rail_dt = None
@@ -9730,6 +9730,8 @@ def top_rail_dashboard_view():
             if last_rail_dt is None or finish_dt > last_rail_dt:
                 last_rail_dt = finish_dt
                 last_rail_duration = duration
+            if max_count is not None and counted_rails >= max_count:
+                break
         return total_duration_seconds, counted_rails, last_rail_duration
 
     current_month_rails = TopRail.query.filter(
@@ -9738,7 +9740,31 @@ def top_rail_dashboard_view():
     ).all()
     total_duration_seconds, counted_rails, last_rail_duration = top_rail_duration_summary(current_month_rails)
 
-    avg_top_rail_time = format_avg_duration(total_duration_seconds, counted_rails)
+    recent_rails = None
+    avg_top_rail_time_label = "Avg Time (This Month)"
+    if counted_rails:
+        avg_top_rail_time = format_avg_duration(total_duration_seconds, counted_rails)
+    else:
+        recent_rails = (
+            TopRail.query
+            .order_by(TopRail.date.desc(), TopRail.id.desc())
+            .limit(100)
+            .all()
+        )
+        recent_total_seconds, recent_counted_rails, _ = top_rail_duration_summary(recent_rails, max_count=20)
+        avg_top_rail_time = format_avg_duration(recent_total_seconds, recent_counted_rails)
+        if recent_counted_rails:
+            avg_top_rail_time_label = "Avg Time (Recent)"
+
+    if not last_rail_duration:
+        if recent_rails is None:
+            recent_rails = (
+                TopRail.query
+                .order_by(TopRail.date.desc(), TopRail.id.desc())
+                .limit(100)
+                .all()
+            )
+        _, _, last_rail_duration = top_rail_duration_summary(recent_rails, max_count=1)
     last_top_rail_time = format_avg_duration(last_rail_duration.total_seconds(), 1) if last_rail_duration else "N/A"
 
     start_of_month = today.replace(day=1)
@@ -9763,6 +9789,7 @@ def top_rail_dashboard_view():
         limiting_parts=limiting_parts,
         min_rails_possible=min_rails_possible,
         deficits_by_size=deficits_by_size,
+        avg_top_rail_time_label=avg_top_rail_time_label,
         avg_top_rail_time=avg_top_rail_time,
         last_month_avg_top_rail_time=last_month_avg_top_rail_time,
         last_top_rail_time=last_top_rail_time,
