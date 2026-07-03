@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Comparison</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            display: block;
+            background: #eef2f7;
+            color: #172033;
+            font-family: Arial, sans-serif;
+        }
+
+        .comparison-page {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 48px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .page-header h1 {
+            margin: 0 0 8px;
+            color: #111827;
+            font-size: 2rem;
+        }
+
+        .period-stack {
+            display: grid;
+            gap: 6px;
+            color: #4b5563;
+            font-size: 0.95rem;
+        }
+
+        .period-stack strong {
+            color: #111827;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .link-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            padding: 0 14px;
+            border-radius: 6px;
+            background: #1d4ed8;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .link-button.secondary {
+            background: #334155;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin: 18px 0;
+        }
+
+        .summary-card {
+            background: #fff;
+            border: 1px solid #d9e1ec;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .summary-label {
+            color: #64748b;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .summary-value {
+            margin-top: 8px;
+            font-size: 2.1rem;
+            line-height: 1;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .summary-delta {
+            margin-top: 8px;
+            font-weight: 700;
+        }
+
+        .positive {
+            color: #047857;
+        }
+
+        .negative {
+            color: #b91c1c;
+        }
+
+        .neutral {
+            color: #475569;
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #d9e1ec;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            vertical-align: middle;
+            white-space: normal;
+        }
+
+        .comparison-table th {
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.78rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .numeric {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            width: 120px;
+        }
+
+        .component-name {
+            font-weight: 800;
+            color: #111827;
+            min-width: 150px;
+        }
+
+        .bar-stack {
+            display: grid;
+            gap: 8px;
+            min-width: 240px;
+        }
+
+        .bar-row {
+            display: grid;
+            grid-template-columns: 82px 1fr;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .bar-label {
+            color: #64748b;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .track {
+            height: 12px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+
+        .fill {
+            height: 100%;
+            min-width: 3px;
+            border-radius: inherit;
+        }
+
+        .fill.current {
+            background: #2563eb;
+        }
+
+        .fill.previous {
+            background: #f59e0b;
+        }
+
+        .empty-note {
+            padding: 24px;
+            text-align: center;
+            color: #64748b;
+        }
+
+        @media (max-width: 860px) {
+            .page-header {
+                flex-direction: column;
+            }
+
+            .actions {
+                justify-content: flex-start;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .panel {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .comparison-table {
+                min-width: 760px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .comparison-page {
+                width: min(100% - 20px, 1180px);
+                padding-top: 18px;
+            }
+
+            .page-header h1 {
+                font-size: 1.55rem;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-value {
+                font-size: 1.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="comparison-page">
+        <header class="page-header">
+            <div>
+                <h1>Production Comparison</h1>
+                <div class="period-stack">
+                    <div><strong>{{ current_month_label }}:</strong> {{ current_period_label }}</div>
+                    <div><strong>{{ previous_month_label }}:</strong> {{ previous_period_label }}</div>
+                </div>
+            </div>
+            <nav class="actions" aria-label="Page actions">
+                <a class="link-button secondary" href="{{ url_for('dashboard') }}">Production Dashboard</a>
+                <a class="link-button" href="{{ url_for('home') }}">Main Menu</a>
+            </nav>
+        </header>
+
+        <section class="summary-grid" aria-label="Total comparison">
+            <div class="summary-card">
+                <div class="summary-label">Current Total</div>
+                <div class="summary-value">{{ total_summary.current }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Last Month Total</div>
+                <div class="summary-value">{{ total_summary.previous }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Difference</div>
+                <div class="summary-value {{ total_summary.delta_class }}">{{ total_summary.delta_label }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Change</div>
+                <div class="summary-value {{ total_summary.delta_class }}">{{ total_summary.percent_label }}</div>
+            </div>
+        </section>
+
+        <section class="panel" aria-label="Component comparison">
+            {% if rows %}
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th class="numeric">This Month</th>
+                        <th class="numeric">Same Time Last Month</th>
+                        <th class="numeric">Difference</th>
+                        <th class="numeric">Change</th>
+                        <th>Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td class="component-name">{{ row.label }}</td>
+                        <td class="numeric">{{ row.current }}</td>
+                        <td class="numeric">{{ row.previous }}</td>
+                        <td class="numeric {{ row.delta_class }}">{{ row.delta_label }}</td>
+                        <td class="numeric {{ row.delta_class }}">{{ row.percent_label }}</td>
+                        <td>
+                            <div class="bar-stack">
+                                <div class="bar-row">
+                                    <span class="bar-label">This month</span>
+                                    <div class="track">
+                                        <div class="fill current" style="width: {{ row.current_bar_width }}%;"></div>
+                                    </div>
+                                </div>
+                                <div class="bar-row">
+                                    <span class="bar-label">Last month</span>
+                                    <div class="track">
+                                        <div class="fill previous" style="width: {{ row.previous_bar_width }}%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-note">No production records found.</div>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

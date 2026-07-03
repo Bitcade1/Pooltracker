@@ -2477,6 +2477,172 @@ def dashboard():
         wood_counts=wood_counts
     )
 
+
+def same_day_previous_month(current_date):
+    previous_month = current_date.month - 1
+    previous_year = current_date.year
+    if previous_month == 0:
+        previous_month = 12
+        previous_year -= 1
+
+    previous_day = min(current_date.day, monthrange(previous_year, previous_month)[1])
+    return date(previous_year, previous_month, previous_day)
+
+
+def parse_completion_time(value):
+    if isinstance(value, time):
+        return value
+    if isinstance(value, datetime):
+        return value.time()
+    if value is None:
+        return None
+
+    value_text = str(value).strip()
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(value_text, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def count_completed_to_clock(model, start_date, as_of_date, as_of_time, time_attr_name):
+    rows = (
+        model.query
+        .filter(model.date >= start_date, model.date <= as_of_date)
+        .all()
+    )
+
+    total = 0
+    for row in rows:
+        row_date = row.date
+        if row_date < as_of_date:
+            total += 1
+            continue
+
+        completion_time = parse_completion_time(getattr(row, time_attr_name, None))
+        if completion_time and completion_time <= as_of_time:
+            total += 1
+
+    return total
+
+
+def component_delta_summary(current_count, previous_count):
+    delta = current_count - previous_count
+    if previous_count:
+        percent_label = f"{(delta / previous_count) * 100:+.1f}%"
+    elif current_count:
+        percent_label = "New"
+    else:
+        percent_label = "0.0%"
+
+    if delta > 0:
+        delta_class = "positive"
+        delta_label = f"+{delta}"
+    elif delta < 0:
+        delta_class = "negative"
+        delta_label = str(delta)
+    else:
+        delta_class = "neutral"
+        delta_label = "0"
+
+    return {
+        "delta": delta,
+        "delta_label": delta_label,
+        "delta_class": delta_class,
+        "percent_label": percent_label,
+    }
+
+
+def ensure_production_comparison_tables():
+    CompletedPods.__table__.create(db.engine, checkfirst=True)
+    TopRail.__table__.create(db.engine, checkfirst=True)
+    CompletedTable.__table__.create(db.engine, checkfirst=True)
+    ensure_cushion_workflow_tables()
+
+
+@app.route('/production_comparison')
+def production_comparison():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_production_comparison_tables()
+
+    now = london_now()
+    current_date = now.date()
+    current_time = now.time().replace(microsecond=0)
+    previous_as_of_date = same_day_previous_month(current_date)
+
+    current_month_start = current_date.replace(day=1)
+    previous_month_start = previous_as_of_date.replace(day=1)
+    current_start_dt = datetime.combine(current_month_start, time.min)
+    current_as_of_dt = datetime.combine(current_date, current_time)
+    previous_start_dt = datetime.combine(previous_month_start, time.min)
+    previous_as_of_dt = datetime.combine(previous_as_of_date, current_time)
+
+    current_counts = {
+        "pods": count_completed_to_clock(CompletedPods, current_month_start, current_date, current_time, "finish_time"),
+        "top_rails": count_completed_to_clock(TopRail, current_month_start, current_date, current_time, "finish_time"),
+        "bodies": count_completed_to_clock(CompletedTable, current_month_start, current_date, current_time, "finish_time"),
+        "cushions": CushionCompletedSet.query.filter(
+            CushionCompletedSet.completed_at >= current_start_dt,
+            CushionCompletedSet.completed_at <= current_as_of_dt
+        ).count(),
+    }
+
+    previous_counts = {
+        "pods": count_completed_to_clock(CompletedPods, previous_month_start, previous_as_of_date, current_time, "finish_time"),
+        "top_rails": count_completed_to_clock(TopRail, previous_month_start, previous_as_of_date, current_time, "finish_time"),
+        "bodies": count_completed_to_clock(CompletedTable, previous_month_start, previous_as_of_date, current_time, "finish_time"),
+        "cushions": CushionCompletedSet.query.filter(
+            CushionCompletedSet.completed_at >= previous_start_dt,
+            CushionCompletedSet.completed_at <= previous_as_of_dt
+        ).count(),
+    }
+
+    labels = {
+        "pods": "Pods",
+        "top_rails": "Top Rails",
+        "bodies": "Bodies",
+        "cushions": "Cushion Sets",
+    }
+    rows = []
+    for key in ("pods", "top_rails", "bodies", "cushions"):
+        current_count = current_counts[key]
+        previous_count = previous_counts[key]
+        row = {
+            "key": key,
+            "label": labels[key],
+            "current": current_count,
+            "previous": previous_count,
+        }
+        row.update(component_delta_summary(current_count, previous_count))
+
+        max_value = max(current_count, previous_count, 1)
+        row["current_bar_width"] = round((current_count / max_value) * 100, 1)
+        row["previous_bar_width"] = round((previous_count / max_value) * 100, 1)
+        rows.append(row)
+
+    current_total = sum(current_counts.values())
+    previous_total = sum(previous_counts.values())
+    total_summary = component_delta_summary(current_total, previous_total)
+    total_summary.update({
+        "current": current_total,
+        "previous": previous_total,
+    })
+
+    return render_template(
+        'production_comparison.html',
+        rows=rows,
+        total_summary=total_summary,
+        current_period_label=f"{current_month_start.strftime('%d %b %Y')} to {current_as_of_dt.strftime('%d %b %Y %H:%M')}",
+        previous_period_label=f"{previous_month_start.strftime('%d %b %Y')} to {previous_as_of_dt.strftime('%d %b %Y %H:%M')}",
+        current_month_label=current_month_start.strftime("%B %Y"),
+        previous_month_label=previous_month_start.strftime("%B %Y"),
+    )
+
+
 @app.route('/admin/mdf_inventory', methods=['GET', 'POST'])
 def manage_mdf_inventory():
     if 'worker' not in session:
