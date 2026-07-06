@@ -2489,6 +2489,15 @@ def same_day_previous_month(current_date):
     return date(previous_year, previous_month, previous_day)
 
 
+def parse_compare_date(value, fallback_date):
+    if not value:
+        return fallback_date
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return fallback_date
+
+
 def parse_completion_time(value):
     if isinstance(value, time):
         return value
@@ -2527,6 +2536,100 @@ def count_completed_to_clock(model, start_date, as_of_date, as_of_time, time_att
     return total
 
 
+def sum_wood_counts_to_clock(section_match, start_date, as_of_date, as_of_time):
+    section_filter = WoodCount.section.like(section_match)
+    rows = (
+        WoodCount.query
+        .filter(
+            section_filter,
+            WoodCount.date >= start_date,
+            WoodCount.date <= as_of_date
+        )
+        .all()
+    )
+
+    monthly_summary_ids = set()
+    monthly_rows = (
+        WoodCount.query
+        .filter(section_filter, WoodCount.date == start_date)
+        .order_by(WoodCount.section.asc(), WoodCount.id.asc())
+        .all()
+    )
+    seen_sections = set()
+    for row in monthly_rows:
+        if row.section not in seen_sections:
+            monthly_summary_ids.add(row.id)
+            seen_sections.add(row.section)
+
+    total = 0
+    for row in rows:
+        if row.id in monthly_summary_ids:
+            continue
+        if row.date < as_of_date:
+            total += row.count or 0
+            continue
+        if row.time and row.time <= as_of_time:
+            total += row.count or 0
+    return total
+
+
+def build_top_rail_piece_stock_summary():
+    color_rows = []
+    totals = {
+        "total_6ft_pieces": 0,
+        "total_7ft_pieces": 0,
+        "total_6ft_short": 0,
+        "total_6ft_long": 0,
+        "total_7ft_short": 0,
+        "total_7ft_long": 0,
+        "max_top_rails": 0,
+    }
+
+    counts = {
+        part.part_key: part.count
+        for part in TopRailPieceCount.query.all()
+    }
+
+    for color_key, color_label in [
+        ("black", "Black"),
+        ("rustic_oak", "Rustic Oak"),
+        ("grey_oak", "Grey Oak"),
+        ("stone", "Stone"),
+        ("rustic_black", "Rustic Black"),
+    ]:
+        short_6 = counts.get(f"{color_key}_6_short", 0)
+        long_6 = counts.get(f"{color_key}_6_long", 0)
+        short_7 = counts.get(f"{color_key}_7_short", 0)
+        long_7 = counts.get(f"{color_key}_7_long", 0)
+        max_6 = min(short_6 // 2, long_6 // 2)
+        max_7 = min(short_7 // 2, long_7 // 2)
+
+        totals["total_6ft_short"] += short_6
+        totals["total_6ft_long"] += long_6
+        totals["total_7ft_short"] += short_7
+        totals["total_7ft_long"] += long_7
+        totals["max_top_rails"] += max_6 + max_7
+
+        color_rows.append({
+            "color": color_label,
+            "short_6": short_6,
+            "long_6": long_6,
+            "max_6": max_6,
+            "short_7": short_7,
+            "long_7": long_7,
+            "max_7": max_7,
+        })
+
+    totals["total_6ft_pieces"] = totals["total_6ft_short"] + totals["total_6ft_long"]
+    totals["total_7ft_pieces"] = totals["total_7ft_short"] + totals["total_7ft_long"]
+    totals["total_pieces"] = totals["total_6ft_pieces"] + totals["total_7ft_pieces"]
+
+    return {
+        "rows": color_rows,
+        **totals,
+    }
+
+
 def component_delta_summary(current_count, previous_count):
     delta = current_count - previous_count
     if previous_count:
@@ -2558,6 +2661,8 @@ def ensure_production_comparison_tables():
     CompletedPods.__table__.create(db.engine, checkfirst=True)
     TopRail.__table__.create(db.engine, checkfirst=True)
     CompletedTable.__table__.create(db.engine, checkfirst=True)
+    WoodCount.__table__.create(db.engine, checkfirst=True)
+    TopRailPieceCount.__table__.create(db.engine, checkfirst=True)
     ensure_cushion_workflow_tables()
 
 
@@ -2570,35 +2675,40 @@ def production_comparison():
     ensure_production_comparison_tables()
 
     now = london_now()
-    current_date = now.date()
-    current_time = now.time().replace(microsecond=0)
-    previous_as_of_date = same_day_previous_month(current_date)
+    today = now.date()
+    selected_date = parse_compare_date(request.args.get("compare_date"), today)
+    if selected_date > today:
+        selected_date = today
+    selected_time = now.time().replace(microsecond=0) if selected_date == today else time(23, 59, 59)
+    previous_as_of_date = same_day_previous_month(selected_date)
 
-    current_month_start = current_date.replace(day=1)
+    current_month_start = selected_date.replace(day=1)
     previous_month_start = previous_as_of_date.replace(day=1)
     current_start_dt = datetime.combine(current_month_start, time.min)
-    current_as_of_dt = datetime.combine(current_date, current_time)
+    current_as_of_dt = datetime.combine(selected_date, selected_time)
     previous_start_dt = datetime.combine(previous_month_start, time.min)
-    previous_as_of_dt = datetime.combine(previous_as_of_date, current_time)
+    previous_as_of_dt = datetime.combine(previous_as_of_date, selected_time)
 
     current_counts = {
-        "pods": count_completed_to_clock(CompletedPods, current_month_start, current_date, current_time, "finish_time"),
-        "top_rails": count_completed_to_clock(TopRail, current_month_start, current_date, current_time, "finish_time"),
-        "bodies": count_completed_to_clock(CompletedTable, current_month_start, current_date, current_time, "finish_time"),
+        "pods": count_completed_to_clock(CompletedPods, current_month_start, selected_date, selected_time, "finish_time"),
+        "top_rails": count_completed_to_clock(TopRail, current_month_start, selected_date, selected_time, "finish_time"),
+        "bodies": count_completed_to_clock(CompletedTable, current_month_start, selected_date, selected_time, "finish_time"),
         "cushions": CushionCompletedSet.query.filter(
             CushionCompletedSet.completed_at >= current_start_dt,
             CushionCompletedSet.completed_at <= current_as_of_dt
         ).count(),
+        "top_rail_pieces": sum_wood_counts_to_clock("% - Top Rail Pieces%", current_month_start, selected_date, selected_time),
     }
 
     previous_counts = {
-        "pods": count_completed_to_clock(CompletedPods, previous_month_start, previous_as_of_date, current_time, "finish_time"),
-        "top_rails": count_completed_to_clock(TopRail, previous_month_start, previous_as_of_date, current_time, "finish_time"),
-        "bodies": count_completed_to_clock(CompletedTable, previous_month_start, previous_as_of_date, current_time, "finish_time"),
+        "pods": count_completed_to_clock(CompletedPods, previous_month_start, previous_as_of_date, selected_time, "finish_time"),
+        "top_rails": count_completed_to_clock(TopRail, previous_month_start, previous_as_of_date, selected_time, "finish_time"),
+        "bodies": count_completed_to_clock(CompletedTable, previous_month_start, previous_as_of_date, selected_time, "finish_time"),
         "cushions": CushionCompletedSet.query.filter(
             CushionCompletedSet.completed_at >= previous_start_dt,
             CushionCompletedSet.completed_at <= previous_as_of_dt
         ).count(),
+        "top_rail_pieces": sum_wood_counts_to_clock("% - Top Rail Pieces%", previous_month_start, previous_as_of_date, selected_time),
     }
 
     labels = {
@@ -2606,9 +2716,10 @@ def production_comparison():
         "top_rails": "Top Rails",
         "bodies": "Bodies",
         "cushions": "Cushion Sets",
+        "top_rail_pieces": "Top Rail Pieces Cut",
     }
     rows = []
-    for key in ("pods", "top_rails", "bodies", "cushions"):
+    for key in ("pods", "top_rails", "bodies", "cushions", "top_rail_pieces"):
         current_count = current_counts[key]
         previous_count = previous_counts[key]
         row = {
@@ -2640,6 +2751,9 @@ def production_comparison():
         previous_period_label=f"{previous_month_start.strftime('%d %b %Y')} to {previous_as_of_dt.strftime('%d %b %Y %H:%M')}",
         current_month_label=current_month_start.strftime("%B %Y"),
         previous_month_label=previous_month_start.strftime("%B %Y"),
+        selected_date=selected_date.strftime("%Y-%m-%d"),
+        max_compare_date=today.strftime("%Y-%m-%d"),
+        top_rail_piece_stock=build_top_rail_piece_stock_summary(),
     )
 
 

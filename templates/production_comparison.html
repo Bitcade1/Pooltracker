@@ -51,6 +51,41 @@
             justify-content: flex-end;
         }
 
+        .date-form {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            margin: 0;
+            flex-direction: row;
+        }
+
+        .date-form label {
+            display: grid;
+            gap: 4px;
+            color: #334155;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .date-form input[type="date"] {
+            min-height: 38px;
+            padding: 0 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #0f172a;
+            font: inherit;
+        }
+
+        .date-form button {
+            min-height: 38px;
+            padding: 0 14px;
+            border-radius: 6px;
+            background: #1d4ed8;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
         .link-button {
             display: inline-flex;
             align-items: center;
@@ -121,6 +156,32 @@
             border: 1px solid #d9e1ec;
             border-radius: 8px;
             overflow: hidden;
+        }
+
+        .panel + .panel {
+            margin-top: 18px;
+        }
+
+        .panel-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .panel-heading h2 {
+            margin: 0;
+            color: #111827;
+            font-size: 1.2rem;
+        }
+
+        .panel-heading .meta {
+            color: #64748b;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
         }
 
         .comparison-table {
@@ -217,6 +278,10 @@
                 justify-content: flex-start;
             }
 
+            .date-form {
+                width: 100%;
+            }
+
             .summary-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -248,6 +313,11 @@
             .summary-value {
                 font-size: 1.85rem;
             }
+
+            .date-form {
+                align-items: stretch;
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -262,6 +332,13 @@
                 </div>
             </div>
             <nav class="actions" aria-label="Page actions">
+                <form class="date-form" method="get" action="{{ url_for('production_comparison') }}">
+                    <label for="compare_date">
+                        Compare date
+                        <input type="date" id="compare_date" name="compare_date" value="{{ selected_date }}" max="{{ max_compare_date }}">
+                    </label>
+                    <button type="submit">Update</button>
+                </form>
                 <a class="link-button secondary" href="{{ url_for('dashboard') }}">Production Dashboard</a>
                 <a class="link-button" href="{{ url_for('home') }}">Main Menu</a>
             </nav>
@@ -330,6 +407,58 @@
             {% else %}
             <div class="empty-note">No production records found.</div>
             {% endif %}
+        </section>
+
+        <section class="summary-grid" aria-label="Top rail piece stock totals">
+            <div class="summary-card">
+                <div class="summary-label">Top Rail Pieces Stock</div>
+                <div class="summary-value">{{ top_rail_piece_stock.total_pieces }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">6ft Pieces</div>
+                <div class="summary-value">{{ top_rail_piece_stock.total_6ft_pieces }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">7ft Pieces</div>
+                <div class="summary-value">{{ top_rail_piece_stock.total_7ft_pieces }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Rails Possible</div>
+                <div class="summary-value">{{ top_rail_piece_stock.max_top_rails }}</div>
+            </div>
+        </section>
+
+        <section class="panel" aria-label="Current top rail piece stock">
+            <div class="panel-heading">
+                <h2>Current Top Rail Piece Stock</h2>
+                <div class="meta">{{ top_rail_piece_stock.max_top_rails }} rails possible</div>
+            </div>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Color</th>
+                        <th class="numeric">6ft Short</th>
+                        <th class="numeric">6ft Long</th>
+                        <th class="numeric">6ft Rails</th>
+                        <th class="numeric">7ft Short</th>
+                        <th class="numeric">7ft Long</th>
+                        <th class="numeric">7ft Rails</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in top_rail_piece_stock.rows %}
+                    <tr>
+                        <td class="component-name">{{ row.color }}</td>
+                        <td class="numeric">{{ row.short_6 }}</td>
+                        <td class="numeric">{{ row.long_6 }}</td>
+                        <td class="numeric">{{ row.max_6 }}</td>
+                        <td class="numeric">{{ row.short_7 }}</td>
+                        <td class="numeric">{{ row.long_7 }}</td>
+                        <td class="numeric">{{ row.max_7 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </section>
     </main>
 </body>
