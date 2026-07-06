@@ -2536,13 +2536,12 @@ def count_completed_to_clock(model, start_date, as_of_date, as_of_time, time_att
     return total
 
 
-def current_top_rail_piece_rails_possible():
-    counts = {
-        part.part_key: part.count
-        for part in TopRailPieceCount.query.all()
-    }
+TOP_RAIL_PIECE_COLOR_KEYS = ["black", "rustic_oak", "grey_oak", "stone", "rustic_black"]
+
+
+def top_rail_piece_rails_possible_from_counts(counts):
     total = 0
-    for color_key in ["black", "rustic_oak", "grey_oak", "stone", "rustic_black"]:
+    for color_key in TOP_RAIL_PIECE_COLOR_KEYS:
         total += min(
             counts.get(f"{color_key}_6_short", 0) // 2,
             counts.get(f"{color_key}_6_long", 0) // 2
@@ -2552,6 +2551,77 @@ def current_top_rail_piece_rails_possible():
             counts.get(f"{color_key}_7_long", 0) // 2
         )
     return total
+
+
+def ensure_top_rail_piece_count_log_table():
+    TopRailPieceCountLog.__table__.create(db.engine, checkfirst=True)
+
+
+def record_top_rail_piece_count_log(part_key, action_type, worker, count_before, count_after, note=None, created_at=None):
+    try:
+        count_before = int(count_before or 0)
+        count_after = int(count_after or 0)
+    except (TypeError, ValueError):
+        return None
+
+    if count_before == count_after:
+        return None
+
+    ensure_top_rail_piece_count_log_table()
+    log_entry = TopRailPieceCountLog(
+        part_key=part_key,
+        action_type=action_type,
+        worker=(worker or "Unknown").strip() or "Unknown",
+        delta=count_after - count_before,
+        count_before=count_before,
+        count_after=count_after,
+        note=(note or "").strip() or None,
+        created_at=created_at or london_now()
+    )
+    db.session.add(log_entry)
+    return log_entry
+
+
+def seed_top_rail_piece_count_log_baseline():
+    ensure_top_rail_piece_count_log_table()
+    if TopRailPieceCountLog.query.first():
+        return False
+
+    current_parts = TopRailPieceCount.query.order_by(TopRailPieceCount.part_key.asc()).all()
+    if not current_parts:
+        return False
+
+    baseline_time = london_now()
+    for part in current_parts:
+        db.session.add(TopRailPieceCountLog(
+            part_key=part.part_key,
+            action_type="baseline",
+            worker="System",
+            delta=part.count,
+            count_before=0,
+            count_after=part.count,
+            note="Initial top rail piece count history baseline",
+            created_at=baseline_time
+        ))
+    db.session.commit()
+    return True
+
+
+def top_rail_piece_counts_as_of(as_of_dt):
+    logs = (
+        TopRailPieceCountLog.query
+        .filter(TopRailPieceCountLog.created_at <= as_of_dt)
+        .order_by(TopRailPieceCountLog.created_at.asc(), TopRailPieceCountLog.id.asc())
+        .all()
+    )
+    counts = {}
+    for entry in logs:
+        counts[entry.part_key] = entry.count_after
+    return counts
+
+
+def top_rail_piece_rails_possible_as_of(as_of_dt):
+    return top_rail_piece_rails_possible_from_counts(top_rail_piece_counts_as_of(as_of_dt))
 
 
 def component_delta_summary(current_count, previous_count):
@@ -2587,6 +2657,7 @@ def ensure_production_comparison_tables():
     CompletedTable.__table__.create(db.engine, checkfirst=True)
     WoodCount.__table__.create(db.engine, checkfirst=True)
     TopRailPieceCount.__table__.create(db.engine, checkfirst=True)
+    ensure_top_rail_piece_count_log_table()
     ensure_cushion_workflow_tables()
 
 
@@ -2597,6 +2668,7 @@ def production_comparison():
         return redirect(url_for('login'))
 
     ensure_production_comparison_tables()
+    seed_top_rail_piece_count_log_baseline()
 
     now = london_now()
     today = now.date()
@@ -2621,6 +2693,7 @@ def production_comparison():
             CushionCompletedSet.completed_at >= current_start_dt,
             CushionCompletedSet.completed_at <= current_as_of_dt
         ).count(),
+        "top_rail_piece_rails": top_rail_piece_rails_possible_as_of(current_as_of_dt),
     }
 
     previous_counts = {
@@ -2631,6 +2704,7 @@ def production_comparison():
             CushionCompletedSet.completed_at >= previous_start_dt,
             CushionCompletedSet.completed_at <= previous_as_of_dt
         ).count(),
+        "top_rail_piece_rails": top_rail_piece_rails_possible_as_of(previous_as_of_dt),
     }
 
     labels = {
@@ -2638,9 +2712,10 @@ def production_comparison():
         "top_rails": "Top Rails",
         "bodies": "Bodies",
         "cushions": "Cushion Sets",
+        "top_rail_piece_rails": "Top Rail Pieces - Rails Possible",
     }
     rows = []
-    for key in ("pods", "top_rails", "bodies", "cushions"):
+    for key in ("pods", "top_rails", "bodies", "cushions", "top_rail_piece_rails"):
         current_count = current_counts[key]
         previous_count = previous_counts[key]
         row = {
@@ -2675,7 +2750,6 @@ def production_comparison():
         previous_month_label=previous_month_start.strftime("%B %Y"),
         selected_date=selected_date.strftime("%Y-%m-%d"),
         max_compare_date=today.strftime("%Y-%m-%d"),
-        current_top_rail_piece_rails_possible=current_top_rail_piece_rails_possible(),
     )
 
 
@@ -9025,6 +9099,9 @@ def top_rails():
         parts_to_deduct[long_piece_name] = 2
         parts_to_deduct[short_piece_name] = 2
 
+        ensure_top_rail_piece_count_log_table()
+        seed_top_rail_piece_count_log_baseline()
+
         # Check inventory and deduct all required parts
         for part_name, quantity_needed in parts_to_deduct.items():
             if part_name == BRAD_NAILS_PART_NAME:
@@ -9058,6 +9135,14 @@ def top_rails():
                 # Deduct from inventory
                 old_piece_count = part_entry.count
                 part_entry.count -= quantity_needed
+                record_top_rail_piece_count_log(
+                    part_name,
+                    "complete_top_rail",
+                    worker,
+                    old_piece_count,
+                    part_entry.count,
+                    f"Completed top rail {serial_number}"
+                )
                 check_and_notify_low_stock(
                     part_name,
                     old_piece_count,
@@ -13391,6 +13476,20 @@ class TopRailPieceCount(db.Model):
     count = db.Column(db.Integer, default=0, nullable=False)
 
 
+class TopRailPieceCountLog(db.Model):
+    __tablename__ = 'top_rail_piece_count_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    part_key = db.Column(db.String(50), nullable=False, index=True)
+    action_type = db.Column(db.String(30), nullable=False, default="set")
+    worker = db.Column(db.String(50), nullable=False, default="Unknown")
+    delta = db.Column(db.Integer, nullable=False, default=0)
+    count_before = db.Column(db.Integer, nullable=False, default=0)
+    count_after = db.Column(db.Integer, nullable=False, default=0)
+    note = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=london_now, index=True)
+
+
 class BodyPieceCount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     part_key = db.Column(db.String(60), unique=True, nullable=False)  # e.g., 'black_6_window_side'
@@ -14025,6 +14124,10 @@ class LaminatePieceCount(db.Model):
 
 @app.route('/top_rail_pieces', methods=['GET', 'POST'])
 def top_rail_pieces():
+    TopRailPieceCount.__table__.create(db.engine, checkfirst=True)
+    ensure_top_rail_piece_count_log_table()
+    seed_top_rail_piece_count_log_baseline()
+
     key_map = {
         'a': 'black_6_short',
         'b': 'black_6_long',
@@ -14049,6 +14152,7 @@ def top_rail_pieces():
     }
 
     if request.method == 'POST':
+        worker_name = session.get('worker', 'Unknown')
         key_code = request.form.get('key_code')
         if key_code and key_code in key_map:
             part_key = key_map[key_code]
@@ -14056,10 +14160,20 @@ def top_rail_pieces():
             # Increment top rail count
             part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
             if not part:
-                part = TopRailPieceCount(part_key=part_key, count=1)
+                old_count = 0
+                part = TopRailPieceCount(part_key=part_key, count=0)
                 db.session.add(part)
             else:
-                part.count += 1
+                old_count = part.count
+            part.count = old_count + 1
+            record_top_rail_piece_count_log(
+                part_key,
+                "quick_add",
+                worker_name,
+                old_count,
+                part.count,
+                "Top rail piece quick add"
+            )
 
             # NEW: Add laminate deduction logic
             # Parse the part_key to determine the corresponding laminate piece
@@ -14120,10 +14234,20 @@ def top_rail_pieces():
                     count = int(input_value)
                     part = TopRailPieceCount.query.filter_by(part_key=key).first()
                     if not part:
-                        part = TopRailPieceCount(part_key=key, count=count)
+                        old_count = 0
+                        part = TopRailPieceCount(part_key=key, count=0)
                         db.session.add(part)
                     else:
-                        part.count = count
+                        old_count = part.count
+                    part.count = count
+                    record_top_rail_piece_count_log(
+                        key,
+                        "manual_set",
+                        worker_name,
+                        old_count,
+                        part.count,
+                        "Manual top rail piece count update"
+                    )
                 except ValueError:
                     flash(f"Invalid number for {key}", "error")
 
