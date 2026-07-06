@@ -264,6 +264,42 @@ def color_key_from_serial(serial):
     return "black"
 
 
+TOP_RAIL_COLOR_SUFFIXES = {
+    "black": "",
+    "rustic_oak": "O",
+    "grey_oak": "GO",
+    "stone": "C",
+    "rustic_black": "RB",
+}
+
+
+def strip_table_size_suffix(serial):
+    return re.sub(r"\s*-\s*[67]\s*$", "", (serial or "").strip(), flags=re.IGNORECASE).strip()
+
+
+def build_top_rail_serial(serial, size_label, color_key):
+    base_serial = strip_table_serial_suffixes(serial, remove_color=True, remove_lite=True)
+    base_serial = strip_table_size_suffix(base_serial)
+    size_label = size_label if size_label in ("6ft", "7ft") else "7ft"
+    color_key = color_key if color_key in TOP_RAIL_COLOR_SUFFIXES else "black"
+
+    serial_parts = [base_serial]
+    if size_label == "6ft":
+        serial_parts.append("6")
+
+    color_suffix = TOP_RAIL_COLOR_SUFFIXES.get(color_key, "")
+    if color_suffix:
+        serial_parts.append(color_suffix)
+
+    return " - ".join(part for part in serial_parts if part)
+
+
+def top_rail_stock_type_key(size_label, color_key):
+    normalized_size = (size_label or "7ft").lower()
+    normalized_color = (color_key or "black").lower().replace(" ", "_")
+    return f"top_rail_{normalized_size}_{normalized_color}"
+
+
 def strip_table_serial_suffixes(serial, remove_color=True, remove_lite=True):
     cleaned = (serial or "").strip()
     if not cleaned:
@@ -4777,6 +4813,9 @@ def manage_raw_data():
                 flash(f"{table.title()} entry deleted successfully!", "success")
             else:
                 # Update logic for non-deletion operations
+                old_serial_number = entry.serial_number
+                old_top_rail_stock_type = None
+                new_top_rail_stock_type = None
                 if table == 'pods':
                     try:
                         entry.start_time = datetime.strptime(request.form.get('start_time'), "%H:%M").time()
@@ -4788,8 +4827,41 @@ def manage_raw_data():
                     entry.start_time = request.form.get('start_time')
                     entry.finish_time = request.form.get('finish_time')
 
+                submitted_serial_number = (request.form.get('serial_number') or "").strip()
+                if table == 'top_rails':
+                    top_rail_size = request.form.get('top_rail_size')
+                    if top_rail_size not in ("7ft", "6ft"):
+                        top_rail_size = serial_size_display_label(old_serial_number)
+
+                    top_rail_color_key = request.form.get('top_rail_color')
+                    if top_rail_color_key not in TOP_RAIL_COLOR_SUFFIXES:
+                        top_rail_color_key = color_key_from_serial(old_serial_number)
+
+                    submitted_serial_number = build_top_rail_serial(
+                        submitted_serial_number,
+                        top_rail_size,
+                        top_rail_color_key
+                    )
+                    if not submitted_serial_number:
+                        flash("Top rail serial number is required.", "error")
+                        return redirect_to_raw_data(table)
+
+                    duplicate_top_rail = TopRail.query.filter(
+                        TopRail.id != entry.id,
+                        TopRail.serial_number == submitted_serial_number
+                    ).first()
+                    if duplicate_top_rail:
+                        flash(f"Top rail serial '{submitted_serial_number}' already exists.", "error")
+                        return redirect_to_raw_data(table)
+
+                    old_top_rail_stock_type = top_rail_stock_type_key(
+                        serial_size_display_label(old_serial_number),
+                        color_key_from_serial(old_serial_number)
+                    )
+                    new_top_rail_stock_type = top_rail_stock_type_key(top_rail_size, top_rail_color_key)
+
                 entry.worker = request.form.get('worker')
-                entry.serial_number = request.form.get('serial_number')
+                entry.serial_number = submitted_serial_number
                 entry.issue = request.form.get('issue')
                 entry.lunch = request.form.get('lunch')
 
@@ -4801,7 +4873,56 @@ def manage_raw_data():
                         flash("Invalid date format. Please use YYYY-MM-DD.", "error")
                         return redirect_to_raw_data(table)
 
-                db.session.commit()
+                if (
+                    table == 'top_rails'
+                    and old_top_rail_stock_type
+                    and new_top_rail_stock_type
+                    and old_top_rail_stock_type != new_top_rail_stock_type
+                ):
+                    stock_worker = session.get('worker') or entry.worker or "Unknown"
+                    stock_note = f"Raw data changed top rail {old_serial_number} to {submitted_serial_number}"
+
+                    old_stock_entry = TableStock.query.filter_by(type=old_top_rail_stock_type).first()
+                    if old_stock_entry and old_stock_entry.count > 0:
+                        old_count = old_stock_entry.count
+                        old_stock_entry.count -= 1
+                        record_table_stock_log(
+                            old_top_rail_stock_type,
+                            "correction",
+                            stock_worker,
+                            -1,
+                            old_count,
+                            old_stock_entry.count,
+                            stock_note
+                        )
+                    else:
+                        flash(
+                            f"No stock was available to remove from {table_stock_type_label(old_top_rail_stock_type)}.",
+                            "warning"
+                        )
+
+                    new_stock_entry = TableStock.query.filter_by(type=new_top_rail_stock_type).first()
+                    if not new_stock_entry:
+                        new_stock_entry = TableStock(type=new_top_rail_stock_type, count=0)
+                        db.session.add(new_stock_entry)
+                    new_count = new_stock_entry.count
+                    new_stock_entry.count += 1
+                    record_table_stock_log(
+                        new_top_rail_stock_type,
+                        "correction",
+                        stock_worker,
+                        1,
+                        new_count,
+                        new_stock_entry.count,
+                        stock_note
+                    )
+
+                try:
+                    db.session.commit()
+                except IntegrityError:
+                    db.session.rollback()
+                    flash("Serial number already exists. Please use a unique serial number.", "error")
+                    return redirect_to_raw_data(table)
                 flash(f"{table.capitalize()} entry updated successfully!", "success")
         else:
             flash("Raw data entry not found.", "error")
@@ -4849,6 +4970,11 @@ def manage_raw_data():
             redirect_args["serial_number"] = serial_number_query
         return redirect(url_for('manage_raw_data', **redirect_args))
 
+    if active_section == "top_rails":
+        for row in pagination.items:
+            row.raw_top_rail_size = serial_size_display_label(row.serial_number)
+            row.raw_top_rail_color_key = color_key_from_serial(row.serial_number)
+
     raw_counts = {active_section: pagination.total}
     for section in raw_data_sections:
         section_key = section["key"]
@@ -4869,7 +4995,11 @@ def manage_raw_data():
         pagination=pagination,
         per_page=per_page,
         page_start=page_start,
-        page_end=page_end
+        page_end=page_end,
+        top_rail_color_options=[
+            {"key": key, "label": LAMINATE_COLOR_KEY_TO_LABEL.get(key, key.replace("_", " ").title())}
+            for key in ("black", "rustic_oak", "grey_oak", "stone", "rustic_black")
+        ]
     )
 
 @app.route('/counting_wood', methods=['GET', 'POST'])

@@ -267,6 +267,24 @@
                         <label>Serial Number</label>
                         <input type="text" name="serial_number" value="{{ row.serial_number or '' }}">
                     </div>
+                    {% if active_section == 'top_rails' %}
+                        <div class="raw-field">
+                            <label>Top Rail Size</label>
+                            <select name="top_rail_size">
+                                {% for size in ['7ft', '6ft'] %}
+                                    <option value="{{ size }}" {% if row.raw_top_rail_size == size %}selected{% endif %}>{{ size }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="raw-field">
+                            <label>Top Rail Color</label>
+                            <select name="top_rail_color">
+                                {% for color in top_rail_color_options %}
+                                    <option value="{{ color.key }}" {% if row.raw_top_rail_color_key == color.key %}selected{% endif %}>{{ color.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
                     <div class="raw-field">
                         <label>Issue</label>
                         <input type="text" name="issue" value="{{ row.issue or '' }}">
