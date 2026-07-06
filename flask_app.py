@@ -2536,50 +2536,22 @@ def count_completed_to_clock(model, start_date, as_of_date, as_of_time, time_att
     return total
 
 
-def sum_wood_counts_to_clock(section_match, start_date, as_of_date, as_of_time):
-    section_filter = WoodCount.section.like(section_match)
-    rows = (
-        WoodCount.query
-        .filter(
-            section_filter,
-            WoodCount.date >= start_date,
-            WoodCount.date <= as_of_date
-        )
-        .all()
-    )
-
-    monthly_summary_ids = set()
-    monthly_rows = (
-        WoodCount.query
-        .filter(section_filter, WoodCount.date == start_date)
-        .order_by(WoodCount.section.asc(), WoodCount.id.asc())
-        .all()
-    )
-    seen_sections = set()
-    for row in monthly_rows:
-        if row.section not in seen_sections:
-            monthly_summary_ids.add(row.id)
-            seen_sections.add(row.section)
-
+def current_top_rail_piece_rails_possible():
+    counts = {
+        part.part_key: part.count
+        for part in TopRailPieceCount.query.all()
+    }
     total = 0
-    for row in rows:
-        if row.id in monthly_summary_ids:
-            continue
-        if row.date < as_of_date:
-            total += row.count or 0
-            continue
-        if row.time and row.time <= as_of_time:
-            total += row.count or 0
+    for color_key in ["black", "rustic_oak", "grey_oak", "stone", "rustic_black"]:
+        total += min(
+            counts.get(f"{color_key}_6_short", 0) // 2,
+            counts.get(f"{color_key}_6_long", 0) // 2
+        )
+        total += min(
+            counts.get(f"{color_key}_7_short", 0) // 2,
+            counts.get(f"{color_key}_7_long", 0) // 2
+        )
     return total
-
-
-def top_rail_piece_rails_possible_to_clock(start_date, as_of_date, as_of_time):
-    short_6 = max(0, sum_wood_counts_to_clock("6ft - Top Rail Pieces Short", start_date, as_of_date, as_of_time))
-    long_6 = max(0, sum_wood_counts_to_clock("6ft - Top Rail Pieces Long", start_date, as_of_date, as_of_time))
-    short_7 = max(0, sum_wood_counts_to_clock("7ft - Top Rail Pieces Short", start_date, as_of_date, as_of_time))
-    long_7 = max(0, sum_wood_counts_to_clock("7ft - Top Rail Pieces Long", start_date, as_of_date, as_of_time))
-
-    return min(short_6 // 2, long_6 // 2) + min(short_7 // 2, long_7 // 2)
 
 
 def component_delta_summary(current_count, previous_count):
@@ -2649,7 +2621,6 @@ def production_comparison():
             CushionCompletedSet.completed_at >= current_start_dt,
             CushionCompletedSet.completed_at <= current_as_of_dt
         ).count(),
-        "top_rail_pieces": top_rail_piece_rails_possible_to_clock(current_month_start, selected_date, selected_time),
     }
 
     previous_counts = {
@@ -2660,7 +2631,6 @@ def production_comparison():
             CushionCompletedSet.completed_at >= previous_start_dt,
             CushionCompletedSet.completed_at <= previous_as_of_dt
         ).count(),
-        "top_rail_pieces": top_rail_piece_rails_possible_to_clock(previous_month_start, previous_as_of_date, selected_time),
     }
 
     labels = {
@@ -2668,10 +2638,9 @@ def production_comparison():
         "top_rails": "Top Rails",
         "bodies": "Bodies",
         "cushions": "Cushion Sets",
-        "top_rail_pieces": "Top Rail Pieces - Rails Possible",
     }
     rows = []
-    for key in ("pods", "top_rails", "bodies", "cushions", "top_rail_pieces"):
+    for key in ("pods", "top_rails", "bodies", "cushions"):
         current_count = current_counts[key]
         previous_count = previous_counts[key]
         row = {
@@ -2706,6 +2675,7 @@ def production_comparison():
         previous_month_label=previous_month_start.strftime("%B %Y"),
         selected_date=selected_date.strftime("%Y-%m-%d"),
         max_compare_date=today.strftime("%Y-%m-%d"),
+        current_top_rail_piece_rails_possible=current_top_rail_piece_rails_possible(),
     )
 
 
