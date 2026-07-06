@@ -2573,61 +2573,13 @@ def sum_wood_counts_to_clock(section_match, start_date, as_of_date, as_of_time):
     return total
 
 
-def build_top_rail_piece_stock_summary():
-    color_rows = []
-    totals = {
-        "total_6ft_pieces": 0,
-        "total_7ft_pieces": 0,
-        "total_6ft_short": 0,
-        "total_6ft_long": 0,
-        "total_7ft_short": 0,
-        "total_7ft_long": 0,
-        "max_top_rails": 0,
-    }
+def top_rail_piece_rails_possible_to_clock(start_date, as_of_date, as_of_time):
+    short_6 = max(0, sum_wood_counts_to_clock("6ft - Top Rail Pieces Short", start_date, as_of_date, as_of_time))
+    long_6 = max(0, sum_wood_counts_to_clock("6ft - Top Rail Pieces Long", start_date, as_of_date, as_of_time))
+    short_7 = max(0, sum_wood_counts_to_clock("7ft - Top Rail Pieces Short", start_date, as_of_date, as_of_time))
+    long_7 = max(0, sum_wood_counts_to_clock("7ft - Top Rail Pieces Long", start_date, as_of_date, as_of_time))
 
-    counts = {
-        part.part_key: part.count
-        for part in TopRailPieceCount.query.all()
-    }
-
-    for color_key, color_label in [
-        ("black", "Black"),
-        ("rustic_oak", "Rustic Oak"),
-        ("grey_oak", "Grey Oak"),
-        ("stone", "Stone"),
-        ("rustic_black", "Rustic Black"),
-    ]:
-        short_6 = counts.get(f"{color_key}_6_short", 0)
-        long_6 = counts.get(f"{color_key}_6_long", 0)
-        short_7 = counts.get(f"{color_key}_7_short", 0)
-        long_7 = counts.get(f"{color_key}_7_long", 0)
-        max_6 = min(short_6 // 2, long_6 // 2)
-        max_7 = min(short_7 // 2, long_7 // 2)
-
-        totals["total_6ft_short"] += short_6
-        totals["total_6ft_long"] += long_6
-        totals["total_7ft_short"] += short_7
-        totals["total_7ft_long"] += long_7
-        totals["max_top_rails"] += max_6 + max_7
-
-        color_rows.append({
-            "color": color_label,
-            "short_6": short_6,
-            "long_6": long_6,
-            "max_6": max_6,
-            "short_7": short_7,
-            "long_7": long_7,
-            "max_7": max_7,
-        })
-
-    totals["total_6ft_pieces"] = totals["total_6ft_short"] + totals["total_6ft_long"]
-    totals["total_7ft_pieces"] = totals["total_7ft_short"] + totals["total_7ft_long"]
-    totals["total_pieces"] = totals["total_6ft_pieces"] + totals["total_7ft_pieces"]
-
-    return {
-        "rows": color_rows,
-        **totals,
-    }
+    return min(short_6 // 2, long_6 // 2) + min(short_7 // 2, long_7 // 2)
 
 
 def component_delta_summary(current_count, previous_count):
@@ -2697,7 +2649,7 @@ def production_comparison():
             CushionCompletedSet.completed_at >= current_start_dt,
             CushionCompletedSet.completed_at <= current_as_of_dt
         ).count(),
-        "top_rail_pieces": sum_wood_counts_to_clock("% - Top Rail Pieces%", current_month_start, selected_date, selected_time),
+        "top_rail_pieces": top_rail_piece_rails_possible_to_clock(current_month_start, selected_date, selected_time),
     }
 
     previous_counts = {
@@ -2708,7 +2660,7 @@ def production_comparison():
             CushionCompletedSet.completed_at >= previous_start_dt,
             CushionCompletedSet.completed_at <= previous_as_of_dt
         ).count(),
-        "top_rail_pieces": sum_wood_counts_to_clock("% - Top Rail Pieces%", previous_month_start, previous_as_of_date, selected_time),
+        "top_rail_pieces": top_rail_piece_rails_possible_to_clock(previous_month_start, previous_as_of_date, selected_time),
     }
 
     labels = {
@@ -2716,7 +2668,7 @@ def production_comparison():
         "top_rails": "Top Rails",
         "bodies": "Bodies",
         "cushions": "Cushion Sets",
-        "top_rail_pieces": "Top Rail Pieces Cut",
+        "top_rail_pieces": "Top Rail Pieces - Rails Possible",
     }
     rows = []
     for key in ("pods", "top_rails", "bodies", "cushions", "top_rail_pieces"):
@@ -2735,8 +2687,9 @@ def production_comparison():
         row["previous_bar_width"] = round((previous_count / max_value) * 100, 1)
         rows.append(row)
 
-    current_total = sum(current_counts.values())
-    previous_total = sum(previous_counts.values())
+    total_keys = ("pods", "top_rails", "bodies", "cushions")
+    current_total = sum(current_counts[key] for key in total_keys)
+    previous_total = sum(previous_counts[key] for key in total_keys)
     total_summary = component_delta_summary(current_total, previous_total)
     total_summary.update({
         "current": current_total,
@@ -2753,7 +2706,6 @@ def production_comparison():
         previous_month_label=previous_month_start.strftime("%B %Y"),
         selected_date=selected_date.strftime("%Y-%m-%d"),
         max_compare_date=today.strftime("%Y-%m-%d"),
-        top_rail_piece_stock=build_top_rail_piece_stock_summary(),
     )
 
 

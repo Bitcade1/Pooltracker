@@ -409,57 +409,6 @@
             {% endif %}
         </section>
 
-        <section class="summary-grid" aria-label="Top rail piece stock totals">
-            <div class="summary-card">
-                <div class="summary-label">Top Rail Pieces Stock</div>
-                <div class="summary-value">{{ top_rail_piece_stock.total_pieces }}</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-label">6ft Pieces</div>
-                <div class="summary-value">{{ top_rail_piece_stock.total_6ft_pieces }}</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-label">7ft Pieces</div>
-                <div class="summary-value">{{ top_rail_piece_stock.total_7ft_pieces }}</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-label">Rails Possible</div>
-                <div class="summary-value">{{ top_rail_piece_stock.max_top_rails }}</div>
-            </div>
-        </section>
-
-        <section class="panel" aria-label="Current top rail piece stock">
-            <div class="panel-heading">
-                <h2>Current Top Rail Piece Stock</h2>
-                <div class="meta">{{ top_rail_piece_stock.max_top_rails }} rails possible</div>
-            </div>
-            <table class="comparison-table">
-                <thead>
-                    <tr>
-                        <th>Color</th>
-                        <th class="numeric">6ft Short</th>
-                        <th class="numeric">6ft Long</th>
-                        <th class="numeric">6ft Rails</th>
-                        <th class="numeric">7ft Short</th>
-                        <th class="numeric">7ft Long</th>
-                        <th class="numeric">7ft Rails</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in top_rail_piece_stock.rows %}
-                    <tr>
-                        <td class="component-name">{{ row.color }}</td>
-                        <td class="numeric">{{ row.short_6 }}</td>
-                        <td class="numeric">{{ row.long_6 }}</td>
-                        <td class="numeric">{{ row.max_6 }}</td>
-                        <td class="numeric">{{ row.short_7 }}</td>
-                        <td class="numeric">{{ row.long_7 }}</td>
-                        <td class="numeric">{{ row.max_7 }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
     </main>
 </body>
 </html>
