@@ -2589,6 +2589,56 @@ def top_rail_piece_rails_possible_from_counts(counts):
     return total
 
 
+def top_rail_piece_keys_for(size_label, color_key):
+    size_key = "6" if size_label == "6ft" else "7"
+    normalized_color = color_key if color_key in TOP_RAIL_PIECE_COLOR_KEYS else "black"
+    return (
+        f"{normalized_color}_{size_key}_short",
+        f"{normalized_color}_{size_key}_long",
+    )
+
+
+def reclassify_top_rail_piece_inventory(old_size, old_color_key, new_size, new_color_key, worker, note):
+    deltas = defaultdict(int)
+    for part_key in top_rail_piece_keys_for(old_size, old_color_key):
+        deltas[part_key] += 2
+    for part_key in top_rail_piece_keys_for(new_size, new_color_key):
+        deltas[part_key] -= 2
+
+    ensure_top_rail_piece_count_log_table()
+    seed_top_rail_piece_count_log_baseline(commit=False)
+
+    entries = {}
+    for part_key, delta in deltas.items():
+        if delta == 0:
+            continue
+        entry = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+        if not entry:
+            if delta < 0:
+                raise ValueError(f"Not enough top rail piece stock for {part_key}. Need {-delta}, have 0.")
+            entry = TopRailPieceCount(part_key=part_key, count=0)
+            db.session.add(entry)
+            db.session.flush()
+        if entry.count + delta < 0:
+            raise ValueError(
+                f"Not enough top rail piece stock for {part_key}. "
+                f"Need {-delta}, have {entry.count}."
+            )
+        entries[part_key] = (entry, delta)
+
+    for part_key, (entry, delta) in entries.items():
+        old_count = entry.count
+        entry.count += delta
+        record_top_rail_piece_count_log(
+            part_key,
+            "raw_data_edit",
+            worker,
+            old_count,
+            entry.count,
+            note
+        )
+
+
 def ensure_top_rail_piece_count_log_table():
     TopRailPieceCountLog.__table__.create(db.engine, checkfirst=True)
 
@@ -2618,7 +2668,7 @@ def record_top_rail_piece_count_log(part_key, action_type, worker, count_before,
     return log_entry
 
 
-def seed_top_rail_piece_count_log_baseline():
+def seed_top_rail_piece_count_log_baseline(commit=True):
     ensure_top_rail_piece_count_log_table()
     if TopRailPieceCountLog.query.first():
         return False
@@ -2639,7 +2689,10 @@ def seed_top_rail_piece_count_log_baseline():
             note="Initial top rail piece count history baseline",
             created_at=baseline_time
         ))
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    else:
+        db.session.flush()
     return True
 
 
@@ -2704,7 +2757,7 @@ def production_comparison():
         return redirect(url_for('login'))
 
     ensure_production_comparison_tables()
-    seed_top_rail_piece_count_log_baseline()
+    seed_top_rail_piece_count_log_baseline(commit=False)
 
     now = london_now()
     today = now.date()
@@ -4816,6 +4869,10 @@ def manage_raw_data():
                 old_serial_number = entry.serial_number
                 old_top_rail_stock_type = None
                 new_top_rail_stock_type = None
+                old_top_rail_size = None
+                old_top_rail_color_key = None
+                top_rail_size = None
+                top_rail_color_key = None
                 if table == 'pods':
                     try:
                         entry.start_time = datetime.strptime(request.form.get('start_time'), "%H:%M").time()
@@ -4854,9 +4911,11 @@ def manage_raw_data():
                         flash(f"Top rail serial '{submitted_serial_number}' already exists.", "error")
                         return redirect_to_raw_data(table)
 
+                    old_top_rail_size = serial_size_display_label(old_serial_number)
+                    old_top_rail_color_key = color_key_from_serial(old_serial_number)
                     old_top_rail_stock_type = top_rail_stock_type_key(
-                        serial_size_display_label(old_serial_number),
-                        color_key_from_serial(old_serial_number)
+                        old_top_rail_size,
+                        old_top_rail_color_key
                     )
                     new_top_rail_stock_type = top_rail_stock_type_key(top_rail_size, top_rail_color_key)
 
@@ -4871,6 +4930,28 @@ def manage_raw_data():
                         entry.date = datetime.strptime(date_input, "%Y-%m-%d").date()
                     except ValueError:
                         flash("Invalid date format. Please use YYYY-MM-DD.", "error")
+                        return redirect_to_raw_data(table)
+
+                if (
+                    table == 'top_rails'
+                    and old_top_rail_size
+                    and old_top_rail_color_key
+                    and top_rail_size
+                    and top_rail_color_key
+                    and (old_top_rail_size != top_rail_size or old_top_rail_color_key != top_rail_color_key)
+                ):
+                    try:
+                        reclassify_top_rail_piece_inventory(
+                            old_top_rail_size,
+                            old_top_rail_color_key,
+                            top_rail_size,
+                            top_rail_color_key,
+                            session.get('worker') or entry.worker or "Unknown",
+                            f"Raw data changed top rail {old_serial_number} to {submitted_serial_number}"
+                        )
+                    except ValueError as exc:
+                        db.session.rollback()
+                        flash(str(exc), "error")
                         return redirect_to_raw_data(table)
 
                 if (
