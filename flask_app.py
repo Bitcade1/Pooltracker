@@ -4567,7 +4567,7 @@ def pods():
         hours, remainder = divmod(avg_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
-    
+
     monthly_totals = (
         db.session.query(
             extract('year', CompletedPods.date).label('year'),
@@ -8365,6 +8365,13 @@ def bodies():
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
+    completed_table_durations = {
+        body.id: format_avg_duration(duration.total_seconds(), 1)
+        if (duration := calculate_body_duration(body)) is not None
+        else "N/A"
+        for body in completed_tables
+    }
+
     monthly_totals = (
         db.session.query(
             extract('year', CompletedTable.date).label('year'),
@@ -8593,6 +8600,7 @@ def bodies():
         unconverted_pod_serials=unconverted_pod_serials,
         unconverted_pods=unconverted_pods,
         completed_tables=completed_tables,
+        completed_table_durations=completed_table_durations,
         current_month_bodies_count=current_month_bodies_count,
         daily_history=daily_history_formatted,
         daily_worker_stats=daily_worker_stats,

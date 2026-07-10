@@ -817,6 +817,7 @@
             <th>Worker</th>
             <th>Start Time</th>
             <th>Finish Time</th>
+            <th>Time per Table</th>
             <th>Serial Number</th>
             <th>Issue</th>
             <th>Lunch</th>
@@ -829,6 +830,7 @@
               <td>{{ table.worker }}</td>
               <td>{{ table.start_time }}</td>
               <td>{{ table.finish_time }}</td>
+              <td>{{ completed_table_durations.get(table.id, 'N/A') }}</td>
               <td>{{ table.serial_number }}</td>
               <td>{{ table.issue }}</td>
               <td>{{ table.lunch }}</td>
