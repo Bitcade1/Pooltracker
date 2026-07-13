@@ -7056,6 +7056,7 @@ def build_cushion_stage_context(include_timing=False, worker_name=None, batch_nu
         stage_context.append({
             **stage,
             "total": stage_total,
+            "sets_at_stage": stage_total // 6,
             "groups": groups,
             "has_wip": has_wip,
             "status_label": status_label,

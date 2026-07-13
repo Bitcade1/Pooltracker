@@ -474,7 +474,10 @@
             </span>
         {% elif stage.key == 'bundle' %}
         {% else %}
-            <span>{{ stage.total }} at this stage</span>
+            <span>
+                {{ stage.total }} at this stage
+                ({{ stage.sets_at_stage }} {% if stage.sets_at_stage == 1 %}set{% else %}sets{% endif %})
+            </span>
         {% endif %}
     </a>
 {% endmacro %}
