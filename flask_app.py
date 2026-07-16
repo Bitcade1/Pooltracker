@@ -10743,6 +10743,11 @@ def pod_dashboard_view():
         and all(goal.get("target_hit") for goal in celebration_goals)
     )
     pod_goal_celebration_key = f"{today.year}-{today.month:02d}"
+    latest_completed_pod = (
+        CompletedPods.query
+        .order_by(CompletedPods.id.desc())
+        .first()
+    )
 
     return render_template(
         'pod_dashboard.html',
@@ -10758,7 +10763,8 @@ def pod_dashboard_view():
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
         pod_goal_celebration=pod_goal_celebration,
-        pod_goal_celebration_key=pod_goal_celebration_key
+        pod_goal_celebration_key=pod_goal_celebration_key,
+        latest_completed_pod=latest_completed_pod
     )
 
 
@@ -11025,6 +11031,11 @@ def body_dashboard_view():
         today.month,
         exclude_workers=["Tom F"]
     )
+    latest_completed_body = (
+        CompletedTable.query
+        .order_by(CompletedTable.id.desc())
+        .first()
+    )
 
     return render_template(
         'body_dashboard.html',
@@ -11041,7 +11052,8 @@ def body_dashboard_view():
         support_parts_data=support_parts_data,
         other_parts_data=other_parts_data,
         bonus_progress=bonus_progress,
-        bonus_month_label=bonus_goal_month_label(today.year, today.month)
+        bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        latest_completed_body=latest_completed_body
     )
 
 

@@ -211,19 +211,23 @@
     }
 
     .bonus-card {
-        border: 1px solid #dbe4ef;
+        position: relative;
+        border: 3px solid #00e5ff;
         border-radius: 10px;
         padding: 0.85rem;
-        background: #f8fafc;
+        background: linear-gradient(135deg, #fff700 0%, #ff60d5 35%, #68f5ff 70%, #9dff57 100%);
         display: flex;
         flex-direction: column;
         gap: 0.55rem;
         min-width: 0;
+        box-shadow: 5px 5px 0 #6d00ff, -4px -4px 0 #ff00a8;
+        animation: bonusAuraPulse 1.2s ease-in-out infinite alternate;
     }
 
     .bonus-card.is-complete {
-        background: #ecfdf5;
-        border-color: #16a34a;
+        background: repeating-linear-gradient(45deg, #fff700 0 12px, #00ff85 12px 24px, #00e5ff 24px 36px, #ff38c7 36px 48px);
+        border-color: #ffffff;
+        animation: bonusAuraPulse .55s ease-in-out infinite alternate, bonusCompleteHue 1s steps(4) infinite;
     }
 
     .bonus-worker {
@@ -248,22 +252,56 @@
     }
 
     .bonus-track {
-        height: 22px;
+        position: relative;
+        height: 32px;
         border-radius: 999px;
-        background: #dbe4ef;
-        overflow: hidden;
+        border: 4px solid #101020;
+        background: repeating-linear-gradient(135deg, #202038 0 10px, #090914 10px 20px);
+        overflow: visible;
+        box-shadow: inset 0 0 8px #000, 0 0 12px #fff;
     }
 
     .bonus-fill {
+        position: relative;
         height: 100%;
         border-radius: 999px;
-        background: linear-gradient(90deg, #1d4ed8, #0f766e);
+        background: repeating-linear-gradient(90deg, #ff00c8 0 22px, #fff700 22px 44px, #00e5ff 44px 66px, #79ff4d 66px 88px);
+        background-size: 176px 100%;
         transition: width 0.25s ease;
+        box-shadow: inset 0 0 8px #fff, 0 0 18px #ff00c8;
+        animation: bonusRizzFlow .65s linear infinite;
     }
 
     .bonus-card.is-complete .bonus-fill {
-        background: #16a34a;
+        background: repeating-linear-gradient(90deg, #fff 0 18px, #fff700 18px 36px, #00ff85 36px 54px, #ff00c8 54px 72px);
+        background-size: 144px 100%;
     }
+
+    .bonus-fill::after {
+        content: "AURA";
+        position: absolute;
+        right: -18px;
+        top: 50%;
+        transform: translateY(-50%) rotate(-7deg);
+        padding: .15rem .35rem;
+        border: 2px solid #111;
+        border-radius: 5px;
+        background: #fff700;
+        color: #111;
+        font-size: .7rem;
+        font-weight: 1000;
+        box-shadow: 2px 2px 0 #ff00c8;
+    }
+
+    .bonus-card.is-complete .bonus-fill::after {
+        content: "MAX RIZZ";
+        right: -28px;
+        background: #00ff85;
+    }
+
+    @keyframes bonusRizzFlow { to { background-position: 176px 0; } }
+    @keyframes bonusAuraPulse { to { box-shadow: 7px 7px 0 #ff00c8, -6px -6px 0 #fff700, 0 0 24px #00e5ff; transform: translateY(-2px); } }
+    @keyframes bonusCompleteHue { to { filter: hue-rotate(360deg); } }
 
     .bonus-meta {
         display: flex;
@@ -739,6 +777,12 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
+        .bonus-card,
+        .bonus-card.is-complete,
+        .bonus-fill {
+            animation: none;
+        }
+
         .brainrot-celebration::before,
         .brainrot-token,
         .brainrot-burst-core,
@@ -767,6 +811,75 @@
             padding: 0.55rem 0.65rem;
             min-height: 142px;
         }
+    }
+
+    .pod-max-rot {
+        position: fixed;
+        inset: 0;
+        z-index: 12000;
+        display: none;
+        place-items: center;
+        overflow: hidden;
+        background: repeating-conic-gradient(from 0deg at 50% 50%, #ff00c8 0 10deg, #fff700 10deg 20deg, #00efff 20deg 30deg, #6d00ff 30deg 40deg);
+        animation: podRotHue .16s steps(2) infinite;
+    }
+
+    .pod-max-rot.is-active { display: grid; }
+
+    .pod-max-rot::before {
+        content: "";
+        position: absolute;
+        width: 190vmax;
+        height: 190vmax;
+        background: repeating-radial-gradient(circle, transparent 0 5vmin, rgba(255,255,255,.65) 5.2vmin 6vmin, transparent 6.2vmin 10vmin);
+        animation: podRotZoom 1.2s linear infinite;
+    }
+
+    .pod-max-card {
+        position: relative;
+        z-index: 5;
+        width: min(980px, 92vw);
+        padding: clamp(1.2rem, 4vw, 3.2rem);
+        border: 12px ridge #fff700;
+        border-radius: 44px 10px 44px 10px;
+        color: white;
+        text-align: center;
+        background: rgba(10, 0, 28, .9);
+        box-shadow: 0 0 0 9px #ff00c8, 0 0 0 18px #00efff, 0 0 90px 35px white;
+        animation: podRotEntrance .7s cubic-bezier(.15,1.8,.25,1) both, podRotShake .12s 1s infinite alternate;
+    }
+
+    .pod-max-kicker { display: block; color: #00efff; font-size: clamp(1rem, 3vw, 2rem); font-weight: 1000; letter-spacing: .16em; }
+    .pod-max-title { display: block; margin: .12em 0; font-size: clamp(3.4rem, 11vw, 9rem); line-height: .78; font-weight: 1000; text-transform: uppercase; color: #fff; text-shadow: 7px 7px 0 #ff00c8, -7px -7px 0 #00efff, 0 0 30px #fff700; }
+    .pod-max-serial { display: block; color: #fff700; font-size: clamp(1.6rem, 5vw, 4.3rem); font-weight: 1000; }
+    .pod-max-copy { display: block; margin-top: .7rem; font-size: clamp(1rem, 2.5vw, 1.9rem); font-weight: 1000; }
+    .pod-max-meter { display: block; margin-top: .8rem; color: #80ff72; font-size: clamp(.9rem, 2vw, 1.45rem); font-weight: 1000; letter-spacing: .08em; }
+
+    .pod-rot-fall {
+        position: absolute;
+        z-index: 7;
+        top: -18vh;
+        left: var(--x);
+        padding: .4rem .75rem;
+        border: 4px solid white;
+        border-radius: 50% 12px 50% 12px;
+        color: #08000f;
+        background: var(--c);
+        font-size: clamp(.8rem, 2vw, 1.55rem);
+        font-weight: 1000;
+        white-space: nowrap;
+        animation: podRotFall var(--d) linear var(--delay) infinite;
+    }
+
+    @keyframes podRotHue { to { filter: hue-rotate(55deg) contrast(1.35); } }
+    @keyframes podRotZoom { from { transform: scale(.25) rotate(0); } to { transform: scale(1.3) rotate(120deg); } }
+    @keyframes podRotEntrance { from { opacity: 0; transform: scale(3.5) rotate(-900deg); } to { opacity: 1; transform: scale(1) rotate(1deg); } }
+    @keyframes podRotShake { from { transform: translate(-5px, 3px) rotate(-1deg); } to { transform: translate(5px, -3px) rotate(1deg); } }
+    @keyframes podRotFall { to { transform: translateY(140vh) rotate(1080deg) scale(1.5); } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .pod-max-rot, .pod-max-rot::before, .pod-max-card, .pod-rot-fall { animation: none; }
+        .pod-rot-fall { display: none; }
     }
 </style>
 
@@ -889,7 +1002,46 @@
     </div>
 </div>
 
+{% if latest_completed_pod %}
+<div class="pod-max-rot" id="podMaxRot" data-completed-pod-id="{{ latest_completed_pod.id }}" role="status" aria-live="assertive">
+    <div class="pod-max-card">
+        <span class="pod-max-kicker">!!! GOVERNMENT AURA WARNING !!!</span>
+        <strong class="pod-max-title">PODZILLA</strong>
+        <span class="pod-max-serial">{{ latest_completed_pod.serial_number }}</span>
+        <span class="pod-max-copy">{{ latest_completed_pod.worker }} has fanum-taxed the production line. The pod is bussin beyond legal limits.</span>
+        <span class="pod-max-meter">RIZZ: OVERFLOW | AURA: RADIOACTIVE | STATUS: MEGA COOKED</span>
+    </div>
+    <span class="pod-rot-fall" style="--x:2%;--d:3.1s;--delay:0s;--c:#fff700">SKIBIDI POD</span>
+    <span class="pod-rot-fall" style="--x:11%;--d:4s;--delay:.4s;--c:#00efff">AURA OVERDOSE</span>
+    <span class="pod-rot-fall" style="--x:22%;--d:3.4s;--delay:.8s;--c:#ff78da">GYATT INDUSTRIES</span>
+    <span class="pod-rot-fall" style="--x:34%;--d:4.3s;--delay:.2s;--c:#81ff63">OHIO ENGINEERING</span>
+    <span class="pod-rot-fall" style="--x:47%;--d:3.2s;--delay:.6s;--c:#ff9638">SIGMA CERTIFIED</span>
+    <span class="pod-rot-fall" style="--x:60%;--d:4.1s;--delay:.1s;--c:#c694ff">FANUM TAX PAID</span>
+    <span class="pod-rot-fall" style="--x:73%;--d:3.6s;--delay:.9s;--c:#5dffd3">UNSPEAKABLE RIZZ</span>
+    <span class="pod-rot-fall" style="--x:85%;--d:4.4s;--delay:.3s;--c:#ff6262">MAXIMUM W</span>
+    <span class="pod-rot-fall" style="--x:94%;--d:3.3s;--delay:.7s;--c:#ffffff">NO CAP FR FR</span>
+</div>
+{% endif %}
+
 <script>
+    (function () {
+        const celebration = document.getElementById('podMaxRot');
+        if (!celebration) return;
+
+        const storageKey = 'pod-dashboard-last-completed-pod';
+        const latestId = celebration.dataset.completedPodId;
+        let previousId = null;
+        try { previousId = window.localStorage.getItem(storageKey); } catch (error) {}
+
+        if (previousId !== null && previousId !== latestId) {
+            celebration.classList.add('is-active');
+            window.setTimeout(function () {
+                celebration.classList.remove('is-active');
+            }, 9500);
+        }
+        try { window.localStorage.setItem(storageKey, latestId); } catch (error) {}
+    })();
+
     (function () {
         const celebration = document.querySelector('[data-brainrot-celebration-key]');
         const burst = document.querySelector('[data-brainrot-burst]');

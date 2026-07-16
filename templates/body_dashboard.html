@@ -584,6 +584,78 @@
             padding: 0.36rem 0.45rem;
         }
     }
+
+    .body-brainrot {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: none;
+        place-items: center;
+        overflow: hidden;
+        background: radial-gradient(circle at center, #fff700 0 8%, #ff2bd6 28%, #5b21ff 52%, #00e5ff 75%, #050014 100%);
+        animation: bodyRotBackground .22s steps(2) infinite;
+    }
+
+    .body-brainrot.is-active { display: grid; }
+
+    .body-brainrot::before,
+    .body-brainrot::after {
+        content: "";
+        position: absolute;
+        width: 160vmax;
+        height: 160vmax;
+        background: repeating-conic-gradient(from 0deg, transparent 0 8deg, rgba(255,255,255,.42) 9deg 13deg, transparent 14deg 23deg);
+        animation: bodyRotSpin 3s linear infinite;
+    }
+
+    .body-brainrot::after { animation-direction: reverse; animation-duration: 5s; opacity: .55; }
+
+    .body-brainrot-card {
+        position: relative;
+        z-index: 3;
+        width: min(900px, 92vw);
+        padding: clamp(1.2rem, 4vw, 3rem);
+        border: 10px solid #fff;
+        border-radius: 34px;
+        color: #fff;
+        text-align: center;
+        background: rgba(8, 0, 35, .84);
+        box-shadow: 0 0 0 10px #111, 0 0 80px #fff700;
+        transform: rotate(-2deg);
+        animation: bodyRotCard .5s cubic-bezier(.2,1.7,.3,1) both, bodyRotWobble .45s 1s infinite alternate;
+    }
+
+    .body-brainrot-kicker { display: block; font-size: clamp(1rem, 3vw, 2rem); font-weight: 1000; letter-spacing: .18em; color: #00f6ff; }
+    .body-brainrot-title { display: block; margin: .15em 0; font-size: clamp(3rem, 10vw, 8rem); line-height: .82; font-weight: 1000; text-transform: uppercase; text-shadow: 6px 6px 0 #ff2bd6, -6px -6px 0 #00e5ff, 0 0 24px #fff; }
+    .body-brainrot-serial { display: block; font-size: clamp(1.5rem, 5vw, 4rem); color: #fff700; font-weight: 1000; }
+    .body-brainrot-copy { display: block; margin-top: .6rem; font-size: clamp(1rem, 2.4vw, 1.8rem); font-weight: 900; }
+
+    .body-rot-fall {
+        position: absolute;
+        z-index: 4;
+        top: -15vh;
+        left: var(--x);
+        padding: .35rem .65rem;
+        color: #111;
+        background: var(--c);
+        border: 4px solid #fff;
+        border-radius: 10px;
+        font-weight: 1000;
+        font-size: clamp(.8rem, 2vw, 1.5rem);
+        white-space: nowrap;
+        animation: bodyRotFall var(--d) linear var(--delay) infinite;
+    }
+
+    @keyframes bodyRotBackground { to { filter: hue-rotate(35deg) saturate(1.5); } }
+    @keyframes bodyRotSpin { to { transform: rotate(360deg); } }
+    @keyframes bodyRotCard { from { opacity: 0; transform: scale(.05) rotate(720deg); } to { opacity: 1; transform: scale(1) rotate(-2deg); } }
+    @keyframes bodyRotWobble { to { transform: scale(1.035) rotate(2deg); } }
+    @keyframes bodyRotFall { to { transform: translateY(135vh) rotate(900deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .body-brainrot, .body-brainrot::before, .body-brainrot::after, .body-brainrot-card, .body-rot-fall { animation: none; }
+        .body-rot-fall { display: none; }
+    }
 </style>
 
 <div class="dashboard-wrapper">
@@ -702,7 +774,44 @@
     </div>
 </div>
 
+{% if latest_completed_body %}
+<div class="body-brainrot" id="bodyBrainrot" data-completed-body-id="{{ latest_completed_body.id }}" role="status" aria-live="assertive">
+    <div class="body-brainrot-card">
+        <span class="body-brainrot-kicker">!!! NEW BODY JUST DROPPED !!!</span>
+        <strong class="body-brainrot-title">ABSOLUTE UNIT</strong>
+        <span class="body-brainrot-serial">{{ latest_completed_body.serial_number }}</span>
+        <span class="body-brainrot-copy">{{ latest_completed_body.worker }} cooked. Factory aura is now illegal in 47 countries.</span>
+    </div>
+    <span class="body-rot-fall" style="--x:3%;--d:3.4s;--delay:0s;--c:#fff700">SKIBIDI BODY</span>
+    <span class="body-rot-fall" style="--x:14%;--d:4.1s;--delay:.3s;--c:#00e5ff">AURA +9999</span>
+    <span class="body-rot-fall" style="--x:27%;--d:3.6s;--delay:.8s;--c:#ff75d8">GYATT DAMN</span>
+    <span class="body-rot-fall" style="--x:42%;--d:4.4s;--delay:.1s;--c:#9cff57">OHIO CERTIFIED</span>
+    <span class="body-rot-fall" style="--x:58%;--d:3.2s;--delay:.6s;--c:#ff9d00">SIGMA BUILD</span>
+    <span class="body-rot-fall" style="--x:72%;--d:4s;--delay:.2s;--c:#c99cff">NO CAP</span>
+    <span class="body-rot-fall" style="--x:84%;--d:3.7s;--delay:.9s;--c:#53ffd5">FULLY COOKED</span>
+    <span class="body-rot-fall" style="--x:94%;--d:4.3s;--delay:.4s;--c:#ff6262">MASSIVE W</span>
+</div>
+{% endif %}
+
 <script>
+    (function () {
+        const celebration = document.getElementById('bodyBrainrot');
+        if (!celebration) return;
+
+        const storageKey = 'body-dashboard-last-completed-body';
+        const latestId = celebration.dataset.completedBodyId;
+        let previousId = null;
+        try { previousId = window.localStorage.getItem(storageKey); } catch (error) {}
+
+        if (previousId !== null && previousId !== latestId) {
+            celebration.classList.add('is-active');
+            window.setTimeout(function () {
+                celebration.classList.remove('is-active');
+            }, 8500);
+        }
+        try { window.localStorage.setItem(storageKey, latestId); } catch (error) {}
+    })();
+
     setInterval(function () {
         window.location.reload();
     }, 10000);
