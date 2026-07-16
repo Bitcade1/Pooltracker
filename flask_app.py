@@ -3777,10 +3777,15 @@ def stock_costs():
     stock_snapshots = load_stock_snapshots()
     stock_snapshots.sort(key=lambda s: s.get("timestamp", ""))
     deleted_snapshot_weeks = load_deleted_stock_snapshot_weeks()
-    now = datetime.now()
+    now = london_now()
     week_start = now - timedelta(days=now.weekday())
     week_key = week_start.strftime("%Y-%m-%d")
     is_after_trigger = now.weekday() > 0 or now.time() >= time(9, 0)
+    month_key = now.strftime("%Y-%m")
+    is_month_end_after_trigger = (
+        now.day == monthrange(now.year, now.month)[1]
+        and now.time() >= time(17, 0)
+    )
     if manual_snapshot:
         snapshot_label = now.strftime("%Y-%m-%d %H:%M")
         snapshot_filename = f"stock_snapshot_{now.strftime('%Y-%m-%d_%H%M')}.csv"
@@ -3806,6 +3811,36 @@ def stock_costs():
         save_stock_snapshots(stock_snapshots)
         flash("Snapshot created successfully.", "success")
         return redirect(url_for('stock_costs'))
+
+    if is_month_end_after_trigger:
+        existing_month_snapshot = next(
+            (s for s in stock_snapshots if s.get("month_key") == month_key),
+            None
+        )
+        if not existing_month_snapshot:
+            snapshot_filename = f"stock_snapshot_month_end_{month_key}.csv"
+            snapshot_payload = {
+                "timestamp": now.isoformat(),
+                "month_key": month_key,
+                "snapshot_label": f"{now.strftime('%B %Y')} month end",
+                "total_ex_vat": grand_total_ex_vat,
+                "total_inc_vat": grand_total_inc_vat,
+                "parts_ex_vat": parts_total_ex_vat,
+                "parts_inc_vat": parts_total_inc_vat,
+                "finished_ex_vat": finished_total_ex_vat,
+                "finished_inc_vat": finished_total_inc_vat,
+                "parts_on_water_ex_vat": parts_on_water_total_ex_vat,
+                "parts_on_water_inc_vat": parts_on_water_total_inc_vat,
+            }
+            if write_stock_snapshot_file(
+                ordered_snapshot_items,
+                snapshot_filename,
+                include_category_headers=True
+            ):
+                snapshot_payload["snapshot_file"] = snapshot_filename
+            stock_snapshots.append(snapshot_payload)
+            stock_snapshots.sort(key=lambda s: s.get("timestamp", ""))
+            save_stock_snapshots(stock_snapshots)
 
     if is_after_trigger and week_key not in deleted_snapshot_weeks:
         existing_snapshot = next((s for s in stock_snapshots if s.get("week_key") == week_key), None)

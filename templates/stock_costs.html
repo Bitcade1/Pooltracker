@@ -484,6 +484,24 @@
         document.addEventListener('DOMContentLoaded', function() {
             const SCROLL_STORAGE_KEY = 'stock_cost_scroll';
 
+            const scheduleMonthEndSnapshot = () => {
+                const now = new Date();
+                const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                if (now.getDate() !== lastDay) return;
+
+                const trigger = new Date(
+                    now.getFullYear(),
+                    now.getMonth(),
+                    now.getDate(),
+                    17, 0, 0, 0
+                );
+                if (now >= trigger) return;
+
+                window.setTimeout(() => {
+                    window.location.reload();
+                }, trigger.getTime() - now.getTime());
+            };
+
             const restoreScrollPosition = () => {
                 const saved = localStorage.getItem(SCROLL_STORAGE_KEY);
                 if (saved !== null) {
@@ -494,6 +512,7 @@
 
             const form = document.getElementById('stock-cost-form');
             restoreScrollPosition();
+            scheduleMonthEndSnapshot();
             if (!form) return;
 
             const rememberScroll = () => {
