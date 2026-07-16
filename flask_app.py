@@ -3793,7 +3793,9 @@ def stock_costs():
             "parts_ex_vat": parts_total_ex_vat,
             "parts_inc_vat": parts_total_inc_vat,
             "finished_ex_vat": finished_total_ex_vat,
-            "finished_inc_vat": finished_total_inc_vat
+            "finished_inc_vat": finished_total_inc_vat,
+            "parts_on_water_ex_vat": parts_on_water_total_ex_vat,
+            "parts_on_water_inc_vat": parts_on_water_total_inc_vat
         }
         if write_stock_snapshot_file(ordered_snapshot_items, snapshot_filename, include_category_headers=True):
             snapshot_payload["snapshot_file"] = snapshot_filename
@@ -3816,7 +3818,9 @@ def stock_costs():
             "parts_ex_vat": parts_total_ex_vat,
             "parts_inc_vat": parts_total_inc_vat,
             "finished_ex_vat": finished_total_ex_vat,
-            "finished_inc_vat": finished_total_inc_vat
+            "finished_inc_vat": finished_total_inc_vat,
+            "parts_on_water_ex_vat": parts_on_water_total_ex_vat,
+            "parts_on_water_inc_vat": parts_on_water_total_inc_vat
         }
         if not existing_snapshot:
             if write_stock_snapshot_file(ordered_snapshot_items, snapshot_filename, include_category_headers=True):
@@ -3824,7 +3828,14 @@ def stock_costs():
             stock_snapshots.append(snapshot_payload)
             save_stock_snapshots(stock_snapshots)
         else:
-            missing_fields = ("parts_ex_vat", "parts_inc_vat", "finished_ex_vat", "finished_inc_vat")
+            missing_fields = (
+                "parts_ex_vat",
+                "parts_inc_vat",
+                "finished_ex_vat",
+                "finished_inc_vat",
+                "parts_on_water_ex_vat",
+                "parts_on_water_inc_vat",
+            )
             if any(key not in existing_snapshot for key in missing_fields):
                 if "parts_ex_vat" not in existing_snapshot:
                     existing_snapshot["parts_ex_vat"] = parts_total_ex_vat
@@ -3834,6 +3845,13 @@ def stock_costs():
                     existing_snapshot["finished_ex_vat"] = finished_total_ex_vat
                 if "finished_inc_vat" not in existing_snapshot:
                     existing_snapshot["finished_inc_vat"] = finished_total_inc_vat
+                if "parts_on_water_ex_vat" not in existing_snapshot:
+                    existing_snapshot["parts_on_water_ex_vat"] = parts_on_water_total_ex_vat
+                    # Older snapshots included these entries in Parts.
+                    existing_snapshot["parts_ex_vat"] = parts_total_ex_vat
+                if "parts_on_water_inc_vat" not in existing_snapshot:
+                    existing_snapshot["parts_on_water_inc_vat"] = parts_on_water_total_inc_vat
+                    existing_snapshot["parts_inc_vat"] = parts_total_inc_vat
                 save_stock_snapshots(stock_snapshots)
             if "snapshot_file" not in existing_snapshot:
                 if write_stock_snapshot_file(ordered_snapshot_items, snapshot_filename, include_category_headers=True):
