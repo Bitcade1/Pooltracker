@@ -701,24 +701,24 @@
         </thead>
         <tbody>
           {% for size in sizes %}
-            {% set total_complete = 0 %}
+            {% set complete_ns = namespace(total=0) %}
             {% for color in colors %}
               {% set body_key = 'body_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
               {% set top_key = 'top_rail_' ~ size|lower ~ '_' ~ color|lower|replace(' ', '_') %}
               {% set body_count = table_data.get(body_key, 0) %}
               {% set top_count = top_rail_data.get(top_key, 0) %}
               {% set complete_pair = body_count if body_count >= top_count else top_count %}
-              {% set total_complete = total_complete + complete_pair %}
+              {% set complete_ns.total = complete_ns.total + complete_pair %}
             {% endfor %}
             {% set cushion_key = 'cushion_set_' ~ size|lower %}
             {% set cushion_count = cushion_data.get(cushion_key, 0) %}
-            {% set deficit_cushions = total_complete - cushion_count if total_complete > cushion_count else 0 %}
+            {% set deficit_cushions = complete_ns.total - cushion_count if complete_ns.total > cushion_count else 0 %}
             <tr class="{% if size == '7ft' %}row-7ft{% else %}row-6ft{% endif %}">
               <td class="{% if size == '7ft' %}size-header-7ft{% else %}size-header-6ft{% endif %}" style="text-align:left;">
                 {{ size }}
               </td>
               <td>{{ cushion_count }}</td>
-              <td>{{ total_complete }}</td>
+              <td>{{ complete_ns.total }}</td>
               <td {% if deficit_cushions != 0 %} style="color:red;font-weight:bold;" {% endif %}>
                 {{ deficit_cushions }}
               </td>

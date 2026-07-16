@@ -44,7 +44,7 @@
         const counts = {{ hardware_counts|tojson }};
         const usage = {
             {% for part in hardware_parts %}
-                "{{ part.name }}": {{ part.used_per_table if part.used_per_table else 0 }},
+                {{ part.name|tojson }}: {{ (part.used_per_table if part.used_per_table else 0)|tojson }},
             {% endfor %}
         };
         const initialSelection = {{ selected_part|tojson }};

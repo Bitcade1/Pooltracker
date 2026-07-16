@@ -452,6 +452,155 @@ def body_stock_type_key(size_label, table_type, color_key):
         return f"body_{normalized_size}_lite"
     return f"body_{normalized_size}_{normalized_color}"
 
+
+def body_piece_keys_for(serial_number, table_type, color_key):
+    if table_type != TABLE_TYPE_CHAMPION:
+        return ()
+
+    size_key = "6" if serial_is_6ft(serial_number) else "7"
+    return tuple(
+        f"{color_key}_{size_key}_{piece_name}"
+        for piece_name in (
+            "window_side",
+            "blank_side",
+            "triangle_end",
+            "color_ball_end",
+        )
+    )
+
+
+def reclassify_body_component_inventory(
+    old_serial_number,
+    old_table_type,
+    old_color_key,
+    new_serial_number,
+    new_table_type,
+    new_color_key,
+):
+    """Reverse the old body build and apply the corrected build in one transaction."""
+    body_piece_deltas = defaultdict(int)
+    for part_key in body_piece_keys_for(old_serial_number, old_table_type, old_color_key):
+        body_piece_deltas[part_key] += 1
+    for part_key in body_piece_keys_for(new_serial_number, new_table_type, new_color_key):
+        body_piece_deltas[part_key] -= 1
+
+    body_piece_changes = []
+    for part_key, delta in body_piece_deltas.items():
+        if delta == 0:
+            continue
+        entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
+        current_count = entry.count if entry else 0
+        new_count = current_count + delta
+        if new_count < 0:
+            raise ValueError(
+                f"Not enough body piece stock for {part_key}. "
+                f"Need {-delta}, have {current_count}."
+            )
+        body_piece_changes.append((part_key, entry, new_count))
+
+    old_parts = body_parts_for_completion(old_serial_number, old_table_type, old_color_key)
+    new_parts = body_parts_for_completion(new_serial_number, new_table_type, new_color_key)
+    printed_part_deltas = defaultdict(float)
+    for part_name, quantity in old_parts.items():
+        printed_part_deltas[part_name] += quantity
+    for part_name, quantity in new_parts.items():
+        printed_part_deltas[part_name] -= quantity
+
+    printed_part_changes = []
+    brad_nails_delta = printed_part_deltas.pop(BRAD_NAILS_PART_NAME, 0)
+    for part_name, delta in printed_part_deltas.items():
+        if abs(delta) < 1e-9:
+            continue
+
+        latest_entry = (
+            PrintedPartsCount.query
+            .filter_by(part_name=part_name)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+            .first()
+        )
+        if latest_entry:
+            current_count = latest_entry.count
+            canonical_name = latest_entry.part_name
+        else:
+            hardware_part = HardwarePart.query.filter(
+                func.lower(HardwarePart.name) == part_name.lower()
+            ).first()
+            current_count = hardware_part.initial_count if hardware_part else 0
+            canonical_name = hardware_part.name if hardware_part else part_name
+
+        new_count = current_count + delta
+        if new_count < 0 and not allows_negative_inventory(part_name):
+            raise ValueError(
+                f"Not enough inventory for {canonical_name}. "
+                f"Need {-delta:g}, have {current_count}."
+            )
+
+        rounded_count = int(round(new_count))
+        if abs(new_count - rounded_count) > 1e-9:
+            raise ValueError(f"Inventory correction for {canonical_name} was not a whole number.")
+        printed_part_changes.append((canonical_name, rounded_count))
+
+    for part_key, entry, new_count in body_piece_changes:
+        if not entry:
+            entry = BodyPieceCount(part_key=part_key, count=0)
+            db.session.add(entry)
+        entry.count = new_count
+
+    recorded_at = london_now()
+    for part_name, new_count in printed_part_changes:
+        db.session.add(new_printed_parts_snapshot(part_name, new_count, recorded_at))
+
+    if abs(brad_nails_delta) >= 1e-9:
+        ok, canonical_name, available_strips = adjust_fractional_strip_inventory(
+            BRAD_NAILS_PART_NAME,
+            brad_nails_delta,
+            units_per_strip=BRAD_NAILS_UNITS_PER_STRIP,
+            collected_warnings=[]
+        )
+        if not ok:
+            raise ValueError(
+                f"Not enough inventory for {canonical_name}. "
+                f"Need {-brad_nails_delta:g}, have {available_strips:.2f}."
+            )
+
+
+def reclassify_body_table_stock(old_stock_type, new_stock_type, worker, note):
+    if old_stock_type == new_stock_type:
+        return True
+
+    old_stock_entry = TableStock.query.filter_by(type=old_stock_type).first()
+    if not old_stock_entry or old_stock_entry.count <= 0:
+        return False
+
+    old_count = old_stock_entry.count
+    old_stock_entry.count -= 1
+    record_table_stock_log(
+        old_stock_type,
+        "correction",
+        worker,
+        -1,
+        old_count,
+        old_stock_entry.count,
+        note
+    )
+
+    new_stock_entry = TableStock.query.filter_by(type=new_stock_type).first()
+    if not new_stock_entry:
+        new_stock_entry = TableStock(type=new_stock_type, count=0)
+        db.session.add(new_stock_entry)
+    new_count = new_stock_entry.count
+    new_stock_entry.count += 1
+    record_table_stock_log(
+        new_stock_type,
+        "correction",
+        worker,
+        1,
+        new_count,
+        new_stock_entry.count,
+        note
+    )
+    return True
+
 # Expose slugify_key to Jinja templates for form field names
 app.jinja_env.filters['slugify_key'] = slugify_key
 
@@ -731,6 +880,18 @@ class PrintedPartsCount(db.Model):
     count = db.Column(db.Integer, default=1)
     date = db.Column(db.Date, nullable=False)
     time = db.Column(db.Time, nullable=False)
+
+
+def new_printed_parts_snapshot(part_name, count, recorded_at=None):
+    """Build an inventory snapshot using the app's London-local timeline."""
+    recorded_at = recorded_at or london_now()
+    return PrintedPartsCount(
+        part_name=part_name,
+        count=count,
+        date=recorded_at.date(),
+        time=recorded_at.time()
+    )
+
 
 class CompletedPods(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2000,13 +2161,7 @@ def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4,
         (units_per_strip - (new_available_units % units_per_strip)) % units_per_strip
     )
 
-    now = london_now()
-    new_entry = PrintedPartsCount(
-        part_name=canonical_name,
-        count=new_strips,
-        date=now.date(),
-        time=now.time()
-    )
+    new_entry = new_printed_parts_snapshot(canonical_name, new_strips)
     db.session.add(new_entry)
     if remainder_entry:
         remainder_entry.count = new_used_units
@@ -2270,6 +2425,7 @@ def admin():
                     is_6ft = serial_is_6ft(pod.serial_number)
                     pod_table_type = table_type_from_serial(pod.serial_number)
                     restored_parts = []
+                    inventory_recorded_at = london_now()
 
                     def restore_part(part_name, quantity):
                         inventory_entry = (
@@ -2278,17 +2434,12 @@ def admin():
                             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                             .first()
                         )
-                        if inventory_entry:
-                            inventory_entry.count += quantity
-                        else:
-                            db.session.add(
-                                PrintedPartsCount(
-                                    part_name=part_name,
-                                    count=quantity,
-                                    date=datetime.utcnow().date(),
-                                    time=datetime.utcnow().time()
-                                )
-                            )
+                        current_count = inventory_entry.count if inventory_entry else 0
+                        db.session.add(new_printed_parts_snapshot(
+                            part_name,
+                            current_count + quantity,
+                            inventory_recorded_at
+                        ))
                         restored_parts.append(f"+{quantity} {part_name}")
 
                     if pod_table_type == TABLE_TYPE_CHAMPION:
@@ -2296,18 +2447,12 @@ def admin():
                         carpet_part = "6ft Carpet" if is_6ft else "7ft Carpet"
 
                         felt_entry = get_latest_part_entry(felt_part)
-                        if felt_entry:
-                            felt_entry.count += 2
-                        else:
-                            fallback_count = get_felt_count()
-                            db.session.add(
-                                PrintedPartsCount(
-                                    part_name=felt_part,
-                                    count=fallback_count + 2,
-                                    date=datetime.utcnow().date(),
-                                    time=datetime.utcnow().time()
-                                )
-                            )
+                        felt_count = felt_entry.count if felt_entry else get_felt_count()
+                        db.session.add(new_printed_parts_snapshot(
+                            felt_part,
+                            felt_count + 2,
+                            inventory_recorded_at
+                        ))
                         restored_parts.append(f"+2 {felt_part}")
                         restore_part(carpet_part, 1)
                         restore_part("Rows of Black Staples", 2)
@@ -2632,6 +2777,29 @@ def reclassify_top_rail_piece_inventory(old_size, old_color_key, new_size, new_c
         record_top_rail_piece_count_log(
             part_key,
             "raw_data_edit",
+            worker,
+            old_count,
+            entry.count,
+            note
+        )
+
+
+def restore_top_rail_piece_inventory(size_label, color_key, worker, note):
+    ensure_top_rail_piece_count_log_table()
+    seed_top_rail_piece_count_log_baseline(commit=False)
+
+    for part_key in top_rail_piece_keys_for(size_label, color_key):
+        entry = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+        if not entry:
+            entry = TopRailPieceCount(part_key=part_key, count=0)
+            db.session.add(entry)
+            db.session.flush()
+
+        old_count = entry.count
+        entry.count += 2
+        record_top_rail_piece_count_log(
+            part_key,
+            "delete_top_rail",
             worker,
             old_count,
             entry.count,
@@ -3181,9 +3349,9 @@ def build_stock_snapshot():
             pass
 
     add_item(
-        "Chinese Parts",
+        "Parts on the Water",
         "parts_on_water",
-        "Parts on the water",
+        "Parts on the water 1",
         1,
         key_category="Parts Inventory",
         unit_cost=parts_on_water_total,
@@ -3193,7 +3361,7 @@ def build_stock_snapshot():
         count_display="-",
     )
     add_item(
-        "Chinese Parts",
+        "Parts on the Water",
         "parts_on_water_2",
         "Parts on the water 2",
         1,
@@ -3389,12 +3557,7 @@ def stock_costs():
             part_name = item.get('identifier') or item.get('label')
             if new_count < old_count:
                 check_and_notify_low_stock(part_name, old_count, new_count)
-            new_entry = PrintedPartsCount(
-                part_name=part_name,
-                count=new_count,
-                date=datetime.utcnow().date(),
-                time=datetime.utcnow().time()
-            )
+            new_entry = new_printed_parts_snapshot(part_name, new_count)
             db.session.add(new_entry)
 
         for item in stock_items:
@@ -3552,11 +3715,20 @@ def stock_costs():
         "Cushion Sets",
         "Table Stock",
     }
+    parts_on_water_categories = {
+        "Parts on the Water",
+    }
 
     parts_total_ex_vat = sum(category_totals.get(cat, {}).get('ex_vat', 0.0) for cat in part_categories)
     parts_total_inc_vat = sum(category_totals.get(cat, {}).get('inc_vat', 0.0) for cat in part_categories)
     finished_total_ex_vat = sum(category_totals.get(cat, {}).get('ex_vat', 0.0) for cat in finished_categories)
     finished_total_inc_vat = sum(category_totals.get(cat, {}).get('inc_vat', 0.0) for cat in finished_categories)
+    parts_on_water_total_ex_vat = sum(
+        category_totals.get(cat, {}).get('ex_vat', 0.0) for cat in parts_on_water_categories
+    )
+    parts_on_water_total_inc_vat = sum(
+        category_totals.get(cat, {}).get('inc_vat', 0.0) for cat in parts_on_water_categories
+    )
 
     def write_stock_snapshot_file(items, filename, include_category_headers=False):
         try:
@@ -3678,6 +3850,8 @@ def stock_costs():
         parts_total_inc_vat=parts_total_inc_vat,
         finished_total_ex_vat=finished_total_ex_vat,
         finished_total_inc_vat=finished_total_inc_vat,
+        parts_on_water_total_ex_vat=parts_on_water_total_ex_vat,
+        parts_on_water_total_inc_vat=parts_on_water_total_inc_vat,
         stock_snapshots=stock_snapshots
     )
 
@@ -3826,12 +4000,7 @@ def counting_chinese_parts():
             flash("Invalid operation.", "error")
             return redirect(url_for('counting_chinese_parts', selected=selected_part))
 
-        new_entry = PrintedPartsCount(
-            part_name=selected_part,
-            count=new_count,
-            date=datetime.utcnow().date(),
-            time=datetime.utcnow().time()
-        )
+        new_entry = new_printed_parts_snapshot(selected_part, new_count)
         db.session.add(new_entry)
 
         # Commit changes
@@ -3941,11 +4110,11 @@ def counting_hardware():
         remainder_entry = TableStock.query.filter_by(type="pallet_wrap_remainder").first()
         used_in_current_roll = remainder_entry.count if remainder_entry else 0
         bodies_per_wrap_roll = 7
-        if used_in_current_roll <= 0 or used_in_current_roll >= bodies_per_wrap_roll:
-            fraction_remaining = 0
-        else:
-            fraction_remaining = (bodies_per_wrap_roll - used_in_current_roll) / bodies_per_wrap_roll
-        display_count = max(0.0, roll_count + fraction_remaining)
+        available_bodies = max(
+            0,
+            (roll_count * bodies_per_wrap_roll) - used_in_current_roll
+        )
+        display_count = available_bodies / bodies_per_wrap_roll
         return round(display_count, 2), part_name
 
     def pallet_wrap_state():
@@ -4088,13 +4257,7 @@ def counting_hardware():
                 if new_count < current_count:
                     check_and_notify_low_stock(part_name, current_count, new_count)
 
-                now = london_now()
-                new_entry = PrintedPartsCount(
-                    part_name=part_name,
-                    count=new_count,
-                    date=now.date(),
-                    time=now.time()
-                )
+                new_entry = new_printed_parts_snapshot(part_name, new_count)
                 db.session.add(new_entry)
                 if remainder_entry:
                     remainder_entry.count = new_used_in_current_roll
@@ -4158,13 +4321,7 @@ def counting_hardware():
                 check_and_notify_low_stock(part_name, current_count, new_count)
 
             # Record the new count in the PrintedPartsCount table
-            now = london_now()
-            new_entry = PrintedPartsCount(
-                part_name=part_name,
-                count=new_count,
-                date=now.date(),
-                time=now.time()
-            )
+            new_entry = new_printed_parts_snapshot(part_name, new_count)
             db.session.add(new_entry)
             db.session.commit()
 
@@ -4353,12 +4510,7 @@ def pods():
 
             def record_part_usage(part_name, current_count, decrement):
                 new_count = current_count - decrement
-                usage_entry = PrintedPartsCount(
-                    part_name=part_name,
-                    count=new_count,
-                    date=datetime.utcnow().date(),
-                    time=datetime.utcnow().time()
-                )
+                usage_entry = new_printed_parts_snapshot(part_name, new_count)
                 db.session.add(usage_entry)
                 check_and_notify_low_stock(
                     part_name,
@@ -4733,6 +4885,7 @@ def manage_raw_data():
                     )
 
                     # Revert each part's inventory.
+                    inventory_recorded_at = london_now()
                     for part_name, qty in parts_used.items():
                         if part_name == BRAD_NAILS_PART_NAME:
                             adjust_fractional_strip_inventory(
@@ -4745,32 +4898,24 @@ def manage_raw_data():
                             part_name=part_name
                         ).order_by(PrintedPartsCount.date.desc(),
                                    PrintedPartsCount.time.desc()).first()
-                        if inventory_entry:
-                            inventory_entry.count += qty
-                        else:
-                            new_inv = PrintedPartsCount(
-                                part_name=part_name,
-                                count=qty,
-                                date=datetime.utcnow().date(),
-                                time=datetime.utcnow().time()
-                            )
-                            db.session.add(new_inv)
+                        current_count = inventory_entry.count if inventory_entry else 0
+                        db.session.add(new_printed_parts_snapshot(
+                            part_name,
+                            current_count + qty,
+                            inventory_recorded_at
+                        ))
 
                     if body_table_type == TABLE_TYPE_CHAMPION:
-                        size_key = "6" if serial_is_6ft(entry.serial_number) else "7"
-                        body_piece_keys = [
-                            f"{body_color_key}_{size_key}_window_side",
-                            f"{body_color_key}_{size_key}_blank_side",
-                            f"{body_color_key}_{size_key}_triangle_end",
-                            f"{body_color_key}_{size_key}_color_ball_end",
-                        ]
-                        for part_key in body_piece_keys:
+                        for part_key in body_piece_keys_for(
+                            entry.serial_number,
+                            body_table_type,
+                            body_color_key
+                        ):
                             part_entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
                             if not part_entry:
                                 part_entry = BodyPieceCount(part_key=part_key, count=0)
                                 db.session.add(part_entry)
                             part_entry.count += 1
-                    db.session.commit()
 
                 elif table == 'top_rails':
                     # Parts used for a top rail
@@ -4779,6 +4924,7 @@ def manage_raw_data():
                         BRAD_NAILS_PART_NAME: 0.5
                     }
                     # Revert each part's inventory for the top rail.
+                    inventory_recorded_at = london_now()
                     for part_name, qty in parts_used.items():
                         if part_name == BRAD_NAILS_PART_NAME:
                             adjust_fractional_strip_inventory(
@@ -4791,17 +4937,21 @@ def manage_raw_data():
                             part_name=part_name
                         ).order_by(PrintedPartsCount.date.desc(),
                                    PrintedPartsCount.time.desc()).first()
-                        if inventory_entry:
-                            inventory_entry.count += qty
-                        else:
-                            new_inv = PrintedPartsCount(
-                                part_name=part_name,
-                                count=qty,
-                                date=datetime.utcnow().date(),
-                                time=datetime.utcnow().time()
-                            )
-                            db.session.add(new_inv)
-                    db.session.commit()
+                        current_count = inventory_entry.count if inventory_entry else 0
+                        db.session.add(new_printed_parts_snapshot(
+                            part_name,
+                            current_count + qty,
+                            inventory_recorded_at
+                        ))
+
+                    top_rail_size = serial_size_display_label(entry.serial_number)
+                    top_rail_color_key = color_key_from_serial(entry.serial_number)
+                    restore_top_rail_piece_inventory(
+                        top_rail_size,
+                        top_rail_color_key,
+                        session.get('worker') or entry.worker or "Unknown",
+                        f"Deleted top rail {entry.serial_number}"
+                    )
 
                 # Now delete the entry.
                 # If deleting a body, also update the table stock
@@ -4823,28 +4973,10 @@ def manage_raw_data():
                             stock_entry.count,
                             f"Deleted body {entry.serial_number}"
                         )
-                        db.session.commit()
                     delete_body_build_metadata(entry.id)
                 # If deleting a top rail, also update the table stock
                 elif table == 'top_rails':
-                    def rail_is_6ft(serial):
-                        return serial_is_6ft(serial)
-
-                    def rail_color_key(serial):
-                        norm = serial.replace(" ", "").upper()
-                        if "-GO" in norm:
-                            return "grey_oak"
-                        if "-O" in norm and "-GO" not in norm:
-                            return "rustic_oak"
-                        if "-C" in norm:
-                            return "stone"
-                        if "-RB" in norm:
-                            return "rustic_black"
-                        return "black"
-
-                    size = "6ft" if rail_is_6ft(entry.serial_number) else "7ft"
-                    color_key = rail_color_key(entry.serial_number)
-                    stock_type = f'top_rail_{size}_{color_key}'
+                    stock_type = top_rail_stock_type_key(top_rail_size, top_rail_color_key)
 
                     stock_entry = TableStock.query.filter_by(type=stock_type).first()
                     if stock_entry and stock_entry.count > 0:
@@ -4859,10 +4991,13 @@ def manage_raw_data():
                             stock_entry.count,
                             f"Deleted top rail {entry.serial_number}"
                         )
-                        db.session.commit()
-                
+
                 db.session.delete(entry)
-                db.session.commit()
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    raise
                 flash(f"{table.title()} entry deleted successfully!", "success")
             else:
                 # Update logic for non-deletion operations
@@ -4873,6 +5008,14 @@ def manage_raw_data():
                 old_top_rail_color_key = None
                 top_rail_size = None
                 top_rail_color_key = None
+                old_body_table_type = None
+                old_body_color_key = None
+                old_body_size = None
+                new_body_table_type = None
+                new_body_color_key = None
+                new_body_size = None
+                old_body_stock_type = None
+                new_body_stock_type = None
                 if table == 'pods':
                     try:
                         entry.start_time = datetime.strptime(request.form.get('start_time'), "%H:%M").time()
@@ -4918,6 +5061,26 @@ def manage_raw_data():
                         old_top_rail_color_key
                     )
                     new_top_rail_stock_type = top_rail_stock_type_key(top_rail_size, top_rail_color_key)
+                elif table == 'bodies':
+                    old_body_table_type, old_body_color_key = get_body_build_metadata(entry)
+                    old_body_size = serial_size_display_label(old_serial_number)
+                    new_body_table_type = table_type_from_serial(submitted_serial_number)
+                    new_body_size = serial_size_display_label(submitted_serial_number)
+                    new_body_color_key = (
+                        old_body_color_key
+                        if new_body_table_type == TABLE_TYPE_LITE
+                        else color_key_from_serial(submitted_serial_number)
+                    )
+                    old_body_stock_type = body_stock_type_key(
+                        old_body_size,
+                        old_body_table_type,
+                        old_body_color_key
+                    )
+                    new_body_stock_type = body_stock_type_key(
+                        new_body_size,
+                        new_body_table_type,
+                        new_body_color_key
+                    )
 
                 entry.worker = request.form.get('worker')
                 entry.serial_number = submitted_serial_number
@@ -4931,6 +5094,55 @@ def manage_raw_data():
                     except ValueError:
                         flash("Invalid date format. Please use YYYY-MM-DD.", "error")
                         return redirect_to_raw_data(table)
+
+                if (
+                    table == 'bodies'
+                    and old_body_table_type
+                    and old_body_color_key
+                    and new_body_table_type
+                    and new_body_color_key
+                ):
+                    body_classification_changed = (
+                        old_body_size != new_body_size
+                        or old_body_table_type != new_body_table_type
+                        or old_body_color_key != new_body_color_key
+                    )
+                    stock_worker = session.get('worker') or entry.worker or "Unknown"
+                    stock_note = f"Raw data changed body {old_serial_number} to {submitted_serial_number}"
+
+                    if body_classification_changed:
+                        try:
+                            reclassify_body_component_inventory(
+                                old_serial_number,
+                                old_body_table_type,
+                                old_body_color_key,
+                                submitted_serial_number,
+                                new_body_table_type,
+                                new_body_color_key
+                            )
+                        except ValueError as exc:
+                            db.session.rollback()
+                            flash(str(exc), "error")
+                            return redirect_to_raw_data(table)
+
+                        stock_reclassified = reclassify_body_table_stock(
+                            old_body_stock_type,
+                            new_body_stock_type,
+                            stock_worker,
+                            stock_note
+                        )
+                        if not stock_reclassified:
+                            flash(
+                                "No completed body stock was available in the old category, "
+                                "so available body stock was left unchanged.",
+                                "warning"
+                            )
+
+                    save_body_build_metadata(
+                        entry.id,
+                        new_body_table_type,
+                        new_body_color_key
+                    )
 
                 if (
                     table == 'top_rails'
@@ -6395,13 +6607,7 @@ def set_consumable_stock(part_name, new_count):
     if new_count < current_count:
         check_and_notify_low_stock(canonical_name, current_count, new_count)
 
-    now = london_now()
-    db.session.add(PrintedPartsCount(
-        part_name=canonical_name,
-        count=new_count,
-        date=now.date(),
-        time=now.time()
-    ))
+    db.session.add(new_printed_parts_snapshot(canonical_name, new_count))
     return canonical_name, current_count, new_count
 
 
@@ -6419,13 +6625,7 @@ def adjust_consumable_stock(part_name, delta):
     if new_count < current_count:
         check_and_notify_low_stock(canonical_name, current_count, new_count)
 
-    now = london_now()
-    db.session.add(PrintedPartsCount(
-        part_name=canonical_name,
-        count=new_count,
-        date=now.date(),
-        time=now.time()
-    ))
+    db.session.add(new_printed_parts_snapshot(canonical_name, new_count))
     return canonical_name, new_count
 
 
@@ -7691,12 +7891,7 @@ def bodies():
 
             current_count = _latest_part_count(canonical_part_name)
             new_count = current_count + amount
-            db.session.add(PrintedPartsCount(
-                part_name=canonical_part_name,
-                count=new_count,
-                date=date.today(),
-                time=datetime.utcnow().time()
-            ))
+            db.session.add(new_printed_parts_snapshot(canonical_part_name, new_count))
             db.session.commit()
             flash(f"Added {amount} to {quick_part['label']}. New count: {new_count}", "success")
             return redirect(url_for('bodies'))
@@ -7832,35 +8027,25 @@ def bodies():
                             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                             .first())
             
-            if not part_entry:
-                # Create a new entry if none exists
-                part_entry = PrintedPartsCount(
-                    part_name=part_name,
-                    count=0,
-                    date=date.today(),
-                    time=datetime.utcnow().time()
-                )
-                db.session.add(part_entry)
-                db.session.commit()
-            
-            old_count = part_entry.count
+            old_count = part_entry.count if part_entry else 0
             allow_negative_stock = allows_negative_inventory(part_name)
             if old_count >= quantity_needed or allow_negative_stock:
-                part_entry.count = old_count - quantity_needed
+                new_count = old_count - quantity_needed
+                db.session.add(new_printed_parts_snapshot(part_name, new_count))
                 check_and_notify_low_stock(
                     part_name,
                     old_count,
-                    part_entry.count,
+                    new_count,
                     collected_warnings=low_stock_messages
                 )
                 check_and_notify_chinese_parts_order_more(
                     part_name,
                     old_count,
-                    part_entry.count,
+                    new_count,
                     collected_warnings=low_stock_messages
                 )
             else:
-                flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {part_entry.count}) to complete the body!", "error")
+                flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {old_count}) to complete the body!", "error")
                 db.session.rollback()
                 return redirect_back_to_body_form()
 
@@ -7911,12 +8096,7 @@ def bodies():
         new_wrap_stock = ceil(bodies_available / bodies_per_wrap_roll) if bodies_available > 0 else 0
         used_in_current_roll = 0 if bodies_available <= 0 else (bodies_per_wrap_roll - (bodies_available % bodies_per_wrap_roll)) % bodies_per_wrap_roll
 
-        wrap_entry = PrintedPartsCount(
-            part_name=pallet_wrap_name,
-            count=new_wrap_stock,
-            date=date.today(),
-            time=datetime.utcnow().time()
-        )
+        wrap_entry = new_printed_parts_snapshot(pallet_wrap_name, new_wrap_stock)
         db.session.add(wrap_entry)
         check_and_notify_low_stock(
             pallet_wrap_name,
@@ -9263,43 +9443,24 @@ def top_rails():
         
         # Get the selected size and color
         size_selector = request.form.get('size_selector', '7ft')
-        color_selector = request.form.get('color_selector', 'Black')
+        if size_selector not in ('6ft', '7ft'):
+            size_selector = '7ft'
 
-        # Ensure serial number has proper format with size and color
-        # First handle any existing size/color suffixes in the serial number
-        clean_serial = serial_number
-        
-        # Check if size suffix is already in the serial number
-        has_size_suffix = serial_is_6ft(clean_serial)
-        if not has_size_suffix and size_selector == '6ft':
-            # Add size suffix if not present
-            clean_serial = f"{clean_serial} - 6"
-                
-        # Set the corrected serial number with appropriate suffixes
-        serial_number = clean_serial
-        
-        # Make sure color suffix is present if needed
-        # Colors use the following convention: GO (Grey Oak), O (Rustic Oak), C (Stone), RB (Rustic Black), B or none (Black)
-        has_color_suffix = any(
-            suffix in serial_number
-            for suffix in ['-GO', ' - GO', '-O', ' - O', '-C', ' - C', '-B', ' - B', '-RB', ' - RB']
+        selected_color_key = color_key_from_selector(
+            request.form.get('color_selector', 'Black')
         )
-        
-        if not has_color_suffix:
-            # Add color suffix based on selection
-            color_suffix = ''
-            if color_selector == 'Grey Oak':
-                color_suffix = ' - GO'
-            elif color_selector == 'Rustic Oak':
-                color_suffix = ' - O'
-            elif color_selector == 'Stone':
-                color_suffix = ' - C'
-            elif color_selector == 'Rustic Black':
-                color_suffix = ' - RB'
-            # Black is default, so no suffix needed
-            
-            if color_suffix:
-                serial_number = serial_number + color_suffix
+        color_selector = LAMINATE_COLOR_KEY_TO_LABEL[selected_color_key]
+
+        # Treat the selectors as authoritative. Rebuild the serial so a stale
+        # size/colour suffix cannot disagree with the inventory being consumed.
+        serial_number = build_top_rail_serial(
+            serial_number,
+            size_selector,
+            selected_color_key
+        )
+        if not serial_number:
+            flash("Please enter a valid serial number.", "error")
+            return redirect_back_to_top_rail_form()
 
         low_stock_messages = []
         # Parts and quantities needed for top rail completion
@@ -9309,7 +9470,7 @@ def top_rails():
         }
 
         # Add top rail pieces to deduct based on color and size
-        color_str = color_selector.lower().replace(' ', '_')
+        color_str = selected_color_key
         size_str = size_selector.replace('ft', '')
         
         # Construct the exact part names as they appear in the database
@@ -9377,30 +9538,22 @@ def top_rails():
                                 .first())
 
                 allow_negative_stock = allows_negative_inventory(part_name)
-                if not latest_entry and allow_negative_stock:
-                    latest_entry = PrintedPartsCount(
-                        part_name=part_name,
-                        count=0,
-                        date=date.today(),
-                        time=datetime.utcnow().time()
-                    )
-                    db.session.add(latest_entry)
-
-                if not latest_entry:
+                if not latest_entry and not allow_negative_stock:
                     flash(f"No inventory set up for {part_name}!", "error")
                     return redirect_back_to_top_rail_form()
 
-                if latest_entry.count < quantity_needed and not allow_negative_stock:
-                    flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {latest_entry.count}", "error")
+                old_count = latest_entry.count if latest_entry else 0
+                if old_count < quantity_needed and not allow_negative_stock:
+                    flash(f"Not enough inventory for {part_name}! Need {quantity_needed}, have {old_count}", "error")
                     return redirect_back_to_top_rail_form()
 
-                old_count = latest_entry.count
-                latest_entry.count = old_count - quantity_needed
+                new_count = old_count - quantity_needed
+                db.session.add(new_printed_parts_snapshot(part_name, new_count))
 
                 check_and_notify_low_stock(
                     part_name,
                     old_count,
-                    latest_entry.count,
+                    new_count,
                     collected_warnings=low_stock_messages
                 )
             
@@ -10593,11 +10746,11 @@ def body_dashboard_view():
         remainder_entry = TableStock.query.filter_by(type="pallet_wrap_remainder").first()
         used_in_current_roll = remainder_entry.count if remainder_entry else 0
         bodies_per_wrap_roll = 7
-        if used_in_current_roll <= 0 or used_in_current_roll >= bodies_per_wrap_roll:
-            fraction_remaining = 0
-        else:
-            fraction_remaining = (bodies_per_wrap_roll - used_in_current_roll) / bodies_per_wrap_roll
-        display_count = max(0.0, roll_count + fraction_remaining)
+        available_bodies = max(
+            0,
+            (roll_count * bodies_per_wrap_roll) - used_in_current_roll
+        )
+        display_count = available_bodies / bodies_per_wrap_roll
         return round(display_count, 2)
 
     # Show fractional rolls remaining for pallet wrap
@@ -11998,12 +12151,7 @@ def counting_3d_printing_parts():
         if new_count < current_count:
             check_and_notify_low_stock(part, current_count, new_count)
 
-        new_entry = PrintedPartsCount(
-            part_name=part,
-            count=new_count,
-            date=datetime.utcnow().date(),
-            time=datetime.utcnow().time()
-        )
+        new_entry = new_printed_parts_snapshot(part, new_count)
         db.session.add(new_entry)
         db.session.commit()
 

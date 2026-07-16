@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta, date, timezone # Added timezone
 import calendar # For monthrange
+import re
 from sqlalchemy import func, extract, desc
 from functools import wraps
 
@@ -133,36 +134,14 @@ def get_next_top_rail_serial():
         if not last_rail or not last_rail.serial_number:
             return jsonify({"next_serial": "1000"})  # Default starting number
             
-        # Extract the base number and any suffixes
-        current_serial = last_rail.serial_number
-        
-        # Check for color suffixes first
-        color_suffix = ""
-        if " - GO" in current_serial or "-GO" in current_serial:
-            color_suffix = " - GO"
-            current_serial = current_serial.replace(" - GO", "").replace("-GO", "")
-        elif " - O" in current_serial or "-O" in current_serial:
-            color_suffix = " - O"
-            current_serial = current_serial.replace(" - O", "").replace("-O", "")
-        elif " - C" in current_serial or "-C" in current_serial:
-            color_suffix = " - C"
-            current_serial = current_serial.replace(" - C", "").replace("-C", "")
-        elif " - B" in current_serial or "-B" in current_serial:
-            color_suffix = " - B"
-            current_serial = current_serial.replace(" - B", "").replace("-B", "")
-            
-        # Now check for size suffix
-        size_suffix = ""
-        if " - 6" in current_serial or "-6" in current_serial:
-            size_suffix = " - 6"
-            current_serial = current_serial.replace(" - 6", "").replace("-6", "")
-
-        try:
-            # Extract the base number and return exactly one more than current
-            base_number = int(''.join(filter(str.isdigit, current_serial)))
-            next_serial = str(base_number) + size_suffix + color_suffix
-            
-        except ValueError:
+        # Increment the leading numeric base and preserve the complete suffix,
+        # including size and all colour codes (GO, O, C, B and RB).
+        current_serial = last_rail.serial_number.strip()
+        serial_match = re.match(r'^(\d+)(.*)$', current_serial)
+        if serial_match:
+            base_number, suffix = serial_match.groups()
+            next_serial = f"{int(base_number) + 1}{suffix}"
+        else:
             next_serial = "1000"  # Fallback if conversion fails
 
         return jsonify({"next_serial": next_serial})
