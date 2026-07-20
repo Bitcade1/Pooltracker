@@ -492,6 +492,35 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Collapsible Section for Weekly History -->
+    <button class="collapsible" onclick="toggleCollapsible('weeklyHistory')">Weekly History</button>
+    <div id="weeklyHistory" class="collapsible-content">
+      <table>
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>7ft Top Rails</th>
+            <th>6ft Top Rails</th>
+            <th>Total Top Rails</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for week in weekly_history %}
+            <tr>
+              <td>{{ week.week }}</td>
+              <td>{{ week.count_7ft }}</td>
+              <td>{{ week.count_6ft }}</td>
+              <td>{{ week.count }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="4">No weekly top rail history available.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     
     <!-- Collapsible Section for Monthly Totals -->
     <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>

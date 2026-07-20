@@ -204,6 +204,48 @@ def serial_is_lite(serial):
     return normalized.endswith("-L")
 
 
+def build_recent_weekly_size_history(records, reference_date, date_getter, size_getter, week_count=6):
+    week_count = max(0, int(week_count or 0))
+    if week_count == 0:
+        return []
+
+    current_week_start = reference_date - timedelta(days=reference_date.weekday())
+    history_by_start = {}
+    for week_offset in range(week_count):
+        week_start = current_week_start - timedelta(weeks=week_offset)
+        week_end = week_start + timedelta(days=6)
+        history_by_start[week_start] = {
+            "week": f"{week_start.strftime('%d/%m/%y')} - {week_end.strftime('%d/%m/%y')}",
+            "count_7ft": 0,
+            "count_6ft": 0,
+            "count": 0,
+        }
+
+    size_keys = {
+        "7ft": "count_7ft",
+        "6ft": "count_6ft",
+    }
+    for record in records:
+        record_date = date_getter(record)
+        if isinstance(record_date, datetime):
+            record_date = record_date.date()
+        if not isinstance(record_date, date):
+            continue
+
+        week_start = record_date - timedelta(days=record_date.weekday())
+        week_entry = history_by_start.get(week_start)
+        size_key = size_keys.get(str(size_getter(record) or "").strip().lower())
+        if week_entry is None or size_key is None:
+            continue
+        week_entry[size_key] += 1
+        week_entry["count"] += 1
+
+    return [
+        history_by_start[week_start]
+        for week_start in sorted(history_by_start.keys(), reverse=True)
+    ]
+
+
 TABLE_TYPE_CHAMPION = "champion"
 TABLE_TYPE_LITE = "lite"
 BODY_TABLE_TYPE_CODES = {
@@ -4727,6 +4769,21 @@ def pods():
             "serial_numbers": ", ".join(entry["serial_numbers"])
         })
 
+    current_week_start = today - timedelta(days=today.weekday())
+    oldest_week_start = current_week_start - timedelta(weeks=5)
+    weekly_pods = (
+        CompletedPods.query
+        .filter(CompletedPods.date >= oldest_week_start, CompletedPods.date <= today)
+        .order_by(CompletedPods.date.desc(), CompletedPods.id.asc())
+        .all()
+    )
+    weekly_history_formatted = build_recent_weekly_size_history(
+        weekly_pods,
+        today,
+        date_getter=lambda pod: pod.date,
+        size_getter=lambda pod: "6ft" if serial_is_6ft(pod.serial_number) else "7ft",
+    )
+
     def parse_time_string(value):
         if not value:
             return None
@@ -4868,6 +4925,7 @@ def pods():
         current_production_pods_7ft=current_production_pods_7ft,
         current_production_pods_6ft=current_production_pods_6ft,
         daily_history=daily_history_formatted,
+        weekly_history=weekly_history_formatted,
         monthly_totals=monthly_totals_formatted,
         next_serial_number=next_serial_number,
         target_7ft=target_7ft,
@@ -7655,6 +7713,33 @@ def cushion_completed_size_stats(today=None):
     ]
 
 
+def cushion_completed_weekly_stats(today=None, week_count=6):
+    today = today or london_now().date()
+    week_count = max(0, int(week_count or 0))
+    if week_count == 0:
+        return []
+    current_week_start = today - timedelta(days=today.weekday())
+    oldest_week_start = current_week_start - timedelta(weeks=week_count - 1)
+    start_dt = datetime.combine(oldest_week_start, time.min)
+    end_dt = datetime.combine(today + timedelta(days=1), time.min)
+    completed_sets = (
+        CushionCompletedSet.query
+        .filter(
+            CushionCompletedSet.completed_at >= start_dt,
+            CushionCompletedSet.completed_at < end_dt,
+        )
+        .order_by(CushionCompletedSet.completed_at.desc(), CushionCompletedSet.id.asc())
+        .all()
+    )
+    return build_recent_weekly_size_history(
+        completed_sets,
+        today,
+        date_getter=lambda completed_set: completed_set.completed_at,
+        size_getter=lambda completed_set: completed_set.size_label,
+        week_count=week_count,
+    )
+
+
 def cushion_completed_previous_month_stats(today=None, month_count=6):
     today = today or london_now().date()
     current_month_start = today.replace(day=1)
@@ -9868,6 +9953,22 @@ def top_rails():
         for row in daily_history
     ]
 
+    # Weekly history (current week and previous 5 weeks)
+    current_week_start = today - timedelta(days=today.weekday())
+    oldest_week_start = current_week_start - timedelta(weeks=5)
+    weekly_top_rails = (
+        TopRail.query
+        .filter(TopRail.date >= oldest_week_start, TopRail.date <= today)
+        .order_by(TopRail.date.desc(), TopRail.id.asc())
+        .all()
+    )
+    weekly_history_formatted = build_recent_weekly_size_history(
+        weekly_top_rails,
+        today,
+        date_getter=lambda rail: rail.date,
+        size_getter=lambda rail: "6ft" if serial_is_6ft(rail.serial_number) else "7ft",
+    )
+
     monthly_totals = (
         db.session.query(
             extract('year', TopRail.date).label('year'),
@@ -9950,6 +10051,7 @@ def top_rails():
         top_rail_form_restored=bool(top_rail_form_values),
         completed_tables=completed_top_rails,
         daily_history=daily_history_formatted,
+        weekly_history=weekly_history_formatted,
         monthly_totals=monthly_totals_formatted,
         top_rails_this_month=top_rails_this_month,
         next_serial_number=next_serial_number,
@@ -12581,6 +12683,7 @@ def counting_cushions():
         shapes=CUSHION_SHAPES,
         stock_summary=stock_summary,
         completed_size_stats=cushion_completed_size_stats(),
+        weekly_size_stats=cushion_completed_weekly_stats(),
         previous_month_size_stats=cushion_completed_previous_month_stats(),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')

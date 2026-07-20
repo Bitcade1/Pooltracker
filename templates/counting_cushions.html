@@ -147,6 +147,10 @@
         margin-top: 14px;
     }
 
+    .weekly-history {
+        margin-top: 14px;
+    }
+
     .monthly-history-title {
         margin: 0 0 8px;
         color: #1f2d3d;
@@ -552,6 +556,35 @@
                 </article>
             {% endfor %}
         </div>
+        <details class="info-panel weekly-history">
+            <summary>Weekly History</summary>
+            <div class="info-body">
+                <table class="monthly-history-table weekly-history-table">
+                    <thead>
+                        <tr>
+                            <th>Week</th>
+                            <th>7ft Sets</th>
+                            <th>6ft Sets</th>
+                            <th>Total Sets</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for week in weekly_size_stats %}
+                            <tr>
+                                <td>{{ week.week }}</td>
+                                <td>{{ week.count_7ft }}</td>
+                                <td>{{ week.count_6ft }}</td>
+                                <td>{{ week.count }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="4">No weekly cushion history available.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
         <div class="monthly-history">
             <h3 class="monthly-history-title">Previous Months</h3>
             <table class="monthly-history-table">
