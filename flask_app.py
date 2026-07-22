@@ -1747,7 +1747,7 @@ def _send_cnc_low_queue_notification(machine_number, new_count):
     message = f"CNC {machine_number} queue is low ({new_count} queued jobs)."
     try:
         requests.post(
-            "https://ntfy.sh/PoolTableTracker",
+            "https://ntfy.sh/PoolTableTrackerV2",
             data=message,
             headers={"Title": "CNC Queue Warning", "Priority": "high"}
         )
@@ -2119,7 +2119,7 @@ def check_and_notify_chinese_parts_order_more(
 
     try:
         requests.post(
-            "https://ntfy.sh/PoolTableTracker",
+            "https://ntfy.sh/PoolTableTrackerV2",
             data=message,
             headers={"Title": "Order More Chinese Parts", "Priority": "high"}
         )
@@ -2160,7 +2160,7 @@ def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnin
                 try:
                     title = "Low Stock Warning"
                     requests.post(
-                        "https://ntfy.sh/PoolTableTracker",
+                        "https://ntfy.sh/PoolTableTrackerV2",
                         data=message,
                         headers={"Title": title, "Priority": "high"}
                     )
@@ -2384,7 +2384,7 @@ def admin():
                 try:
                     message = f"Stock for {part_name} is low ({current_stock} remaining, threshold is {threshold})."
                     title = "Low Stock Warning"
-                    requests.post("https://ntfy.sh/PoolTableTracker",
+                    requests.post("https://ntfy.sh/PoolTableTrackerV2",
                                   data=message,
                                   headers={"Title": title, "Priority": "high"})
                     flash(f"Low stock notification sent for {part_name}.", "info")
@@ -4665,7 +4665,7 @@ def pods():
             else:
                 title = f"Pod Completed: {type_label} {size}"
             try:
-                requests.post("https://ntfy.sh/PoolTableTracker",
+                requests.post("https://ntfy.sh/PoolTableTrackerV2",
                               data=message,
                               headers={"Title": title})
             except requests.RequestException as e:
@@ -8323,7 +8323,7 @@ def bodies():
             title_prefix = " ".join(title_prefixes)
             title = f"{title_prefix} Body Completed: {type_label} {size} {color}".strip()
             try:
-                requests.post("https://ntfy.sh/PoolTableTracker",
+                requests.post("https://ntfy.sh/PoolTableTrackerV2",
                               data=message,
                               headers={"Title": title})
             except requests.RequestException as e:
@@ -9837,7 +9837,7 @@ def top_rails():
             else:
                 title = f"Top Rail Completed: {size} {display_color}"
             try:
-                requests.post("https://ntfy.sh/PoolTableTracker",
+                requests.post("https://ntfy.sh/PoolTableTrackerV2",
                               data=message,
                               headers={"Title": title})
             except requests.RequestException as e:
