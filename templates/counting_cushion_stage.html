@@ -682,8 +682,8 @@
         <input type="hidden" name="shape_no" class="selected-shape" value="{{ single_variant.shape_no if single_variant else 0 }}">
         <input type="hidden" name="end_type" class="selected-end" value="{{ single_variant.end_type if single_variant else '' }}">
         <div class="add-panel {% if not single_option %}hidden{% endif %}" id="add-panel">
-            <button class="add-btn" type="submit" name="quantity" value="{{ '12' if stage.key == 'spray_glue_join_rubber' else ('10' if stage.key == 'shape_cushions' else '1') }}" id="add-button">
-                <span class="add-label" id="add-label">{% if stage.key == 'spray_glue_join_rubber' %}Add 12 Cushions{% elif stage.key == 'shape_cushions' %}Add 10 Cushions{% elif single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
+            <button class="add-btn" type="submit" name="quantity" value="{{ '12' if stage.key == 'spray_glue_join_rubber' else ('10' if stage.key == 'shape_cushions' else ('4' if stage.key == 'punch_rubber_ends' else '1')) }}" id="add-button">
+                <span class="add-label" id="add-label">{% if stage.key == 'spray_glue_join_rubber' %}Add 12 Cushions{% elif stage.key == 'shape_cushions' %}Add 10 Cushions{% elif stage.key == 'punch_rubber_ends' and single_option %}+4 {{ single_variant.lock_label }}{% elif stage.key == 'punch_rubber_ends' %}+4{% elif single_option %}+1 {{ single_variant.lock_label }}{% else %}+1{% endif %}</span>
                 <span class="add-count" id="add-count">{% if single_option %}{{ single_variant.count_label }}{% elif stage.key == 'bundle' %}{% else %}Current 0{% endif %}</span>
             </button>
             <div class="add-side">
@@ -752,7 +752,8 @@
     const stageVariant = {{ stage.variant|tojson }};
     const stagePrimaryAddMap = {
         spray_glue_join_rubber: { qty: 12, label: "Add 12 Cushions" },
-        shape_cushions: { qty: 10, label: "Add 10 Cushions" }
+        shape_cushions: { qty: 10, label: "Add 10 Cushions" },
+        punch_rubber_ends: { qty: 4, label: null }
     };
     const stagePrimaryAdd = stagePrimaryAddMap[stageKey] || { qty: 1, label: null };
     const storageKey = `cushion-stage-lock-${stageKey}`;
@@ -912,7 +913,7 @@
             const timing = variant.display_timing || variant.timing || {average_display: "N/A", last_display: "N/A"};
             lockedTiming.textContent = `Avg: ${timing.average_display} | Last: ${timing.last_display}`;
         }
-        addLabel.textContent = stagePrimaryAdd.label || `+1 ${variant.lock_label}`;
+        addLabel.textContent = stagePrimaryAdd.label || `+${stagePrimaryAdd.qty} ${variant.lock_label}`;
         addCount.textContent = variant.count_label ?? `Current ${variant.count}`;
         newCount.value = variant.count;
         correctionSummary.textContent = variant.lock_label;

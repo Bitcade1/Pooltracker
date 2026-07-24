@@ -6411,6 +6411,8 @@ def parse_cushion_add_quantity(quantity_value, manual_quantity=None, stage_key=N
     allowed_quantities = (1, 5, 10)
     if stage_key == "spray_glue_join_rubber":
         allowed_quantities = (1, 5, 12)
+    elif stage_key == "punch_rubber_ends":
+        allowed_quantities = (4, 5, 10)
 
     if quantity not in allowed_quantities:
         allowed_text = ", ".join(str(item) for item in allowed_quantities)
