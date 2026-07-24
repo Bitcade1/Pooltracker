@@ -5998,6 +5998,10 @@ CUSHION_CONSUMABLE_GLOVES = [
 ]
 CUSHION_CONSUMABLE_PAINT_BRUSH = {"name": "Paint Brush", "label": "Paint Brush"}
 CUSHION_CONSUMABLE_TEE_NUTS = {"name": "M6 x 19mm Tee Nut", "label": "Tee Nuts"}
+CUSHION_CONSUMABLE_EXTRACTOR_BAGS = {
+    "name": "500mm Extractor Bags",
+    "label": "500mm Extractor Bags",
+}
 CUSHION_CONSUMABLE_SANDING = [
     {"name": "Sanding Belts", "label": "Sanding Belts"},
     {"name": "Sanding Pads", "label": "Sanding Pads"},
@@ -6006,6 +6010,7 @@ CUSHION_CONSUMABLES = [
     *CUSHION_CONSUMABLE_GLOVES,
     CUSHION_CONSUMABLE_PAINT_BRUSH,
     CUSHION_CONSUMABLE_TEE_NUTS,
+    CUSHION_CONSUMABLE_EXTRACTOR_BAGS,
     *CUSHION_CONSUMABLE_SANDING,
 ]
 CUSHION_SPINDLE_REMINDER_INTERVAL = 30
@@ -6460,6 +6465,8 @@ def parse_consumable_delta(delta_value, manual_delta=None):
 
 def cushion_consumables_for_stage(stage_key):
     items = list(CUSHION_CONSUMABLE_GLOVES)
+    if stage_key == "spindle_mould":
+        items.append(CUSHION_CONSUMABLE_EXTRACTOR_BAGS)
     if stage_key == "glue_ends":
         items.append(CUSHION_CONSUMABLE_PAINT_BRUSH)
         items.append(CUSHION_CONSUMABLE_TEE_NUTS)

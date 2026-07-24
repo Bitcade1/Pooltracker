@@ -34,6 +34,7 @@ CUSHION_CONSUMABLE_PART_NAMES = [
     "Work Gloves",
     "Paint Brush",
     "M6 x 19mm Tee Nut",
+    "500mm Extractor Bags",
     "Sanding Belts",
     "Sanding Pads",
 ]
