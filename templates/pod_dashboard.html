@@ -121,6 +121,29 @@
         white-space: nowrap;
     }
 
+    .stat-card.clock-card {
+        grid-column: span 2;
+        justify-content: center;
+        background: #1f2d3d;
+    }
+
+    .clock-card .clock-time {
+        color: #ffffff;
+        font-size: clamp(2.7rem, 5vw, 4.5rem);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+    }
+
+    .clock-card .clock-date {
+        color: #cbd5e1;
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        text-align: center;
+    }
+
     .next-serial-value {
         display: inline-block;
     }
@@ -712,7 +735,8 @@
 
         .stat-card.wide,
         .stat-card.next-serial,
-        .stat-card.avg-type-card {
+        .stat-card.avg-type-card,
+        .stat-card.clock-card {
             grid-column: 1 / -1;
         }
 
@@ -905,6 +929,10 @@
             <span class="stat-label">Next Serial ({{ default_size }})</span>
             <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
+        <div class="stat-card clock-card">
+            <time class="stat-value clock-time" id="podDashboardClock">--:--:--</time>
+            <span class="clock-date" id="podDashboardDate"></span>
+        </div>
         {% for avg in pod_type_average_rows %}
             <div class="stat-card avg-type-card">
                 <span class="stat-label">{{ avg.label }} Avg (This Month)</span>
@@ -1024,6 +1052,37 @@
 {% endif %}
 
 <script>
+    (function () {
+        const clock = document.getElementById('podDashboardClock');
+        const date = document.getElementById('podDashboardDate');
+        if (!clock || !date) return;
+
+        const timeFormatter = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Europe/London',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Europe/London',
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+
+        function updateClock() {
+            const now = new Date();
+            clock.textContent = timeFormatter.format(now);
+            clock.dateTime = now.toISOString();
+            date.textContent = dateFormatter.format(now);
+        }
+
+        updateClock();
+        window.setInterval(updateClock, 1000);
+    })();
+
     (function () {
         const celebration = document.getElementById('podMaxRot');
         if (!celebration) return;
