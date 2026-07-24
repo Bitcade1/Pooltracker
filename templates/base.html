@@ -5,6 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Pool Table Tracker{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script>
+        (function () {
+            let reloadCheckInProgress = false;
+
+            window.poolTrackerReloadWhenReady = async function () {
+                if (reloadCheckInProgress) {
+                    return false;
+                }
+                reloadCheckInProgress = true;
+
+                try {
+                    const response = await fetch(window.location.href, {
+                        method: "HEAD",
+                        cache: "no-store",
+                        credentials: "same-origin",
+                        headers: { "X-Pool-Tracker-Healthcheck": "1" }
+                    });
+                    const trackerReady =
+                        response.ok &&
+                        response.headers.get("X-Pool-Tracker") === "ready";
+
+                    if (trackerReady) {
+                        window.location.reload();
+                        return true;
+                    }
+                } catch (error) {
+                    // Keep the working dashboard visible while the server restarts.
+                } finally {
+                    reloadCheckInProgress = false;
+                }
+                return false;
+            };
+        })();
+    </script>
 </head>
 <body>
     <div class="site-header">

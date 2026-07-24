@@ -1645,6 +1645,10 @@ def prevent_stale_count_pages(response):
     if request.method == "POST" and response.status_code in (301, 302):
         response.status_code = 303
 
+    # Dashboard kiosks use this marker to confirm that Flask is ready before
+    # replacing the currently displayed page during an automatic refresh.
+    response.headers["X-Pool-Tracker"] = "ready"
+
     content_type = response.headers.get("Content-Type", "")
     if "text/html" in content_type:
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
