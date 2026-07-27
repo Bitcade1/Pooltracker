@@ -223,6 +223,10 @@ def build_item(values, source_file="", raw_text="", confidence=None):
 
 
 def _extract_po(text):
+    compact_match = re.search(r"\b(PO[A-Z0-9][A-Z0-9./_-]{2,})\b", text or "", re.I)
+    if compact_match:
+        return compact_match.group(1).upper()
+
     patterns = (
         r"\b(?:purchase\s+order|customer\s+po|po(?:\s+number|\s+no\.?)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{2,})",
         r"\border\s+(?:number|no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{2,})",
@@ -234,6 +238,18 @@ def _extract_po(text):
     return ""
 
 
+def _extract_document_po(text):
+    for raw_line in (text or "").splitlines():
+        line = _clean_text(raw_line)
+        if re.match(
+            r"^(?:purchase\s+order|customer\s+po|po\s+(?:number|no\.?))\s*[:#-]",
+            line,
+            re.I,
+        ):
+            return _extract_po(line)
+    return ""
+
+
 def _line_quantity(line):
     match = re.match(r"^\s*(\d+)\s*(?:x|X|\*)\s+", line)
     if match:
@@ -242,9 +258,31 @@ def _line_quantity(line):
     return int(match.group(1)) if match else 1
 
 
+def _following_quantity(lines, product_index):
+    for next_line in lines[product_index + 1:product_index + 4]:
+        match = re.match(
+            r"^\s*(\d+)\s+units?\s*(?:x|X|\*)\s+",
+            next_line,
+            re.I,
+        )
+        if match:
+            return max(1, int(match.group(1)))
+        if next_line and not re.match(r"^[^\w]*$", next_line):
+            break
+    return None
+
+
+def _clean_product_description(line):
+    return re.sub(
+        r"\s+(?:\u00a3|\u0141|\$|\u20ac)\s*[\d,]+(?:\.\d{2})?\s*$",
+        "",
+        line,
+    ).strip()
+
+
 def items_from_text(text, source_file):
     text = (text or "").replace("\x00", " ")
-    global_po = _extract_po(text)
+    global_po = _extract_document_po(text)
     candidates = []
     seen = set()
     product_terms = re.compile(
@@ -257,8 +295,8 @@ def items_from_text(text, source_file):
         r"purchase order|page \d+)\b",
         re.I,
     )
-    for raw_line in text.splitlines():
-        line = _clean_text(raw_line)
+    lines = [_clean_text(raw_line) for raw_line in text.splitlines()]
+    for line_index, line in enumerate(lines):
         if len(line) < 4 or ignored_terms.search(line):
             continue
         if not product_terms.search(line):
@@ -267,9 +305,15 @@ def items_from_text(text, source_file):
         if fingerprint in seen:
             continue
         seen.add(fingerprint)
+        following_quantity = _following_quantity(lines, line_index)
+        description = _clean_product_description(line)
         candidates.append(build_item({
-            "description": line,
-            "quantity": _line_quantity(line),
+            "description": description,
+            "quantity": (
+                following_quantity
+                if following_quantity is not None
+                else _line_quantity(line)
+            ),
             "po_number": _extract_po(line) or global_po,
         }, source_file=source_file, raw_text=line))
     return candidates
