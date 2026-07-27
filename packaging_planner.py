@@ -616,6 +616,43 @@ def _line_total(lines):
     return sum(max(0, int(line.get("quantity", 0) or 0)) for line in lines or [])
 
 
+def _aggregate_cushion_lines(lines):
+    grouped = defaultdict(list)
+    for line in lines:
+        grouped[line.get("size") or "Unknown"].append(line)
+
+    aggregated = []
+    for size in ("6ft", "7ft", "Unknown"):
+        size_lines = grouped.get(size, [])
+        quantity = _line_total(size_lines)
+        if not quantity:
+            continue
+        po_numbers = sorted({
+            line.get("po_number")
+            for line in size_lines
+            if line.get("po_number")
+        })
+        aggregated.append({
+            "id": _new_id("line"),
+            "item_id": "",
+            "component_type": "cushion",
+            "size": "" if size == "Unknown" else size,
+            "model": "",
+            "colour": "",
+            "quantity": quantity,
+            "po_number": ", ".join(po_numbers),
+            "description": (
+                f"All {size} cushion sets"
+                if size != "Unknown"
+                else "Cushion sets with size to confirm"
+            ),
+            "notes": "Combined cushion total from all invoice items",
+            "source_file": "",
+            "origin_type": "automatic",
+        })
+    return aggregated
+
+
 def _refresh_pallet_labels(pallet, config):
     body_sizes = {
         line.get("size") for line in pallet.get("lines", [])
@@ -733,7 +770,7 @@ def generate_packaging(items, config=None):
             pallets.append(pallet)
             next_number += 1
 
-    cushion_lines = [dict(line) for line in requirements["cushions"]]
+    cushion_lines = _aggregate_cushion_lines(requirements["cushions"])
     leg_lines = [dict(line) for line in requirements["leg_boxes"]]
     if _line_total(cushion_lines) or _line_total(leg_lines):
         cushion_pallet_count = config["cushion_pallet_count"]
