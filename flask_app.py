@@ -3251,6 +3251,24 @@ def validate_invoice_packaging(job_id):
         return jsonify({"success": False, "error": str(error)}), 400
 
 
+@app.route("/invoice_packaging/<int:job_id>/labels")
+def invoice_packaging_labels(job_id):
+    if "worker" not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for("login"))
+
+    job = packaging_job_or_404(job_id)
+    plan = packaging_job_payload(job)
+    if not plan["pallets"]:
+        flash("Generate the packaging list before printing pallet stickers.", "warning")
+        return redirect(url_for("invoice_packaging", plan=job.id))
+
+    return render_template(
+        "invoice_packaging_labels.html",
+        plan=plan,
+    )
+
+
 def ensure_production_comparison_tables():
     CompletedPods.__table__.create(db.engine, checkfirst=True)
     TopRail.__table__.create(db.engine, checkfirst=True)

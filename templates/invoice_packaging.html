@@ -724,6 +724,7 @@
                 <button type="button" class="secondary" onclick="savePlan()">Save Current Changes</button>
                 <button type="button" class="warning" onclick="validatePlan()">Validate Packaging</button>
                 <button type="button" class="secondary" onclick="window.print()">Print Packaging List</button>
+                <button type="button" class="secondary" onclick="printZebraLabels()">Print Zebra Stickers</button>
                 <button type="button" class="push-right" onclick="addPallet()">Create Pallet</button>
             </div>
             <label class="field" style="margin-top: 12px;">
@@ -1296,6 +1297,27 @@
         state.acknowledged_warning_ids = (state.acknowledged_warning_ids || []).filter((id) => validIds.has(id));
         renderAll();
         setStatus(data.warnings.length ? "Validation complete. Review the warnings." : "Validation passed with no warnings.", data.warnings.length ? "" : "success");
+    }
+
+    async function printZebraLabels() {
+        if (!state.pallets.length) {
+            setStatus("Generate the packaging list before printing stickers.", "error");
+            return;
+        }
+        const labelWindow = window.open("", "_blank");
+        if (!labelWindow) {
+            setStatus("Allow pop-ups for this site so the sticker print page can open.", "error");
+            return;
+        }
+        labelWindow.document.write("<p style='font-family:Arial;padding:20px'>Saving pallet stickers...</p>");
+        const data = await apiRequest(`/api/invoice_packaging/${planId}/save`, requestPayload());
+        if (!data) {
+            labelWindow.close();
+            return;
+        }
+        state = data.plan;
+        renderAll();
+        labelWindow.location.href = `/invoice_packaging/${planId}/labels`;
     }
 
     function renderAll() {

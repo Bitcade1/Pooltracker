@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ plan.title }} - Zebra Pallet Stickers</title>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #d9dde3;
+            color: #000;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .print-controls {
+            position: sticky;
+            z-index: 20;
+            top: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px;
+            background: #172033;
+            color: #fff;
+        }
+
+        .print-controls button,
+        .print-controls a {
+            min-height: 38px;
+            padding: 8px 15px;
+            border: 0;
+            border-radius: 5px;
+            background: #fff;
+            color: #172033;
+            font: inherit;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .instruction {
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .label-sheet {
+            width: 204mm;
+            height: 104mm;
+            margin: 10mm auto;
+            padding: 5mm;
+            background: #fff;
+            page-break-after: always;
+            break-after: page;
+            overflow: hidden;
+        }
+
+        .label-sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+        }
+
+        .label-border {
+            display: grid;
+            grid-template-rows: auto auto minmax(0, 1fr) auto;
+            width: 100%;
+            height: 100%;
+            border: 1.2mm solid #000;
+        }
+
+        .label-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 4mm;
+            align-items: center;
+            padding: 3mm 4mm;
+            border-bottom: 0.8mm solid #000;
+        }
+
+        .pallet-number {
+            margin: 0;
+            font-size: 13mm;
+            line-height: 0.9;
+            font-weight: 1000;
+            letter-spacing: -0.4mm;
+            text-transform: uppercase;
+        }
+
+        .pallet-type {
+            max-width: 78mm;
+            font-size: 5.5mm;
+            line-height: 1.05;
+            font-weight: 900;
+            text-align: right;
+            text-transform: uppercase;
+        }
+
+        .status-strip {
+            display: flex;
+            gap: 4mm;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 10mm;
+            padding: 1.5mm 4mm;
+            border-bottom: 0.5mm solid #000;
+            font-size: 4mm;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .mixed-badge {
+            padding: 1mm 2mm;
+            border: 0.5mm solid #000;
+            background: #000;
+            color: #fff;
+        }
+
+        .label-content {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(48mm, 1fr);
+            min-height: 0;
+        }
+
+        .contents {
+            padding: 2mm 4mm;
+            overflow: hidden;
+        }
+
+        .contents-title,
+        .side-title {
+            margin: 0 0 1.4mm;
+            font-size: 3.6mm;
+            font-weight: 900;
+            letter-spacing: 0.2mm;
+            text-transform: uppercase;
+        }
+
+        .content-lines {
+            display: grid;
+            gap: 1.1mm;
+        }
+
+        .content-line {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 2mm;
+            align-items: baseline;
+            font-size: 4.1mm;
+            line-height: 1.05;
+            font-weight: 800;
+        }
+
+        .content-quantity {
+            min-width: 19mm;
+            font-size: 5.4mm;
+            font-weight: 1000;
+            white-space: nowrap;
+        }
+
+        .content-detail {
+            overflow-wrap: anywhere;
+        }
+
+        .content-meta {
+            display: block;
+            margin-top: 0.5mm;
+            font-size: 2.8mm;
+            line-height: 1.1;
+            font-weight: 700;
+        }
+
+        .side-panel {
+            padding: 2mm 3mm;
+            border-left: 0.5mm solid #000;
+            overflow: hidden;
+        }
+
+        .side-block + .side-block {
+            margin-top: 2.5mm;
+            padding-top: 2mm;
+            border-top: 0.35mm solid #000;
+        }
+
+        .side-value {
+            font-size: 3.5mm;
+            line-height: 1.2;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
+
+        .rails-on-top {
+            padding: 2mm 4mm;
+            border-top: 0.8mm solid #000;
+            background: #000;
+            color: #fff;
+            font-size: 4.6mm;
+            line-height: 1.1;
+            font-weight: 1000;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .no-contents {
+            padding: 4mm;
+            font-size: 5mm;
+            font-weight: 900;
+        }
+
+        @page {
+            size: 204mm 104mm;
+            margin: 0;
+        }
+
+        @media print {
+            html,
+            body {
+                width: 204mm;
+                margin: 0;
+                padding: 0;
+                background: #fff;
+            }
+
+            .print-controls {
+                display: none;
+            }
+
+            .label-sheet {
+                width: 204mm;
+                height: 104mm;
+                margin: 0;
+                padding: 5mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="print-controls">
+        <button type="button" onclick="window.print()">Print Stickers</button>
+        <a href="{{ url_for('invoice_packaging', plan=plan.id) }}">Back to Packaging Plan</a>
+        <span class="instruction">Use 104 x 204 mm labels, landscape, 100% scale, no margins or headers.</span>
+    </div>
+
+    {% for pallet in plan.pallets|sort(attribute='pallet_number') %}
+        {% set pallet_lines = pallet.lines|default([]) %}
+        {% set carried_rails = pallet.carried_top_rails|default([]) %}
+        {% set po_numbers = [] %}
+        {% for line in pallet_lines + carried_rails %}
+            {% if line.po_number and line.po_number not in po_numbers %}
+                {% set _ = po_numbers.append(line.po_number) %}
+            {% endif %}
+        {% endfor %}
+        <section class="label-sheet">
+            <article class="label-border">
+                <header class="label-header">
+                    <h1 class="pallet-number">Pallet {{ pallet.pallet_number }}</h1>
+                    <div class="pallet-type">
+                        {% if pallet.pallet_type == 'body' %}
+                            Table Bodies
+                        {% elif pallet.pallet_type == 'top_rail' %}
+                            Top Rails
+                        {% elif pallet.pallet_type == 'cushion' %}
+                            Cushions and Legs
+                        {% else %}
+                            Custom Pallet
+                        {% endif %}
+                    </div>
+                </header>
+
+                <div class="status-strip">
+                    <span>
+                        {{ pallet.status|default('Manual') }}
+                        {% if pallet.capacity %}
+                            - {{ pallet.capacity_used|default(0) }} / {{ pallet.capacity }}
+                        {% endif %}
+                    </span>
+                    {% if pallet.is_mixed %}
+                        <span class="mixed-badge">Mixed Pallet</span>
+                    {% endif %}
+                    <span>{{ plan.title }}</span>
+                </div>
+
+                <div class="label-content">
+                    <div class="contents">
+                        <h2 class="contents-title">Pallet contents</h2>
+                        {% if pallet_lines %}
+                            <div class="content-lines">
+                                {% for line in pallet_lines %}
+                                <div class="content-line">
+                                    <span class="content-quantity">{{ line.quantity }} x</span>
+                                    <span class="content-detail">
+                                        {% if line.size %}{{ line.size }} {% endif %}
+                                        {% if line.model %}{{ line.model }} {% endif %}
+                                        {% if line.colour %}{{ line.colour }} {% endif %}
+                                        {% if line.component_type == 'body' %}
+                                            Body
+                                        {% elif line.component_type == 'top_rail' %}
+                                            Top Rail
+                                        {% elif line.component_type == 'cushion' %}
+                                            Cushion Set
+                                        {% elif line.component_type == 'leg_box' %}
+                                            Leg Box
+                                        {% else %}
+                                            {{ line.description|default('Item') }}
+                                        {% endif %}
+                                        <span class="content-meta">
+                                            {% if line.po_number %}PO: {{ line.po_number }}{% endif %}
+                                            {% if line.notes %}{% if line.po_number %} - {% endif %}{{ line.notes }}{% endif %}
+                                        </span>
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="no-contents">No pallet contents assigned</div>
+                        {% endif %}
+                    </div>
+
+                    <aside class="side-panel">
+                        <div class="side-block">
+                            <h2 class="side-title">Purchase orders</h2>
+                            <div class="side-value">
+                                {{ po_numbers|join(', ') if po_numbers else 'Stock / No PO' }}
+                            </div>
+                        </div>
+                        <div class="side-block">
+                            <h2 class="side-title">Pallet notes</h2>
+                            <div class="side-value">{{ pallet.notes|default('') or 'None' }}</div>
+                        </div>
+                        <div class="side-block">
+                            <h2 class="side-title">Plan totals</h2>
+                            <div class="side-value">
+                                {{ plan.summary.complete_tables }} complete tables<br>
+                                {{ plan.summary.physical_pallets }} physical pallets
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+
+                {% if carried_rails %}
+                    <div class="rails-on-top">
+                        Top-load:
+                        {% for line in carried_rails %}
+                            {{ line.quantity }} x {{ line.size }} top rail{% if not loop.last %} | {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </article>
+        </section>
+    {% endfor %}
+</body>
+</html>
