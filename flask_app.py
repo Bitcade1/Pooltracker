@@ -2964,6 +2964,42 @@ def ensure_production_comparison_tables():
     ensure_cushion_workflow_tables()
 
 
+def count_wood_sheets_for_comparison(start_dt, end_dt):
+    entries = WoodCount.query.filter(
+        WoodCount.date >= start_dt.date(),
+        WoodCount.date <= end_dt.date(),
+        WoodCount.count > 0,
+    ).all()
+    entries = [
+        entry for entry in entries
+        if start_dt <= datetime.combine(entry.date, entry.time) <= end_dt
+    ]
+
+    regular_suffixes = (" - Body", " - Pod Sides", " - Bases")
+    regular_entries = [
+        entry for entry in entries
+        if entry.section.endswith(regular_suffixes)
+    ]
+    long_entries = [
+        entry for entry in entries
+        if entry.section.endswith(" - Top Rail Pieces Long")
+    ]
+    short_entries = [
+        entry for entry in entries
+        if entry.section.endswith(" - Top Rail Pieces Short")
+    ]
+    long_cuts = {
+        (entry.date, entry.section)
+        for entry in long_entries
+    }
+    standalone_short_count = sum(
+        1 for entry in short_entries
+        if (entry.date, entry.section.replace("Short", "Long")) not in long_cuts
+    )
+
+    return len(regular_entries) + len(long_entries) + standalone_short_count
+
+
 @app.route('/production_comparison')
 def production_comparison():
     if 'worker' not in session:
@@ -3043,14 +3079,90 @@ def production_comparison():
         "previous": previous_total,
     })
 
+    current_week_start = selected_date - timedelta(days=selected_date.weekday())
+    previous_week_start = current_week_start - timedelta(days=7)
+    previous_week_as_of_date = selected_date - timedelta(days=7)
+    current_week_start_dt = datetime.combine(current_week_start, time.min)
+    current_week_as_of_dt = datetime.combine(selected_date, selected_time)
+    previous_week_start_dt = datetime.combine(previous_week_start, time.min)
+    previous_week_as_of_dt = datetime.combine(previous_week_as_of_date, selected_time)
+
+    weekly_current_counts = {
+        "bodies": count_completed_to_clock(
+            CompletedTable, current_week_start, selected_date, selected_time, "finish_time"
+        ),
+        "pods": count_completed_to_clock(
+            CompletedPods, current_week_start, selected_date, selected_time, "finish_time"
+        ),
+        "cushions": CushionCompletedSet.query.filter(
+            CushionCompletedSet.completed_at >= current_week_start_dt,
+            CushionCompletedSet.completed_at <= current_week_as_of_dt,
+        ).count(),
+        "wood_cut": count_wood_sheets_for_comparison(
+            current_week_start_dt, current_week_as_of_dt
+        ),
+        "top_rails": count_completed_to_clock(
+            TopRail, current_week_start, selected_date, selected_time, "finish_time"
+        ),
+    }
+    weekly_previous_counts = {
+        "bodies": count_completed_to_clock(
+            CompletedTable, previous_week_start, previous_week_as_of_date, selected_time, "finish_time"
+        ),
+        "pods": count_completed_to_clock(
+            CompletedPods, previous_week_start, previous_week_as_of_date, selected_time, "finish_time"
+        ),
+        "cushions": CushionCompletedSet.query.filter(
+            CushionCompletedSet.completed_at >= previous_week_start_dt,
+            CushionCompletedSet.completed_at <= previous_week_as_of_dt,
+        ).count(),
+        "wood_cut": count_wood_sheets_for_comparison(
+            previous_week_start_dt, previous_week_as_of_dt
+        ),
+        "top_rails": count_completed_to_clock(
+            TopRail, previous_week_start, previous_week_as_of_date, selected_time, "finish_time"
+        ),
+    }
+    weekly_labels = {
+        "bodies": "Bodies",
+        "pods": "Pods",
+        "cushions": "Cushion Sets",
+        "wood_cut": "Wood Cut (Sheets)",
+        "top_rails": "Top Rails",
+    }
+    weekly_rows = []
+    for key in ("bodies", "pods", "cushions", "wood_cut", "top_rails"):
+        current_count = weekly_current_counts[key]
+        previous_count = weekly_previous_counts[key]
+        row = {
+            "key": key,
+            "label": weekly_labels[key],
+            "current": current_count,
+            "previous": previous_count,
+        }
+        row.update(component_delta_summary(current_count, previous_count))
+        max_value = max(current_count, previous_count, 1)
+        row["current_bar_width"] = round((current_count / max_value) * 100, 1)
+        row["previous_bar_width"] = round((previous_count / max_value) * 100, 1)
+        weekly_rows.append(row)
+
     return render_template(
         'production_comparison.html',
         rows=rows,
+        weekly_rows=weekly_rows,
         total_summary=total_summary,
         current_period_label=f"{current_month_start.strftime('%d %b %Y')} to {current_as_of_dt.strftime('%d %b %Y %H:%M')}",
         previous_period_label=f"{previous_month_start.strftime('%d %b %Y')} to {previous_as_of_dt.strftime('%d %b %Y %H:%M')}",
         current_month_label=current_month_start.strftime("%B %Y"),
         previous_month_label=previous_month_start.strftime("%B %Y"),
+        current_week_period_label=(
+            f"{current_week_start.strftime('%d %b %Y')} to "
+            f"{current_week_as_of_dt.strftime('%d %b %Y %H:%M')}"
+        ),
+        previous_week_period_label=(
+            f"{previous_week_start.strftime('%d %b %Y')} to "
+            f"{previous_week_as_of_dt.strftime('%d %b %Y %H:%M')}"
+        ),
         selected_date=selected_date.strftime("%Y-%m-%d"),
         max_compare_date=today.strftime("%Y-%m-%d"),
     )

@@ -409,6 +409,58 @@
             {% endif %}
         </section>
 
+        <section class="panel" aria-label="Weekly production comparison">
+            <div class="panel-heading">
+                <h2>This Week Compared to Last Week</h2>
+                <div class="meta">
+                    {{ current_week_period_label }} vs {{ previous_week_period_label }}
+                </div>
+            </div>
+            {% if weekly_rows %}
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Production Area</th>
+                        <th class="numeric">This Week</th>
+                        <th class="numeric">Same Time Last Week</th>
+                        <th class="numeric">Difference</th>
+                        <th class="numeric">Change</th>
+                        <th>Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in weekly_rows %}
+                    <tr>
+                        <td class="component-name">{{ row.label }}</td>
+                        <td class="numeric">{{ row.current }}</td>
+                        <td class="numeric">{{ row.previous }}</td>
+                        <td class="numeric {{ row.delta_class }}">{{ row.delta_label }}</td>
+                        <td class="numeric {{ row.delta_class }}">{{ row.percent_label }}</td>
+                        <td>
+                            <div class="bar-stack">
+                                <div class="bar-row">
+                                    <span class="bar-label">This week</span>
+                                    <div class="track">
+                                        <div class="fill current" style="width: {{ row.current_bar_width }}%;"></div>
+                                    </div>
+                                </div>
+                                <div class="bar-row">
+                                    <span class="bar-label">Last week</span>
+                                    <div class="track">
+                                        <div class="fill previous" style="width: {{ row.previous_bar_width }}%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-note">No weekly production records found.</div>
+            {% endif %}
+        </section>
+
     </main>
 </body>
 </html>
