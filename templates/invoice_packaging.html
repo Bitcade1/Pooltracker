@@ -93,7 +93,7 @@
     }
 
     .config-grid {
-        grid-template-columns: repeat(6, minmax(120px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     }
 
     .summary-grid {
@@ -699,6 +699,10 @@
                 <input type="number" min="1" max="100" id="config-loose_rail_limit">
             </label>
             <label class="field">
+                Rails per body pallet
+                <input type="number" min="1" max="20" id="config-top_rails_per_body_pallet">
+            </label>
+            <label class="field">
                 Cushion pallets
                 <input type="number" min="1" max="50" id="config-cushion_pallet_count">
             </label>
@@ -923,7 +927,8 @@
     function readConfig() {
         const keys = [
             "body_capacity", "top_rail_capacity", "loose_rail_limit",
-            "cushion_pallet_count", "legs_per_6ft_table", "legs_per_box"
+            "top_rails_per_body_pallet", "cushion_pallet_count",
+            "legs_per_6ft_table", "legs_per_box"
         ];
         keys.forEach((key) => {
             state.config[key] = integerValue(

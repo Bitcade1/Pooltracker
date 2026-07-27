@@ -494,6 +494,10 @@ def normalise_config(config):
         "body_capacity": max(1, min(50, _safe_quantity(config.get("body_capacity"), 5))),
         "top_rail_capacity": max(1, min(100, _safe_quantity(config.get("top_rail_capacity"), 15))),
         "loose_rail_limit": max(1, min(100, _safe_quantity(config.get("loose_rail_limit"), 10))),
+        "top_rails_per_body_pallet": max(
+            1,
+            min(20, _safe_quantity(config.get("top_rails_per_body_pallet"), 2)),
+        ),
         "cushion_pallet_count": max(1, min(50, _safe_quantity(config.get("cushion_pallet_count"), 1))),
         "legs_per_6ft_table": max(0, min(100, int(config.get("legs_per_6ft_table", 4) or 0))),
         "legs_per_box": max(1, min(100, _safe_quantity(config.get("legs_per_box"), 8))),
@@ -641,7 +645,7 @@ def _refresh_pallet_labels(pallet, config):
     return pallet
 
 
-def _compatible_body_pallet(body_pallets, rail_size):
+def _compatible_body_pallet(body_pallets, rail_size, config):
     candidates = []
     for pallet in body_pallets:
         sizes = {line.get("size") for line in pallet["lines"]}
@@ -649,10 +653,20 @@ def _compatible_body_pallet(body_pallets, rail_size):
             continue
         if rail_size == "6ft" and not sizes.intersection({"6ft", "7ft"}):
             continue
+        carried_lines = pallet.get("carried_top_rails", [])
+        carried_count = _line_total(carried_lines)
+        if carried_count >= config["top_rails_per_body_pallet"]:
+            continue
+        carried_sizes = {
+            line.get("size") for line in carried_lines
+            if line.get("size")
+        }
+        if carried_sizes and rail_size not in carried_sizes:
+            continue
         candidates.append(pallet)
     candidates.sort(key=lambda pallet: (
-        pallet.get("capacity_used", 0) >= pallet.get("capacity", 5),
-        len(pallet.get("carried_top_rails", [])),
+        _line_total(pallet.get("carried_top_rails", [])),
+        pallet.get("capacity_used", 0) < pallet.get("capacity", 5),
         pallet["pallet_number"],
     ))
     return candidates[0] if candidates else None
@@ -690,19 +704,29 @@ def generate_packaging(items, config=None):
         remainder = _line_total(rail_lines)
         if not remainder:
             continue
-        suitable_body = (
-            _compatible_body_pallet(body_pallets, size)
-            if remainder < config["loose_rail_limit"]
-            else None
-        )
-        if suitable_body:
-            suitable_body["carried_top_rails"].extend(
-                _take_from_lines(rail_lines, remainder)
-            )
-        else:
+        if remainder < config["loose_rail_limit"]:
+            while _line_total(rail_lines):
+                suitable_body = _compatible_body_pallet(
+                    body_pallets, size, config
+                )
+                if not suitable_body:
+                    break
+                available_space = (
+                    config["top_rails_per_body_pallet"]
+                    - _line_total(suitable_body.get("carried_top_rails", []))
+                )
+                suitable_body["carried_top_rails"].extend(
+                    _take_from_lines(
+                        rail_lines,
+                        min(available_space, _line_total(rail_lines)),
+                    )
+                )
+
+        remaining_after_body_pallets = _line_total(rail_lines)
+        if remaining_after_body_pallets:
             pallet = _new_pallet(
                 "top_rail", next_number,
-                _take_from_lines(rail_lines, remainder),
+                _take_from_lines(rail_lines, remaining_after_body_pallets),
                 size=size,
             )
             _refresh_pallet_labels(pallet, config)
@@ -865,6 +889,14 @@ def validate_packaging(items, pallets, config=None, requirements=None):
                 "important",
             ))
         carried_count = _line_total(pallet.get("carried_top_rails", []))
+        if carried_count > config["top_rails_per_body_pallet"]:
+            warnings.append(_warning(
+                "body_pallet_rail_capacity",
+                f"Pallet {pallet.get('pallet_number')} carries {carried_count} top rails; "
+                f"the maximum on one body pallet is "
+                f"{config['top_rails_per_body_pallet']}.",
+                "important",
+            ))
         if carried_count >= config["loose_rail_limit"]:
             warnings.append(_warning(
                 "too_many_carried_rails",
