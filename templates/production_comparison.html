@@ -67,7 +67,8 @@
             font-weight: 700;
         }
 
-        .date-form input[type="date"] {
+        .date-form input[type="date"],
+        .date-form input[type="week"] {
             min-height: 38px;
             padding: 0 10px;
             border: 1px solid #cbd5e1;
@@ -333,6 +334,7 @@
             </div>
             <nav class="actions" aria-label="Page actions">
                 <form class="date-form" method="get" action="{{ url_for('production_comparison') }}">
+                    <input type="hidden" name="compare_week" value="{{ selected_week }}">
                     <label for="compare_date">
                         Compare date
                         <input type="date" id="compare_date" name="compare_date" value="{{ selected_date }}" max="{{ max_compare_date }}">
@@ -411,10 +413,20 @@
 
         <section class="panel" aria-label="Weekly production comparison">
             <div class="panel-heading">
-                <h2>This Week Compared to Last Week</h2>
-                <div class="meta">
-                    {{ current_week_period_label }} vs {{ previous_week_period_label }}
+                <div>
+                    <h2>Selected Week Compared to Previous Week</h2>
+                    <div class="meta">
+                        {{ current_week_period_label }} vs {{ previous_week_period_label }}
+                    </div>
                 </div>
+                <form class="date-form" method="get" action="{{ url_for('production_comparison') }}">
+                    <input type="hidden" name="compare_date" value="{{ selected_date }}">
+                    <label for="compare_week">
+                        Select week
+                        <input type="week" id="compare_week" name="compare_week" value="{{ selected_week }}" max="{{ max_compare_week }}">
+                    </label>
+                    <button type="submit">Compare Week</button>
+                </form>
             </div>
             {% if weekly_rows %}
             <table class="comparison-table">

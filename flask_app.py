@@ -2725,6 +2725,17 @@ def parse_compare_date(value, fallback_date):
         return fallback_date
 
 
+def parse_compare_week(value, fallback_date):
+    fallback_monday = fallback_date - timedelta(days=fallback_date.weekday())
+    if not value:
+        return fallback_monday
+    try:
+        year_text, week_text = value.split("-W", 1)
+        return date.fromisocalendar(int(year_text), int(week_text), 1)
+    except (AttributeError, TypeError, ValueError):
+        return fallback_monday
+
+
 def parse_completion_time(value):
     if isinstance(value, time):
         return value
@@ -3079,20 +3090,21 @@ def production_comparison():
         "previous": previous_total,
     })
 
-    current_week_start = selected_date - timedelta(days=selected_date.weekday())
+    current_week_start = parse_compare_week(request.args.get("compare_week"), today)
+    current_week_end = current_week_start + timedelta(days=6)
     previous_week_start = current_week_start - timedelta(days=7)
-    previous_week_as_of_date = selected_date - timedelta(days=7)
+    previous_week_end = current_week_start - timedelta(days=1)
     current_week_start_dt = datetime.combine(current_week_start, time.min)
-    current_week_as_of_dt = datetime.combine(selected_date, selected_time)
+    current_week_as_of_dt = datetime.combine(current_week_end, time.max)
     previous_week_start_dt = datetime.combine(previous_week_start, time.min)
-    previous_week_as_of_dt = datetime.combine(previous_week_as_of_date, selected_time)
+    previous_week_as_of_dt = datetime.combine(previous_week_end, time.max)
 
     weekly_current_counts = {
         "bodies": count_completed_to_clock(
-            CompletedTable, current_week_start, selected_date, selected_time, "finish_time"
+            CompletedTable, current_week_start, current_week_end, time.max, "finish_time"
         ),
         "pods": count_completed_to_clock(
-            CompletedPods, current_week_start, selected_date, selected_time, "finish_time"
+            CompletedPods, current_week_start, current_week_end, time.max, "finish_time"
         ),
         "cushions": CushionCompletedSet.query.filter(
             CushionCompletedSet.completed_at >= current_week_start_dt,
@@ -3102,15 +3114,15 @@ def production_comparison():
             current_week_start_dt, current_week_as_of_dt
         ),
         "top_rails": count_completed_to_clock(
-            TopRail, current_week_start, selected_date, selected_time, "finish_time"
+            TopRail, current_week_start, current_week_end, time.max, "finish_time"
         ),
     }
     weekly_previous_counts = {
         "bodies": count_completed_to_clock(
-            CompletedTable, previous_week_start, previous_week_as_of_date, selected_time, "finish_time"
+            CompletedTable, previous_week_start, previous_week_end, time.max, "finish_time"
         ),
         "pods": count_completed_to_clock(
-            CompletedPods, previous_week_start, previous_week_as_of_date, selected_time, "finish_time"
+            CompletedPods, previous_week_start, previous_week_end, time.max, "finish_time"
         ),
         "cushions": CushionCompletedSet.query.filter(
             CushionCompletedSet.completed_at >= previous_week_start_dt,
@@ -3120,7 +3132,7 @@ def production_comparison():
             previous_week_start_dt, previous_week_as_of_dt
         ),
         "top_rails": count_completed_to_clock(
-            TopRail, previous_week_start, previous_week_as_of_date, selected_time, "finish_time"
+            TopRail, previous_week_start, previous_week_end, time.max, "finish_time"
         ),
     }
     weekly_labels = {
@@ -3156,13 +3168,15 @@ def production_comparison():
         current_month_label=current_month_start.strftime("%B %Y"),
         previous_month_label=previous_month_start.strftime("%B %Y"),
         current_week_period_label=(
-            f"{current_week_start.strftime('%d %b %Y')} to "
-            f"{current_week_as_of_dt.strftime('%d %b %Y %H:%M')}"
+            f"Mon {current_week_start.strftime('%d %b %Y')} to "
+            f"Sun {current_week_end.strftime('%d %b %Y')}"
         ),
         previous_week_period_label=(
-            f"{previous_week_start.strftime('%d %b %Y')} to "
-            f"{previous_week_as_of_dt.strftime('%d %b %Y %H:%M')}"
+            f"Mon {previous_week_start.strftime('%d %b %Y')} to "
+            f"Sun {previous_week_end.strftime('%d %b %Y')}"
         ),
+        selected_week=f"{current_week_start.isocalendar().year}-W{current_week_start.isocalendar().week:02d}",
+        max_compare_week=f"{today.isocalendar().year}-W{today.isocalendar().week:02d}",
         selected_date=selected_date.strftime("%Y-%m-%d"),
         max_compare_date=today.strftime("%Y-%m-%d"),
     )
