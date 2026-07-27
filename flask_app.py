@@ -13,7 +13,6 @@ import re  # Add this import at the top of the file
 import csv
 import json
 import uuid
-import pypdf
 from math import ceil, floor
 from io import StringIO
 from packaging_planner import (
