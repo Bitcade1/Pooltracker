@@ -1,0 +1,1321 @@
+{% extends 'base.html' %}
+
+{% block title %}Invoice Packaging Planner{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        display: block;
+        background: #eef2f7;
+        color: #172033;
+    }
+
+    .packaging-page {
+        width: min(1500px, calc(100% - 28px));
+        margin: 0 auto;
+        padding: 22px 0 48px;
+        text-align: left;
+    }
+
+    .packaging-page * {
+        box-sizing: border-box;
+    }
+
+    .planner-header,
+    .panel-heading,
+    .toolbar,
+    .pallet-heading,
+    .warning-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .planner-header {
+        align-items: flex-start;
+        margin-bottom: 16px;
+    }
+
+    .planner-header h1 {
+        margin: 0 0 5px;
+        color: #0f172a;
+        font-size: clamp(1.65rem, 3vw, 2.35rem);
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #64748b;
+    }
+
+    .panel {
+        margin-top: 16px;
+        border: 1px solid #d7dee9;
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+    }
+
+    .panel-heading {
+        padding: 14px 16px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .panel-heading h2,
+    .panel-heading h3 {
+        margin: 0;
+        color: #0f172a;
+    }
+
+    .panel-heading p {
+        margin: 4px 0 0;
+        color: #64748b;
+    }
+
+    .panel-body {
+        padding: 16px;
+    }
+
+    .upload-grid,
+    .config-grid,
+    .summary-grid {
+        display: grid;
+        gap: 12px;
+    }
+
+    .upload-grid {
+        grid-template-columns: minmax(220px, 1fr) minmax(260px, 2fr) auto;
+        align-items: end;
+    }
+
+    .config-grid {
+        grid-template-columns: repeat(6, minmax(120px, 1fr));
+    }
+
+    .summary-grid {
+        grid-template-columns: repeat(5, minmax(130px, 1fr));
+    }
+
+    .field {
+        display: grid;
+        gap: 5px;
+        color: #334155;
+        font-size: 0.84rem;
+        font-weight: 800;
+    }
+
+    .field input,
+    .field select,
+    .field textarea,
+    .cell-input,
+    .cell-select,
+    .pallet-notes {
+        width: 100%;
+        min-height: 38px;
+        padding: 7px 9px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+    }
+
+    .field textarea {
+        min-height: 72px;
+        resize: vertical;
+    }
+
+    button,
+    .button-link {
+        min-height: 38px;
+        padding: 8px 13px;
+        border: 0;
+        border-radius: 6px;
+        background: #1d4ed8;
+        color: #fff;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    button:hover,
+    .button-link:hover {
+        background: #1e40af;
+    }
+
+    button.secondary,
+    .button-link.secondary {
+        background: #475569;
+    }
+
+    button.success {
+        background: #047857;
+    }
+
+    button.warning {
+        background: #b45309;
+    }
+
+    button.danger {
+        background: #b91c1c;
+    }
+
+    button.small {
+        min-height: 31px;
+        padding: 5px 9px;
+        font-size: 0.82rem;
+    }
+
+    button:disabled {
+        cursor: wait;
+        opacity: 0.55;
+    }
+
+    .toolbar {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .toolbar .push-right {
+        margin-left: auto;
+    }
+
+    .recent-plans {
+        min-width: min(360px, 100%);
+    }
+
+    .flash-list {
+        display: grid;
+        gap: 8px;
+        margin: 12px 0;
+    }
+
+    .flash-message,
+    .status-message {
+        padding: 11px 13px;
+        border-radius: 7px;
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+        color: #1e3a8a;
+        font-weight: 700;
+    }
+
+    .flash-message.error,
+    .status-message.error {
+        border-color: #fecaca;
+        background: #fef2f2;
+        color: #991b1b;
+    }
+
+    .flash-message.warning {
+        border-color: #fde68a;
+        background: #fffbeb;
+        color: #92400e;
+    }
+
+    .flash-message.success,
+    .status-message.success {
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+        color: #166534;
+    }
+
+    .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .data-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 9px;
+        border-bottom: 1px solid #e2e8f0;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .data-table th {
+        background: #f8fafc;
+        color: #475569;
+        font-size: 0.76rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .review-table {
+        min-width: 1270px;
+    }
+
+    .review-table .description-cell {
+        min-width: 230px;
+    }
+
+    .review-table .short-cell {
+        width: 85px;
+    }
+
+    .review-table .medium-cell {
+        min-width: 130px;
+    }
+
+    .source-note,
+    .confidence-note,
+    .muted {
+        display: block;
+        margin-top: 4px;
+        color: #64748b;
+        font-size: 0.76rem;
+        line-height: 1.3;
+    }
+
+    .confidence-note.needs-review {
+        color: #b45309;
+        font-weight: 800;
+    }
+
+    .summary-card {
+        padding: 13px;
+        border: 1px solid #dbe3ee;
+        border-radius: 8px;
+        background: #f8fafc;
+    }
+
+    .summary-label {
+        color: #64748b;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .summary-value {
+        margin-top: 5px;
+        color: #0f172a;
+        font-size: 1.8rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+    }
+
+    details.extraction-details {
+        border: 1px solid #f5d48b;
+        border-radius: 8px;
+        background: #fffbeb;
+        overflow: hidden;
+    }
+
+    details.extraction-details summary {
+        padding: 11px 13px;
+        cursor: pointer;
+        color: #92400e;
+        font-weight: 800;
+    }
+
+    .extraction-list {
+        margin: 0;
+        padding: 0 32px 13px;
+        color: #78350f;
+    }
+
+    .warnings-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .warning-row {
+        align-items: flex-start;
+        justify-content: flex-start;
+        padding: 10px 12px;
+        border: 1px solid #fde68a;
+        border-radius: 7px;
+        background: #fffbeb;
+        color: #78350f;
+    }
+
+    .warning-row.important {
+        border-color: #fca5a5;
+        background: #fef2f2;
+        color: #991b1b;
+    }
+
+    .warning-row input {
+        margin-top: 3px;
+    }
+
+    .warning-row.acknowledged {
+        opacity: 0.58;
+    }
+
+    .pallets-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 410px), 1fr));
+        gap: 12px;
+    }
+
+    .pallet-card {
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .pallet-card.body {
+        border-top: 5px solid #2563eb;
+    }
+
+    .pallet-card.top_rail {
+        border-top: 5px solid #f59e0b;
+    }
+
+    .pallet-card.cushion {
+        border-top: 5px solid #059669;
+    }
+
+    .pallet-card.custom {
+        border-top: 5px solid #7c3aed;
+    }
+
+    .pallet-heading {
+        padding: 11px 12px;
+        background: #f8fafc;
+        align-items: flex-start;
+    }
+
+    .pallet-title {
+        color: #0f172a;
+        font-size: 1.05rem;
+        font-weight: 900;
+    }
+
+    .pallet-meta {
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+
+    .pallet-controls {
+        padding: 10px 12px;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+        display: grid;
+        gap: 8px;
+    }
+
+    .mixed-control {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        color: #334155;
+        font-weight: 800;
+    }
+
+    .line-list {
+        display: grid;
+    }
+
+    .pallet-line {
+        padding: 10px 12px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .pallet-line:first-child {
+        border-top: 0;
+    }
+
+    .line-main {
+        color: #0f172a;
+        font-weight: 800;
+    }
+
+    .line-details {
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 0.82rem;
+        line-height: 1.35;
+    }
+
+    .line-actions {
+        display: grid;
+        grid-template-columns: 80px minmax(130px, 1fr) auto;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .on-top-label {
+        display: inline-block;
+        margin-bottom: 5px;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 0.72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .empty-state {
+        padding: 22px;
+        color: #64748b;
+        text-align: center;
+    }
+
+    .print-title {
+        display: none;
+    }
+
+    @media (max-width: 1050px) {
+        .config-grid {
+            grid-template-columns: repeat(3, minmax(130px, 1fr));
+        }
+
+        .summary-grid {
+            grid-template-columns: repeat(3, minmax(130px, 1fr));
+        }
+    }
+
+    @media (max-width: 760px) {
+        .packaging-page {
+            width: min(100% - 16px, 1500px);
+            padding-top: 12px;
+        }
+
+        .planner-header,
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .recent-plans {
+            min-width: 0;
+        }
+
+        .config-grid,
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .toolbar .push-right {
+            margin-left: 0;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .config-grid,
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .line-actions {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media print {
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
+        }
+
+        body {
+            background: #fff;
+            color: #000;
+        }
+
+        .site-header,
+        .site-footer,
+        .no-print,
+        .upload-panel,
+        .review-panel,
+        .config-panel,
+        .warning-controls,
+        .pallet-controls,
+        .line-actions {
+            display: none !important;
+        }
+
+        .container,
+        .packaging-page {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
+        }
+
+        .print-title {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .panel,
+        .pallet-card {
+            break-inside: avoid;
+            box-shadow: none;
+        }
+
+        .pallets-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+<main class="packaging-page">
+    <header class="planner-header">
+        <div>
+            <h1>Invoice Packaging Planner</h1>
+            <p class="subtitle">Upload invoices, review detected products, and build an editable pallet list.</p>
+        </div>
+        {% if recent_jobs %}
+        <label class="field recent-plans no-print">
+            Open a saved plan
+            <select onchange="if (this.value) window.location.href=this.value">
+                <option value="">Choose a plan</option>
+                {% for job in recent_jobs %}
+                <option value="{{ url_for('invoice_packaging', plan=job.id) }}" {% if plan and plan.id == job.id %}selected{% endif %}>
+                    #{{ job.id }} - {{ job.title }} - {{ job.updated_at.strftime('%d/%m/%Y %H:%M') }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+        {% endif %}
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-list no-print">
+            {% for category, message in messages %}
+            <div class="flash-message {{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <div id="status-message" class="status-message no-print" hidden></div>
+
+    <section class="panel upload-panel">
+        <div class="panel-heading">
+            <div>
+                <h2>1. Upload invoices</h2>
+                <p>Upload up to 20 files. Each file can be up to {{ max_upload_mb }} MB.</p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <form method="POST" enctype="multipart/form-data" class="upload-grid">
+                <label class="field">
+                    Plan name
+                    <input type="text" name="title" placeholder="Customer or dispatch name">
+                </label>
+                <label class="field">
+                    Invoice files
+                    <input type="file" name="invoices" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.csv,.xlsx,.xlsm,.docx,.txt">
+                </label>
+                <button type="submit">Extract and Review</button>
+            </form>
+            <p class="muted">
+                CSV, text PDFs, XLSX, DOCX, and OCR-enabled images are supported. Scanned files that cannot be read remain available for manual entry on the review screen.
+            </p>
+        </div>
+    </section>
+
+    {% if plan %}
+    <h1 class="print-title">{{ plan.title }} - Packaging List</h1>
+
+    {% if plan.extraction_warnings %}
+    <section class="panel no-print">
+        <div class="panel-body">
+            <details class="extraction-details">
+                <summary>{{ plan.extraction_warnings|length }} extraction warning(s) - open to review</summary>
+                <ul class="extraction-list">
+                    {% for warning in plan.extraction_warnings %}
+                    <li>{{ warning }}</li>
+                    {% endfor %}
+                </ul>
+            </details>
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="panel review-panel">
+        <div class="panel-heading">
+            <div>
+                <h2>2. Review invoice items</h2>
+                <p>Correct every detected field before generating the packaging list.</p>
+            </div>
+            <button type="button" onclick="addItem()">Add Item</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table review-table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Qty</th>
+                        <th>Size</th>
+                        <th>Model</th>
+                        <th>Colour</th>
+                        <th>Order type</th>
+                        <th>PO number</th>
+                        <th>Notes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="items-body"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel config-panel">
+        <div class="panel-heading">
+            <div>
+                <h2>Packaging rules</h2>
+                <p>Defaults match the requested body, rail, cushion, and leg rules.</p>
+            </div>
+        </div>
+        <div class="panel-body config-grid">
+            <label class="field">
+                Bodies per pallet
+                <input type="number" min="1" max="50" id="config-body_capacity">
+            </label>
+            <label class="field">
+                Rails per pallet
+                <input type="number" min="1" max="100" id="config-top_rail_capacity">
+            </label>
+            <label class="field">
+                Loose rail limit
+                <input type="number" min="1" max="100" id="config-loose_rail_limit">
+            </label>
+            <label class="field">
+                Cushion pallets
+                <input type="number" min="1" max="50" id="config-cushion_pallet_count">
+            </label>
+            <label class="field">
+                Legs per 6ft table
+                <input type="number" min="0" max="100" id="config-legs_per_6ft_table">
+            </label>
+            <label class="field">
+                Legs per box
+                <input type="number" min="1" max="100" id="config-legs_per_box">
+            </label>
+        </div>
+    </section>
+
+    <section class="panel no-print">
+        <div class="panel-body">
+            <div class="toolbar">
+                <button type="button" class="success" onclick="generatePlan()">Save and Generate Packaging</button>
+                <button type="button" class="secondary" onclick="savePlan()">Save Current Changes</button>
+                <button type="button" class="warning" onclick="validatePlan()">Validate Packaging</button>
+                <button type="button" class="secondary" onclick="window.print()">Print Packaging List</button>
+                <button type="button" class="push-right" onclick="addPallet()">Create Pallet</button>
+            </div>
+            <label class="field" style="margin-top: 12px;">
+                Plan notes
+                <textarea id="plan-notes" placeholder="Dispatch, loading, or customer notes"></textarea>
+            </label>
+        </div>
+    </section>
+
+    <section class="panel" aria-label="Loading summary">
+        <div class="panel-heading">
+            <div>
+                <h2>Loading Summary</h2>
+                <p id="summary-subtitle">Generate the plan to calculate pallet totals.</p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="summary-grid" id="summary-grid"></div>
+        </div>
+    </section>
+
+    <section class="panel" aria-label="Order summary">
+        <div class="panel-heading">
+            <div>
+                <h2>Order Summary</h2>
+                <p>Grouped by size, model, colour, order type, and purchase order.</p>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Size</th>
+                        <th>Model</th>
+                        <th>Colour</th>
+                        <th>Order type</th>
+                        <th>PO number</th>
+                        <th>Quantity</th>
+                    </tr>
+                </thead>
+                <tbody id="order-summary-body"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel" aria-label="Validation warnings">
+        <div class="panel-heading">
+            <div>
+                <h2>Validation and Warnings</h2>
+                <p>Important overrides must be acknowledged before the final list is used.</p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="warnings-list" id="warnings-list"></div>
+        </div>
+    </section>
+
+    <section class="panel" aria-label="Pallet plan">
+        <div class="panel-heading">
+            <div>
+                <h2>3. Packaging List</h2>
+                <p>Move lines, change quantities, add pallets, or delete pallets as required.</p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="pallets-grid" id="pallets-grid"></div>
+        </div>
+    </section>
+    {% endif %}
+</main>
+
+{% if plan %}
+<script>
+    const itemTypeLabels = {{ item_type_labels|tojson }};
+    const planId = {{ plan.id|tojson }};
+    let state = {{ plan|tojson }};
+    let busy = false;
+
+    const componentLabels = {
+        body: "Body",
+        top_rail: "Top rail",
+        cushion: "Cushion set",
+        leg_box: "Leg box",
+        other: "Other"
+    };
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function makeId(prefix) {
+        if (window.crypto && window.crypto.randomUUID) {
+            return `${prefix}-${window.crypto.randomUUID()}`;
+        }
+        return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function integerValue(value, fallback = 0) {
+        const number = parseInt(value, 10);
+        return Number.isFinite(number) ? number : fallback;
+    }
+
+    function setStatus(message, kind = "") {
+        const element = document.getElementById("status-message");
+        element.textContent = message;
+        element.className = `status-message no-print ${kind}`;
+        element.hidden = false;
+        window.clearTimeout(setStatus.timer);
+        setStatus.timer = window.setTimeout(() => {
+            element.hidden = true;
+        }, 6000);
+    }
+
+    function setBusy(value) {
+        busy = value;
+        document.querySelectorAll("button").forEach((button) => {
+            if (button.type !== "submit" || button.closest(".review-panel")) {
+                button.disabled = value;
+            }
+        });
+    }
+
+    function typeOptions(selected) {
+        return Object.entries(itemTypeLabels).map(([value, label]) => (
+            `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`
+        )).join("");
+    }
+
+    function sizeOptions(selected) {
+        return ["", "6ft", "7ft"].map((value) => {
+            const label = value || "Choose";
+            return `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`;
+        }).join("");
+    }
+
+    function renderItems() {
+        const body = document.getElementById("items-body");
+        if (!state.items.length) {
+            body.innerHTML = `<tr><td colspan="9" class="empty-state">No products detected. Use Add Item to enter the invoice manually.</td></tr>`;
+            return;
+        }
+        body.innerHTML = state.items.map((item, index) => {
+            const confidence = Number(item.confidence ?? 1);
+            return `
+                <tr>
+                    <td class="description-cell">
+                        <input class="cell-input" value="${escapeHtml(item.description)}" onchange="updateItem(${index}, 'description', this.value)">
+                        <span class="source-note">${escapeHtml(item.source_file || "Manual item")}</span>
+                        <span class="confidence-note ${confidence < 0.65 ? "needs-review" : ""}">
+                            ${confidence < 0.65 ? "Needs review - " : ""}${Math.round(confidence * 100)}% extraction confidence
+                        </span>
+                    </td>
+                    <td class="short-cell"><input class="cell-input" type="number" min="1" value="${integerValue(item.quantity, 1)}" onchange="updateItem(${index}, 'quantity', this.value)"></td>
+                    <td class="medium-cell"><select class="cell-select" onchange="updateItem(${index}, 'size', this.value)">${sizeOptions(item.size)}</select></td>
+                    <td class="medium-cell"><input class="cell-input" list="model-options" value="${escapeHtml(item.model)}" onchange="updateItem(${index}, 'model', this.value)"></td>
+                    <td class="medium-cell"><input class="cell-input" list="colour-options" value="${escapeHtml(item.colour)}" onchange="updateItem(${index}, 'colour', this.value)"></td>
+                    <td class="medium-cell"><select class="cell-select" onchange="updateItem(${index}, 'item_type', this.value)">${typeOptions(item.item_type)}</select></td>
+                    <td class="medium-cell"><input class="cell-input" value="${escapeHtml(item.po_number)}" onchange="updateItem(${index}, 'po_number', this.value)"></td>
+                    <td class="medium-cell"><input class="cell-input" value="${escapeHtml(item.notes)}" onchange="updateItem(${index}, 'notes', this.value)"></td>
+                    <td><button type="button" class="small danger" onclick="removeItem(${index})">Remove</button></td>
+                </tr>
+            `;
+        }).join("");
+    }
+
+    function updateItem(index, field, value) {
+        if (!state.items[index]) return;
+        state.items[index][field] = field === "quantity" ? Math.max(1, integerValue(value, 1)) : value;
+        state.items[index].confidence = 1;
+    }
+
+    function addItem() {
+        state.items.push({
+            id: makeId("item"),
+            source_file: "",
+            description: "Manual item",
+            size: "",
+            model: "",
+            colour: "",
+            quantity: 1,
+            item_type: "complete_table",
+            po_number: "",
+            notes: "",
+            confidence: 1,
+            raw_text: ""
+        });
+        renderItems();
+    }
+
+    function removeItem(index) {
+        if (!window.confirm("Remove this invoice item? Regenerate afterwards to update its components.")) return;
+        state.items.splice(index, 1);
+        renderItems();
+    }
+
+    function readConfig() {
+        const keys = [
+            "body_capacity", "top_rail_capacity", "loose_rail_limit",
+            "cushion_pallet_count", "legs_per_6ft_table", "legs_per_box"
+        ];
+        keys.forEach((key) => {
+            state.config[key] = integerValue(
+                document.getElementById(`config-${key}`).value,
+                state.config[key]
+            );
+        });
+        state.notes = document.getElementById("plan-notes").value;
+    }
+
+    function populateConfig() {
+        Object.entries(state.config).forEach(([key, value]) => {
+            const input = document.getElementById(`config-${key}`);
+            if (input) input.value = value;
+        });
+        document.getElementById("plan-notes").value = state.notes || "";
+    }
+
+    function summaryCards(summary) {
+        const cards = [
+            ["Complete tables", summary.complete_tables],
+            ["Bodies", summary.total_bodies],
+            ["Top rails", summary.total_top_rails],
+            ["Cushion sets", summary.total_cushion_sets],
+            ["Leg boxes", summary.total_leg_boxes],
+            ["Body pallets", summary.body_pallets],
+            ["Dedicated rail pallets", summary.top_rail_pallets],
+            ["Cushion pallets", summary.cushion_pallets],
+            ["Physical pallets", summary.physical_pallets],
+            ["Rails on body pallets", summary.carried_top_rails],
+            ["6ft cushion sets", summary.cushions_6ft],
+            ["7ft cushion sets", summary.cushions_7ft],
+            ["6ft legs required", summary.required_6ft_legs]
+        ];
+        return cards.map(([label, value]) => `
+            <div class="summary-card">
+                <div class="summary-label">${escapeHtml(label)}</div>
+                <div class="summary-value">${integerValue(value, 0)}</div>
+            </div>
+        `).join("");
+    }
+
+    function renderSummary() {
+        const summary = state.summary || {};
+        document.getElementById("summary-grid").innerHTML = summaryCards(summary);
+        document.getElementById("summary-subtitle").textContent = state.pallets.length
+            ? `${integerValue(summary.physical_pallets, 0)} physical pallet(s) in this plan.`
+            : "Generate the plan to calculate pallet totals.";
+        const groups = summary.order_groups || [];
+        document.getElementById("order-summary-body").innerHTML = groups.length
+            ? groups.map((group) => `
+                <tr>
+                    <td>${escapeHtml(group.size)}</td>
+                    <td>${escapeHtml(group.model)}</td>
+                    <td>${escapeHtml(group.colour)}</td>
+                    <td>${escapeHtml(group.item_type)}</td>
+                    <td>${escapeHtml(group.po_number)}</td>
+                    <td>${integerValue(group.quantity, 0)}</td>
+                </tr>
+            `).join("")
+            : `<tr><td colspan="6" class="empty-state">No order items yet.</td></tr>`;
+    }
+
+    function renderWarnings() {
+        const container = document.getElementById("warnings-list");
+        const warnings = state.warnings || [];
+        if (!warnings.length) {
+            container.innerHTML = `<div class="status-message success">No packaging warnings found.</div>`;
+            return;
+        }
+        const acknowledged = new Set(state.acknowledged_warning_ids || []);
+        container.innerHTML = warnings.map((warning) => `
+            <label class="warning-row ${warning.severity === "important" ? "important" : ""} ${acknowledged.has(warning.id) ? "acknowledged" : ""}">
+                <input class="warning-controls" type="checkbox" ${acknowledged.has(warning.id) ? "checked" : ""}
+                    onchange="acknowledgeWarning('${escapeHtml(warning.id)}', this.checked)">
+                <span><strong>${warning.severity === "important" ? "Important override" : "Check"}:</strong> ${escapeHtml(warning.message)}</span>
+            </label>
+        `).join("");
+    }
+
+    function acknowledgeWarning(warningId, checked) {
+        const acknowledged = new Set(state.acknowledged_warning_ids || []);
+        if (checked) acknowledged.add(warningId);
+        else acknowledged.delete(warningId);
+        state.acknowledged_warning_ids = Array.from(acknowledged);
+        renderWarnings();
+    }
+
+    function palletTypeLabel(type) {
+        return {
+            body: "Body pallet",
+            top_rail: "Dedicated top-rail pallet",
+            cushion: "Cushion and leg pallet",
+            custom: "Custom pallet"
+        }[type] || "Pallet";
+    }
+
+    function allPalletOptions(currentId) {
+        return state.pallets.map((pallet) => (
+            `<option value="${escapeHtml(pallet.id)}" ${pallet.id === currentId ? "selected" : ""}>Pallet ${escapeHtml(pallet.pallet_number)} - ${escapeHtml(palletTypeLabel(pallet.pallet_type))}</option>`
+        )).join("");
+    }
+
+    function lineHtml(pallet, line, carried) {
+        const details = [
+            line.size,
+            line.model,
+            line.colour,
+            line.po_number ? `PO ${line.po_number}` : "",
+            line.description
+        ].filter(Boolean).join(" | ");
+        return `
+            <div class="pallet-line">
+                ${carried ? `<span class="on-top-label">Carried on body pallet</span>` : ""}
+                <div class="line-main">${integerValue(line.quantity, 0)} x ${escapeHtml(componentLabels[line.component_type] || line.component_type || "Item")}</div>
+                <div class="line-details">${escapeHtml(details || "Manual allocation")}</div>
+                <div class="line-actions no-print">
+                    <input class="cell-input" type="number" min="0" value="${integerValue(line.quantity, 0)}"
+                        aria-label="Line quantity"
+                        onchange="changeLineQuantity('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value)">
+                    <select class="cell-select" aria-label="Move line target"
+                        onchange="moveLine('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value); this.value='${escapeHtml(pallet.id)}';">
+                        ${allPalletOptions(pallet.id)}
+                    </select>
+                    <button type="button" class="small danger" onclick="removeLine('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})">Remove</button>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderPallets() {
+        const container = document.getElementById("pallets-grid");
+        if (!state.pallets.length) {
+            container.innerHTML = `<div class="empty-state">No pallets generated yet. Review the items and select Save and Generate Packaging.</div>`;
+            return;
+        }
+        state.pallets.sort((a, b) => integerValue(a.pallet_number) - integerValue(b.pallet_number));
+        container.innerHTML = state.pallets.map((pallet) => {
+            const lines = pallet.lines || [];
+            const carried = pallet.carried_top_rails || [];
+            const used = lines.reduce((total, line) => total + integerValue(line.quantity), 0);
+            const capacityText = pallet.capacity
+                ? `${used} of ${pallet.capacity} capacity`
+                : `${used} item(s)`;
+            return `
+                <article class="pallet-card ${escapeHtml(pallet.pallet_type)}">
+                    <div class="pallet-heading">
+                        <div>
+                            <div class="pallet-title">Pallet ${escapeHtml(pallet.pallet_number)} - ${escapeHtml(palletTypeLabel(pallet.pallet_type))}</div>
+                            <div class="pallet-meta">${escapeHtml(capacityText)} | ${escapeHtml(pallet.status || "manual")}${pallet.is_mixed ? " | Mixed" : ""}</div>
+                        </div>
+                        <button type="button" class="small danger no-print" onclick="deletePallet('${escapeHtml(pallet.id)}')">Delete</button>
+                    </div>
+                    <div class="line-list">
+                        ${lines.map((line) => lineHtml(pallet, line, false)).join("")}
+                        ${carried.map((line) => lineHtml(pallet, line, true)).join("")}
+                        ${!lines.length && !carried.length ? `<div class="empty-state">Empty pallet</div>` : ""}
+                    </div>
+                    <div class="pallet-controls">
+                        <label class="mixed-control">
+                            <input type="checkbox" ${pallet.is_mixed ? "checked" : ""} onchange="updatePallet('${escapeHtml(pallet.id)}', 'is_mixed', this.checked)">
+                            Mark pallet as mixed
+                        </label>
+                        <input class="pallet-notes" value="${escapeHtml(pallet.notes || "")}" placeholder="Pallet notes"
+                            onchange="updatePallet('${escapeHtml(pallet.id)}', 'notes', this.value)">
+                        <button type="button" class="small secondary" onclick="addManualLine('${escapeHtml(pallet.id)}')">Add Allocation</button>
+                    </div>
+                </article>
+            `;
+        }).join("");
+    }
+
+    function palletById(palletId) {
+        return state.pallets.find((pallet) => pallet.id === palletId);
+    }
+
+    function updatePallet(palletId, field, value) {
+        const pallet = palletById(palletId);
+        if (!pallet) return;
+        pallet[field] = value;
+        pallet.manual_override = true;
+    }
+
+    function findLine(pallet, lineId, carried) {
+        const collection = carried ? pallet.carried_top_rails : pallet.lines;
+        const index = (collection || []).findIndex((line) => line.id === lineId);
+        return {collection, index, line: index >= 0 ? collection[index] : null};
+    }
+
+    function changeLineQuantity(palletId, lineId, carried, value) {
+        const pallet = palletById(palletId);
+        if (!pallet) return;
+        const result = findLine(pallet, lineId, carried);
+        if (!result.line) return;
+        result.line.quantity = Math.max(0, integerValue(value));
+        pallet.manual_override = true;
+        renderPallets();
+    }
+
+    function moveLine(sourcePalletId, lineId, carried, targetPalletId) {
+        if (!targetPalletId || targetPalletId === sourcePalletId) return;
+        const source = palletById(sourcePalletId);
+        const target = palletById(targetPalletId);
+        if (!source || !target) return;
+        const result = findLine(source, lineId, carried);
+        if (!result.line) return;
+        result.collection.splice(result.index, 1);
+        if (result.line.component_type === "top_rail" && target.pallet_type === "body") {
+            target.carried_top_rails = target.carried_top_rails || [];
+            target.carried_top_rails.push(result.line);
+        } else {
+            target.lines = target.lines || [];
+            target.lines.push(result.line);
+        }
+        source.manual_override = true;
+        target.manual_override = true;
+        renderPallets();
+    }
+
+    function removeLine(palletId, lineId, carried) {
+        if (!window.confirm("Remove this allocation from the pallet? Validation will flag any missing quantity.")) return;
+        const pallet = palletById(palletId);
+        if (!pallet) return;
+        const result = findLine(pallet, lineId, carried);
+        if (result.index >= 0) result.collection.splice(result.index, 1);
+        pallet.manual_override = true;
+        renderPallets();
+    }
+
+    function addManualLine(palletId) {
+        const pallet = palletById(palletId);
+        if (!pallet) return;
+        const componentType = window.prompt("Component type: body, top_rail, cushion, leg_box, or other", "body");
+        if (!componentType) return;
+        const quantity = Math.max(1, integerValue(window.prompt("Quantity", "1"), 1));
+        const size = window.prompt("Size (6ft, 7ft, or blank)", "") || "";
+        const description = window.prompt("Description", "Manual allocation") || "Manual allocation";
+        const line = {
+            id: makeId("line"),
+            item_id: "",
+            component_type: componentType,
+            size,
+            model: "",
+            colour: "",
+            quantity,
+            po_number: "",
+            description,
+            notes: "Manual pallet allocation",
+            source_file: "",
+            origin_type: "manual"
+        };
+        if (componentType === "top_rail" && pallet.pallet_type === "body") {
+            pallet.carried_top_rails = pallet.carried_top_rails || [];
+            pallet.carried_top_rails.push(line);
+        } else {
+            pallet.lines = pallet.lines || [];
+            pallet.lines.push(line);
+        }
+        pallet.manual_override = true;
+        renderPallets();
+    }
+
+    function addPallet() {
+        const type = window.prompt("Pallet type: body, top_rail, cushion, or custom", "custom");
+        if (!type) return;
+        const allowed = ["body", "top_rail", "cushion", "custom"];
+        const palletType = allowed.includes(type) ? type : "custom";
+        const nextNumber = Math.max(0, ...state.pallets.map((pallet) => integerValue(pallet.pallet_number))) + 1;
+        state.pallets.push({
+            id: makeId("pallet"),
+            pallet_number: nextNumber,
+            pallet_type: palletType,
+            size: "",
+            is_mixed: false,
+            manual_override: true,
+            notes: "",
+            lines: [],
+            carried_top_rails: [],
+            capacity: palletType === "body"
+                ? state.config.body_capacity
+                : (palletType === "top_rail" ? state.config.top_rail_capacity : null),
+            capacity_used: 0,
+            status: "partial"
+        });
+        renderPallets();
+    }
+
+    function deletePallet(palletId) {
+        const pallet = palletById(palletId);
+        if (!pallet) return;
+        const contentCount = (pallet.lines || []).length + (pallet.carried_top_rails || []).length;
+        const message = contentCount
+            ? "This pallet contains allocations. Delete it anyway? Validation will show what is missing."
+            : "Delete this empty pallet?";
+        if (!window.confirm(message)) return;
+        state.pallets = state.pallets.filter((entry) => entry.id !== palletId);
+        renderPallets();
+    }
+
+    function requestPayload() {
+        readConfig();
+        return {
+            title: state.title,
+            notes: state.notes,
+            items: state.items,
+            pallets: state.pallets,
+            config: state.config,
+            acknowledged_warning_ids: state.acknowledged_warning_ids || []
+        };
+    }
+
+    async function apiRequest(path, payload) {
+        if (busy) return null;
+        setBusy(true);
+        try {
+            const response = await fetch(path, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || "The packaging request failed.");
+            }
+            return data;
+        } catch (error) {
+            setStatus(error.message || "The packaging request failed.", "error");
+            return null;
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function savePlan() {
+        const data = await apiRequest(`/api/invoice_packaging/${planId}/save`, requestPayload());
+        if (!data) return;
+        state = data.plan;
+        renderAll();
+        setStatus("Packaging plan saved.", "success");
+    }
+
+    async function generatePlan() {
+        if (state.pallets.length && !window.confirm(
+            "Regenerating replaces the current pallet assignments, including manual moves. Continue?"
+        )) return;
+        const data = await apiRequest(`/api/invoice_packaging/${planId}/generate`, requestPayload());
+        if (!data) return;
+        state.items = data.items;
+        state.pallets = data.pallets;
+        state.config = data.config;
+        state.summary = data.summary;
+        state.warnings = data.warnings;
+        state.acknowledged_warning_ids = [];
+        renderAll();
+        setStatus("Packaging list generated and saved.", "success");
+    }
+
+    async function validatePlan() {
+        const data = await apiRequest(`/api/invoice_packaging/${planId}/validate`, requestPayload());
+        if (!data) return;
+        state.items = data.items;
+        state.summary = data.summary;
+        state.warnings = data.warnings;
+        const validIds = new Set(data.warnings.map((warning) => warning.id));
+        state.acknowledged_warning_ids = (state.acknowledged_warning_ids || []).filter((id) => validIds.has(id));
+        renderAll();
+        setStatus(data.warnings.length ? "Validation complete. Review the warnings." : "Validation passed with no warnings.", data.warnings.length ? "" : "success");
+    }
+
+    function renderAll() {
+        renderItems();
+        populateConfig();
+        renderSummary();
+        renderWarnings();
+        renderPallets();
+    }
+
+    renderAll();
+</script>
+
+<datalist id="model-options">
+    <option value="Champion">
+    <option value="League">
+    <option value="Premium Edition">
+    <option value="Lite">
+</datalist>
+<datalist id="colour-options">
+    <option value="Black">
+    <option value="Grey Oak">
+    <option value="Rustic Oak">
+    <option value="Stone">
+    <option value="Rustic Black">
+</datalist>
+{% endif %}
+{% endblock %}

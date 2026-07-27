@@ -15,6 +15,16 @@ import json
 import uuid
 from math import ceil, floor
 from io import StringIO
+from packaging_planner import (
+    ITEM_TYPE_LABELS,
+    SUPPORTED_EXTENSIONS,
+    build_summary as build_packaging_summary,
+    extract_invoice_files,
+    generate_packaging,
+    normalise_config as normalise_packaging_config,
+    normalise_items as normalise_packaging_items,
+    validate_packaging,
+)
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -26,6 +36,8 @@ STOCK_SNAPSHOT_DIR = os.path.join(basedir, "stock_costs_snapshots")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'pool_table_tracker.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+if app.config.get('MAX_CONTENT_LENGTH') is None:
+    app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 db = SQLAlchemy(app)
 
 # Custom filter for absolute value
@@ -2963,6 +2975,280 @@ def component_delta_summary(current_count, previous_count):
         "delta_class": delta_class,
         "percent_label": percent_label,
     }
+
+
+class InvoicePackagingJob(db.Model):
+    __tablename__ = "invoice_packaging_job"
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(160), nullable=False, default="Packaging plan")
+    created_by = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    source_files_json = db.Column(db.Text, nullable=False, default="[]")
+    items_json = db.Column(db.Text, nullable=False, default="[]")
+    pallets_json = db.Column(db.Text, nullable=False, default="[]")
+    config_json = db.Column(db.Text, nullable=False, default="{}")
+    extraction_warnings_json = db.Column(db.Text, nullable=False, default="[]")
+    warnings_json = db.Column(db.Text, nullable=False, default="[]")
+    acknowledged_warnings_json = db.Column(db.Text, nullable=False, default="[]")
+    notes = db.Column(db.Text, nullable=False, default="")
+
+
+def ensure_invoice_packaging_tables():
+    InvoicePackagingJob.__table__.create(db.engine, checkfirst=True)
+
+
+def packaging_json_load(value, fallback):
+    try:
+        parsed = json.loads(value or "")
+    except (TypeError, ValueError):
+        return fallback
+    return parsed if isinstance(parsed, type(fallback)) else fallback
+
+
+def packaging_job_payload(job):
+    items = packaging_json_load(job.items_json, [])
+    pallets = packaging_json_load(job.pallets_json, [])
+    config = normalise_packaging_config(packaging_json_load(job.config_json, {}))
+    warnings = packaging_json_load(job.warnings_json, [])
+    return {
+        "id": job.id,
+        "title": job.title,
+        "created_by": job.created_by,
+        "created_at": job.created_at.isoformat() if job.created_at else "",
+        "updated_at": job.updated_at.isoformat() if job.updated_at else "",
+        "source_files": packaging_json_load(job.source_files_json, []),
+        "items": items,
+        "pallets": pallets,
+        "config": config,
+        "extraction_warnings": packaging_json_load(job.extraction_warnings_json, []),
+        "warnings": warnings,
+        "acknowledged_warning_ids": packaging_json_load(
+            job.acknowledged_warnings_json, []
+        ),
+        "notes": job.notes or "",
+        "summary": build_packaging_summary(items, pallets, config=config),
+    }
+
+
+def packaging_job_or_404(job_id):
+    ensure_invoice_packaging_tables()
+    return InvoicePackagingJob.query.get_or_404(job_id)
+
+
+def packaging_upload_size(uploaded_file):
+    stream = uploaded_file.stream
+    try:
+        current_position = stream.tell()
+        stream.seek(0, os.SEEK_END)
+        size = stream.tell()
+        stream.seek(current_position)
+        return size
+    except (AttributeError, OSError):
+        return uploaded_file.content_length or 0
+
+
+def packaging_upload_signature_is_valid(uploaded_file, extension):
+    try:
+        position = uploaded_file.stream.tell()
+        header = uploaded_file.stream.read(8)
+        uploaded_file.stream.seek(position)
+    except (AttributeError, OSError):
+        return True
+
+    if extension == ".pdf":
+        return header.startswith(b"%PDF")
+    if extension == ".png":
+        return header.startswith(b"\x89PNG\r\n\x1a\n")
+    if extension in (".jpg", ".jpeg"):
+        return header.startswith(b"\xff\xd8\xff")
+    if extension in (".xlsx", ".xlsm", ".docx"):
+        return header.startswith(b"PK")
+    return True
+
+
+@app.route("/invoice_packaging", methods=["GET", "POST"])
+def invoice_packaging():
+    if "worker" not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for("login"))
+
+    ensure_invoice_packaging_tables()
+    if request.method == "POST":
+        uploads = [
+            uploaded_file
+            for uploaded_file in request.files.getlist("invoices")
+            if uploaded_file and uploaded_file.filename
+        ]
+        if len(uploads) > 20:
+            flash("Upload no more than 20 invoice files at once.", "error")
+            return redirect(url_for("invoice_packaging"))
+
+        valid_uploads = []
+        upload_warnings = []
+        for uploaded_file in uploads:
+            filename = os.path.basename(uploaded_file.filename or "invoice")
+            extension = os.path.splitext(filename)[1].lower()
+            if extension not in SUPPORTED_EXTENSIONS:
+                upload_warnings.append(
+                    f"{filename}: unsupported file type. Use PDF, image, CSV, XLSX, DOCX, or TXT."
+                )
+                continue
+            if packaging_upload_size(uploaded_file) > 10 * 1024 * 1024:
+                upload_warnings.append(
+                    f"{filename}: file is larger than the 10 MB per-file limit."
+                )
+                continue
+            if not packaging_upload_signature_is_valid(uploaded_file, extension):
+                upload_warnings.append(
+                    f"{filename}: file contents do not match its extension."
+                )
+                continue
+            valid_uploads.append(uploaded_file)
+
+        items, extraction_warnings, source_files = extract_invoice_files(valid_uploads)
+        extraction_warnings = upload_warnings + extraction_warnings
+        now = london_now().replace(tzinfo=None)
+        default_title = f"Packaging plan - {now.strftime('%d %b %Y %H:%M')}"
+        job = InvoicePackagingJob(
+            title=(request.form.get("title") or default_title).strip()[:160],
+            created_by=session["worker"],
+            created_at=now,
+            updated_at=now,
+            source_files_json=json.dumps(source_files),
+            items_json=json.dumps(items),
+            pallets_json="[]",
+            config_json=json.dumps(normalise_packaging_config({})),
+            extraction_warnings_json=json.dumps(extraction_warnings),
+            warnings_json="[]",
+            acknowledged_warnings_json="[]",
+            notes="",
+        )
+        db.session.add(job)
+        db.session.commit()
+        if extraction_warnings:
+            flash(
+                "Invoice review created. Check the extraction warnings and correct the detected items.",
+                "warning",
+            )
+        else:
+            flash("Invoice items extracted. Review them before generating pallets.", "success")
+        return redirect(url_for("invoice_packaging", plan=job.id))
+
+    selected_job = None
+    requested_plan_id = request.args.get("plan", type=int)
+    if requested_plan_id:
+        selected_job = InvoicePackagingJob.query.get(requested_plan_id)
+        if not selected_job:
+            flash("That packaging plan was not found.", "error")
+
+    recent_jobs = (
+        InvoicePackagingJob.query
+        .order_by(InvoicePackagingJob.updated_at.desc(), InvoicePackagingJob.id.desc())
+        .limit(25)
+        .all()
+    )
+    return render_template(
+        "invoice_packaging.html",
+        plan=packaging_job_payload(selected_job) if selected_job else None,
+        recent_jobs=recent_jobs,
+        item_type_labels=ITEM_TYPE_LABELS,
+        max_upload_mb=10,
+    )
+
+
+@app.route("/api/invoice_packaging/<int:job_id>/save", methods=["POST"])
+def save_invoice_packaging(job_id):
+    if "worker" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    job = packaging_job_or_404(job_id)
+    data = request.get_json(silent=True) or {}
+    try:
+        items = normalise_packaging_items(data.get("items", []))
+        if len(items) > 2000:
+            raise ValueError("A packaging plan cannot contain more than 2,000 item rows.")
+        pallets = data.get("pallets", [])
+        if not isinstance(pallets, list) or len(pallets) > 1000:
+            raise ValueError("The pallet data is invalid or too large.")
+        config = normalise_packaging_config(data.get("config", {}))
+        warnings = validate_packaging(items, pallets, config)
+        summary = build_packaging_summary(items, pallets, config=config)
+        current_warning_ids = {warning["id"] for warning in warnings}
+        acknowledged_ids = [
+            warning_id for warning_id in data.get("acknowledged_warning_ids", [])
+            if warning_id in current_warning_ids
+        ]
+
+        job.title = (data.get("title") or job.title or "Packaging plan").strip()[:160]
+        job.notes = (data.get("notes") or "").strip()[:5000]
+        job.items_json = json.dumps(items)
+        job.pallets_json = json.dumps(pallets)
+        job.config_json = json.dumps(config)
+        job.warnings_json = json.dumps(warnings)
+        job.acknowledged_warnings_json = json.dumps(acknowledged_ids)
+        job.updated_at = london_now().replace(tzinfo=None)
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "plan": packaging_job_payload(job),
+            "summary": summary,
+            "warnings": warnings,
+        })
+    except (TypeError, ValueError) as error:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(error)}), 400
+
+
+@app.route("/api/invoice_packaging/<int:job_id>/generate", methods=["POST"])
+def generate_invoice_packaging(job_id):
+    if "worker" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    job = packaging_job_or_404(job_id)
+    data = request.get_json(silent=True) or {}
+    try:
+        items = normalise_packaging_items(data.get("items", []))
+        if not items:
+            raise ValueError("Add at least one invoice or manual item before generating.")
+        result = generate_packaging(items, data.get("config", {}))
+        job.title = (data.get("title") or job.title or "Packaging plan").strip()[:160]
+        job.notes = (data.get("notes") or job.notes or "").strip()[:5000]
+        job.items_json = json.dumps(result["items"])
+        job.pallets_json = json.dumps(result["pallets"])
+        job.config_json = json.dumps(result["config"])
+        job.warnings_json = json.dumps(result["warnings"])
+        job.acknowledged_warnings_json = "[]"
+        job.updated_at = london_now().replace(tzinfo=None)
+        db.session.commit()
+        return jsonify({"success": True, **result})
+    except (TypeError, ValueError) as error:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(error)}), 400
+
+
+@app.route("/api/invoice_packaging/<int:job_id>/validate", methods=["POST"])
+def validate_invoice_packaging(job_id):
+    if "worker" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    packaging_job_or_404(job_id)
+    data = request.get_json(silent=True) or {}
+    try:
+        items = normalise_packaging_items(data.get("items", []))
+        pallets = data.get("pallets", [])
+        config = normalise_packaging_config(data.get("config", {}))
+        warnings = validate_packaging(items, pallets, config)
+        summary = build_packaging_summary(items, pallets, config=config)
+        return jsonify({
+            "success": True,
+            "items": items,
+            "warnings": warnings,
+            "summary": summary,
+        })
+    except (TypeError, ValueError) as error:
+        return jsonify({"success": False, "error": str(error)}), 400
 
 
 def ensure_production_comparison_tables():
