@@ -294,30 +294,59 @@
                         <h2 class="contents-title">Pallet contents</h2>
                         {% if pallet_lines %}
                             <div class="content-lines">
-                                {% for line in pallet_lines %}
-                                <div class="content-line">
-                                    <span class="content-quantity">{{ line.quantity }} x</span>
-                                    <span class="content-detail">
-                                        {% if line.size %}{{ line.size }} {% endif %}
-                                        {% if line.model %}{{ line.model }} {% endif %}
-                                        {% if line.colour %}{{ line.colour }} {% endif %}
-                                        {% if line.component_type == 'body' %}
-                                            Body
-                                        {% elif line.component_type == 'top_rail' %}
-                                            Top Rail
-                                        {% elif line.component_type == 'cushion' %}
-                                            Cushion Set
-                                        {% elif line.component_type == 'leg_box' %}
-                                            Leg Box
+                                {% if pallet.pallet_type == 'cushion' %}
+                                    {% set cushion_totals = namespace(six=0, seven=0, unknown=0) %}
+                                    {% for line in pallet_lines if line.component_type == 'cushion' %}
+                                        {% if line.size == '6ft' %}
+                                            {% set cushion_totals.six = cushion_totals.six + line.quantity %}
+                                        {% elif line.size == '7ft' %}
+                                            {% set cushion_totals.seven = cushion_totals.seven + line.quantity %}
                                         {% else %}
-                                            {{ line.description|default('Item') }}
+                                            {% set cushion_totals.unknown = cushion_totals.unknown + line.quantity %}
                                         {% endif %}
-                                        <span class="content-meta">
-                                            {% if line.po_number %}PO: {{ line.po_number }}{% endif %}
-                                            {% if line.notes %}{% if line.po_number %} - {% endif %}{{ line.notes }}{% endif %}
+                                    {% endfor %}
+                                    {% if cushion_totals.six %}
+                                    <div class="content-line">
+                                        <span class="content-quantity">{{ cushion_totals.six }} x</span>
+                                        <span class="content-detail">6ft Cushion Sets</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if cushion_totals.seven %}
+                                    <div class="content-line">
+                                        <span class="content-quantity">{{ cushion_totals.seven }} x</span>
+                                        <span class="content-detail">7ft Cushion Sets</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if cushion_totals.unknown %}
+                                    <div class="content-line">
+                                        <span class="content-quantity">{{ cushion_totals.unknown }} x</span>
+                                        <span class="content-detail">Cushion Sets - Size to Confirm</span>
+                                    </div>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% for line in pallet_lines if pallet.pallet_type != 'cushion' or line.component_type != 'cushion' %}
+                                    <div class="content-line">
+                                        <span class="content-quantity">{{ line.quantity }} x</span>
+                                        <span class="content-detail">
+                                            {% if line.size and line.component_type != 'leg_box' %}{{ line.size }} {% endif %}
+                                            {% if line.model %}{{ line.model }} {% endif %}
+                                            {% if line.colour %}{{ line.colour }} {% endif %}
+                                            {% if line.component_type == 'body' %}
+                                                Body
+                                            {% elif line.component_type == 'top_rail' %}
+                                                Top Rail
+                                            {% elif line.component_type == 'leg_box' %}
+                                                Leg Boxes
+                                            {% else %}
+                                                {{ line.description|default('Item') }}
+                                            {% endif %}
+                                            <span class="content-meta">
+                                                {% if line.po_number %}PO: {{ line.po_number }}{% endif %}
+                                                {% if line.notes %}{% if line.po_number %} - {% endif %}{{ line.notes }}{% endif %}
+                                            </span>
                                         </span>
-                                    </span>
-                                </div>
+                                    </div>
                                 {% endfor %}
                             </div>
                         {% else %}
