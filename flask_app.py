@@ -394,6 +394,14 @@ def next_numeric_pod_base_serial(serials, fallback=1000):
     return str(max(numeric_serials) + 1) if numeric_serials else str(fallback)
 
 
+def format_pod_serial(base_serial, size_label, table_type):
+    base_serial = (base_serial or "").strip()
+    if table_type == TABLE_TYPE_LITE:
+        size_suffix = "6" if size_label == "6ft" else "7"
+        return f"{base_serial} - {size_suffix} - L"
+    return f"{base_serial} - 6" if size_label == "6ft" else base_serial
+
+
 def gully_parts_for_completion(serial_number):
     if serial_is_6ft(serial_number):
         return {"6ft Gully Set": 1}
@@ -4949,8 +4957,12 @@ def pods():
         cleaned = strip_table_serial_suffixes(serial, remove_color=True, remove_lite=True)
         return re.sub(r"\s*-\s*[67]\s*$", "", cleaned, flags=re.IGNORECASE).strip()
 
-    def remember_pod_completion_form():
-        submitted_serial = request.form.get("serial_number", "")
+    def remember_pod_completion_form(serial_override=None):
+        submitted_serial = (
+            serial_override
+            if serial_override is not None
+            else request.form.get("serial_number", "")
+        )
         session["pod_completion_form_values"] = {
             "start_time": request.form.get("start_time", ""),
             "finish_time": request.form.get("finish_time", ""),
@@ -4986,13 +4998,11 @@ def pods():
             flash("Please enter a valid serial number.", "error")
             return redirect_back_to_pod_form()
 
-        if selected_table_type == TABLE_TYPE_LITE:
-            if size_selector == '6ft':
-                serial_number = f"{clean_serial} - 6 - L"
-            else:
-                serial_number = f"{clean_serial} - 7 - L"
-        else:
-            serial_number = f"{clean_serial} - 6" if size_selector == '6ft' else clean_serial
+        serial_number = format_pod_serial(
+            clean_serial,
+            size_selector,
+            selected_table_type,
+        )
 
         actual_table_type = table_type_from_serial(serial_number)
 
@@ -5008,12 +5018,20 @@ def pods():
             None,
         )
         if existing_pod:
+            latest_base_serial, _ = _next_pod_serial_and_size()
+            refreshed_serial = format_pod_serial(
+                latest_base_serial,
+                size_selector,
+                selected_table_type,
+            )
             flash(
                 f"Pod serial {clean_serial} has already been used as "
-                f"{existing_pod.serial_number}. Use the next serial number.",
+                f"{existing_pod.serial_number}. The form has been updated to "
+                f"{refreshed_serial}.",
                 "error",
             )
-            return redirect_back_to_pod_form()
+            remember_pod_completion_form(serial_override=refreshed_serial)
+            return redirect(url_for('pods'))
         
         try:
             start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
@@ -10734,6 +10752,19 @@ def _next_pod_serial_and_size():
         default_size = "6ft" if _is_6ft_pod(serial) else "7ft"
 
     return next_serial, default_size
+
+
+@app.route('/pods/next_serial')
+def pod_next_serial():
+    if 'worker' not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    next_serial, default_size = _next_pod_serial_and_size()
+    return jsonify({
+        "success": True,
+        "next_serial": next_serial,
+        "default_size": default_size,
+    })
 
 
 def _next_body_serial_and_size():

@@ -96,6 +96,14 @@
           color: #333;
           margin-bottom: 20px;
       }
+      .serial-live-status {
+          display: block;
+          min-height: 1.2em;
+          margin: -8px 0 12px;
+          color: #15803d;
+          font-size: 0.9em;
+          font-weight: bold;
+      }
       
       /* Table styles */
       table {
@@ -211,6 +219,22 @@
   </style>
   <script>
       const podFormRestored = {{ pod_form_restored|tojson }};
+      const nextPodSerialUrl = {{ url_for('pod_next_serial')|tojson }};
+      const initialSuggestedPodSerial = {{ next_serial_number|tojson }};
+
+      function podBaseSerial(value) {
+          let cleaned = (value || '').trim();
+          cleaned = cleaned.replace(/\s*-\s*(GO|RB|O|C|B)\s*$/i, '').trim();
+          cleaned = cleaned.replace(/\s*-\s*L\s*$/i, '').trim();
+          cleaned = cleaned.replace(/\s*-\s*[67]\s*$/i, '').trim();
+          return cleaned;
+      }
+
+      function podSerialIdentity(value) {
+          return podBaseSerial(value).replace(/\s+/g, '').toUpperCase();
+      }
+
+      let lastSuggestedPodIdentity = podSerialIdentity(initialSuggestedPodSerial);
 
       function toggleCollapsible(id) {
           var content = document.getElementById(id);
@@ -279,6 +303,43 @@
           
           // Add event listener for base serial number changes
           document.getElementById('base_serial_number').addEventListener('input', updateSerialNumber);
+
+          const serialNumberField = document.getElementById('serial_number');
+          const baseSerialField = document.getElementById('base_serial_number');
+          const liveStatus = document.getElementById('serial-live-status');
+
+          // Keep the hidden base in sync when somebody types a serial manually.
+          serialNumberField.addEventListener('input', function() {
+              baseSerialField.value = podBaseSerial(serialNumberField.value);
+          });
+
+          async function refreshSuggestedPodSerial() {
+              try {
+                  const response = await fetch(nextPodSerialUrl, {
+                      cache: 'no-store',
+                      credentials: 'same-origin'
+                  });
+                  if (!response.ok) return;
+                  const data = await response.json();
+                  if (!data.success || !data.next_serial) return;
+
+                  const currentIdentity = podSerialIdentity(serialNumberField.value);
+                  const newIdentity = podSerialIdentity(data.next_serial);
+                  if (currentIdentity === lastSuggestedPodIdentity && newIdentity !== lastSuggestedPodIdentity) {
+                      baseSerialField.value = data.next_serial;
+                      lastSuggestedPodIdentity = newIdentity;
+                      updateSerialNumber();
+                      liveStatus.textContent = `Serial updated to ${serialNumberField.value} because another pod was completed.`;
+                  } else if (currentIdentity === newIdentity) {
+                      lastSuggestedPodIdentity = newIdentity;
+                  }
+              } catch (error) {
+                  // Keep the current form usable if the brief status check fails.
+              }
+          }
+
+          window.setInterval(refreshSuggestedPodSerial, 5000);
+          window.addEventListener('focus', refreshSuggestedPodSerial);
       });
   </script>
 </head>
@@ -400,6 +461,7 @@
       
       <label for="serial_number">Serial Number:</label>
       <input type="text" id="serial_number" name="serial_number" required placeholder="Enter serial number" value="{{ form_serial_number }}">
+      <span class="serial-live-status" id="serial-live-status" aria-live="polite"></span>
       
       <label for="issue">Any issues with the build?:</label>
       <select name="issue" id="issue" required>
