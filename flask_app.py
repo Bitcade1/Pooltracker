@@ -11642,8 +11642,7 @@ def body_dashboard_view():
     bonus_progress = dashboard_bonus_progress(
         "bodies",
         today.year,
-        today.month,
-        exclude_workers=["Tom F"]
+        today.month
     )
     latest_completed_body = (
         CompletedTable.query
