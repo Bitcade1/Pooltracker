@@ -374,6 +374,26 @@ def base_serial_for_pod_matching(serial):
     return cleaned
 
 
+def pod_serial_identity(serial):
+    """Return the size/type-independent identity used to prevent duplicate pods."""
+    cleaned = strip_table_serial_suffixes(
+        clean_pod_serial_value(serial),
+        remove_color=True,
+        remove_lite=True,
+    )
+    cleaned = re.sub(r"\s*-\s*[67]\s*$", "", cleaned, flags=re.IGNORECASE).strip()
+    return re.sub(r"\s+", "", cleaned).upper()
+
+
+def next_numeric_pod_base_serial(serials, fallback=1000):
+    numeric_serials = []
+    for serial in serials:
+        identity = pod_serial_identity(serial)
+        if identity.isdigit():
+            numeric_serials.append(int(identity))
+    return str(max(numeric_serials) + 1) if numeric_serials else str(fallback)
+
+
 def gully_parts_for_completion(serial_number):
     if serial_is_6ft(serial_number):
         return {"6ft Gully Set": 1}
@@ -4975,6 +4995,25 @@ def pods():
             serial_number = f"{clean_serial} - 6" if size_selector == '6ft' else clean_serial
 
         actual_table_type = table_type_from_serial(serial_number)
+
+        submitted_identity = pod_serial_identity(serial_number)
+        existing_pod = next(
+            (
+                pod for pod in CompletedPods.query.with_entities(
+                    CompletedPods.id,
+                    CompletedPods.serial_number,
+                ).all()
+                if pod_serial_identity(pod.serial_number) == submitted_identity
+            ),
+            None,
+        )
+        if existing_pod:
+            flash(
+                f"Pod serial {clean_serial} has already been used as "
+                f"{existing_pod.serial_number}. Use the next serial number.",
+                "error",
+            )
+            return redirect_back_to_pod_form()
         
         try:
             start_time = datetime.strptime(request.form['start_time'], "%H:%M").time()
@@ -10683,17 +10722,16 @@ def _is_6ft_pod(serial):
 
 def _next_pod_serial_and_size():
     last_pod = CompletedPods.query.order_by(CompletedPods.id.desc()).first()
-    next_serial = "1000"
+    all_serials = [
+        serial_number
+        for (serial_number,) in db.session.query(CompletedPods.serial_number).all()
+    ]
+    next_serial = next_numeric_pod_base_serial(all_serials)
     default_size = "7ft"
 
     if last_pod and last_pod.serial_number:
         serial = last_pod.serial_number
         default_size = "6ft" if _is_6ft_pod(serial) else "7ft"
-        base_serial = serial.split('-')[0].strip()
-        try:
-            next_serial = str(int(base_serial) + 1)
-        except ValueError:
-            pass
 
     return next_serial, default_size
 
