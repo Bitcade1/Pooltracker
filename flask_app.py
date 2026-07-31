@@ -8260,8 +8260,8 @@ def cushion_completed_previous_month_stats(today=None, month_count=6):
         return date(month_start.year, month_start.month + 1, 1)
 
     rows = []
-    month_start = previous_month_start(current_month_start)
-    for _ in range(month_count):
+    month_start = current_month_start
+    for _ in range(month_count + 1):
         start_dt = datetime.combine(month_start, time.min)
         end_dt = datetime.combine(next_month_start(month_start), time.min)
         query_rows = (
