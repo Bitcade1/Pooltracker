@@ -124,6 +124,60 @@
         padding: 14px;
     }
 
+    .bonus-panel {
+        background: #ffffff;
+        border: 1px solid #dfe3eb;
+        border-radius: 8px;
+        padding: 14px;
+    }
+
+    .bonus-head,
+    .bonus-worker,
+    .bonus-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .bonus-head h2 {
+        margin: 0;
+        color: #1f2d3d;
+        font-size: 1.45rem;
+    }
+
+    .bonus-link {
+        color: #1d4ed8;
+        font-weight: 800;
+    }
+
+    .bonus-worker {
+        margin-top: 14px;
+        color: #0f172a;
+        font-size: 1.15rem;
+        font-weight: 900;
+    }
+
+    .bonus-track {
+        height: 18px;
+        margin-top: 10px;
+        overflow: hidden;
+        border-radius: 6px;
+        background: #e5e7eb;
+    }
+
+    .bonus-fill {
+        height: 100%;
+        background: #16a34a;
+    }
+
+    .bonus-meta,
+    .bonus-empty {
+        margin-top: 8px;
+        color: #475569;
+        font-weight: 700;
+    }
+
     .production-stats .stats-grid {
         margin-top: 10px;
     }
@@ -506,6 +560,32 @@
     {% endwith %}
 
     {% include '_cushion_compressor_check.html' %}
+
+    <section class="bonus-panel" aria-label="Katie cushion bonus progress">
+        <div class="bonus-head">
+            <h2>Bonus Progress - {{ bonus_month_label }}</h2>
+            <a class="bonus-link" href="{{ url_for('bonus_goals') }}">Manage Goals</a>
+        </div>
+        {% for goal in bonus_progress %}
+            <div class="bonus-worker">
+                <span>{{ goal.display_worker|default(goal.worker) }}</span>
+                <span>{{ goal.current }} / {{ goal.target }}</span>
+            </div>
+            <div class="bonus-track" aria-label="Katie cushion bonus progress">
+                <div class="bonus-fill" style="width: {{ goal.percentage_capped }}%;"></div>
+            </div>
+            <div class="bonus-meta">
+                <span>{{ goal.percentage }}% complete</span>
+                {% if goal.target_hit %}
+                    <span>Goal reached</span>
+                {% else %}
+                    <span>{{ goal.remaining }} to go</span>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="bonus-empty">No cushion bonus goal is set for Katie this month.</div>
+        {% endfor %}
+    </section>
 
     <section class="stats-grid">
         <div class="stat-card">

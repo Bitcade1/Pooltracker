@@ -1027,6 +1027,7 @@ BONUS_GOAL_AREAS = [
     {"key": "pods", "label": "Pods"},
     {"key": "bodies", "label": "Bodies"},
     {"key": "top_rails", "label": "Top Rails"},
+    {"key": "cushions", "label": "Cushions"},
     {"key": "cnc", "label": "CNC"},
 ]
 BONUS_GOAL_AREA_LABELS = {area["key"]: area["label"] for area in BONUS_GOAL_AREAS}
@@ -1274,6 +1275,12 @@ def bonus_goal_actual_count(area, worker_name, year, month):
     month = int(month)
     if area == "cnc":
         return cnc_completed_quantity_total(year=year, month=month)
+    if area == "cushions":
+        return int(CushionCompletedSet.query.filter(
+            extract('year', CushionCompletedSet.completed_at) == year,
+            extract('month', CushionCompletedSet.completed_at) == month,
+            CushionCompletedSet.worker == worker_name
+        ).count() or 0)
 
     model = {
         "bodies": CompletedTable,
@@ -13186,6 +13193,13 @@ def counting_cushions():
     current_stage_key = cushion_current_stage_key(active_batch.batch_number if active_batch else None)
     stage_context = build_cushion_stage_context(highlight_stage_key=current_stage_key)
     stock_summary = cushion_stock_summary()
+    today = date.today()
+    bonus_progress = dashboard_bonus_progress(
+        "cushions",
+        today.year,
+        today.month,
+        include_workers=["Katie"]
+    )
 
     return render_template(
         'counting_cushions.html',
@@ -13196,6 +13210,8 @@ def counting_cushions():
         completed_size_stats=cushion_completed_size_stats(),
         weekly_size_stats=cushion_completed_weekly_stats(),
         previous_month_size_stats=cushion_completed_previous_month_stats(),
+        bonus_progress=bonus_progress,
+        bonus_month_label=bonus_goal_month_label(today.year, today.month),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )
