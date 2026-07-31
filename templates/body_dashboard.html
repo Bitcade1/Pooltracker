@@ -708,9 +708,34 @@
                         </div>
                     </article>
                 {% endfor %}
+                {% if tom_f_body_goal_missing %}
+                    <article class="bonus-card">
+                        <div class="bonus-worker">
+                            <span>Tom F</span>
+                            <span class="bonus-count">{{ tom_f_body_count }} completed</span>
+                        </div>
+                        <div class="bonus-track" aria-label="Tom F body bonus goal not set"></div>
+                        <div class="bonus-meta">
+                            <span>Goal not set</span>
+                            <a class="bonus-link" href="{{ url_for('bonus_goals') }}">Set goal</a>
+                        </div>
+                    </article>
+                {% endif %}
             </div>
         {% else %}
-            <div class="bonus-empty">No body bonus goals are set for this month yet.</div>
+            <div class="bonus-grid">
+                <article class="bonus-card">
+                    <div class="bonus-worker">
+                        <span>Tom F</span>
+                        <span class="bonus-count">{{ tom_f_body_count }} completed</span>
+                    </div>
+                    <div class="bonus-track" aria-label="Tom F body bonus goal not set"></div>
+                    <div class="bonus-meta">
+                        <span>Goal not set</span>
+                        <a class="bonus-link" href="{{ url_for('bonus_goals') }}">Set goal</a>
+                    </div>
+                </article>
+            </div>
         {% endif %}
     </section>
 

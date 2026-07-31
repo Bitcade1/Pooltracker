@@ -11651,6 +11651,11 @@ def body_dashboard_view():
         today.year,
         today.month
     )
+    tom_f_body_goal_missing = not any(
+        normalize_bonus_worker_name(goal.get("worker")) == "tomf"
+        for goal in bonus_progress
+    )
+    tom_f_body_count = bonus_goal_actual_count("bodies", "Tom F", today.year, today.month)
     latest_completed_body = (
         CompletedTable.query
         .order_by(CompletedTable.id.desc())
@@ -11673,6 +11678,8 @@ def body_dashboard_view():
         other_parts_data=other_parts_data,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        tom_f_body_goal_missing=tom_f_body_goal_missing,
+        tom_f_body_count=tom_f_body_count,
         latest_completed_body=latest_completed_body
     )
 
