@@ -378,21 +378,21 @@
                                     {% if item.cost_locked %}
                                         &pound;{{ item.unit_cost|format_number }}
                                     {% else %}
-                                        <input type="number" step="any" min="0" name="unit_cost_{{ item.key }}" value="{{ '%.4f' % item.unit_cost }}" data-autosave>
+                                        <input type="number" step="any" min="0" name="unit_cost_{{ item.key }}" value="{{ '%.4f' % item.unit_cost }}" data-autosave data-item-key="{{ item.key }}" data-cost-field="unit_cost">
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if item.cost_locked %}
                                         &pound;{{ item.shipping_cost|format_number }}
                                     {% else %}
-                                        <input type="number" step="any" min="0" name="shipping_cost_{{ item.key }}" value="{{ '%.4f' % item.shipping_cost }}" data-autosave>
+                                        <input type="number" step="any" min="0" name="shipping_cost_{{ item.key }}" value="{{ '%.4f' % item.shipping_cost }}" data-autosave data-item-key="{{ item.key }}" data-cost-field="shipping_cost">
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if item.cost_locked %}
                                         &pound;{{ item.labour_cost|format_number }}
                                     {% else %}
-                                        <input type="number" step="any" min="0" name="labour_cost_{{ item.key }}" value="{{ '%.4f' % item.labour_cost }}" data-autosave>
+                                        <input type="number" step="any" min="0" name="labour_cost_{{ item.key }}" value="{{ '%.4f' % item.labour_cost }}" data-autosave data-item-key="{{ item.key }}" data-cost-field="labour_cost">
                                     {% endif %}
                                 </td>
                                 <td>{{ item.per_item_total|format_number }}</td>
@@ -521,22 +521,33 @@
             form.addEventListener('submit', rememberScroll, { passive: true });
 
             const inputs = form.querySelectorAll('input[data-autosave]');
-            let saveTimeout = null;
+            const saveTimeouts = new WeakMap();
             inputs.forEach((input) => {
                 input.addEventListener('input', () => {
-                    if (saveTimeout) {
-                        clearTimeout(saveTimeout);
+                    const pendingSave = saveTimeouts.get(input);
+                    if (pendingSave) {
+                        clearTimeout(pendingSave);
                     }
-                    saveTimeout = setTimeout(() => {
-                        if (document.activeElement && document.activeElement.tagName === 'INPUT') {
-                            document.activeElement.blur();
-                        }
-                        if (typeof form.requestSubmit === 'function') {
-                            form.requestSubmit();
+                    const saveTimeout = setTimeout(async () => {
+                        const payload = new URLSearchParams({
+                            autosave_action: 'save_cost',
+                            item_key: input.dataset.itemKey,
+                            cost_field: input.dataset.costField,
+                            value: input.value
+                        });
+                        const response = await fetch(form.action || window.location.href, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: payload.toString()
+                        });
+                        if (response.ok) {
+                            input.setCustomValidity('');
                         } else {
-                            form.submit();
+                            input.setCustomValidity('Unable to save this cost.');
+                            input.reportValidity();
                         }
                     }, 800);
+                    saveTimeouts.set(input, saveTimeout);
                 });
             });
         });

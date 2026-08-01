@@ -4041,6 +4041,25 @@ def stock_costs():
             return None, "Count must be a whole number."
         return int(count_value), None
 
+    if request.method == 'POST' and request.form.get('autosave_action') == 'save_cost':
+        item_key = request.form.get('item_key', '')
+        cost_field = request.form.get('cost_field', '')
+        allowed_cost_fields = {'unit_cost', 'shipping_cost', 'labour_cost'}
+        if item_key not in item_keys or cost_field not in allowed_cost_fields:
+            return jsonify({'success': False, 'error': 'Invalid stock cost field.'}), 400
+
+        item = next(item for item in stock_items if item['key'] == item_key)
+        if item.get('cost_locked'):
+            return jsonify({'success': False, 'error': 'This stock cost is locked.'}), 400
+
+        cost_entry = StockItemCost.query.filter_by(item_key=item_key).first()
+        if not cost_entry:
+            cost_entry = StockItemCost(item_key=item_key)
+            db.session.add(cost_entry)
+        setattr(cost_entry, cost_field, parse_currency(request.form.get('value')))
+        db.session.commit()
+        return jsonify({'success': True})
+
     if request.method == 'POST' and not manual_snapshot:
         count_updates = {}
         for item in stock_items:
