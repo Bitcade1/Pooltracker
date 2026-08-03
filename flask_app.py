@@ -11838,19 +11838,20 @@ def cnc_dashboard():
         next_bonus_year = pacing_goal.get("period_year")
         next_bonus_month = pacing_goal.get("period_month")
         remaining_work_hours += weekdays_in_month(next_bonus_year, next_bonus_month) * 7.5
+    remaining_workdays = remaining_work_hours / 7.5
     if cnc_goal_target <= 0:
-        required_sheets_per_hour_display = "No Goal"
+        required_sheets_per_day_display = "No Goal"
         goal_pacing_note = "Set a CNC goal"
     elif cnc_goal_remaining <= 0:
-        required_sheets_per_hour_display = "0"
+        required_sheets_per_day_display = "0"
         goal_pacing_note = "Goal reached"
-    elif remaining_work_hours <= 0:
-        required_sheets_per_hour_display = "N/A"
+    elif remaining_workdays <= 0:
+        required_sheets_per_day_display = "N/A"
         goal_pacing_note = f"{cnc_goal_remaining} left"
     else:
-        required_sheets_per_hour = cnc_goal_remaining / remaining_work_hours
-        required_sheets_per_hour_display = f"{required_sheets_per_hour:.2f}".rstrip("0").rstrip(".")
-        goal_pacing_note = f"{cnc_goal_remaining} left / {remaining_work_hours:.1f} working hours"
+        required_sheets_per_day = cnc_goal_remaining / remaining_workdays
+        required_sheets_per_day_display = f"{required_sheets_per_day:.1f}".rstrip("0").rstrip(".")
+        goal_pacing_note = f"{cnc_goal_remaining} left / {remaining_workdays:.2f} working days"
     mdf_inventory = _get_or_create_mdf_inventory()
     if mdf_inventory in db.session.new:
         db.session.commit()
@@ -11865,7 +11866,7 @@ def cnc_dashboard():
         machine_runs_today_by_machine=machine_runs_today_by_machine,
         total_machine_runs_today=total_machine_runs_today,
         daily_avg_sheets=daily_avg_sheets_display,
-        required_sheets_per_hour=required_sheets_per_hour_display,
+        required_sheets_per_day=required_sheets_per_day_display,
         goal_pacing_note=goal_pacing_note,
         completed_month_count=completed_month_count,
         bonus_progress=bonus_progress,
