@@ -1216,6 +1216,35 @@ def weekdays_in_month(year, month):
     )
 
 
+def cnc_remaining_work_hours(current_time=None):
+    current_time = current_time or london_now()
+    current_date = current_time.date()
+    month_end = date(current_date.year, current_date.month, monthrange(current_date.year, current_date.month)[1])
+    future_weekdays = sum(
+        1
+        for offset in range(1, (month_end - current_date).days + 1)
+        if (current_date + timedelta(days=offset)).weekday() < 5
+    )
+    remaining_hours = future_weekdays * 7.5
+    if current_date.weekday() >= 5:
+        return remaining_hours
+
+    shift_start = datetime.combine(current_date, time(9, 0))
+    shift_end = datetime.combine(current_date, time(17, 0))
+    lunch_start = datetime.combine(current_date, time(12, 30))
+    lunch_end = datetime.combine(current_date, time(13, 0))
+    interval_start = max(current_time, shift_start)
+    if interval_start >= shift_end:
+        return remaining_hours
+
+    today_hours = (shift_end - interval_start).total_seconds() / 3600
+    lunch_overlap_start = max(interval_start, lunch_start)
+    lunch_overlap_end = min(shift_end, lunch_end)
+    if lunch_overlap_end > lunch_overlap_start:
+        today_hours -= (lunch_overlap_end - lunch_overlap_start).total_seconds() / 3600
+    return remaining_hours + max(today_hours, 0)
+
+
 def next_bonus_goal_month(year, month):
     if int(month) == 12:
         return int(year) + 1, 1
@@ -11804,24 +11833,24 @@ def cnc_dashboard():
     pacing_goal = max(bonus_progress, key=lambda goal: goal.get("remaining", 0), default=None)
     cnc_goal_target = pacing_goal.get("target", 0) if pacing_goal else 0
     cnc_goal_remaining = pacing_goal.get("remaining", 0) if pacing_goal else 0
-    remaining_workdays = remaining_weekdays_in_month(today)
+    remaining_work_hours = cnc_remaining_work_hours(london_now())
     if pacing_goal and pacing_goal.get("next_bonus"):
         next_bonus_year = pacing_goal.get("period_year")
         next_bonus_month = pacing_goal.get("period_month")
-        remaining_workdays += weekdays_in_month(next_bonus_year, next_bonus_month)
+        remaining_work_hours += weekdays_in_month(next_bonus_year, next_bonus_month) * 7.5
     if cnc_goal_target <= 0:
-        required_sheets_per_day_display = "No Goal"
+        required_sheets_per_hour_display = "No Goal"
         goal_pacing_note = "Set a CNC goal"
     elif cnc_goal_remaining <= 0:
-        required_sheets_per_day_display = "0"
+        required_sheets_per_hour_display = "0"
         goal_pacing_note = "Goal reached"
-    elif remaining_workdays <= 0:
-        required_sheets_per_day_display = "N/A"
+    elif remaining_work_hours <= 0:
+        required_sheets_per_hour_display = "N/A"
         goal_pacing_note = f"{cnc_goal_remaining} left"
     else:
-        required_sheets_per_day = cnc_goal_remaining / remaining_workdays
-        required_sheets_per_day_display = f"{required_sheets_per_day:.1f}".rstrip("0").rstrip(".")
-        goal_pacing_note = f"{cnc_goal_remaining} left / {remaining_workdays} days"
+        required_sheets_per_hour = cnc_goal_remaining / remaining_work_hours
+        required_sheets_per_hour_display = f"{required_sheets_per_hour:.2f}".rstrip("0").rstrip(".")
+        goal_pacing_note = f"{cnc_goal_remaining} left / {remaining_work_hours:.1f} working hours"
     mdf_inventory = _get_or_create_mdf_inventory()
     if mdf_inventory in db.session.new:
         db.session.commit()
@@ -11836,7 +11865,7 @@ def cnc_dashboard():
         machine_runs_today_by_machine=machine_runs_today_by_machine,
         total_machine_runs_today=total_machine_runs_today,
         daily_avg_sheets=daily_avg_sheets_display,
-        required_sheets_per_day=required_sheets_per_day_display,
+        required_sheets_per_hour=required_sheets_per_hour_display,
         goal_pacing_note=goal_pacing_note,
         completed_month_count=completed_month_count,
         bonus_progress=bonus_progress,
