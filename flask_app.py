@@ -1023,6 +1023,29 @@ class BonusGoal(db.Model):
     active = db.Column(db.Boolean, default=True, nullable=False)
 
 
+class CushionExtraTimeGoal(db.Model):
+    __tablename__ = 'cushion_extra_time_goal'
+    __table_args__ = (
+        db.UniqueConstraint('worker_name', 'year', 'month', name='uq_cushion_extra_time_goal_worker_month'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    worker_name = db.Column(db.String(50), nullable=False)
+    target_minutes = db.Column(db.Integer, default=0, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+
+
+class CushionExtraTimeLog(db.Model):
+    __tablename__ = 'cushion_extra_time_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    worker_name = db.Column(db.String(50), nullable=False)
+    minutes = db.Column(db.Integer, nullable=False)
+    added_by = db.Column(db.String(50), nullable=False)
+    recorded_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
 BONUS_GOAL_AREAS = [
     {"key": "pods", "label": "Pods"},
     {"key": "bodies", "label": "Bodies"},
@@ -1035,6 +1058,38 @@ BONUS_GOAL_AREA_LABELS = {area["key"]: area["label"] for area in BONUS_GOAL_AREA
 
 def ensure_bonus_goal_tables():
     BonusGoal.__table__.create(db.engine, checkfirst=True)
+    CushionExtraTimeGoal.__table__.create(db.engine, checkfirst=True)
+    CushionExtraTimeLog.__table__.create(db.engine, checkfirst=True)
+
+
+def cushion_extra_time_progress(worker_name, year, month):
+    ensure_bonus_goal_tables()
+    goal = CushionExtraTimeGoal.query.filter_by(
+        worker_name=worker_name,
+        year=int(year),
+        month=int(month)
+    ).first()
+    completed_minutes = int(
+        db.session.query(func.coalesce(func.sum(CushionExtraTimeLog.minutes), 0))
+        .filter(
+            CushionExtraTimeLog.worker_name == worker_name,
+            extract('year', CushionExtraTimeLog.recorded_at) == int(year),
+            extract('month', CushionExtraTimeLog.recorded_at) == int(month)
+        )
+        .scalar() or 0
+    )
+    target_minutes = int(goal.target_minutes or 0) if goal else 0
+    percentage = round((completed_minutes / target_minutes) * 100, 1) if target_minutes else 0
+    return {
+        'completed_minutes': completed_minutes,
+        'completed_hours': round(completed_minutes / 60, 2),
+        'target_minutes': target_minutes,
+        'target_hours': round(target_minutes / 60, 2),
+        'remaining_minutes': max(target_minutes - completed_minutes, 0),
+        'percentage': percentage,
+        'percentage_capped': min(percentage, 100),
+        'target_hit': bool(target_minutes and completed_minutes >= target_minutes),
+    }
 
 
 def cnc_effective_completed_quantity(job_name, quantity):
@@ -11351,44 +11406,6 @@ def pod_dashboard_view():
             "comparison_class": comparison["class"],
         })
 
-    bonus_progress = dashboard_bonus_progress(
-        "pods",
-        today.year,
-        today.month,
-        label_overrides={"Tom F": "Tom F Pod Goal"}
-    )
-    tom_f_body_bonus = dashboard_bonus_progress(
-        "bodies",
-        today.year,
-        today.month,
-        include_workers=["Tom F"],
-        label_overrides={"Tom F": "Tom F Body Goal"}
-    )
-    bonus_progress = sorted(
-        [*bonus_progress, *tom_f_body_bonus],
-        key=lambda row: (
-            row.get("area") != "pods",
-            1 if row.get("next_bonus") else 0,
-            -row.get("percentage", 0),
-            row.get("display_worker", row.get("worker", "")).lower()
-        )
-    )
-    celebration_goal_labels = {"Tom F Pod Goal", "Tom F Body Goal"}
-    celebration_goals = [
-        goal for goal in bonus_progress
-        if goal.get("display_worker", goal.get("worker")) in celebration_goal_labels
-    ]
-    pod_goal_celebration = (
-        len(celebration_goals) == len(celebration_goal_labels)
-        and all(goal.get("target_hit") for goal in celebration_goals)
-    )
-    pod_goal_celebration_key = f"{today.year}-{today.month:02d}"
-    latest_completed_pod = (
-        CompletedPods.query
-        .order_by(CompletedPods.id.desc())
-        .first()
-    )
-
     return render_template(
         'pod_dashboard.html',
         stats=stats,
@@ -11399,12 +11416,7 @@ def pod_dashboard_view():
         limiting_overall=limiting_overall,
         min_capacity=min_capacity,
         pod_type_average_rows=pod_type_average_rows,
-        previous_month_label=previous_month.strftime("%B %Y"),
-        bonus_progress=bonus_progress,
-        bonus_month_label=bonus_goal_month_label(today.year, today.month),
-        pod_goal_celebration=pod_goal_celebration,
-        pod_goal_celebration_key=pod_goal_celebration_key,
-        latest_completed_pod=latest_completed_pod
+        previous_month_label=previous_month.strftime("%B %Y")
     )
 
 
@@ -13135,6 +13147,7 @@ def counting_cushions():
 
     ensure_cushion_workflow_tables()
     ensure_cushion_consumables()
+    ensure_bonus_goal_tables()
     worker_name = session['worker']
 
     if request.method == 'POST':
@@ -13204,6 +13217,40 @@ def counting_cushions():
                     raise ValueError("That consumable is not available on this page.")
                 adjust_consumable_stock(part_name, delta)
                 db.session.commit()
+            elif action == "set_extra_time_goal":
+                target_hours = float(request.form.get('target_hours', 0) or 0)
+                if target_hours < 0:
+                    raise ValueError("The extra job time target cannot be negative.")
+                today = london_now().date()
+                goal = CushionExtraTimeGoal.query.filter_by(
+                    worker_name="Katie",
+                    year=today.year,
+                    month=today.month
+                ).first()
+                if not goal:
+                    goal = CushionExtraTimeGoal(
+                        worker_name="Katie",
+                        year=today.year,
+                        month=today.month
+                    )
+                    db.session.add(goal)
+                goal.target_minutes = round(target_hours * 60)
+                db.session.commit()
+                flash("Katie's extra job time target was updated.", "success")
+            elif action == "add_extra_job_minutes":
+                try:
+                    minutes = int(request.form.get('extra_minutes', 0) or 0)
+                except (TypeError, ValueError):
+                    raise ValueError("Enter the extra job time as whole minutes.")
+                if minutes <= 0:
+                    raise ValueError("Extra job time must be at least 1 minute.")
+                db.session.add(CushionExtraTimeLog(
+                    worker_name="Katie",
+                    minutes=minutes,
+                    added_by=worker_name
+                ))
+                db.session.commit()
+                flash(f"Added {minutes} extra job minutes for Katie.", "success")
             else:
                 flash("Unknown cushion action.", "error")
         except ValueError as error:
@@ -13219,7 +13266,7 @@ def counting_cushions():
     current_stage_key = cushion_current_stage_key(active_batch.batch_number if active_batch else None)
     stage_context = build_cushion_stage_context(highlight_stage_key=current_stage_key)
     stock_summary = cushion_stock_summary()
-    today = date.today()
+    today = london_now().date()
     bonus_progress = dashboard_bonus_progress(
         "cushions",
         today.year,
@@ -13238,6 +13285,7 @@ def counting_cushions():
         previous_month_size_stats=cushion_completed_previous_month_stats(),
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        extra_time_progress=cushion_extra_time_progress("Katie", today.year, today.month),
         compressor_context=cushion_compressor_context(worker_name),
         admin_url=url_for('cushion_production_admin')
     )

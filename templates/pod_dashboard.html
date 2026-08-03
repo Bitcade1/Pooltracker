@@ -943,76 +943,6 @@
         {% endfor %}
     </section>
 
-    <section class="bonus-panel">
-        <div class="bonus-head">
-            <h3>Bonus Progress - {{ bonus_month_label }}</h3>
-            <a class="bonus-link" href="{{ url_for('bonus_goals') }}">Manage Goals</a>
-        </div>
-        {% if bonus_progress %}
-            <div class="bonus-grid">
-                {% for goal in bonus_progress %}
-                    <article class="bonus-card {% if goal.target_hit %}is-complete{% endif %}">
-                        <div class="bonus-worker">
-                            <span>{{ goal.display_worker|default(goal.worker) }}</span>
-                            <span class="bonus-count">{{ goal.current }} / {{ goal.target }}</span>
-                        </div>
-                        <div class="bonus-track" aria-label="{{ goal.display_worker|default(goal.worker) }} bonus progress">
-                            <div class="bonus-fill" style="width: {{ goal.percentage_capped }}%;"></div>
-                        </div>
-                        <div class="bonus-meta">
-                            <span>{{ goal.percentage }}%</span>
-                            {% if goal.next_bonus and goal.target_hit %}
-                                <span>Next bonus hit</span>
-                            {% elif goal.next_bonus %}
-                                <span>Next bonus ({{ goal.period_label }}): {{ goal.remaining }} to go</span>
-                            {% elif goal.target_hit %}
-                                <span>Target hit</span>
-                            {% else %}
-                                <span>{{ goal.remaining }} to go</span>
-                            {% endif %}
-                        </div>
-                    </article>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="bonus-empty">No pod bonus goals are set for this month yet.</div>
-        {% endif %}
-    </section>
-
-    {% if pod_goal_celebration %}
-        <section class="brainrot-celebration" data-brainrot-celebration-key="{{ pod_goal_celebration_key }}" role="status" aria-live="polite">
-            <div class="brainrot-copy">
-                <span class="brainrot-kicker">Both goals hit</span>
-                <strong class="brainrot-title">MAX AURA UNLOCKED</strong>
-                <span class="brainrot-subtitle">Pod dash is fully cooked. W mode activated.</span>
-            </div>
-            <div class="brainrot-token-grid" aria-hidden="true">
-                <span class="brainrot-token" style="--tilt: -6deg; --tilt-end: 4deg;">NO CAP</span>
-                <span class="brainrot-token" style="--tilt: 5deg; --tilt-end: -5deg;">SIGMA MODE</span>
-                <span class="brainrot-token" style="--tilt: -3deg; --tilt-end: 6deg;">RIZZ +100</span>
-                <span class="brainrot-token" style="--tilt: 7deg; --tilt-end: -4deg;">BIG W</span>
-                <span class="brainrot-token" style="--tilt: -8deg; --tilt-end: 3deg;">AURA FARM</span>
-                <span class="brainrot-token" style="--tilt: 4deg; --tilt-end: -6deg;">POD STREAK</span>
-            </div>
-        </section>
-
-        <div class="brainrot-burst" data-brainrot-burst aria-hidden="true">
-            <div class="brainrot-burst-core">
-                <span>Bonus goals complete</span>
-                <strong>MAX AURA</strong>
-            </div>
-            <span class="brainrot-fall" style="--x: 4%; --d: 5.2s; --delay: 0s; --r: -12deg; --c: #facc15;">NO CAP</span>
-            <span class="brainrot-fall" style="--x: 14%; --d: 4.7s; --delay: .35s; --r: 16deg; --c: #22d3ee;">RIZZ +100</span>
-            <span class="brainrot-fall" style="--x: 24%; --d: 5.5s; --delay: .1s; --r: -20deg; --c: #fb7185;">BIG W</span>
-            <span class="brainrot-fall" style="--x: 35%; --d: 4.9s; --delay: .55s; --r: 9deg; --c: #a3e635;">SIGMA MODE</span>
-            <span class="brainrot-fall" style="--x: 47%; --d: 5.8s; --delay: .2s; --r: -6deg; --c: #f472b6;">MAX AURA</span>
-            <span class="brainrot-fall" style="--x: 59%; --d: 4.6s; --delay: .75s; --r: 14deg; --c: #facc15;">POD STREAK</span>
-            <span class="brainrot-fall" style="--x: 70%; --d: 5.4s; --delay: .25s; --r: -18deg; --c: #38bdf8;">BRAIN ROT BONUS</span>
-            <span class="brainrot-fall" style="--x: 82%; --d: 4.8s; --delay: .65s; --r: 11deg; --c: #34d399;">W MODE</span>
-            <span class="brainrot-fall" style="--x: 91%; --d: 5.7s; --delay: .05s; --r: -9deg; --c: #fb923c;">FULL SEND</span>
-        </div>
-    {% endif %}
-
     <div class="dashboard-body">
         <section class="panel parts-panel">
             <h3>Pod Parts Inventory</h3>
@@ -1029,27 +959,6 @@
 
     </div>
 </div>
-
-{% if latest_completed_pod %}
-<div class="pod-max-rot" id="podMaxRot" data-completed-pod-id="{{ latest_completed_pod.id }}" role="status" aria-live="assertive">
-    <div class="pod-max-card">
-        <span class="pod-max-kicker">!!! GOVERNMENT AURA WARNING !!!</span>
-        <strong class="pod-max-title">PODZILLA</strong>
-        <span class="pod-max-serial">{{ latest_completed_pod.serial_number }}</span>
-        <span class="pod-max-copy">{{ latest_completed_pod.worker }} has fanum-taxed the production line. The pod is bussin beyond legal limits.</span>
-        <span class="pod-max-meter">RIZZ: OVERFLOW | AURA: RADIOACTIVE | STATUS: MEGA COOKED</span>
-    </div>
-    <span class="pod-rot-fall" style="--x:2%;--d:3.1s;--delay:0s;--c:#fff700">SKIBIDI POD</span>
-    <span class="pod-rot-fall" style="--x:11%;--d:4s;--delay:.4s;--c:#00efff">AURA OVERDOSE</span>
-    <span class="pod-rot-fall" style="--x:22%;--d:3.4s;--delay:.8s;--c:#ff78da">GYATT INDUSTRIES</span>
-    <span class="pod-rot-fall" style="--x:34%;--d:4.3s;--delay:.2s;--c:#81ff63">OHIO ENGINEERING</span>
-    <span class="pod-rot-fall" style="--x:47%;--d:3.2s;--delay:.6s;--c:#ff9638">SIGMA CERTIFIED</span>
-    <span class="pod-rot-fall" style="--x:60%;--d:4.1s;--delay:.1s;--c:#c694ff">FANUM TAX PAID</span>
-    <span class="pod-rot-fall" style="--x:73%;--d:3.6s;--delay:.9s;--c:#5dffd3">UNSPEAKABLE RIZZ</span>
-    <span class="pod-rot-fall" style="--x:85%;--d:4.4s;--delay:.3s;--c:#ff6262">MAXIMUM W</span>
-    <span class="pod-rot-fall" style="--x:94%;--d:3.3s;--delay:.7s;--c:#ffffff">NO CAP FR FR</span>
-</div>
-{% endif %}
 
 <script>
     (function () {
@@ -1081,53 +990,6 @@
 
         updateClock();
         window.setInterval(updateClock, 1000);
-    })();
-
-    (function () {
-        const celebration = document.getElementById('podMaxRot');
-        if (!celebration) return;
-
-        const storageKey = 'pod-dashboard-last-completed-pod';
-        const latestId = celebration.dataset.completedPodId;
-        let previousId = null;
-        try { previousId = window.localStorage.getItem(storageKey); } catch (error) {}
-
-        if (previousId !== null && previousId !== latestId) {
-            celebration.classList.add('is-active');
-            window.setTimeout(function () {
-                celebration.classList.remove('is-active');
-            }, 9500);
-        }
-        try { window.localStorage.setItem(storageKey, latestId); } catch (error) {}
-    })();
-
-    (function () {
-        const celebration = document.querySelector('[data-brainrot-celebration-key]');
-        const burst = document.querySelector('[data-brainrot-burst]');
-        if (!celebration || !burst) {
-            return;
-        }
-
-        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const celebrationKey = 'pod-dashboard-brainrot-celebration-' + celebration.dataset.brainrotCelebrationKey;
-        let alreadySeen = false;
-        try {
-            alreadySeen = window.localStorage.getItem(celebrationKey) === '1';
-        } catch (error) {
-            alreadySeen = false;
-        }
-
-        if (!alreadySeen && !reduceMotion) {
-            burst.classList.add('is-active');
-            try {
-                window.localStorage.setItem(celebrationKey, '1');
-            } catch (error) {
-                // Ignore browsers that block localStorage.
-            }
-            window.setTimeout(function () {
-                burst.classList.remove('is-active');
-            }, 7800);
-        }
     })();
 
     setInterval(function () {
