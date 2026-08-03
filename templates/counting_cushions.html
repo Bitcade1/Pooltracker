@@ -178,48 +178,6 @@
         font-weight: 700;
     }
 
-    .extra-time-forms {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        margin-top: 14px;
-        padding-top: 14px;
-        border-top: 1px solid #e5e7eb;
-    }
-
-    .extra-time-form {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 8px;
-        align-items: end;
-    }
-
-    .extra-time-form label {
-        display: grid;
-        gap: 5px;
-        color: #334155;
-        font-weight: 800;
-    }
-
-    .extra-time-form input {
-        min-width: 0;
-        height: 42px;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        padding: 0 10px;
-        font-size: 1rem;
-    }
-
-    .extra-time-form button {
-        height: 42px;
-        border: 0;
-        border-radius: 6px;
-        padding: 0 14px;
-        background: #0f172a;
-        color: #ffffff;
-        font-weight: 800;
-        cursor: pointer;
-    }
 
     .production-stats .stats-grid {
         margin-top: 10px;
@@ -556,11 +514,6 @@
             font-size: 2rem;
         }
 
-        .extra-time-forms,
-        .extra-time-form {
-            grid-template-columns: minmax(0, 1fr);
-        }
-
     }
 </style>
 
@@ -650,24 +603,6 @@
             {% else %}
                 <span>{{ extra_time_progress.remaining_minutes }} minutes to go</span>
             {% endif %}
-        </div>
-        <div class="extra-time-forms">
-            <form class="extra-time-form" method="post">
-                <input type="hidden" name="action" value="add_extra_job_minutes">
-                <label>
-                    Add minutes completed
-                    <input type="number" name="extra_minutes" min="1" step="1" required inputmode="numeric">
-                </label>
-                <button type="submit">Add Minutes</button>
-            </form>
-            <form class="extra-time-form" method="post">
-                <input type="hidden" name="action" value="set_extra_time_goal">
-                <label>
-                    Monthly target (hours)
-                    <input type="number" name="target_hours" min="0" step="0.25" value="{{ extra_time_progress.target_hours }}" required inputmode="decimal">
-                </label>
-                <button type="submit">Set Target</button>
-            </form>
         </div>
     </section>
 

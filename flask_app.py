@@ -13217,40 +13217,6 @@ def counting_cushions():
                     raise ValueError("That consumable is not available on this page.")
                 adjust_consumable_stock(part_name, delta)
                 db.session.commit()
-            elif action == "set_extra_time_goal":
-                target_hours = float(request.form.get('target_hours', 0) or 0)
-                if target_hours < 0:
-                    raise ValueError("The extra job time target cannot be negative.")
-                today = london_now().date()
-                goal = CushionExtraTimeGoal.query.filter_by(
-                    worker_name="Katie",
-                    year=today.year,
-                    month=today.month
-                ).first()
-                if not goal:
-                    goal = CushionExtraTimeGoal(
-                        worker_name="Katie",
-                        year=today.year,
-                        month=today.month
-                    )
-                    db.session.add(goal)
-                goal.target_minutes = round(target_hours * 60)
-                db.session.commit()
-                flash("Katie's extra job time target was updated.", "success")
-            elif action == "add_extra_job_minutes":
-                try:
-                    minutes = int(request.form.get('extra_minutes', 0) or 0)
-                except (TypeError, ValueError):
-                    raise ValueError("Enter the extra job time as whole minutes.")
-                if minutes <= 0:
-                    raise ValueError("Extra job time must be at least 1 minute.")
-                db.session.add(CushionExtraTimeLog(
-                    worker_name="Katie",
-                    minutes=minutes,
-                    added_by=worker_name
-                ))
-                db.session.commit()
-                flash(f"Added {minutes} extra job minutes for Katie.", "success")
             else:
                 flash("Unknown cushion action.", "error")
         except ValueError as error:
@@ -13506,6 +13472,7 @@ def cushion_production_admin():
 
     ensure_cushion_workflow_tables()
     ensure_cushion_consumables()
+    ensure_bonus_goal_tables()
     worker_name = session['worker']
     selected_batch = (request.args.get('batch') or 'current').strip().lower()
     active_batch = get_active_cushion_batch()
@@ -13691,6 +13658,43 @@ def cushion_production_admin():
                     flash(f"Added {len(completed_sets)} completed {size_label} cushion set(s) to stock.", "success")
                 else:
                     flash(f"No complete {size_label} bundle sets are ready yet.", "info")
+            elif action == "set_extra_time_goal":
+                try:
+                    target_hours = float(request.form.get('target_hours', 0) or 0)
+                except (TypeError, ValueError):
+                    raise ValueError("Enter the extra job time target in hours.")
+                if target_hours < 0:
+                    raise ValueError("The extra job time target cannot be negative.")
+                today = london_now().date()
+                goal = CushionExtraTimeGoal.query.filter_by(
+                    worker_name="Katie",
+                    year=today.year,
+                    month=today.month
+                ).first()
+                if not goal:
+                    goal = CushionExtraTimeGoal(
+                        worker_name="Katie",
+                        year=today.year,
+                        month=today.month
+                    )
+                    db.session.add(goal)
+                goal.target_minutes = round(target_hours * 60)
+                db.session.commit()
+                flash("Katie's extra job time target was updated.", "success")
+            elif action == "add_extra_job_minutes":
+                try:
+                    minutes = int(request.form.get('extra_minutes', 0) or 0)
+                except (TypeError, ValueError):
+                    raise ValueError("Enter the extra job time as whole minutes.")
+                if minutes <= 0:
+                    raise ValueError("Extra job time must be at least 1 minute.")
+                db.session.add(CushionExtraTimeLog(
+                    worker_name="Katie",
+                    minutes=minutes,
+                    added_by=worker_name
+                ))
+                db.session.commit()
+                flash(f"Added {minutes} extra job minutes for Katie.", "success")
             else:
                 flash("Unknown cushion admin action.", "error")
         except ValueError as error:
@@ -13723,6 +13727,7 @@ def cushion_production_admin():
         .all()
     )
     batch_admin_rows = CushionBatch.query.order_by(CushionBatch.batch_number.desc(), CushionBatch.id.desc()).all()
+    today = london_now().date()
 
     return render_template(
         'cushion_production_admin.html',
@@ -13746,6 +13751,8 @@ def cushion_production_admin():
         recent_batches=recent_batches,
         batch_admin_rows=batch_admin_rows,
         cushion_batch_display_name=cushion_batch_display_name,
+        extra_time_progress=cushion_extra_time_progress("Katie", today.year, today.month),
+        bonus_month_label=bonus_goal_month_label(today.year, today.month),
     )
 
 

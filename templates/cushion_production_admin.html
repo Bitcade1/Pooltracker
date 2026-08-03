@@ -180,6 +180,42 @@
         margin-bottom: 14px;
     }
 
+    .bonus-time-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        padding: 16px 18px;
+    }
+
+    .bonus-time-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .bonus-time-form label {
+        display: grid;
+        gap: 6px;
+        color: #334155;
+        font-weight: 800;
+    }
+
+    .bonus-time-form input {
+        min-width: 0;
+        min-height: 42px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0 10px;
+        font-size: 1rem;
+    }
+
+    .bonus-time-summary {
+        padding: 0 18px 16px;
+        color: #475569;
+        font-weight: 800;
+    }
+
     .panel-header,
     .admin-panel > summary {
         display: flex;
@@ -539,6 +575,37 @@
         <div class="stat-card">
             <div class="stat-label">7ft Est. Set Time</div>
             <div class="stat-value">{{ estimated_set_times['7ft'] }}</div>
+        </div>
+    </section>
+
+    <section class="admin-panel">
+        <div class="panel-header">
+            <div>
+                <p class="panel-kicker">{{ bonus_month_label }}</p>
+                <h2 class="panel-title">Katie Bonus Time</h2>
+            </div>
+        </div>
+        <div class="bonus-time-grid">
+            <form class="bonus-time-form" method="post" action="{{ url_for('cushion_production_admin', batch=selected_batch) }}">
+                <input type="hidden" name="action" value="add_extra_job_minutes">
+                <label>
+                    Add minutes completed
+                    <input type="number" name="extra_minutes" min="1" step="1" required inputmode="numeric">
+                </label>
+                <button class="small-btn" type="submit">Add Minutes</button>
+            </form>
+            <form class="bonus-time-form" method="post" action="{{ url_for('cushion_production_admin', batch=selected_batch) }}">
+                <input type="hidden" name="action" value="set_extra_time_goal">
+                <label>
+                    Monthly target (hours)
+                    <input type="number" name="target_hours" min="0" step="0.25" value="{{ extra_time_progress.target_hours }}" required inputmode="decimal">
+                </label>
+                <button class="small-btn" type="submit">Set Target</button>
+            </form>
+        </div>
+        <div class="bonus-time-summary">
+            {{ extra_time_progress.completed_hours|format_number }} of {{ extra_time_progress.target_hours|format_number }} hours completed
+            {% if extra_time_progress.target_minutes %}| {{ extra_time_progress.remaining_minutes }} minutes remaining{% endif %}
         </div>
     </section>
 
