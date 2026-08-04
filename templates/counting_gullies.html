@@ -4,6 +4,34 @@
 
 {% block content %}
 <style>
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        min-height: 100vh;
+    }
+    .site-header,
+    .site-footer {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 14px max(16px, calc((100% - 920px) / 2));
+        background: #ffffff;
+        text-align: center;
+    }
+    .site-header h1 { margin: 0 0 8px; }
+    .site-header nav { line-height: 1.8; }
+    .site-header hr,
+    .site-footer hr { border: 0; border-top: 1px solid #dfe3eb; }
+    .site-footer { margin-top: auto; }
+    .site-footer p { margin: 8px 0 0; }
+    body > .container {
+        width: min(920px, calc(100% - 28px));
+        max-width: 920px;
+        margin: 14px auto;
+        padding: 14px;
+        overflow: visible;
+    }
     .gully-page { max-width: 920px; margin: 0 auto; text-align: left; }
     .page-head, .panel { background: #fff; border: 1px solid #dfe3eb; border-radius: 8px; padding: 16px; }
     .page-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
@@ -28,6 +56,9 @@
     .log-table th, .log-table td { padding: 9px; border-bottom: 1px solid #e5e7eb; text-align: left; }
     .log-table th { background: #f8fafc; }
     @media (max-width: 620px) {
+        .site-header,
+        .site-footer { padding: 12px 14px; }
+        body > .container { width: calc(100% - 20px); margin: 10px auto; padding: 10px; }
         .page-head { align-items: flex-start; flex-direction: column; }
         .quantity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .log-table { font-size: .85rem; }
@@ -69,7 +100,7 @@
             <div class="size-fields" data-size-fields="7ft">
                 <div class="quantity-grid">
                     {% for part in seven_foot_parts %}
-                        <label class="quantity-field">Gully #{{ loop.index }} completed
+                        <label class="quantity-field">Gully #{{ loop.index }} taken from box
                             <input type="number" name="gully_{{ loop.index }}" min="0" step="1" value="0" inputmode="numeric">
                         </label>
                     {% endfor %}
