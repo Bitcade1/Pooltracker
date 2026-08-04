@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}Counting Gullies{% endblock %}
+
+{% block content %}
+<style>
+    .gully-page { max-width: 920px; margin: 0 auto; text-align: left; }
+    .page-head, .panel { background: #fff; border: 1px solid #dfe3eb; border-radius: 8px; padding: 16px; }
+    .page-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .page-head h1, .panel h2 { margin: 0; color: #1f2d3d; }
+    .stock-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .stock-item { background: #f8fafc; border: 1px solid #dfe3eb; border-radius: 8px; padding: 12px; text-align: center; }
+    .stock-item strong { display: block; margin-top: 4px; color: #0f172a; font-size: 1.7rem; }
+    .size-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+    .size-picker input { position: absolute; opacity: 0; pointer-events: none; }
+    .size-picker label { padding: 14px; border: 2px solid #cbd5e1; border-radius: 8px; text-align: center; font-size: 1.2rem; font-weight: 900; cursor: pointer; }
+    .size-picker input:checked + label { border-color: #1d4ed8; background: #dbeafe; color: #1e3a8a; }
+    .quantity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; }
+    .quantity-field { display: grid; gap: 6px; font-weight: 800; color: #334155; }
+    .quantity-field input { width: 100%; box-sizing: border-box; min-height: 54px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 12px; font-size: 1.3rem; }
+    .size-fields[hidden] { display: none; }
+    .transfer-button, .back-link { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; border: 0; border-radius: 8px; padding: 0 16px; font-weight: 900; text-decoration: none; cursor: pointer; }
+    .transfer-button { width: 100%; margin-top: 16px; background: #15803d; color: #fff; font-size: 1.1rem; }
+    .back-link { background: #0f172a; color: #fff; }
+    .log-panel { margin-top: 14px; }
+    .log-panel summary { cursor: pointer; font-weight: 900; font-size: 1.15rem; }
+    .log-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    .log-table th, .log-table td { padding: 9px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+    .log-table th { background: #f8fafc; }
+    @media (max-width: 620px) {
+        .page-head { align-items: flex-start; flex-direction: column; }
+        .quantity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .log-table { font-size: .85rem; }
+    }
+</style>
+
+<main class="gully-page">
+    <header class="page-head">
+        <h1>Counting Gullies</h1>
+        <a class="back-link" href="{{ url_for('home') }}">Home</a>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}<p class="flash {{ category }}">{{ message }}</p>{% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <section class="stock-strip" aria-label="Current gully stock">
+        <div class="stock-item">Untouched<strong>{{ counts['Gullies Untouched'] }}</strong></div>
+        <div class="stock-item">6ft Sets<strong>{{ counts['6ft Gully Set'] }}</strong></div>
+        {% for part in seven_foot_parts %}
+            <div class="stock-item">7ft #{{ loop.index }}<strong>{{ counts[part] }}</strong></div>
+        {% endfor %}
+    </section>
+
+    <section class="panel">
+        <h2>Add Finished Gullies</h2>
+        <form method="post" id="gully-form">
+            <div class="size-picker" role="radiogroup" aria-label="Gully size">
+                <input type="radio" name="size_label" value="7ft" id="size-7" {% if selected_size == '7ft' %}checked{% endif %}>
+                <label for="size-7">7ft</label>
+                <input type="radio" name="size_label" value="6ft" id="size-6" {% if selected_size == '6ft' %}checked{% endif %}>
+                <label for="size-6">6ft</label>
+            </div>
+
+            <div class="size-fields" data-size-fields="7ft">
+                <div class="quantity-grid">
+                    {% for part in seven_foot_parts %}
+                        <label class="quantity-field">Gully #{{ loop.index }} completed
+                            <input type="number" name="gully_{{ loop.index }}" min="0" step="1" value="0" inputmode="numeric">
+                        </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="size-fields" data-size-fields="6ft">
+                <div class="quantity-grid">
+                    <label class="quantity-field">6ft sets completed
+                        <input type="number" name="set_count" min="0" step="1" value="0" inputmode="numeric">
+                    </label>
+                </div>
+            </div>
+            <button class="transfer-button" type="submit">Transfer From Untouched Stock</button>
+        </form>
+    </section>
+
+    <details class="panel log-panel">
+        <summary>Transfer Log</summary>
+        <div style="overflow-x:auto;">
+            <table class="log-table">
+                <thead><tr><th>When</th><th>Worker</th><th>Size</th><th>Finished</th><th>Untouched Used</th></tr></thead>
+                <tbody>
+                    {% for entry in recent_conversions %}
+                        <tr>
+                            <td>{{ entry.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>{{ entry.worker }}</td>
+                            <td>{{ entry.size_label }}</td>
+                            <td>
+                                {% if entry.size_label == '6ft' %}
+                                    {{ entry.set_count }} set{% if entry.set_count != 1 %}s{% endif %}
+                                {% else %}
+                                    #1: {{ entry.gully_1 }}, #2: {{ entry.gully_2 }}, #3: {{ entry.gully_3 }}, #4: {{ entry.gully_4 }}, #5: {{ entry.gully_5 }}
+                                {% endif %}
+                            </td>
+                            <td>{{ entry.untouched_used }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5">No gully transfers recorded yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+</main>
+
+<script>
+    (function () {
+        const radios = document.querySelectorAll('input[name="size_label"]');
+        const sections = document.querySelectorAll('[data-size-fields]');
+        function updateSizeFields() {
+            const selected = document.querySelector('input[name="size_label"]:checked').value;
+            sections.forEach((section) => { section.hidden = section.dataset.sizeFields !== selected; });
+        }
+        radios.forEach((radio) => radio.addEventListener('change', updateSizeFields));
+        updateSizeFields();
+    })();
+</script>
+{% endblock %}

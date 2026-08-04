@@ -964,6 +964,22 @@ class PrintedPartsCount(db.Model):
     time = db.Column(db.Time, nullable=False)
 
 
+class GullyConversionLog(db.Model):
+    __tablename__ = 'gully_conversion_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    worker = db.Column(db.String(50), nullable=False)
+    size_label = db.Column(db.String(10), nullable=False)
+    gully_1 = db.Column(db.Integer, default=0, nullable=False)
+    gully_2 = db.Column(db.Integer, default=0, nullable=False)
+    gully_3 = db.Column(db.Integer, default=0, nullable=False)
+    gully_4 = db.Column(db.Integer, default=0, nullable=False)
+    gully_5 = db.Column(db.Integer, default=0, nullable=False)
+    set_count = db.Column(db.Integer, default=0, nullable=False)
+    untouched_used = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
 def new_printed_parts_snapshot(part_name, count, recorded_at=None):
     """Build an inventory snapshot using the app's London-local timeline."""
     recorded_at = recorded_at or london_now()
@@ -4726,6 +4742,124 @@ def counting_chinese_parts():
         chinese_parts_order_more_part=CHINESE_PARTS_ORDER_MORE_PART,
         chinese_parts_order_more_threshold=CHINESE_PARTS_ORDER_MORE_THRESHOLD,
         chinese_parts_log=chinese_parts_log
+    )
+
+
+@app.route('/counting_gullies', methods=['GET', 'POST'])
+def counting_gullies():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    GullyConversionLog.__table__.create(db.engine, checkfirst=True)
+    gully_parts = [*SEVEN_FOOT_GULLY_PARTS.keys(), "Gullies Untouched", "6ft Gully Set"]
+
+    def latest_count(part_name):
+        entry = (
+            PrintedPartsCount.query
+            .filter_by(part_name=part_name)
+            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc(), PrintedPartsCount.id.desc())
+            .first()
+        )
+        return int(entry.count or 0) if entry else 0
+
+    selected_size = request.form.get('size_label', '7ft')
+    if selected_size not in {'6ft', '7ft'}:
+        selected_size = '7ft'
+
+    if request.method == 'POST':
+        try:
+            finished_quantities = {}
+            if selected_size == '7ft':
+                for number, part_name in enumerate(SEVEN_FOOT_GULLY_PARTS.keys(), start=1):
+                    try:
+                        quantity = int(request.form.get(f'gully_{number}', 0) or 0)
+                    except (TypeError, ValueError):
+                        raise ValueError(f"Gully {number} must be a whole number.")
+                    if quantity < 0:
+                        raise ValueError("Finished gully quantities cannot be negative.")
+                    finished_quantities[part_name] = quantity
+                untouched_needed = sum(finished_quantities.values())
+                set_count = 0
+            else:
+                try:
+                    set_count = int(request.form.get('set_count', 0) or 0)
+                except (TypeError, ValueError):
+                    raise ValueError("6ft sets must be a whole number.")
+                if set_count < 0:
+                    raise ValueError("6ft sets cannot be negative.")
+                finished_quantities["6ft Gully Set"] = set_count
+                untouched_needed = set_count * 6
+
+            if untouched_needed <= 0:
+                raise ValueError("Enter at least one finished gully or set.")
+
+            untouched_count = latest_count("Gullies Untouched")
+            if untouched_needed > untouched_count:
+                raise ValueError(
+                    f"Only {untouched_count} untouched gullies are available; "
+                    f"this transfer needs {untouched_needed}."
+                )
+
+            recorded_at = london_now()
+            db.session.add(new_printed_parts_snapshot(
+                "Gullies Untouched",
+                untouched_count - untouched_needed,
+                recorded_at
+            ))
+            for part_name, quantity in finished_quantities.items():
+                if quantity:
+                    db.session.add(new_printed_parts_snapshot(
+                        part_name,
+                        latest_count(part_name) + quantity,
+                        recorded_at
+                    ))
+
+            seven_foot_values = {
+                number: finished_quantities.get(f"Ball Gullies {number}", 0)
+                for number in range(1, 6)
+            }
+            db.session.add(GullyConversionLog(
+                worker=session['worker'],
+                size_label=selected_size,
+                gully_1=seven_foot_values[1],
+                gully_2=seven_foot_values[2],
+                gully_3=seven_foot_values[3],
+                gully_4=seven_foot_values[4],
+                gully_5=seven_foot_values[5],
+                set_count=set_count,
+                untouched_used=untouched_needed,
+                created_at=recorded_at
+            ))
+            db.session.commit()
+            flash(
+                f"Added finished {selected_size} gullies and used {untouched_needed} untouched gullies.",
+                "success"
+            )
+            return redirect(url_for('counting_gullies', size=selected_size))
+        except ValueError as error:
+            db.session.rollback()
+            flash(str(error), "error")
+        except Exception:
+            db.session.rollback()
+            raise
+
+    selected_size = request.args.get('size', selected_size)
+    if selected_size not in {'6ft', '7ft'}:
+        selected_size = '7ft'
+    counts = {part_name: latest_count(part_name) for part_name in gully_parts}
+    recent_conversions = (
+        GullyConversionLog.query
+        .order_by(GullyConversionLog.created_at.desc(), GullyConversionLog.id.desc())
+        .limit(30)
+        .all()
+    )
+    return render_template(
+        'counting_gullies.html',
+        counts=counts,
+        selected_size=selected_size,
+        seven_foot_parts=list(SEVEN_FOOT_GULLY_PARTS.keys()),
+        recent_conversions=recent_conversions
     )
 
 
