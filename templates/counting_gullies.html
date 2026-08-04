@@ -100,7 +100,7 @@
             <div class="size-fields" data-size-fields="7ft">
                 <div class="quantity-grid">
                     {% for part in seven_foot_parts %}
-                        <label class="quantity-field">Gully #{{ loop.index }} taken from box
+                        <label class="quantity-field">Gully #{{ loop.index }} {% if loop.first %}taken from box{% else %}completed{% endif %}
                             <input type="number" name="gully_{{ loop.index }}" min="0" step="1" value="0" inputmode="numeric">
                         </label>
                     {% endfor %}
