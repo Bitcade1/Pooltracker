@@ -764,48 +764,83 @@ def generate_packaging(items, config=None):
         )
         rail_groups[group_key].append(dict(line))
     for size in ("7ft", "6ft", "Unknown"):
+        rail_batches = []
         colours = sorted(
             colour for group_size, colour in rail_groups
             if group_size == size
         )
         for colour in colours:
             rail_lines = rail_groups.get((size, colour), [])
-            while _line_total(rail_lines) >= config["top_rail_capacity"]:
-                lines = _take_from_lines(rail_lines, config["top_rail_capacity"])
-                pallet = _new_pallet("top_rail", next_number, lines, size=size)
-                _refresh_pallet_labels(pallet, config)
-                pallets.append(pallet)
-                next_number += 1
+            while _line_total(rail_lines) > config["top_rail_capacity"]:
+                rail_batches.append(
+                    _take_from_lines(rail_lines, config["top_rail_capacity"])
+                )
 
             remainder = _line_total(rail_lines)
             if not remainder:
                 continue
-            if remainder < config["loose_rail_limit"]:
-                suitable_body = _compatible_body_pallet(
-                    body_pallets,
-                    size,
-                    "" if colour == "Unknown" else colour,
-                    config,
-                    required_rail_space=remainder,
-                )
-                if suitable_body:
-                    suitable_body["carried_top_rails"].extend(
-                        _take_from_lines(
-                            rail_lines,
-                            remainder,
-                        )
-                    )
+            rail_batches.append(_take_from_lines(rail_lines, remainder))
 
-            remaining_after_body_pallets = _line_total(rail_lines)
-            if remaining_after_body_pallets:
-                pallet = _new_pallet(
-                    "top_rail", next_number,
-                    _take_from_lines(rail_lines, remaining_after_body_pallets),
-                    size=size,
-                )
-                _refresh_pallet_labels(pallet, config)
-                pallets.append(pallet)
-                next_number += 1
+        planning_body_pallets = [
+            {
+                **pallet,
+                "carried_top_rails": [
+                    dict(line) for line in pallet.get("carried_top_rails", [])
+                ],
+            }
+            for pallet in body_pallets
+        ]
+        planned_body_assignments = []
+        all_batches_fit_bodies = bool(rail_batches)
+        for batch in rail_batches:
+            batch_total = _line_total(batch)
+            batch_colour = next(
+                (line.get("colour") for line in batch if line.get("colour")),
+                "",
+            )
+            if batch_total >= config["loose_rail_limit"]:
+                all_batches_fit_bodies = False
+                break
+            suitable_body = _compatible_body_pallet(
+                planning_body_pallets,
+                size,
+                batch_colour,
+                config,
+                required_rail_space=batch_total,
+            )
+            if not suitable_body:
+                all_batches_fit_bodies = False
+                break
+            suitable_body["carried_top_rails"].extend(batch)
+            planned_body_assignments.append((suitable_body["id"], batch))
+
+        if all_batches_fit_bodies:
+            body_pallet_by_id = {pallet["id"]: pallet for pallet in body_pallets}
+            for pallet_id, batch in planned_body_assignments:
+                body_pallet_by_id[pallet_id]["carried_top_rails"].extend(batch)
+            continue
+
+        rail_batches.sort(key=_line_total, reverse=True)
+        rail_pallet_lines = []
+        for batch in rail_batches:
+            batch_total = _line_total(batch)
+            target_lines = next(
+                (
+                    lines for lines in rail_pallet_lines
+                    if _line_total(lines) + batch_total <= config["top_rail_capacity"]
+                ),
+                None,
+            )
+            if target_lines is None:
+                target_lines = []
+                rail_pallet_lines.append(target_lines)
+            target_lines.extend(batch)
+
+        for lines in rail_pallet_lines:
+            pallet = _new_pallet("top_rail", next_number, lines, size=size)
+            _refresh_pallet_labels(pallet, config)
+            pallets.append(pallet)
+            next_number += 1
 
     cushion_lines = _aggregate_cushion_lines(requirements["cushions"])
     leg_lines = [dict(line) for line in requirements["leg_boxes"]]
