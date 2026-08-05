@@ -682,10 +682,20 @@ def _refresh_pallet_labels(pallet, config):
     return pallet
 
 
-def _compatible_body_pallet(body_pallets, rail_size, config):
+def _compatible_body_pallet(body_pallets, rail_size, rail_colour, config):
     candidates = []
     for pallet in body_pallets:
-        sizes = {line.get("size") for line in pallet["lines"]}
+        body_lines = [
+            line for line in pallet["lines"]
+            if line.get("component_type") == "body"
+        ]
+        sizes = {line.get("size") for line in body_lines}
+        body_colours = {
+            line.get("colour") for line in body_lines
+            if line.get("colour")
+        }
+        if rail_colour and body_colours and rail_colour not in body_colours:
+            continue
         if rail_size == "7ft" and "7ft" not in sizes:
             continue
         if rail_size == "6ft" and not sizes.intersection({"6ft", "7ft"}):
@@ -700,8 +710,18 @@ def _compatible_body_pallet(body_pallets, rail_size, config):
         }
         if carried_sizes and rail_size not in carried_sizes:
             continue
+        carried_colours = {
+            line.get("colour") for line in carried_lines
+            if line.get("colour")
+        }
+        if carried_colours and rail_colour and rail_colour not in carried_colours:
+            continue
         candidates.append(pallet)
     candidates.sort(key=lambda pallet: (
+        0 if rail_colour and rail_colour in {
+            line.get("colour") for line in pallet.get("lines", [])
+            if line.get("component_type") == "body" and line.get("colour")
+        } else 1,
         _line_total(pallet.get("carried_top_rails", [])),
         pallet.get("capacity_used", 0) < pallet.get("capacity", 5),
         pallet["pallet_number"],
@@ -717,7 +737,10 @@ def generate_packaging(items, config=None):
     next_number = 1
 
     body_lines = [dict(line) for line in requirements["bodies"]]
-    body_lines.sort(key=lambda line: (0 if line.get("size") == "7ft" else 1))
+    body_lines.sort(key=lambda line: (
+        0 if line.get("size") == "7ft" else 1,
+        line.get("colour") or "Unknown",
+    ))
     while _line_total(body_lines):
         lines = _take_from_lines(body_lines, config["body_capacity"])
         pallet = _new_pallet("body", next_number, lines)
@@ -728,47 +751,59 @@ def generate_packaging(items, config=None):
 
     rail_groups = defaultdict(list)
     for line in requirements["top_rails"]:
-        rail_groups[line.get("size") or "Unknown"].append(dict(line))
+        group_key = (
+            line.get("size") or "Unknown",
+            line.get("colour") or "Unknown",
+        )
+        rail_groups[group_key].append(dict(line))
     for size in ("7ft", "6ft", "Unknown"):
-        rail_lines = rail_groups.get(size, [])
-        while _line_total(rail_lines) >= config["top_rail_capacity"]:
-            lines = _take_from_lines(rail_lines, config["top_rail_capacity"])
-            pallet = _new_pallet("top_rail", next_number, lines, size=size)
-            _refresh_pallet_labels(pallet, config)
-            pallets.append(pallet)
-            next_number += 1
+        colours = sorted(
+            colour for group_size, colour in rail_groups
+            if group_size == size
+        )
+        for colour in colours:
+            rail_lines = rail_groups.get((size, colour), [])
+            while _line_total(rail_lines) >= config["top_rail_capacity"]:
+                lines = _take_from_lines(rail_lines, config["top_rail_capacity"])
+                pallet = _new_pallet("top_rail", next_number, lines, size=size)
+                _refresh_pallet_labels(pallet, config)
+                pallets.append(pallet)
+                next_number += 1
 
-        remainder = _line_total(rail_lines)
-        if not remainder:
-            continue
-        if remainder < config["loose_rail_limit"]:
-            while _line_total(rail_lines):
-                suitable_body = _compatible_body_pallet(
-                    body_pallets, size, config
-                )
-                if not suitable_body:
-                    break
-                available_space = (
-                    config["top_rails_per_body_pallet"]
-                    - _line_total(suitable_body.get("carried_top_rails", []))
-                )
-                suitable_body["carried_top_rails"].extend(
-                    _take_from_lines(
-                        rail_lines,
-                        min(available_space, _line_total(rail_lines)),
+            remainder = _line_total(rail_lines)
+            if not remainder:
+                continue
+            if remainder < config["loose_rail_limit"]:
+                while _line_total(rail_lines):
+                    suitable_body = _compatible_body_pallet(
+                        body_pallets,
+                        size,
+                        "" if colour == "Unknown" else colour,
+                        config,
                     )
-                )
+                    if not suitable_body:
+                        break
+                    available_space = (
+                        config["top_rails_per_body_pallet"]
+                        - _line_total(suitable_body.get("carried_top_rails", []))
+                    )
+                    suitable_body["carried_top_rails"].extend(
+                        _take_from_lines(
+                            rail_lines,
+                            min(available_space, _line_total(rail_lines)),
+                        )
+                    )
 
-        remaining_after_body_pallets = _line_total(rail_lines)
-        if remaining_after_body_pallets:
-            pallet = _new_pallet(
-                "top_rail", next_number,
-                _take_from_lines(rail_lines, remaining_after_body_pallets),
-                size=size,
-            )
-            _refresh_pallet_labels(pallet, config)
-            pallets.append(pallet)
-            next_number += 1
+            remaining_after_body_pallets = _line_total(rail_lines)
+            if remaining_after_body_pallets:
+                pallet = _new_pallet(
+                    "top_rail", next_number,
+                    _take_from_lines(rail_lines, remaining_after_body_pallets),
+                    size=size,
+                )
+                _refresh_pallet_labels(pallet, config)
+                pallets.append(pallet)
+                next_number += 1
 
     cushion_lines = _aggregate_cushion_lines(requirements["cushions"])
     leg_lines = [dict(line) for line in requirements["leg_boxes"]]
