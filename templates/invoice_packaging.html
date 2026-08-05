@@ -456,6 +456,23 @@
         margin-top: 8px;
     }
 
+    .line-actions.top-rail-actions {
+        grid-template-columns: 90px minmax(130px, 1fr) auto;
+    }
+
+    .top-rail-actions > :nth-child(1) { grid-column: 1; grid-row: 1; }
+    .top-rail-actions > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    .top-rail-actions > :nth-child(3) { grid-column: 2; grid-row: 2; }
+    .top-rail-actions > :nth-child(4) { grid-column: 3; grid-row: 2; }
+    .top-rail-actions > :nth-child(5) { grid-column: 3; grid-row: 1; }
+
+    @media (max-width: 480px) {
+        .top-rail-actions > * {
+            grid-column: 1 !important;
+            grid-row: auto !important;
+        }
+    }
+
     .on-top-label {
         display: inline-block;
         margin-bottom: 5px;
@@ -1041,19 +1058,33 @@
             line.po_number ? `PO ${line.po_number}` : "",
             line.description
         ].filter(Boolean).join(" | ");
+        const moveControls = line.component_type === "top_rail"
+            ? `
+                <input class="cell-input" id="move-quantity-${escapeHtml(line.id)}" type="number" min="1"
+                    max="${integerValue(line.quantity, 0)}" value="${integerValue(line.quantity, 0)}"
+                    aria-label="Top rails to move">
+                <select class="cell-select" id="move-target-${escapeHtml(line.id)}" aria-label="Move top rails to pallet">
+                    ${allPalletOptions(pallet.id)}
+                </select>
+                <button type="button" class="small secondary"
+                    onclick="moveTopRails('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})">Move</button>
+            `
+            : `
+                <select class="cell-select" aria-label="Move line target"
+                    onchange="moveLine('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value); this.value='${escapeHtml(pallet.id)}';">
+                    ${allPalletOptions(pallet.id)}
+                </select>
+            `;
         return `
             <div class="pallet-line">
                 ${carried ? `<span class="on-top-label">Carried on body pallet</span>` : ""}
                 <div class="line-main">${integerValue(line.quantity, 0)} x ${escapeHtml(componentLabels[line.component_type] || line.component_type || "Item")}</div>
                 <div class="line-details">${escapeHtml(details || "Manual allocation")}</div>
-                <div class="line-actions no-print">
+                <div class="line-actions ${line.component_type === "top_rail" ? "top-rail-actions" : ""} no-print">
                     <input class="cell-input" type="number" min="0" value="${integerValue(line.quantity, 0)}"
                         aria-label="Line quantity"
                         onchange="changeLineQuantity('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value)">
-                    <select class="cell-select" aria-label="Move line target"
-                        onchange="moveLine('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value); this.value='${escapeHtml(pallet.id)}';">
-                        ${allPalletOptions(pallet.id)}
-                    </select>
+                    ${moveControls}
                     <button type="button" class="small danger" onclick="removeLine('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})">Remove</button>
                 </div>
             </div>
@@ -1129,20 +1160,43 @@
         renderPallets();
     }
 
-    function moveLine(sourcePalletId, lineId, carried, targetPalletId) {
+    function moveTopRails(sourcePalletId, lineId, carried) {
+        const quantityInput = document.getElementById(`move-quantity-${lineId}`);
+        const targetSelect = document.getElementById(`move-target-${lineId}`);
+        if (!quantityInput || !targetSelect) return;
+        moveLine(sourcePalletId, lineId, carried, targetSelect.value, integerValue(quantityInput.value));
+    }
+
+    function moveLine(sourcePalletId, lineId, carried, targetPalletId, requestedQuantity = null) {
         if (!targetPalletId || targetPalletId === sourcePalletId) return;
         const source = palletById(sourcePalletId);
         const target = palletById(targetPalletId);
         if (!source || !target) return;
         const result = findLine(source, lineId, carried);
         if (!result.line) return;
-        result.collection.splice(result.index, 1);
-        if (result.line.component_type === "top_rail" && target.pallet_type === "body") {
+        const availableQuantity = Math.max(0, integerValue(result.line.quantity));
+        const moveQuantity = requestedQuantity === null
+            ? availableQuantity
+            : Math.max(0, integerValue(requestedQuantity));
+        if (!moveQuantity || moveQuantity > availableQuantity) {
+            setStatus(`Choose between 1 and ${availableQuantity} top rails to move.`, "error");
+            return;
+        }
+
+        let movedLine;
+        if (moveQuantity === availableQuantity) {
+            movedLine = result.line;
+            result.collection.splice(result.index, 1);
+        } else {
+            result.line.quantity = availableQuantity - moveQuantity;
+            movedLine = {...result.line, id: makeId("line"), quantity: moveQuantity};
+        }
+        if (movedLine.component_type === "top_rail" && target.pallet_type === "body") {
             target.carried_top_rails = target.carried_top_rails || [];
-            target.carried_top_rails.push(result.line);
+            target.carried_top_rails.push(movedLine);
         } else {
             target.lines = target.lines || [];
-            target.lines.push(result.line);
+            target.lines.push(movedLine);
         }
         source.manual_override = true;
         target.manual_override = true;

@@ -379,7 +379,7 @@
                     <div class="rails-on-top">
                         Top-load:
                         {% for line in carried_rails %}
-                            {{ line.quantity }} x {{ line.size }} top rail{% if not loop.last %} | {% endif %}
+                            {{ line.quantity }} x {{ line.size }}{% if line.colour %} {{ line.colour }}{% endif %} top rail{% if not loop.last %} | {% endif %}
                         {% endfor %}
                     </div>
                 {% endif %}
