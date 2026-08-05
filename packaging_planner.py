@@ -696,12 +696,6 @@ def _compatible_body_pallet(
             if line.get("component_type") == "body"
         ]
         sizes = {line.get("size") for line in body_lines}
-        body_colours = {
-            line.get("colour") for line in body_lines
-            if line.get("colour")
-        }
-        if rail_colour and body_colours and rail_colour not in body_colours:
-            continue
         if rail_size == "7ft" and "7ft" not in sizes:
             continue
         if rail_size == "6ft" and not sizes.intersection({"6ft", "7ft"}):
