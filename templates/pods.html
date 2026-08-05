@@ -290,6 +290,7 @@
               lite: 0,
               count_7ft: 0,
               count_6ft: 0,
+              avg: 'N/A',
               champion_avg: 'N/A',
               lite_avg: 'N/A'
           };
@@ -369,6 +370,10 @@
           document.querySelectorAll('[data-monthly-worker-lite-row]').forEach((element) => {
               const rowIndex = parseInt(element.dataset.monthlyWorkerLiteRow, 10);
               element.textContent = statsFor(monthlyWorkerStats, rowIndex, selectedKey).lite;
+          });
+          document.querySelectorAll('[data-monthly-worker-avg-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.monthlyWorkerAvgRow, 10);
+              element.textContent = statsFor(monthlyWorkerStats, rowIndex, selectedKey).avg;
           });
           document.querySelectorAll('[data-monthly-worker-champion-avg-row]').forEach((element) => {
               const rowIndex = parseInt(element.dataset.monthlyWorkerChampionAvgRow, 10);
@@ -761,6 +766,7 @@
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Pods</th>
             <th>Champion</th>
             <th>Lite</th>
+            <th>Avg Time per Pod</th>
             <th>Avg Time (Champion)</th>
             <th>Avg Time (Lite)</th>
           </tr>
@@ -772,12 +778,13 @@
               <td data-monthly-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
               <td data-monthly-worker-champion-row="{{ loop.index0 }}">{{ month.selected_worker_champion_count }}</td>
               <td data-monthly-worker-lite-row="{{ loop.index0 }}">{{ month.selected_worker_lite_count }}</td>
+              <td data-monthly-worker-avg-row="{{ loop.index0 }}">{{ month.selected_worker_avg }}</td>
               <td data-monthly-worker-champion-avg-row="{{ loop.index0 }}">{{ month.selected_worker_champion_avg }}</td>
               <td data-monthly-worker-lite-avg-row="{{ loop.index0 }}">{{ month.selected_worker_lite_avg }}</td>
             </tr>
           {% else %}
             <tr>
-              <td colspan="6">No monthly pod history available.</td>
+              <td colspan="7">No monthly pod history available.</td>
             </tr>
           {% endfor %}
         </tbody>

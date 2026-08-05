@@ -5724,6 +5724,8 @@ def pods():
             "pod_count": 0,
             "champion_count": 0,
             "lite_count": 0,
+            "seconds": 0,
+            "duration_count": 0,
             "champion_seconds": 0,
             "champion_duration_count": 0,
             "lite_seconds": 0,
@@ -5767,6 +5769,8 @@ def pods():
 
             for worker_key in worker_keys:
                 stats = worker_stats[worker_key]
+                stats["seconds"] += duration.total_seconds()
+                stats["duration_count"] += 1
                 stats[f"{pod_type}_seconds"] += duration.total_seconds()
                 stats[f"{pod_type}_duration_count"] += 1
 
@@ -5779,6 +5783,10 @@ def pods():
                 "count": stats["pod_count"],
                 "champion": stats["champion_count"],
                 "lite": stats["lite_count"],
+                "avg": format_avg_duration(
+                    stats["seconds"],
+                    stats["duration_count"]
+                ),
                 "champion_avg": format_avg_duration(
                     stats["champion_seconds"],
                     stats["champion_duration_count"]
@@ -5797,6 +5805,10 @@ def pods():
             "selected_worker_count": selected_worker_stats["pod_count"],
             "selected_worker_champion_count": selected_worker_stats["champion_count"],
             "selected_worker_lite_count": selected_worker_stats["lite_count"],
+            "selected_worker_avg": format_avg_duration(
+                selected_worker_stats["seconds"],
+                selected_worker_stats["duration_count"]
+            ),
             "selected_worker_champion_avg": format_avg_duration(
                 selected_worker_stats["champion_seconds"],
                 selected_worker_stats["champion_duration_count"]
