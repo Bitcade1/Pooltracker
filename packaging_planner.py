@@ -494,10 +494,7 @@ def normalise_config(config):
         "body_capacity": max(1, min(50, _safe_quantity(config.get("body_capacity"), 5))),
         "top_rail_capacity": max(1, min(100, _safe_quantity(config.get("top_rail_capacity"), 15))),
         "loose_rail_limit": max(1, min(100, _safe_quantity(config.get("loose_rail_limit"), 10))),
-        "top_rails_per_body_pallet": max(
-            1,
-            min(20, _safe_quantity(config.get("top_rails_per_body_pallet"), 2)),
-        ),
+        "top_rails_per_body_pallet": 1,
         "cushion_pallet_count": max(1, min(50, _safe_quantity(config.get("cushion_pallet_count"), 1))),
         "legs_per_6ft_table": max(0, min(100, int(config.get("legs_per_6ft_table", 4) or 0))),
         "legs_per_box": max(1, min(100, _safe_quantity(config.get("legs_per_box"), 8))),
@@ -703,10 +700,7 @@ def _compatible_body_pallet(
             continue
         carried_lines = pallet.get("carried_top_rails", [])
         carried_count = _line_total(carried_lines)
-        rail_capacity = max(
-            config["top_rails_per_body_pallet"],
-            _line_total(body_lines),
-        )
+        rail_capacity = config["top_rails_per_body_pallet"]
         available_space = rail_capacity - carried_count
         if available_space < required_rail_space:
             continue
@@ -807,11 +801,7 @@ def generate_packaging(items, config=None):
                 if not suitable_body:
                     all_batches_fit_bodies = False
                     break
-                body_count = _line_total([
-                    line for line in suitable_body.get("lines", [])
-                    if line.get("component_type") == "body"
-                ])
-                rail_capacity = max(config["top_rails_per_body_pallet"], body_count)
+                rail_capacity = config["top_rails_per_body_pallet"]
                 available_space = rail_capacity - _line_total(
                     suitable_body.get("carried_top_rails", [])
                 )
@@ -991,13 +981,13 @@ def validate_packaging(items, pallets, config=None, requirements=None):
                 "important",
             ))
         carried_count = _line_total(pallet.get("carried_top_rails", []))
-        body_rail_capacity = max(config["top_rails_per_body_pallet"], body_count)
+        body_rail_capacity = config["top_rails_per_body_pallet"]
         if carried_count > body_rail_capacity:
             warnings.append(_warning(
                 "body_pallet_rail_capacity",
                 f"Pallet {pallet.get('pallet_number')} carries {carried_count} top rails; "
                 f"the maximum on one body pallet is "
-                f"{body_rail_capacity} (one per body).",
+                f"{body_rail_capacity}.",
                 "important",
             ))
         if carried_count >= config["loose_rail_limit"]:
