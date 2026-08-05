@@ -601,6 +601,7 @@ def _take_from_lines(lines, quantity):
 def _new_pallet(pallet_type, number, lines=None, size=""):
     return {
         "id": _new_id("pallet"),
+        "planner_version": 2,
         "pallet_number": number,
         "pallet_type": pallet_type,
         "size": size,

@@ -767,9 +767,14 @@
 
     <section class="panel no-print">
         <div class="panel-body">
+            {% if plan.pallets and not plan.pallets[0].planner_version %}
+            <div class="status-message warning" style="margin-bottom: 12px;" role="status">
+                This plan uses an older automatic layout. Select Regenerate Automatic Pallets to apply the latest top-rail placement rules.
+            </div>
+            {% endif %}
             <div class="toolbar">
-                <button type="button" class="success" onclick="generatePlan()">Save and Generate Packaging</button>
-                <button type="button" class="secondary" onclick="savePlan()">Save Current Changes</button>
+                <button type="button" class="success" onclick="generatePlan()">Regenerate Automatic Pallets</button>
+                <button type="button" class="secondary" onclick="savePlan()">Save Manual Layout</button>
                 <button type="button" class="warning" onclick="validatePlan()">Validate Packaging</button>
                 <button type="button" class="secondary" onclick="window.print()">Print Packaging List</button>
                 <button type="button" class="secondary" onclick="printZebraLabels()">Print Zebra Stickers</button>
