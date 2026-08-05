@@ -194,6 +194,28 @@
       .type-breakdown table {
           margin-top: 10px;
       }
+      .worker-stats-form {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: flex-end;
+          gap: 10px;
+          margin: 0 0 12px 0;
+          text-align: left;
+      }
+      .worker-stats-form label {
+          width: auto;
+          margin: 0;
+      }
+      .worker-stats-form select {
+          width: auto;
+          min-width: 180px;
+          max-width: 280px;
+      }
+      .worker-stats-form button {
+          width: auto;
+          padding: 10px 14px;
+      }
       .pod-history-table th,
       .pod-history-table td {
           vertical-align: top;
@@ -208,6 +230,15 @@
           font-size: 0.85em;
       }
       @media (max-width: 600px) {
+          .worker-stats-form {
+              flex-direction: column;
+              align-items: stretch;
+          }
+          .worker-stats-form select,
+          .worker-stats-form button {
+              width: 100%;
+              max-width: none;
+          }
           .pod-history-table {
               min-width: 560px;
           }
@@ -221,6 +252,9 @@
       const podFormRestored = {{ pod_form_restored|tojson }};
       const nextPodSerialUrl = {{ url_for('pod_next_serial')|tojson }};
       const initialSuggestedPodSerial = {{ next_serial_number|tojson }};
+      const dailyWorkerStats = {{ daily_worker_stats|tojson }};
+      const weeklyWorkerStats = {{ weekly_worker_stats|tojson }};
+      const monthlyWorkerStats = {{ monthly_worker_stats|tojson }};
 
       function podBaseSerial(value) {
           let cleaned = (value || '').trim();
@@ -247,6 +281,113 @@
           var isHidden = content.style.display === "none";
           content.style.display = isHidden ? "block" : "none";
           button.textContent = isHidden ? "Hide Production Targets" : "Show Production Targets";
+      }
+
+      function emptyWorkerStats(includeSerials = false) {
+          const stats = {
+              count: 0,
+              champion: 0,
+              lite: 0,
+              count_7ft: 0,
+              count_6ft: 0,
+              champion_avg: 'N/A',
+              lite_avg: 'N/A'
+          };
+          if (includeSerials) {
+              stats.serial_numbers = '';
+          }
+          return stats;
+      }
+
+      function statsFor(statsRows, rowIndex, selectedKey, includeSerials = false) {
+          return (statsRows[rowIndex] && statsRows[rowIndex][selectedKey]) || emptyWorkerStats(includeSerials);
+      }
+
+      function updateWorkerStatsDisplay(sourceSelect, updateUrl = true) {
+          const select = sourceSelect || document.querySelector('.worker-stats-select');
+          if (!select) {
+              return;
+          }
+
+          const selectedKey = select.value;
+          const selectedLabel = select.options[select.selectedIndex]
+              ? select.options[select.selectedIndex].text
+              : 'All Workers';
+
+          document.querySelectorAll('.worker-stats-select').forEach((workerSelect) => {
+              const hasOption = Array.from(workerSelect.options).some(
+                  (option) => option.value === selectedKey
+              );
+              if (hasOption) {
+                  workerSelect.value = selectedKey;
+              }
+          });
+
+          document.querySelectorAll('.selected-worker-label').forEach((element) => {
+              element.textContent = selectedLabel;
+          });
+
+          document.querySelectorAll('[data-daily-worker-count-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.dailyWorkerCountRow, 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).count;
+          });
+          document.querySelectorAll('[data-daily-worker-champion-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.dailyWorkerChampionRow, 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).champion;
+          });
+          document.querySelectorAll('[data-daily-worker-lite-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.dailyWorkerLiteRow, 10);
+              element.textContent = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).lite;
+          });
+          document.querySelectorAll('[data-daily-worker-serials-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.dailyWorkerSerialsRow, 10);
+              const serials = statsFor(dailyWorkerStats, rowIndex, selectedKey, true).serial_numbers;
+              element.textContent = serials || '-';
+          });
+
+          document.querySelectorAll('[data-weekly-worker-count-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.weeklyWorkerCountRow, 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).count;
+          });
+          document.querySelectorAll('[data-weekly-worker-seven-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.weeklyWorkerSevenRow, 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).count_7ft;
+          });
+          document.querySelectorAll('[data-weekly-worker-six-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.weeklyWorkerSixRow, 10);
+              element.textContent = statsFor(weeklyWorkerStats, rowIndex, selectedKey).count_6ft;
+          });
+
+          document.querySelectorAll('[data-monthly-worker-count-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.monthlyWorkerCountRow, 10);
+              element.textContent = statsFor(monthlyWorkerStats, rowIndex, selectedKey).count;
+          });
+          document.querySelectorAll('[data-monthly-worker-champion-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.monthlyWorkerChampionRow, 10);
+              element.textContent = statsFor(monthlyWorkerStats, rowIndex, selectedKey).champion;
+          });
+          document.querySelectorAll('[data-monthly-worker-lite-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.monthlyWorkerLiteRow, 10);
+              element.textContent = statsFor(monthlyWorkerStats, rowIndex, selectedKey).lite;
+          });
+          document.querySelectorAll('[data-monthly-worker-champion-avg-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.monthlyWorkerChampionAvgRow, 10);
+              element.textContent = statsFor(monthlyWorkerStats, rowIndex, selectedKey).champion_avg;
+          });
+          document.querySelectorAll('[data-monthly-worker-lite-avg-row]').forEach((element) => {
+              const rowIndex = parseInt(element.dataset.monthlyWorkerLiteAvgRow, 10);
+              element.textContent = statsFor(monthlyWorkerStats, rowIndex, selectedKey).lite_avg;
+          });
+
+          if (updateUrl) {
+              try {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('worker', selectedKey);
+                  window.history.replaceState({}, '', url);
+              } catch (error) {
+                  // Keep filtering usable if the browser cannot update the URL.
+              }
+          }
       }
 
       // Function to format serial number based on size selection
@@ -337,6 +478,17 @@
                   // Keep the current form usable if the brief status check fails.
               }
           }
+
+          const params = new URLSearchParams(window.location.search);
+          if (params.has('worker')) {
+              ['dailyHistory', 'weeklyHistory', 'monthlyTotals'].forEach((id) => {
+                  const panel = document.getElementById(id);
+                  if (panel) {
+                      panel.style.display = 'block';
+                  }
+              });
+          }
+          updateWorkerStatsDisplay(null, false);
 
           window.setInterval(refreshSuggestedPodSerial, 5000);
           window.addEventListener('focus', refreshSuggestedPodSerial);
@@ -515,13 +667,22 @@
     <!-- Collapsible Section for Daily History -->
     <button class="collapsible" onclick="toggleCollapsible('dailyHistory')">Daily History</button>
     <div id="dailyHistory" class="collapsible-content">
+      <form method="GET" action="{{ url_for('pods') }}" class="worker-stats-form">
+        <label for="daily_worker_stats_select">Worker stats:</label>
+        <select id="daily_worker_stats_select" name="worker" class="worker-stats-select" onchange="updateWorkerStatsDisplay(this)">
+          {% for worker in worker_options %}
+            <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" onclick="updateWorkerStatsDisplay(document.getElementById('daily_worker_stats_select'))">Show Stats</button>
+      </form>
       <table class="pod-history-table">
         <thead>
           <tr>
             <th>Date</th>
+            <th><span class="selected-worker-label">{{ selected_worker }}</span> Pods</th>
             <th>Champion</th>
             <th>Lite</th>
-            <th>Total</th>
             <th>Serial Numbers</th>
           </tr>
         </thead>
@@ -529,10 +690,14 @@
           {% for entry in daily_history %}
             <tr>
               <td>{{ entry.date }}</td>
-              <td>{{ entry.champion }}</td>
-              <td>{{ entry.lite }}</td>
-              <td>{{ entry.count }}</td>
-              <td class="serial-number-list">{{ entry.serial_numbers }}</td>
+              <td data-daily-worker-count-row="{{ loop.index0 }}">{{ entry.selected_worker_count }}</td>
+              <td data-daily-worker-champion-row="{{ loop.index0 }}">{{ entry.selected_worker_champion }}</td>
+              <td data-daily-worker-lite-row="{{ loop.index0 }}">{{ entry.selected_worker_lite }}</td>
+              <td class="serial-number-list" data-daily-worker-serials-row="{{ loop.index0 }}">{{ entry.selected_worker_serial_numbers or '-' }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">No daily pod history available.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -542,22 +707,31 @@
     <!-- Collapsible Section for Weekly History -->
     <button class="collapsible" onclick="toggleCollapsible('weeklyHistory')">Weekly History</button>
     <div id="weeklyHistory" class="collapsible-content">
+      <form method="GET" action="{{ url_for('pods') }}" class="worker-stats-form">
+        <label for="weekly_worker_stats_select">Worker stats:</label>
+        <select id="weekly_worker_stats_select" name="worker" class="worker-stats-select" onchange="updateWorkerStatsDisplay(this)">
+          {% for worker in worker_options %}
+            <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" onclick="updateWorkerStatsDisplay(document.getElementById('weekly_worker_stats_select'))">Show Stats</button>
+      </form>
       <table>
         <thead>
           <tr>
             <th>Week</th>
             <th>7ft Pods</th>
             <th>6ft Pods</th>
-            <th>Total Pods</th>
+            <th><span class="selected-worker-label">{{ selected_worker }}</span> Pods</th>
           </tr>
         </thead>
         <tbody>
           {% for week in weekly_history %}
             <tr>
               <td>{{ week.week }}</td>
-              <td>{{ week.count_7ft }}</td>
-              <td>{{ week.count_6ft }}</td>
-              <td>{{ week.count }}</td>
+              <td data-weekly-worker-seven-row="{{ loop.index0 }}">{{ week.selected_worker_count_7ft }}</td>
+              <td data-weekly-worker-six-row="{{ loop.index0 }}">{{ week.selected_worker_count_6ft }}</td>
+              <td data-weekly-worker-count-row="{{ loop.index0 }}">{{ week.selected_worker_count }}</td>
             </tr>
           {% else %}
             <tr>
@@ -571,13 +745,22 @@
     <!-- Collapsible Section for Monthly Totals -->
     <button class="collapsible" onclick="toggleCollapsible('monthlyTotals')">Monthly Totals</button>
     <div id="monthlyTotals" class="collapsible-content">
+      <form method="GET" action="{{ url_for('pods') }}" class="worker-stats-form">
+        <label for="monthly_worker_stats_select">Worker stats:</label>
+        <select id="monthly_worker_stats_select" name="worker" class="worker-stats-select" onchange="updateWorkerStatsDisplay(this)">
+          {% for worker in worker_options %}
+            <option value="{{ worker.value }}" {% if worker.value == selected_worker_key %}selected{% endif %}>{{ worker.label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" onclick="updateWorkerStatsDisplay(document.getElementById('monthly_worker_stats_select'))">Show Stats</button>
+      </form>
       <table>
         <thead>
           <tr>
             <th>Month</th>
+            <th><span class="selected-worker-label">{{ selected_worker }}</span> Pods</th>
             <th>Champion</th>
             <th>Lite</th>
-            <th>Total Pods</th>
             <th>Avg Time (Champion)</th>
             <th>Avg Time (Lite)</th>
           </tr>
@@ -586,11 +769,15 @@
           {% for month in monthly_totals %}
             <tr>
               <td>{{ month.month }}</td>
-              <td>{{ month.champion_count }}</td>
-              <td>{{ month.lite_count }}</td>
-              <td>{{ month.count }}</td>
-              <td>{{ month.avg_hours_champion }}</td>
-              <td>{{ month.avg_hours_lite }}</td>
+              <td data-monthly-worker-count-row="{{ loop.index0 }}">{{ month.selected_worker_count }}</td>
+              <td data-monthly-worker-champion-row="{{ loop.index0 }}">{{ month.selected_worker_champion_count }}</td>
+              <td data-monthly-worker-lite-row="{{ loop.index0 }}">{{ month.selected_worker_lite_count }}</td>
+              <td data-monthly-worker-champion-avg-row="{{ loop.index0 }}">{{ month.selected_worker_champion_avg }}</td>
+              <td data-monthly-worker-lite-avg-row="{{ loop.index0 }}">{{ month.selected_worker_lite_avg }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No monthly pod history available.</td>
             </tr>
           {% endfor %}
         </tbody>

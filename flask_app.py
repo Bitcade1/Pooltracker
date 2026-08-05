@@ -5438,6 +5438,116 @@ def pods():
     
     current_production_pods_6ft = sum(1 for pod in all_pods_this_month if is_6ft(pod.serial_number))
     current_production_pods_7ft = pods_this_month - current_production_pods_6ft
+
+    def normalize_worker_name(name):
+        if not name:
+            return ""
+        return re.sub(r'[^a-z]', '', name.lower())
+
+    def canonical_worker_key(name):
+        worker_key = normalize_worker_name(name)
+        if worker_key.startswith("jack"):
+            return "jackb"
+        return worker_key
+
+    raw_worker_names = [
+        (row[0] or "").strip()
+        for row in (
+            db.session.query(CompletedPods.worker)
+            .filter(CompletedPods.worker.isnot(None))
+            .distinct()
+            .order_by(func.lower(CompletedPods.worker))
+            .all()
+        )
+        if (row[0] or "").strip()
+    ]
+    worker_options_by_key = {"all": "All Workers"}
+    for worker_name in raw_worker_names:
+        worker_key = canonical_worker_key(worker_name)
+        if worker_key and worker_key not in worker_options_by_key:
+            worker_options_by_key[worker_key] = "Jack B" if worker_key == "jackb" else worker_name
+
+    worker_options = [
+        {"value": worker_key, "label": worker_label}
+        for worker_key, worker_label in sorted(
+            worker_options_by_key.items(),
+            key=lambda item: (item[0] != "all", item[1].lower())
+        )
+    ]
+    selected_worker_key = canonical_worker_key(request.args.get("worker") or "All Workers") or "all"
+    if selected_worker_key not in worker_options_by_key:
+        selected_worker_key = "all"
+    selected_worker = worker_options_by_key[selected_worker_key]
+
+    def empty_pod_count_stats(include_serials=False):
+        stats = {
+            "pod_count": 0,
+            "champion_count": 0,
+            "lite_count": 0,
+            "count_7ft": 0,
+            "count_6ft": 0,
+        }
+        if include_serials:
+            stats["serial_numbers"] = []
+        return stats
+
+    def empty_formatted_pod_count_stats(include_serials=False):
+        stats = {
+            "count": 0,
+            "champion": 0,
+            "lite": 0,
+            "count_7ft": 0,
+            "count_6ft": 0,
+        }
+        if include_serials:
+            stats["serial_numbers"] = ""
+        return stats
+
+    def build_pod_count_worker_stats(pods_to_count, include_serials=False):
+        worker_stats = {
+            worker_key: empty_pod_count_stats(include_serials)
+            for worker_key in worker_options_by_key.keys()
+        }
+
+        for pod in pods_to_count:
+            type_key = (
+                "lite"
+                if table_type_from_serial(pod.serial_number) == TABLE_TYPE_LITE
+                else "champion"
+            )
+            size_key = "count_6ft" if serial_is_6ft(pod.serial_number) else "count_7ft"
+            worker_keys = ["all"]
+            pod_worker_key = canonical_worker_key(pod.worker)
+            if pod_worker_key and pod_worker_key != "all":
+                worker_stats.setdefault(
+                    pod_worker_key,
+                    empty_pod_count_stats(include_serials)
+                )
+                worker_keys.append(pod_worker_key)
+
+            for worker_key in worker_keys:
+                stats = worker_stats[worker_key]
+                stats["pod_count"] += 1
+                stats[f"{type_key}_count"] += 1
+                stats[size_key] += 1
+                if include_serials:
+                    stats["serial_numbers"].append(pod.serial_number)
+
+        formatted_stats = {}
+        for worker_key, stats in worker_stats.items():
+            formatted = {
+                "count": stats["pod_count"],
+                "champion": stats["champion_count"],
+                "lite": stats["lite_count"],
+                "count_7ft": stats["count_7ft"],
+                "count_6ft": stats["count_6ft"],
+            }
+            if include_serials:
+                formatted["serial_numbers"] = ", ".join(stats["serial_numbers"])
+            formatted_stats[worker_key] = formatted
+
+        return formatted_stats
+
     pod_type_totals = {"champion": 0, "lite": 0}
     pod_type_worker_counts = {}
     for pod in all_pods_this_month:
@@ -5486,38 +5596,71 @@ def pods():
                 "count": 0,
                 "champion": 0,
                 "lite": 0,
-                "serial_numbers": []
+                "serial_numbers": [],
+                "pods": [],
             }
         entry = daily_history_by_date[pod.date]
         type_key = "lite" if table_type_from_serial(pod.serial_number) == TABLE_TYPE_LITE else "champion"
         entry[type_key] += 1
         entry["count"] += 1
         entry["serial_numbers"].append(pod.serial_number)
+        entry["pods"].append(pod)
 
     daily_history_formatted = []
+    daily_worker_stats = []
     for entry in daily_history_by_date.values():
+        worker_stats = build_pod_count_worker_stats(entry["pods"], include_serials=True)
+        selected_stats = worker_stats.get(
+            selected_worker_key,
+            empty_formatted_pod_count_stats(include_serials=True)
+        )
+        daily_worker_stats.append(worker_stats)
         daily_history_formatted.append({
             "date": entry["date"],
-            "count": entry["count"],
-            "champion": entry["champion"],
-            "lite": entry["lite"],
-            "serial_numbers": ", ".join(entry["serial_numbers"])
+            "selected_worker_count": selected_stats["count"],
+            "selected_worker_champion": selected_stats["champion"],
+            "selected_worker_lite": selected_stats["lite"],
+            "selected_worker_serial_numbers": selected_stats["serial_numbers"],
         })
 
     current_week_start = today - timedelta(days=today.weekday())
-    oldest_week_start = current_week_start - timedelta(weeks=5)
+    weekly_history_by_start = {}
+    for week_offset in range(6):
+        week_start = current_week_start - timedelta(weeks=week_offset)
+        week_end = week_start + timedelta(days=6)
+        weekly_history_by_start[week_start] = {
+            "week": f"{week_start.strftime('%d/%m/%y')} - {week_end.strftime('%d/%m/%y')}",
+            "pods": [],
+        }
+
+    oldest_week_start = min(weekly_history_by_start.keys())
     weekly_pods = (
         CompletedPods.query
         .filter(CompletedPods.date >= oldest_week_start, CompletedPods.date <= today)
         .order_by(CompletedPods.date.desc(), CompletedPods.id.asc())
         .all()
     )
-    weekly_history_formatted = build_recent_weekly_size_history(
-        weekly_pods,
-        today,
-        date_getter=lambda pod: pod.date,
-        size_getter=lambda pod: "6ft" if serial_is_6ft(pod.serial_number) else "7ft",
-    )
+    for pod in weekly_pods:
+        week_start = pod.date - timedelta(days=pod.date.weekday())
+        if week_start in weekly_history_by_start:
+            weekly_history_by_start[week_start]["pods"].append(pod)
+
+    weekly_history_formatted = []
+    weekly_worker_stats = []
+    for week_start in sorted(weekly_history_by_start.keys(), reverse=True):
+        entry = weekly_history_by_start[week_start]
+        worker_stats = build_pod_count_worker_stats(entry["pods"])
+        selected_stats = worker_stats.get(
+            selected_worker_key,
+            empty_formatted_pod_count_stats()
+        )
+        weekly_worker_stats.append(worker_stats)
+        weekly_history_formatted.append({
+            "week": entry["week"],
+            "selected_worker_count": selected_stats["count"],
+            "selected_worker_count_7ft": selected_stats["count_7ft"],
+            "selected_worker_count_6ft": selected_stats["count_6ft"],
+        })
 
     def parse_time_string(value):
         if not value:
@@ -5575,50 +5718,93 @@ def pods():
         .order_by(desc(extract('year', CompletedPods.date)), desc(extract('month', CompletedPods.date)))
         .all()
     )
+
+    def empty_monthly_pod_stats():
+        return {
+            "pod_count": 0,
+            "champion_count": 0,
+            "lite_count": 0,
+            "champion_seconds": 0,
+            "champion_duration_count": 0,
+            "lite_seconds": 0,
+            "lite_duration_count": 0,
+        }
+
     monthly_totals_formatted = []
+    monthly_worker_stats = []
     for row in monthly_totals:
         yr = int(row.year)
         mo = int(row.month)
-        total_pods = row.total
 
         month_pods = CompletedPods.query.filter(
             extract('year', CompletedPods.date) == yr,
             extract('month', CompletedPods.date) == mo
         ).all()
 
-        type_counts = {
-            TABLE_TYPE_CHAMPION: 0,
-            TABLE_TYPE_LITE: 0,
-        }
-        type_stats = {
-            TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
-            TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
+        worker_stats = {
+            worker_key: empty_monthly_pod_stats()
+            for worker_key in worker_options_by_key.keys()
         }
         for pod in month_pods:
             pod_type = table_type_from_serial(pod.serial_number)
-            if pod_type not in type_counts:
+            if pod_type not in (TABLE_TYPE_CHAMPION, TABLE_TYPE_LITE):
                 pod_type = TABLE_TYPE_CHAMPION
-            type_counts[pod_type] += 1
+
+            worker_keys = ["all"]
+            pod_worker_key = canonical_worker_key(pod.worker)
+            if pod_worker_key and pod_worker_key != "all":
+                worker_stats.setdefault(pod_worker_key, empty_monthly_pod_stats())
+                worker_keys.append(pod_worker_key)
+
+            for worker_key in worker_keys:
+                stats = worker_stats[worker_key]
+                stats["pod_count"] += 1
+                stats[f"{pod_type}_count"] += 1
 
             duration = calculate_pod_duration(pod)
             if duration is None:
                 continue
-            type_stats[pod_type]["seconds"] += duration.total_seconds()
-            type_stats[pod_type]["count"] += 1
+
+            for worker_key in worker_keys:
+                stats = worker_stats[worker_key]
+                stats[f"{pod_type}_seconds"] += duration.total_seconds()
+                stats[f"{pod_type}_duration_count"] += 1
+
+        selected_worker_stats = worker_stats.get(
+            selected_worker_key,
+            empty_monthly_pod_stats()
+        )
+        formatted_worker_stats = {
+            worker_key: {
+                "count": stats["pod_count"],
+                "champion": stats["champion_count"],
+                "lite": stats["lite_count"],
+                "champion_avg": format_avg_duration(
+                    stats["champion_seconds"],
+                    stats["champion_duration_count"]
+                ),
+                "lite_avg": format_avg_duration(
+                    stats["lite_seconds"],
+                    stats["lite_duration_count"]
+                ),
+            }
+            for worker_key, stats in worker_stats.items()
+        }
+        monthly_worker_stats.append(formatted_worker_stats)
 
         monthly_totals_formatted.append({
             "month": date(year=yr, month=mo, day=1).strftime("%B %Y"),
-            "count": total_pods,
-            "champion_count": type_counts[TABLE_TYPE_CHAMPION],
-            "lite_count": type_counts[TABLE_TYPE_LITE],
-            "avg_hours_champion": format_avg_duration(
-                type_stats[TABLE_TYPE_CHAMPION]["seconds"],
-                type_stats[TABLE_TYPE_CHAMPION]["count"]
+            "selected_worker_count": selected_worker_stats["pod_count"],
+            "selected_worker_champion_count": selected_worker_stats["champion_count"],
+            "selected_worker_lite_count": selected_worker_stats["lite_count"],
+            "selected_worker_champion_avg": format_avg_duration(
+                selected_worker_stats["champion_seconds"],
+                selected_worker_stats["champion_duration_count"]
             ),
-            "avg_hours_lite": format_avg_duration(
-                type_stats[TABLE_TYPE_LITE]["seconds"],
-                type_stats[TABLE_TYPE_LITE]["count"]
-            )
+            "selected_worker_lite_avg": format_avg_duration(
+                selected_worker_stats["lite_seconds"],
+                selected_worker_stats["lite_duration_count"]
+            ),
         })
     
     # Retrieve production schedule targets for current month
@@ -5660,8 +5846,14 @@ def pods():
         current_production_pods_7ft=current_production_pods_7ft,
         current_production_pods_6ft=current_production_pods_6ft,
         daily_history=daily_history_formatted,
+        daily_worker_stats=daily_worker_stats,
         weekly_history=weekly_history_formatted,
+        weekly_worker_stats=weekly_worker_stats,
         monthly_totals=monthly_totals_formatted,
+        monthly_worker_stats=monthly_worker_stats,
+        worker_options=worker_options,
+        selected_worker=selected_worker,
+        selected_worker_key=selected_worker_key,
         next_serial_number=next_serial_number,
         target_7ft=target_7ft,
         target_6ft=target_6ft,
