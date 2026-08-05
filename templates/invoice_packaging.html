@@ -373,6 +373,11 @@
         overflow: hidden;
     }
 
+    .pallet-card.drag-over {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    }
+
     .pallet-card.body {
         border-top: 5px solid #2563eb;
     }
@@ -431,6 +436,32 @@
     .pallet-line {
         padding: 10px 12px;
         border-top: 1px solid #e2e8f0;
+    }
+
+    .pallet-line.is-draggable {
+        cursor: grab;
+    }
+
+    .pallet-line.is-draggable:active {
+        cursor: grabbing;
+    }
+
+    .pallet-drop-zone {
+        margin: 8px 12px 12px;
+        padding: 11px;
+        border: 2px dashed #94a3b8;
+        border-radius: 7px;
+        background: #f8fafc;
+        color: #475569;
+        text-align: center;
+        font-size: 0.82rem;
+        font-weight: 900;
+    }
+
+    .pallet-card.drag-over .pallet-drop-zone {
+        border-color: #2563eb;
+        background: #dbeafe;
+        color: #1e3a8a;
     }
 
     .pallet-line:first-child {
@@ -819,6 +850,7 @@
     const planId = {{ plan.id|tojson }};
     let state = {{ plan|tojson }};
     let busy = false;
+    let draggedTopRail = null;
 
     const componentLabels = {
         body: "Body",
@@ -1076,7 +1108,8 @@
                 </select>
             `;
         return `
-            <div class="pallet-line">
+            <div class="pallet-line ${line.component_type === "top_rail" ? "is-draggable" : ""}"
+                ${line.component_type === "top_rail" ? `draggable="true" ondragstart="startTopRailDrag(event, '${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})" ondragend="endTopRailDrag()"` : ""}>
                 ${carried ? `<span class="on-top-label">Carried on body pallet</span>` : ""}
                 <div class="line-main">${integerValue(line.quantity, 0)} x ${escapeHtml(componentLabels[line.component_type] || line.component_type || "Item")}</div>
                 <div class="line-details">${escapeHtml(details || "Manual allocation")}</div>
@@ -1106,7 +1139,11 @@
                 ? `${used} of ${pallet.capacity} capacity`
                 : `${used} item(s)`;
             return `
-                <article class="pallet-card ${escapeHtml(pallet.pallet_type)}">
+                <article class="pallet-card ${escapeHtml(pallet.pallet_type)}"
+                    data-pallet-id="${escapeHtml(pallet.id)}"
+                    ondragover="allowTopRailDrop(event)"
+                    ondragleave="leaveTopRailDrop(event)"
+                    ondrop="dropTopRail(event, '${escapeHtml(pallet.id)}')">
                     <div class="pallet-heading">
                         <div>
                             <div class="pallet-title">Pallet ${escapeHtml(pallet.pallet_number)} - ${escapeHtml(palletTypeLabel(pallet.pallet_type))}</div>
@@ -1119,6 +1156,7 @@
                         ${carried.map((line) => lineHtml(pallet, line, true)).join("")}
                         ${!lines.length && !carried.length ? `<div class="empty-state">Empty pallet</div>` : ""}
                     </div>
+                    <div class="pallet-drop-zone no-print">Drop top rails here</div>
                     <div class="pallet-controls">
                         <label class="mixed-control">
                             <input type="checkbox" ${pallet.is_mixed ? "checked" : ""} onchange="updatePallet('${escapeHtml(pallet.id)}', 'is_mixed', this.checked)">
@@ -1165,6 +1203,40 @@
         const targetSelect = document.getElementById(`move-target-${lineId}`);
         if (!quantityInput || !targetSelect) return;
         moveLine(sourcePalletId, lineId, carried, targetSelect.value, integerValue(quantityInput.value));
+    }
+
+    function startTopRailDrag(event, sourcePalletId, lineId, carried) {
+        draggedTopRail = {sourcePalletId, lineId, carried};
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", lineId);
+    }
+
+    function allowTopRailDrop(event) {
+        if (!draggedTopRail) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        event.currentTarget.classList.add("drag-over");
+    }
+
+    function leaveTopRailDrop(event) {
+        if (event.currentTarget.contains(event.relatedTarget)) return;
+        event.currentTarget.classList.remove("drag-over");
+    }
+
+    function dropTopRail(event, targetPalletId) {
+        event.preventDefault();
+        event.currentTarget.classList.remove("drag-over");
+        if (!draggedTopRail) return;
+        const move = draggedTopRail;
+        draggedTopRail = null;
+        moveLine(move.sourcePalletId, move.lineId, move.carried, targetPalletId);
+    }
+
+    function endTopRailDrag() {
+        draggedTopRail = null;
+        document.querySelectorAll(".pallet-card.drag-over").forEach((card) => {
+            card.classList.remove("drag-over");
+        });
     }
 
     function moveLine(sourcePalletId, lineId, carried, targetPalletId, requestedQuantity = null) {
