@@ -682,7 +682,13 @@ def _refresh_pallet_labels(pallet, config):
     return pallet
 
 
-def _compatible_body_pallet(body_pallets, rail_size, rail_colour, config):
+def _compatible_body_pallet(
+    body_pallets,
+    rail_size,
+    rail_colour,
+    config,
+    required_rail_space=1,
+):
     candidates = []
     for pallet in body_pallets:
         body_lines = [
@@ -702,7 +708,8 @@ def _compatible_body_pallet(body_pallets, rail_size, rail_colour, config):
             continue
         carried_lines = pallet.get("carried_top_rails", [])
         carried_count = _line_total(carried_lines)
-        if carried_count >= config["top_rails_per_body_pallet"]:
+        available_space = config["top_rails_per_body_pallet"] - carried_count
+        if available_space < required_rail_space:
             continue
         carried_sizes = {
             line.get("size") for line in carried_lines
@@ -774,23 +781,18 @@ def generate_packaging(items, config=None):
             if not remainder:
                 continue
             if remainder < config["loose_rail_limit"]:
-                while _line_total(rail_lines):
-                    suitable_body = _compatible_body_pallet(
-                        body_pallets,
-                        size,
-                        "" if colour == "Unknown" else colour,
-                        config,
-                    )
-                    if not suitable_body:
-                        break
-                    available_space = (
-                        config["top_rails_per_body_pallet"]
-                        - _line_total(suitable_body.get("carried_top_rails", []))
-                    )
+                suitable_body = _compatible_body_pallet(
+                    body_pallets,
+                    size,
+                    "" if colour == "Unknown" else colour,
+                    config,
+                    required_rail_space=remainder,
+                )
+                if suitable_body:
                     suitable_body["carried_top_rails"].extend(
                         _take_from_lines(
                             rail_lines,
-                            min(available_space, _line_total(rail_lines)),
+                            remainder,
                         )
                     )
 
