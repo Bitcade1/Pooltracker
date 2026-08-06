@@ -46,7 +46,6 @@
     .quantity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; }
     .quantity-field { display: grid; gap: 6px; font-weight: 800; color: #334155; }
     .quantity-field input { width: 100%; box-sizing: border-box; min-height: 54px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 12px; font-size: 1.3rem; }
-    .size-fields[hidden] { display: none; }
     .transfer-button, .back-link { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; border: 0; border-radius: 8px; padding: 0 16px; font-weight: 900; text-decoration: none; cursor: pointer; }
     .transfer-button { width: 100%; margin-top: 16px; background: #15803d; color: #fff; font-size: 1.1rem; }
     .back-link { background: #0f172a; color: #fff; }
@@ -81,10 +80,8 @@
 
     <section class="stock-strip" aria-label="Current gully stock">
         <div class="stock-item">Untouched<strong>{{ counts['Gullies Untouched'] }}</strong></div>
+        <div class="stock-item">7ft Sets<strong>{{ counts['7ft Gully Set'] }}</strong></div>
         <div class="stock-item">6ft Sets<strong>{{ counts['6ft Gully Set'] }}</strong></div>
-        {% for part in seven_foot_parts %}
-            <div class="stock-item">7ft #{{ loop.index }}<strong>{{ counts[part] }}</strong></div>
-        {% endfor %}
     </section>
 
     <section class="panel">
@@ -97,21 +94,10 @@
                 <label for="size-6">6ft</label>
             </div>
 
-            <div class="size-fields" data-size-fields="7ft">
-                <div class="quantity-grid">
-                    {% for part in seven_foot_parts %}
-                        <label class="quantity-field">Gully #{{ loop.index }} {% if loop.first %}taken from box{% else %}completed{% endif %}
-                            <input type="number" name="gully_{{ loop.index }}" min="0" step="1" value="0" inputmode="numeric">
-                        </label>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="size-fields" data-size-fields="6ft">
-                <div class="quantity-grid">
-                    <label class="quantity-field">6ft sets completed
-                        <input type="number" name="set_count" min="0" step="1" value="0" inputmode="numeric">
-                    </label>
-                </div>
+            <div class="quantity-grid">
+                <label class="quantity-field"><span id="set-count-label">{{ selected_size }} sets completed</span>
+                    <input type="number" name="set_count" min="0" step="1" value="0" inputmode="numeric">
+                </label>
             </div>
             <button class="transfer-button" type="submit">Transfer From Untouched Stock</button>
         </form>
@@ -129,7 +115,7 @@
                             <td>{{ entry.worker }}</td>
                             <td>{{ entry.size_label }}</td>
                             <td>
-                                {% if entry.size_label == '6ft' %}
+                                {% if entry.set_count or entry.size_label == '6ft' %}
                                     {{ entry.set_count }} set{% if entry.set_count != 1 %}s{% endif %}
                                 {% else %}
                                     #1: {{ entry.gully_1 }}, #2: {{ entry.gully_2 }}, #3: {{ entry.gully_3 }}, #4: {{ entry.gully_4 }}, #5: {{ entry.gully_5 }}
@@ -149,13 +135,13 @@
 <script>
     (function () {
         const radios = document.querySelectorAll('input[name="size_label"]');
-        const sections = document.querySelectorAll('[data-size-fields]');
-        function updateSizeFields() {
+        const setCountLabel = document.getElementById('set-count-label');
+        function updateSetLabel() {
             const selected = document.querySelector('input[name="size_label"]:checked').value;
-            sections.forEach((section) => { section.hidden = section.dataset.sizeFields !== selected; });
+            setCountLabel.textContent = `${selected} sets completed`;
         }
-        radios.forEach((radio) => radio.addEventListener('change', updateSizeFields));
-        updateSizeFields();
+        radios.forEach((radio) => radio.addEventListener('change', updateSetLabel));
+        updateSetLabel();
     })();
 </script>
 {% endblock %}

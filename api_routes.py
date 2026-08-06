@@ -436,11 +436,7 @@ def inventory_summary():
     
     table_parts_definitions = {
         "Table legs": 0,
-        "Ball Gullies 1": 0,
-        "Ball Gullies 2": 0,
-        "Ball Gullies 3": 0,
-        "Ball Gullies 4": 0,
-        "Ball Gullies 5": 0,
+        "7ft Gully Set": 0,
         "Gullies Untouched": 0,
         "6ft Gully Set": 0,
         "Feet": 0,
@@ -464,11 +460,7 @@ def inventory_summary():
     }
     table_parts_capacity = {
         "Table legs": 4,
-        "Ball Gullies 1": 2,
-        "Ball Gullies 2": 1,
-        "Ball Gullies 3": 1,
-        "Ball Gullies 4": 1,
-        "Ball Gullies 5": 1,
+        "7ft Gully Set": 1,
         "Feet": 4,
         "Triangle trim": 1,
         "White ball return trim": 1,
@@ -698,9 +690,7 @@ VALID_PARTS = [
     "Small Ramp", "Cue Ball Separator", "Bushing",
     "6ft Cue Ball Separator", "6ft Large Ramp", 
     "6ft Carpet", "7ft Carpet", FELT_PART_NAME,
-    "Table legs", "Ball Gullies 1", "Ball Gullies 2",
-    "Ball Gullies 3", "Ball Gullies 4", "Ball Gullies 5",
-    "Gullies Untouched", "6ft Gully Set",
+    "Table legs", "7ft Gully Set", "Gullies Untouched", "6ft Gully Set",
     "Feet", "Triangle trim", "White ball return trim",
     "Color ball trim", "Ball window trim", "Aluminum corner",
     "Chrome corner", "Top Rail Trim - 814mm (Left)",

@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, OperationalError
 from datetime import datetime, timedelta, date, time, timezone
-from collections import defaultdict  # Ensure defaultdict is imported
+from collections import defaultdict
 from calendar import monthrange
 from sqlalchemy import func, extract, and_, or_, text
 from sqlalchemy.orm import joinedload
@@ -375,7 +375,7 @@ def base_serial_for_pod_matching(serial):
 
 
 def pod_serial_identity(serial):
-    """Return the size/type-independent identity used to prevent duplicate pods."""
+    """Return the size/type-independent root of a pod or body serial."""
     cleaned = strip_table_serial_suffixes(
         clean_pod_serial_value(serial),
         remove_color=True,
@@ -383,6 +383,79 @@ def pod_serial_identity(serial):
     )
     cleaned = re.sub(r"\s*-\s*[67]\s*$", "", cleaned, flags=re.IGNORECASE).strip()
     return re.sub(r"\s+", "", cleaned).upper()
+
+
+def pod_variant_identity(serial, table_type=None):
+    """Match a pod to a body without collapsing size or Champion/Lite variants."""
+    cleaned = clean_pod_serial_value(serial)
+    resolved_table_type = (
+        table_type
+        if table_type in {TABLE_TYPE_CHAMPION, TABLE_TYPE_LITE}
+        else table_type_from_serial(cleaned)
+    )
+    return (
+        pod_serial_identity(cleaned),
+        serial_size_display_label(cleaned),
+        resolved_table_type,
+    )
+
+
+def body_table_types_by_id(completed_bodies):
+    """Resolve stored body types in one query, with serial parsing as fallback."""
+    completed_bodies = list(completed_bodies)
+    body_types = {
+        body.id: table_type_from_serial(body.serial_number)
+        for body in completed_bodies
+    }
+    if not body_types:
+        return body_types
+
+    type_key_prefix = "meta_body_type_"
+    type_rows = (
+        db.session.query(TableStock.type, TableStock.count)
+        .filter(func.substr(TableStock.type, 1, len(type_key_prefix)) == type_key_prefix)
+        .all()
+    )
+    for meta_key, type_code in type_rows:
+        try:
+            body_id = int(meta_key[len(type_key_prefix):])
+        except (TypeError, ValueError):
+            continue
+        stored_type = BODY_TABLE_TYPE_FROM_CODE.get(type_code)
+        if body_id in body_types and stored_type:
+            body_types[body_id] = stored_type
+    return body_types
+
+
+def matched_body_picker_pod_body_ids(pods, completed_bodies, excluded_pod_ids=None):
+    """Assign completed bodies to pods one-for-one using their full build variant."""
+    pods = list(pods)
+    completed_bodies = list(completed_bodies)
+    excluded_pod_ids = set(excluded_pod_ids or ())
+    body_types = body_table_types_by_id(completed_bodies)
+
+    available_bodies = defaultdict(list)
+    for body in sorted(completed_bodies, key=lambda entry: entry.id or 0, reverse=True):
+        match_key = pod_variant_identity(body.serial_number, body_types[body.id])
+        available_bodies[match_key].append(body.id)
+
+    matched_body_ids = {}
+    for pod in sorted(pods, key=lambda entry: entry.id or 0):
+        if pod.id in excluded_pod_ids:
+            continue
+        match_key = pod_variant_identity(pod.serial_number)
+        if available_bodies[match_key]:
+            matched_body_ids[pod.id] = available_bodies[match_key].pop()
+    return matched_body_ids
+
+
+def matched_body_picker_pod_ids(pods, completed_bodies, excluded_pod_ids=None):
+    """Return pod IDs consumed by variant-matched completed bodies."""
+    return set(matched_body_picker_pod_body_ids(
+        pods,
+        completed_bodies,
+        excluded_pod_ids,
+    ))
 
 
 def next_numeric_pod_base_serial(serials, fallback=1000):
@@ -403,9 +476,8 @@ def format_pod_serial(base_serial, size_label, table_type):
 
 
 def gully_parts_for_completion(serial_number):
-    if serial_is_6ft(serial_number):
-        return {"6ft Gully Set": 1}
-    return dict(SEVEN_FOOT_GULLY_PARTS)
+    size_label = "6ft" if serial_is_6ft(serial_number) else "7ft"
+    return {GULLY_SET_PART_NAMES[size_label]: 1}
 
 
 def _body_meta_type_key(body_id):
@@ -723,13 +795,18 @@ LEGACY_PRINTED_PART_SPLITS = {
         "Top Rail Trim - 814mm (Right)",
     ),
 }
-SEVEN_FOOT_GULLY_PARTS = {
+LEGACY_SEVEN_FOOT_GULLY_PARTS = {
     "Ball Gullies 1": 2,
     "Ball Gullies 2": 1,
     "Ball Gullies 3": 1,
     "Ball Gullies 4": 1,
     "Ball Gullies 5": 1,
 }
+GULLY_SET_PART_NAMES = {
+    "7ft": "7ft Gully Set",
+    "6ft": "6ft Gully Set",
+}
+GULLIES_PER_SET = 6
 TOP_RAIL_TRIM_PARTS = {
     "Top Rail Trim - 814mm (Left)": 2,
     "Top Rail Trim - 814mm (Right)": 2,
@@ -738,14 +815,11 @@ TOP_RAIL_TRIM_PARTS = {
 MANUAL_ONLY_CHINESE_PARTS = [
     "Gullies Untouched",
 ]
-SIX_FOOT_ONLY_CHINESE_PARTS = [
-    "6ft Gully Set",
-]
+GULLY_SET_CHINESE_PARTS = list(GULLY_SET_PART_NAMES.values())
 ALL_CHINESE_PARTS = [
     "Table legs",
-    *SEVEN_FOOT_GULLY_PARTS.keys(),
     *MANUAL_ONLY_CHINESE_PARTS,
-    *SIX_FOOT_ONLY_CHINESE_PARTS,
+    *GULLY_SET_CHINESE_PARTS,
     "Feet",
     "Triangle trim",
     "White ball return trim",
@@ -765,7 +839,7 @@ ALL_CHINESE_PARTS = [
 ]
 CHINESE_PARTS_CAPACITY = {
     "Table legs": 4,
-    **SEVEN_FOOT_GULLY_PARTS,
+    GULLY_SET_PART_NAMES["7ft"]: 1,
     "Feet": 4,
     "Triangle trim": 1,
     "White ball return trim": 1,
@@ -1763,6 +1837,98 @@ def ensure_legacy_inventory_names_migrated():
                 db.session.delete(old_cost)
                 migration_changed = True
 
+        # Preserve the number of complete 7ft sets represented by the five legacy balances.
+        seven_foot_set_name = GULLY_SET_PART_NAMES["7ft"]
+        existing_set_entry = (
+            PrintedPartsCount.query
+            .filter_by(part_name=seven_foot_set_name)
+            .order_by(
+                PrintedPartsCount.date.desc(),
+                PrintedPartsCount.time.desc(),
+                PrintedPartsCount.id.desc()
+            )
+            .first()
+        )
+        if not existing_set_entry:
+            legacy_counts = {}
+            for part_name in LEGACY_SEVEN_FOOT_GULLY_PARTS:
+                latest_entry = (
+                    PrintedPartsCount.query
+                    .filter_by(part_name=part_name)
+                    .order_by(
+                        PrintedPartsCount.date.desc(),
+                        PrintedPartsCount.time.desc(),
+                        PrintedPartsCount.id.desc()
+                    )
+                    .first()
+                )
+                legacy_counts[part_name] = int(latest_entry.count or 0) if latest_entry else 0
+
+            complete_sets = min(
+                legacy_counts[part_name] // quantity_per_set
+                for part_name, quantity_per_set in LEGACY_SEVEN_FOOT_GULLY_PARTS.items()
+            )
+            db.session.add(new_printed_parts_snapshot(seven_foot_set_name, complete_sets))
+
+            # Return every incomplete legacy combination to the generic pool so
+            # the signed unit balance survives after the numbered fields disappear.
+            remainder_units = sum(
+                legacy_counts[part_name] - (complete_sets * quantity_per_set)
+                for part_name, quantity_per_set in LEGACY_SEVEN_FOOT_GULLY_PARTS.items()
+            )
+            if remainder_units:
+                untouched_name = "Gullies Untouched"
+                latest_untouched = (
+                    PrintedPartsCount.query
+                    .filter_by(part_name=untouched_name)
+                    .order_by(
+                        PrintedPartsCount.date.desc(),
+                        PrintedPartsCount.time.desc(),
+                        PrintedPartsCount.id.desc()
+                    )
+                    .first()
+                )
+                untouched_count = int(latest_untouched.count or 0) if latest_untouched else 0
+                db.session.add(new_printed_parts_snapshot(
+                    untouched_name,
+                    untouched_count + remainder_units
+                ))
+            migration_changed = True
+
+            legacy_thresholds = []
+            for part_name, quantity_per_set in LEGACY_SEVEN_FOOT_GULLY_PARTS.items():
+                threshold_entry = PartThreshold.query.filter_by(part_name=part_name).first()
+                if threshold_entry:
+                    legacy_thresholds.append((threshold_entry, quantity_per_set))
+            new_threshold = PartThreshold.query.filter_by(part_name=seven_foot_set_name).first()
+            if legacy_thresholds and not new_threshold:
+                db.session.add(PartThreshold(
+                    part_name=seven_foot_set_name,
+                    threshold=min(
+                        max(entry.threshold or 0, 0) // quantity_per_set
+                        for entry, quantity_per_set in legacy_thresholds
+                    ),
+                    alerts_enabled=all(bool(entry.alerts_enabled) for entry, _ in legacy_thresholds)
+                ))
+
+            new_cost_key = f"parts_inventory__{slugify_key(seven_foot_set_name)}"
+            new_cost = StockItemCost.query.filter_by(item_key=new_cost_key).first()
+            if not new_cost:
+                legacy_costs = []
+                for part_name, quantity_per_set in LEGACY_SEVEN_FOOT_GULLY_PARTS.items():
+                    cost_entry = StockItemCost.query.filter_by(
+                        item_key=f"parts_inventory__{slugify_key(part_name)}"
+                    ).first()
+                    if cost_entry:
+                        legacy_costs.append((cost_entry, quantity_per_set))
+                if legacy_costs:
+                    db.session.add(StockItemCost(
+                        item_key=new_cost_key,
+                        unit_cost=sum((entry.unit_cost or 0.0) * quantity for entry, quantity in legacy_costs),
+                        shipping_cost=sum((entry.shipping_cost or 0.0) * quantity for entry, quantity in legacy_costs),
+                        labour_cost=sum((entry.labour_cost or 0.0) * quantity for entry, quantity in legacy_costs),
+                    ))
+
         if os.path.exists(CHINESE_PARTS_ON_ORDER_FILE):
             try:
                 with open(CHINESE_PARTS_ON_ORDER_FILE, "r") as f:
@@ -2236,10 +2402,14 @@ def saved_chinese_parts_on_order_counts(data=None):
     parts_on_order = saved_on_order.get("parts", {})
     if not isinstance(parts_on_order, dict):
         parts_on_order = {}
-    return {
+    counts = {
         part: _coerce_int(parts_on_order.get(part), 0)
         for part in CHINESE_PARTS_CAPACITY
     }
+    counts[GULLY_SET_PART_NAMES["7ft"]] += (
+        _coerce_int(saved_on_order.get("gullies_units"), 0) // GULLIES_PER_SET
+    )
+    return counts
 
 
 def saved_chinese_part_on_order(part_name, data=None):
@@ -2619,6 +2789,7 @@ def admin():
     all_part_names = {name for (name,) in all_parts_union if name}
     all_part_names.update(LAMINATE_PART_NAMES)
     all_part_names.difference_update(LEGACY_FELT_PART_NAMES)
+    all_part_names.difference_update(LEGACY_SEVEN_FOOT_GULLY_PARTS)
     all_part_names.add(FELT_PART_NAME)
     all_part_names.update(PACKAGING_PART_NAMES)
     all_part_names = sorted(all_part_names, key=lambda n: n.lower())
@@ -3935,10 +4106,13 @@ def build_stock_snapshot():
 
     part_names = set()
     distinct_parts = db.session.query(PrintedPartsCount.part_name).distinct().all()
-    legacy_felt_parts = set(LEGACY_FELT_PART_NAMES)
+    excluded_legacy_parts = {
+        *LEGACY_FELT_PART_NAMES,
+        *LEGACY_SEVEN_FOOT_GULLY_PARTS.keys(),
+    }
     for part_tuple in distinct_parts:
         part_name = part_tuple[0]
-        if part_name and part_name not in legacy_felt_parts:
+        if part_name and part_name not in excluded_legacy_parts:
             part_names.add(part_name)
 
     part_names.update(core_parts)
@@ -4777,7 +4951,7 @@ def counting_gullies():
         return redirect(url_for('login'))
 
     GullyConversionLog.__table__.create(db.engine, checkfirst=True)
-    gully_parts = [*SEVEN_FOOT_GULLY_PARTS.keys(), "Gullies Untouched", "6ft Gully Set"]
+    gully_parts = ["Gullies Untouched", *GULLY_SET_PART_NAMES.values()]
 
     def latest_count(part_name):
         entry = (
@@ -4794,27 +4968,16 @@ def counting_gullies():
 
     if request.method == 'POST':
         try:
-            finished_quantities = {}
-            if selected_size == '7ft':
-                for number, part_name in enumerate(SEVEN_FOOT_GULLY_PARTS.keys(), start=1):
-                    try:
-                        quantity = int(request.form.get(f'gully_{number}', 0) or 0)
-                    except (TypeError, ValueError):
-                        raise ValueError(f"Gully {number} must be a whole number.")
-                    if quantity < 0:
-                        raise ValueError("Finished gully quantities cannot be negative.")
-                    finished_quantities[part_name] = quantity
-                untouched_needed = sum(finished_quantities.values())
-                set_count = 0
-            else:
-                try:
-                    set_count = int(request.form.get('set_count', 0) or 0)
-                except (TypeError, ValueError):
-                    raise ValueError("6ft sets must be a whole number.")
-                if set_count < 0:
-                    raise ValueError("6ft sets cannot be negative.")
-                finished_quantities["6ft Gully Set"] = set_count
-                untouched_needed = set_count * 6
+            try:
+                set_count = int(request.form.get('set_count', 0) or 0)
+            except (TypeError, ValueError):
+                raise ValueError(f"{selected_size} sets must be a whole number.")
+            if set_count < 0:
+                raise ValueError(f"{selected_size} sets cannot be negative.")
+
+            finished_part_name = GULLY_SET_PART_NAMES[selected_size]
+            finished_quantities = {finished_part_name: set_count}
+            untouched_needed = set_count * GULLIES_PER_SET
 
             if untouched_needed <= 0:
                 raise ValueError("Enter at least one finished gully or set.")
@@ -4840,25 +5003,22 @@ def counting_gullies():
                         recorded_at
                     ))
 
-            seven_foot_values = {
-                number: finished_quantities.get(f"Ball Gullies {number}", 0)
-                for number in range(1, 6)
-            }
             db.session.add(GullyConversionLog(
                 worker=session['worker'],
                 size_label=selected_size,
-                gully_1=seven_foot_values[1],
-                gully_2=seven_foot_values[2],
-                gully_3=seven_foot_values[3],
-                gully_4=seven_foot_values[4],
-                gully_5=seven_foot_values[5],
+                gully_1=0,
+                gully_2=0,
+                gully_3=0,
+                gully_4=0,
+                gully_5=0,
                 set_count=set_count,
                 untouched_used=untouched_needed,
                 created_at=recorded_at
             ))
             db.session.commit()
             flash(
-                f"Added finished {selected_size} gullies and used {untouched_needed} untouched gullies.",
+                f"Added {set_count} finished {selected_size} gully set"
+                f"{'s' if set_count != 1 else ''} and used {untouched_needed} untouched gullies.",
                 "success"
             )
             return redirect(url_for('counting_gullies', size=selected_size))
@@ -4883,7 +5043,6 @@ def counting_gullies():
         'counting_gullies.html',
         counts=counts,
         selected_size=selected_size,
-        seven_foot_parts=list(SEVEN_FOOT_GULLY_PARTS.keys()),
         recent_conversions=recent_conversions
     )
 
@@ -5275,14 +5434,14 @@ def pods():
 
         actual_table_type = table_type_from_serial(serial_number)
 
-        submitted_identity = pod_serial_identity(serial_number)
+        submitted_identity = pod_variant_identity(serial_number)
         existing_pod = next(
             (
                 pod for pod in CompletedPods.query.with_entities(
                     CompletedPods.id,
                     CompletedPods.serial_number,
                 ).all()
-                if pod_serial_identity(pod.serial_number) == submitted_identity
+                if pod_variant_identity(pod.serial_number) == submitted_identity
             ),
             None,
         )
@@ -8927,27 +9086,26 @@ def bodies():
     # Retrieve issues and any pods not yet converted
     issues = [issue.description for issue in Issue.query.all()]
     
-    # Get the base serial numbers of all completed tables (without color/Lite suffixes)
-    completed_table_serials = db.session.query(CompletedTable.serial_number).all()
-    completed_base_serials = []
-    
-    for (serial,) in completed_table_serials:
-        completed_base_serials.append(base_serial_for_pod_matching(serial))
     hidden_body_picker_pod_ids = load_hidden_body_picker_pod_ids()
-    
-    # Find pods that haven't been converted to tables (considering base serial numbers)
-    unconverted_pods = []
-    for pod in CompletedPods.query.all():
-        if pod.id in hidden_body_picker_pod_ids:
-            continue
-        # Clean the pod serial number if it has the prefix
-        pod_serial = pod.serial_number
-        if "**Pod Serial Number:" in pod_serial:
-            pod_serial = pod_serial.replace("**Pod Serial Number:", "").strip()
-            
-        # Check if the base serial is not in completed tables
-        if base_serial_for_pod_matching(pod_serial) not in completed_base_serials:
-            unconverted_pods.append(pod)
+    all_completed_pods = CompletedPods.query.order_by(CompletedPods.id.asc()).all()
+    completed_bodies_for_picker = (
+        CompletedTable.query
+        .with_entities(CompletedTable.id, CompletedTable.serial_number)
+        .order_by(CompletedTable.id.asc())
+        .all()
+    )
+    matched_pod_ids = matched_body_picker_pod_ids(
+        all_completed_pods,
+        completed_bodies_for_picker,
+        hidden_body_picker_pod_ids,
+    )
+
+    # Keep size and Champion/Lite variants independent, consuming one pod per body.
+    unconverted_pods = [
+        pod
+        for pod in all_completed_pods
+        if pod.id not in hidden_body_picker_pod_ids and pod.id not in matched_pod_ids
+    ]
 
     def ensure_quick_add_hardware_part(part_name):
         hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
@@ -9916,6 +10074,59 @@ def bodies():
     )
 
 
+def body_pod_audit_pairings(pods, completed_bodies, hidden_pod_ids=None):
+    """Reserve exact variants, then identify only unambiguous mismatch pairs."""
+    pods = list(pods)
+    completed_bodies = list(completed_bodies)
+    hidden_pod_ids = set(hidden_pod_ids or ())
+
+    # Hidden pods still reserve an exact body so that body cannot be reassigned
+    # to a visible Champion/Lite sibling during an audit correction.
+    exact_body_by_pod = matched_body_picker_pod_body_ids(pods, completed_bodies)
+    reserved_body_ids = set(exact_body_by_pod.values())
+    body_types = body_table_types_by_id(completed_bodies)
+
+    available_bodies_by_root = defaultdict(list)
+    for body in completed_bodies:
+        if body.id not in reserved_body_ids:
+            root_key = pod_serial_identity(body.serial_number)
+            if root_key:
+                available_bodies_by_root[root_key].append(body)
+
+    unmatched_pods_by_root = defaultdict(list)
+    for pod in pods:
+        if pod.id in exact_body_by_pod or pod.id in hidden_pod_ids:
+            continue
+        root_key = pod_serial_identity(pod.serial_number)
+        if root_key:
+            unmatched_pods_by_root[root_key].append(pod)
+
+    safe_mismatch_body_by_pod = {}
+    possible_body_ids_by_pod = {}
+    for root_key, unmatched_pods in unmatched_pods_by_root.items():
+        available_bodies = available_bodies_by_root.get(root_key, [])
+        if not available_bodies:
+            continue
+
+        for pod in unmatched_pods:
+            pod_size = serial_size_display_label(pod.serial_number)
+            pod_type = table_type_from_serial(pod.serial_number)
+            ranked_bodies = sorted(
+                available_bodies,
+                key=lambda body: (
+                    serial_size_display_label(body.serial_number) != pod_size,
+                    body_types[body.id] != pod_type,
+                    body.id or 0,
+                ),
+            )
+            possible_body_ids_by_pod[pod.id] = [body.id for body in ranked_bodies]
+
+        if len(unmatched_pods) == 1 and len(available_bodies) == 1:
+            safe_mismatch_body_by_pod[unmatched_pods[0].id] = available_bodies[0].id
+
+    return exact_body_by_pod, safe_mismatch_body_by_pod, possible_body_ids_by_pod
+
+
 @app.route('/body_pod_audit')
 def body_pod_audit():
     if 'worker' not in session:
@@ -9927,18 +10138,6 @@ def body_pod_audit():
         if "**Pod Serial Number:" in cleaned:
             cleaned = cleaned.replace("**Pod Serial Number:", "").strip()
         return cleaned
-
-    def picker_base_key(serial):
-        return base_serial_for_pod_matching(clean_pod_serial(serial))
-
-    def normalized_base_key(serial):
-        base_serial = base_serial_for_pod_matching(clean_pod_serial(serial))
-        return re.sub(r"[^A-Z0-9]+", "", base_serial.upper())
-
-    def serial_root_key(serial):
-        cleaned = strip_table_serial_suffixes(clean_pod_serial(serial), remove_color=True, remove_lite=True)
-        match = re.search(r"\d+", cleaned)
-        return match.group(0) if match else normalized_base_key(cleaned)
 
     def table_type_label(table_type):
         return "Lite" if table_type == TABLE_TYPE_LITE else "Champion"
@@ -9953,15 +10152,11 @@ def body_pod_audit():
     hide_cutoff_date = today - timedelta(days=BODY_PICKER_HIDE_MIN_AGE_DAYS)
     hidden_body_picker_pod_ids = load_hidden_body_picker_pod_ids()
     completed_bodies = CompletedTable.query.order_by(CompletedTable.date.desc(), CompletedTable.id.desc()).all()
-    completed_base_serials = {picker_base_key(body.serial_number) for body in completed_bodies}
 
     body_records = []
-    body_by_normalized_key = defaultdict(list)
-    body_by_root_key = defaultdict(list)
+    body_types = body_table_types_by_id(completed_bodies)
     for body in completed_bodies:
-        body_type, _ = get_body_build_metadata(body)
-        normalized_key = normalized_base_key(body.serial_number)
-        root_key = serial_root_key(body.serial_number)
+        body_type = body_types[body.id]
         record = {
             "id": body.id,
             "serial": body.serial_number,
@@ -9970,16 +10165,16 @@ def body_pod_audit():
             "size": serial_size_label(body.serial_number),
             "table_type": body_type,
             "type_label": table_type_label(body_type),
-            "normalized_key": normalized_key,
-            "root_key": root_key,
         }
         body_records.append(record)
-        if normalized_key:
-            body_by_normalized_key[normalized_key].append(record)
-        if root_key:
-            body_by_root_key[root_key].append(record)
+    body_record_by_id = {record["id"]: record for record in body_records}
 
     completed_pods = CompletedPods.query.order_by(CompletedPods.date.desc(), CompletedPods.id.desc()).all()
+    exact_body_by_pod, safe_mismatch_body_by_pod, possible_body_ids_by_pod = body_pod_audit_pairings(
+        completed_pods,
+        completed_bodies,
+        hidden_body_picker_pod_ids,
+    )
     picker_rows = []
     hidden_picker_rows = []
     mismatch_rows = []
@@ -10000,19 +10195,17 @@ def body_pod_audit():
             "size": serial_size_label(pod_serial),
             "table_type": pod_type,
             "type_label": table_type_label(pod_type),
-            "picker_key": picker_base_key(pod_serial),
-            "normalized_key": normalized_base_key(pod_serial),
-            "root_key": serial_root_key(pod_serial),
         }
         all_pod_rows.append(pod_record)
 
-        normalized_matches = body_by_normalized_key.get(pod_record["normalized_key"], [])
-        root_matches = [
-            body
-            for body in body_by_root_key.get(pod_record["root_key"], [])
-            if body not in normalized_matches
+        exact_body_id = exact_body_by_pod.get(pod.id)
+        possible_body_ids = possible_body_ids_by_pod.get(pod.id, [])
+        candidate_body_ids = [exact_body_id] if exact_body_id else possible_body_ids
+        candidate_matches = [
+            body_record_by_id[body_id]
+            for body_id in candidate_body_ids
+            if body_id in body_record_by_id
         ]
-        candidate_matches = normalized_matches or root_matches
         best_match = candidate_matches[0] if candidate_matches else None
 
         notes = []
@@ -10022,25 +10215,18 @@ def body_pod_audit():
             if pod_record["table_type"] != best_match["table_type"]:
                 notes.append(f"Type mismatch: pod {pod_record['type_label']}, body {best_match['type_label']}")
 
-            if not notes and normalized_matches:
-                notes.append("Same serial after normalising formatting.")
-            elif not notes and root_matches:
-                notes.append("Same number, but serial format differs.")
-
-        if normalized_matches:
+        if exact_body_id:
             match_status = "Matched"
-            match_quality = "Normalised serial match"
-        elif root_matches:
+            match_quality = "Same serial, size and type"
+        elif best_match:
             match_status = "Possible Match"
-            match_quality = "Same serial number root"
+            match_quality = "Same serial number; different build variant"
         else:
             match_status = "No Body Found"
             match_quality = "No completed body has the same serial"
 
-        if pod_record["picker_key"] not in completed_base_serials:
-            if best_match and normalized_matches:
-                picker_status = "Still in picker, but likely already built"
-            elif best_match:
+        if pod.id not in exact_body_by_pod:
+            if best_match:
                 picker_status = "Still in picker with possible body match"
             else:
                 picker_status = "Still in picker, no body match found"
@@ -10059,18 +10245,14 @@ def body_pod_audit():
             else:
                 picker_rows.append(picker_row)
 
-        for body in normalized_matches:
-            mismatch_notes = []
-            if pod_record["size"] != body["size"]:
-                mismatch_notes.append(f"Size mismatch: pod {pod_record['size']}, body {body['size']}")
-            if pod_record["table_type"] != body["table_type"]:
-                mismatch_notes.append(f"Type mismatch: pod {pod_record['type_label']}, body {body['type_label']}")
-            if mismatch_notes:
-                mismatch_rows.append({
-                    "pod": pod_record,
-                    "body": body,
-                    "notes": mismatch_notes,
-                })
+        safe_body_id = safe_mismatch_body_by_pod.get(pod.id)
+        safe_body = body_record_by_id.get(safe_body_id)
+        if safe_body and notes:
+            mismatch_rows.append({
+                "pod": pod_record,
+                "body": safe_body,
+                "notes": notes,
+            })
 
     likely_built_rows = [row for row in picker_rows if row["body"]]
     no_match_rows = [row for row in picker_rows if not row["body"]]
@@ -10169,11 +10351,6 @@ def _body_audit_clean_pod_serial(serial):
     if "**Pod Serial Number:" in cleaned:
         cleaned = cleaned.replace("**Pod Serial Number:", "").strip()
     return cleaned
-
-
-def _body_audit_normalized_base_key(serial):
-    base_serial = base_serial_for_pod_matching(_body_audit_clean_pod_serial(serial))
-    return re.sub(r"[^A-Z0-9]+", "", base_serial.upper())
 
 
 def _body_audit_size_label(serial):
@@ -10338,8 +10515,19 @@ def body_pod_audit_fix():
             undo_items = []
             pod_id = int(request.form.get("pod_id", 0))
             body_id = int(request.form.get("body_id", 0))
-            pod = CompletedPods.query.get(pod_id)
-            body = CompletedTable.query.get(body_id)
+            completed_pods = CompletedPods.query.order_by(CompletedPods.id.asc()).all()
+            completed_bodies = CompletedTable.query.order_by(CompletedTable.id.asc()).all()
+            _, safe_mismatch_body_by_pod, _ = body_pod_audit_pairings(
+                completed_pods,
+                completed_bodies,
+                load_hidden_body_picker_pod_ids(),
+            )
+            if safe_mismatch_body_by_pod.get(pod_id) != body_id:
+                raise ValueError(
+                    "That pod/body pair is no longer an unambiguous mismatch. Refresh the audit before fixing it."
+                )
+            pod = next((entry for entry in completed_pods if entry.id == pod_id), None)
+            body = next((entry for entry in completed_bodies if entry.id == body_id), None)
             result = _correct_body_to_match_pod(pod, body, worker_name)
             db.session.commit()
             if result.get("changed"):
@@ -10355,34 +10543,29 @@ def body_pod_audit_fix():
             else:
                 flash(result["message"], "info")
         elif action == "fix_all":
-            completed_bodies = CompletedTable.query.order_by(CompletedTable.date.desc(), CompletedTable.id.desc()).all()
-            bodies_by_key = defaultdict(list)
-            for body in completed_bodies:
-                bodies_by_key[_body_audit_normalized_base_key(body.serial_number)].append(body)
-
+            completed_bodies = CompletedTable.query.order_by(CompletedTable.id.asc()).all()
+            completed_pods = CompletedPods.query.order_by(CompletedPods.id.asc()).all()
+            _, safe_mismatch_body_by_pod, _ = body_pod_audit_pairings(
+                completed_pods,
+                completed_bodies,
+                load_hidden_body_picker_pod_ids(),
+            )
+            pods_by_id = {pod.id: pod for pod in completed_pods}
+            bodies_by_id = {body.id: body for body in completed_bodies}
             fixed_count = 0
             warnings = []
             undo_items = []
-            fixed_body_ids = set()
-            completed_pods = CompletedPods.query.order_by(CompletedPods.date.desc(), CompletedPods.id.desc()).all()
-            for pod in completed_pods:
-                pod_key = _body_audit_normalized_base_key(pod.serial_number)
-                pod_type = table_type_from_serial(pod.serial_number)
-                pod_size = _body_audit_size_label(pod.serial_number)
-                for body in bodies_by_key.get(pod_key, []):
-                    if body.id in fixed_body_ids:
-                        continue
-                    body_type, _ = get_body_build_metadata(body)
-                    body_size = _body_audit_size_label(body.serial_number)
-                    if body_type == pod_type and body_size == pod_size:
-                        continue
-                    result = _correct_body_to_match_pod(pod, body, worker_name)
-                    fixed_body_ids.add(body.id)
-                    if result.get("changed"):
-                        fixed_count += 1
-                        undo_items.append(_body_pod_audit_undo_item(result))
-                    if result.get("warning"):
-                        warnings.append(result["warning"])
+            for pod_id, body_id in sorted(safe_mismatch_body_by_pod.items()):
+                result = _correct_body_to_match_pod(
+                    pods_by_id.get(pod_id),
+                    bodies_by_id.get(body_id),
+                    worker_name,
+                )
+                if result.get("changed"):
+                    fixed_count += 1
+                    undo_items.append(_body_pod_audit_undo_item(result))
+                if result.get("warning"):
+                    warnings.append(result["warning"])
 
             db.session.commit()
             if fixed_count:
@@ -11059,11 +11242,7 @@ BODY_PARTS_REQUIREMENTS = [
     {"name": "6ft Cue Ball Separator", "per_body": 1, "sizes": ["6ft"]},
     {"name": "Bushing", "per_body": 2, "sizes": ["7ft", "6ft"]},
     {"name": "Table legs", "per_body": 4, "sizes": ["7ft", "6ft"]},
-    {"name": "Ball Gullies 1", "per_body": 2, "sizes": ["7ft"]},
-    {"name": "Ball Gullies 2", "per_body": 1, "sizes": ["7ft"]},
-    {"name": "Ball Gullies 3", "per_body": 1, "sizes": ["7ft"]},
-    {"name": "Ball Gullies 4", "per_body": 1, "sizes": ["7ft"]},
-    {"name": "Ball Gullies 5", "per_body": 1, "sizes": ["7ft"]},
+    {"name": "7ft Gully Set", "per_body": 1, "sizes": ["7ft"]},
     {"name": "6ft Gully Set", "per_body": 1, "sizes": ["6ft"]},
     {"name": "Feet", "per_body": 4, "sizes": ["7ft", "6ft"]},
     {"name": "Triangle trim", "per_body": 1, "sizes": ["7ft", "6ft"]},
@@ -15175,11 +15354,6 @@ def order_chinese_parts():
     # Parts that are planned against a generic table target on this page.
     chinese_parts = {
         "Table legs": 4,
-        "Ball Gullies 1": 2,
-        "Ball Gullies 2": 1,
-        "Ball Gullies 3": 1,
-        "Ball Gullies 4": 1,
-        "Ball Gullies 5": 1,
         "Feet": 4,
         "Triangle trim": 1,
         "White ball return trim": 1,
@@ -15197,10 +15371,11 @@ def order_chinese_parts():
         "Corner pockets": 4,
         "Sticker Set": 1
     }
-    supplemental_parts = MANUAL_ONLY_CHINESE_PARTS + SIX_FOOT_ONLY_CHINESE_PARTS
+    supplemental_parts = MANUAL_ONLY_CHINESE_PARTS + GULLY_SET_CHINESE_PARTS
     hidden_gully_parts = {
         "Gullies Untouched": 1,
-        "6ft Gully Set": 6,
+        GULLY_SET_PART_NAMES["7ft"]: GULLIES_PER_SET,
+        GULLY_SET_PART_NAMES["6ft"]: GULLIES_PER_SET,
     }
 
     # Fetch latest count for each part
@@ -15214,8 +15389,8 @@ def order_chinese_parts():
         )
         part_stock[part] = latest_entry[0] if latest_entry else 0
 
-    gullies_parts = [p for p in chinese_parts if p.lower().startswith("ball gullies")]
-    gullies_per_table = sum(chinese_parts.get(p, 0) for p in gullies_parts)
+    gullies_parts = []
+    gullies_per_table = GULLIES_PER_SET
 
     def load_on_order():
         return load_chinese_parts_on_order()
@@ -15368,7 +15543,11 @@ def order_chinese_parts():
             total_order_cost += order_costs[part]
 
         gullies_need = max(0, target_table_count * gullies_per_table - gullies_total_available) if gullies_per_table else 0
-        gullies_order_cost = sum(order_costs.get(p, 0.0) for p in gullies_parts)
+        gullies_order_cost = (
+            ceil(gullies_need / GULLIES_PER_SET)
+            * part_costs.get(GULLY_SET_PART_NAMES["7ft"], 0.0)
+        )
+        total_order_cost += gullies_order_cost
     else:
         gullies_need = None
         gullies_order_cost = None
