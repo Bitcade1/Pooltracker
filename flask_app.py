@@ -16332,7 +16332,7 @@ def counting_laminate():
         size = parts[2]
         length = parts[3]
     else:  # Handle other colors
-        color = parts[0]
+        color = parts[0] 
         size = parts[1]
         length = parts[2]
     
