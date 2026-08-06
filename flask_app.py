@@ -1232,6 +1232,31 @@ def weekdays_in_month(year, month):
     )
 
 
+def cnc_elapsed_workdays(current_time=None):
+    current_time = current_time or london_now()
+    current_date = current_time.date()
+    month_start = current_date.replace(day=1)
+    completed_weekdays = sum(
+        1
+        for offset in range((current_date - month_start).days)
+        if (month_start + timedelta(days=offset)).weekday() < 5
+    )
+    if current_date.weekday() >= 5:
+        return float(completed_weekdays)
+
+    shift_start = datetime.combine(current_date, time(9, 0))
+    shift_end = datetime.combine(current_date, time(17, 0))
+    lunch_start = datetime.combine(current_date, time(12, 30))
+    lunch_end = datetime.combine(current_date, time(13, 0))
+    interval_end = min(max(current_time, shift_start), shift_end)
+    elapsed_hours = (interval_end - shift_start).total_seconds() / 3600
+    lunch_overlap_end = min(interval_end, lunch_end)
+    if lunch_overlap_end > lunch_start:
+        elapsed_hours -= (lunch_overlap_end - lunch_start).total_seconds() / 3600
+
+    return completed_weekdays + (max(elapsed_hours, 0) / 7.5)
+
+
 def cnc_remaining_work_hours(current_time=None):
     current_time = current_time or london_now()
     current_date = current_time.date()
@@ -12123,7 +12148,8 @@ def cnc_dashboard():
 
     ensure_cnc_tables()
     queues = _cnc_queue_snapshot()
-    today = london_now().date()
+    current_time = london_now()
+    today = current_time.date()
     today_start_utc, today_end_utc = london_period_utc_bounds(today.year, today.month, today.day)
     completed_base_filters = (
         CncQueueItem.status == CNC_STATUS_COMPLETED,
@@ -12135,7 +12161,7 @@ def cnc_dashboard():
     )
     completed_today_count = cnc_completed_quantity_total(year=today.year, month=today.month, day=today.day)
     completed_month_count = cnc_completed_quantity_total(year=today.year, month=today.month)
-    elapsed_workdays = elapsed_weekdays_in_month(today)
+    elapsed_workdays = cnc_elapsed_workdays(current_time)
     daily_avg_sheets = completed_month_count / elapsed_workdays if elapsed_workdays else 0
     daily_avg_sheets_display = f"{daily_avg_sheets:.1f}".rstrip("0").rstrip(".")
     completed_today = (
@@ -12171,7 +12197,7 @@ def cnc_dashboard():
     pacing_goal = max(bonus_progress, key=lambda goal: goal.get("remaining", 0), default=None)
     cnc_goal_target = pacing_goal.get("target", 0) if pacing_goal else 0
     cnc_goal_remaining = pacing_goal.get("remaining", 0) if pacing_goal else 0
-    remaining_work_hours = cnc_remaining_work_hours(london_now())
+    remaining_work_hours = cnc_remaining_work_hours(current_time)
     if pacing_goal and pacing_goal.get("next_bonus"):
         next_bonus_year = pacing_goal.get("period_year")
         next_bonus_month = pacing_goal.get("period_month")
@@ -12210,7 +12236,7 @@ def cnc_dashboard():
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
         mdf_inventory=mdf_inventory,
-        render_time=london_now().strftime("%d/%m/%Y %H:%M")
+        render_time=current_time.strftime("%d/%m/%Y %H:%M")
     )
 
 
