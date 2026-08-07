@@ -774,6 +774,12 @@ BODIES_QUICK_ADD_PARTS = [
 ]
 FELT_PART_NAME = "Felt"
 LEGACY_FELT_PART_NAMES = ("7ft Felt", "6ft Felt")
+PODS_QUICK_ADD_PARTS = [
+    {"label": "6ft Carpet", "part_name": "6ft Carpet"},
+    {"label": "7ft Carpet", "part_name": "7ft Carpet"},
+    {"label": "Tee Nuts", "part_name": "M10x13mm Tee Nut"},
+    {"label": "Felt", "part_name": FELT_PART_NAME},
+]
 PACKAGING_PART_NAMES = [
     "Straps",
     "Metal Poles",
@@ -5408,6 +5414,36 @@ def pods():
         return redirect(url_for('pods'))
     
     if request.method == 'POST':
+        if request.form.get('action') == 'quick_add_pod_part':
+            part_name = (request.form.get('part_name') or '').strip()
+            quick_part = next(
+                (part for part in PODS_QUICK_ADD_PARTS if part["part_name"] == part_name),
+                None,
+            )
+            if not quick_part:
+                flash("Invalid quick-add part selected.", "error")
+                return redirect(url_for('pods'))
+
+            try:
+                amount = int(request.form.get('quick_amount', 1))
+            except (TypeError, ValueError):
+                flash("Quick-add amount must be a whole number.", "error")
+                return redirect(url_for('pods'))
+            if amount <= 0:
+                flash("Quick-add amount must be greater than zero.", "error")
+                return redirect(url_for('pods'))
+
+            current_count = (
+                get_felt_count()
+                if part_name == FELT_PART_NAME
+                else _latest_part_count(part_name)
+            )
+            new_count = current_count + amount
+            db.session.add(new_printed_parts_snapshot(part_name, new_count))
+            db.session.commit()
+            flash(f"Added {amount} to {quick_part['label']}. New count: {new_count}", "success")
+            return redirect(url_for('pods'))
+
         worker = session['worker']
         raw_serial = (request.form.get('serial_number') or "").strip()
         issue_text = request.form['issue']
@@ -6023,6 +6059,17 @@ def pods():
     form_table_type = pod_form_values.get("table_type") or default_table_type
     form_issue = pod_form_values.get("issue") or ""
     form_lunch = pod_form_values.get("lunch") or "No"
+    pod_quick_add_parts = [
+        {
+            **part,
+            "current_count": (
+                get_felt_count()
+                if part["part_name"] == FELT_PART_NAME
+                else _latest_part_count(part["part_name"])
+            ),
+        }
+        for part in PODS_QUICK_ADD_PARTS
+    ]
     
     return render_template(
         'pods.html',
@@ -6056,7 +6103,8 @@ def pods():
         default_size=default_size,
         default_table_type=default_table_type,
         pod_type_totals=pod_type_totals,
-        pod_type_worker_rows=pod_type_worker_rows
+        pod_type_worker_rows=pod_type_worker_rows,
+        pod_quick_add_parts=pod_quick_add_parts
     )
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
