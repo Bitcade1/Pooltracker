@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import csv
 import io
 import math
@@ -854,6 +855,353 @@ def generate_packaging(items, config=None):
         "summary": summary,
         "warnings": warnings,
     }
+
+
+def _pallet_identity(pallet):
+    number = pallet.get("pallet_number", "")
+    try:
+        number = int(number)
+    except (TypeError, ValueError):
+        number = _clean_text(number)
+    return number, _clean_text(pallet.get("pallet_type")) or "custom"
+
+
+def _layout_line_identity(line):
+    component_type = _clean_text(line.get("component_type")) or "other"
+    item_id = _clean_text(line.get("item_id"))
+    origin_type = _clean_text(line.get("origin_type"))
+    if item_id:
+        return "item", item_id, component_type
+    if origin_type == "manual":
+        return (
+            "manual",
+            _clean_text(line.get("id")) or _clean_text(line.get("description")),
+            component_type,
+        )
+    return (
+        "group",
+        component_type,
+        _clean_text(line.get("size")),
+        origin_type,
+    )
+
+
+def _layout_state(pallets):
+    quantities = defaultdict(int)
+    samples = {}
+    preferences = defaultdict(list)
+    for pallet in pallets:
+        pallet_identity = _pallet_identity(pallet)
+        for collection_name in ("lines", "carried_top_rails"):
+            for line in pallet.get(collection_name, []):
+                line_identity = _layout_line_identity(line)
+                location = pallet_identity, collection_name
+                quantity = max(0, int(line.get("quantity", 0) or 0))
+                quantities[(location, line_identity)] += quantity
+                samples.setdefault(line_identity, line)
+                if location not in preferences[line_identity]:
+                    preferences[line_identity].append(location)
+    return quantities, samples, preferences
+
+
+def _new_layout_pallet(source):
+    return {
+        "id": _clean_text(source.get("id")) or _new_id("pallet"),
+        "planner_version": 2,
+        "pallet_number": source.get("pallet_number", ""),
+        "pallet_type": _clean_text(source.get("pallet_type")) or "custom",
+        "size": _clean_text(source.get("size")),
+        "is_mixed": bool(source.get("is_mixed")),
+        "manual_override": bool(source.get("manual_override")),
+        "notes": _clean_text(source.get("notes")),
+        "lines": [],
+        "carried_top_rails": [],
+    }
+
+
+def _remove_layout_quantity(
+    pallets,
+    line_identity,
+    quantity,
+    preferred_location=None,
+    avoided_locations=None,
+):
+    remaining = max(0, quantity)
+    avoided_locations = avoided_locations or set()
+    candidates = []
+    for pallet in pallets:
+        pallet_identity = _pallet_identity(pallet)
+        for collection_name in ("lines", "carried_top_rails"):
+            location = pallet_identity, collection_name
+            if preferred_location is not None and location != preferred_location:
+                continue
+            for line in list(pallet.get(collection_name, [])):
+                if _layout_line_identity(line) == line_identity:
+                    candidates.append((
+                        location in avoided_locations,
+                        pallet,
+                        collection_name,
+                        line,
+                    ))
+
+    candidates.sort(key=lambda candidate: candidate[0])
+    for _, pallet, collection_name, line in candidates:
+        if remaining <= 0:
+            break
+        available = max(0, int(line.get("quantity", 0) or 0))
+        removed = min(available, remaining)
+        line["quantity"] = available - removed
+        remaining -= removed
+        if line["quantity"] <= 0:
+            pallet[collection_name].remove(line)
+    return quantity - remaining
+
+
+def _add_layout_quantity(
+    pallet_by_identity,
+    pallets,
+    current_pallets,
+    location,
+    line_identity,
+    sample,
+    quantity,
+):
+    if quantity <= 0 or sample is None:
+        return
+    pallet_identity, collection_name = location
+    pallet = pallet_by_identity.get(pallet_identity)
+    if pallet is None:
+        source = current_pallets.get(pallet_identity)
+        if source is None:
+            source = {
+                "pallet_number": pallet_identity[0],
+                "pallet_type": pallet_identity[1],
+            }
+        pallet = _new_layout_pallet(source)
+        pallet_by_identity[pallet_identity] = pallet
+        pallets.append(pallet)
+
+    collection_name = (
+        "carried_top_rails"
+        if collection_name == "carried_top_rails"
+        else "lines"
+    )
+    collection = pallet[collection_name]
+    for line in collection:
+        if _layout_line_identity(line) == line_identity:
+            line["quantity"] = max(0, int(line.get("quantity", 0) or 0)) + quantity
+            return
+
+    new_line = copy.deepcopy(sample)
+    new_line["id"] = _new_id("line")
+    new_line["quantity"] = quantity
+    collection.append(new_line)
+
+
+def regenerate_packaging(
+    items,
+    config=None,
+    existing_pallets=None,
+    baseline_items=None,
+    baseline_config=None,
+    preserve_manual_layout=False,
+    replace_manual_layout=False,
+):
+    """Regenerate current requirements and replay saved manual layout changes."""
+    if existing_pallets is None:
+        existing_pallets = []
+    if not isinstance(existing_pallets, list):
+        raise ValueError("The pallet data is invalid or too large.")
+
+    for pallet in existing_pallets:
+        if not isinstance(pallet, dict):
+            raise ValueError("The pallet data is invalid or too large.")
+        for collection_name in ("lines", "carried_top_rails"):
+            lines = pallet.get(collection_name, [])
+            if not isinstance(lines, list) or any(
+                not isinstance(line, dict) for line in lines
+            ):
+                raise ValueError("The pallet data is invalid or too large.")
+
+    result = generate_packaging(items, config)
+    has_manual_layout = preserve_manual_layout or any(
+        bool(pallet.get("manual_override")) for pallet in existing_pallets
+    )
+    if replace_manual_layout or not has_manual_layout:
+        result["manual_layout_preserved"] = False
+        return result
+
+    baseline = generate_packaging(
+        items if baseline_items is None else baseline_items,
+        config if baseline_config is None else baseline_config,
+    )
+    baseline_quantities, _, _ = _layout_state(baseline["pallets"])
+    current_quantities, current_samples, _ = _layout_state(existing_pallets)
+    fresh_quantities, fresh_samples, fresh_preferences = _layout_state(
+        result["pallets"]
+    )
+    # UUIDs change on every run. Compare quantities by stable item/component and
+    # pallet location to capture only the operator's changes to the auto layout.
+    deltas = {
+        key: current_quantities.get(key, 0) - baseline_quantities.get(key, 0)
+        for key in set(current_quantities) | set(baseline_quantities)
+        if current_quantities.get(key, 0) != baseline_quantities.get(key, 0)
+    }
+
+    rebuilt_pallets = copy.deepcopy(result["pallets"])
+    current_pallets = {
+        _pallet_identity(pallet): pallet for pallet in existing_pallets
+    }
+    pallet_by_identity = {
+        _pallet_identity(pallet): pallet for pallet in rebuilt_pallets
+    }
+    for pallet_identity, current_pallet in current_pallets.items():
+        rebuilt = pallet_by_identity.get(pallet_identity)
+        if rebuilt is not None:
+            rebuilt["id"] = _clean_text(current_pallet.get("id")) or rebuilt["id"]
+            rebuilt["notes"] = _clean_text(current_pallet.get("notes"))
+            rebuilt["is_mixed"] = bool(current_pallet.get("is_mixed"))
+            rebuilt["manual_override"] = bool(current_pallet.get("manual_override"))
+        elif current_pallet.get("manual_override"):
+            rebuilt = _new_layout_pallet(current_pallet)
+            rebuilt_pallets.append(rebuilt)
+            pallet_by_identity[pallet_identity] = rebuilt
+
+    deltas_by_line = defaultdict(dict)
+    for (location, line_identity), delta in deltas.items():
+        deltas_by_line[line_identity][location] = delta
+
+    for line_identity, location_deltas in deltas_by_line.items():
+        fresh_total = sum(
+            quantity
+            for (_, candidate_identity), quantity in fresh_quantities.items()
+            if candidate_identity == line_identity
+        )
+        desired_total = max(0, fresh_total + sum(location_deltas.values()))
+        positive_locations = {
+            location for location, delta in location_deltas.items() if delta > 0
+        }
+
+        for location, delta in location_deltas.items():
+            if delta >= 0:
+                continue
+            removed = _remove_layout_quantity(
+                rebuilt_pallets,
+                line_identity,
+                -delta,
+                preferred_location=location,
+            )
+            if removed < -delta:
+                _remove_layout_quantity(
+                    rebuilt_pallets,
+                    line_identity,
+                    -delta - removed,
+                    avoided_locations=positive_locations,
+                )
+
+        sample = fresh_samples.get(line_identity) or current_samples.get(line_identity)
+        for location, delta in location_deltas.items():
+            if delta > 0:
+                _add_layout_quantity(
+                    pallet_by_identity,
+                    rebuilt_pallets,
+                    current_pallets,
+                    location,
+                    line_identity,
+                    sample,
+                    delta,
+                )
+
+        actual_total = sum(
+            quantity
+            for (_, candidate_identity), quantity
+            in _layout_state(rebuilt_pallets)[0].items()
+            if candidate_identity == line_identity
+        )
+        if actual_total > desired_total:
+            _remove_layout_quantity(
+                rebuilt_pallets,
+                line_identity,
+                actual_total - desired_total,
+                avoided_locations=positive_locations,
+            )
+        elif actual_total < desired_total:
+            preferred_locations = fresh_preferences.get(line_identity, [])
+            if not preferred_locations:
+                preferred_locations = list(positive_locations)
+            if preferred_locations:
+                _add_layout_quantity(
+                    pallet_by_identity,
+                    rebuilt_pallets,
+                    current_pallets,
+                    preferred_locations[0],
+                    line_identity,
+                    sample,
+                    desired_total - actual_total,
+                )
+
+    empty_manual_pallets = {
+        pallet_identity
+        for pallet_identity, pallet in current_pallets.items()
+        if pallet.get("manual_override")
+        and not pallet.get("lines")
+        and not pallet.get("carried_top_rails")
+    }
+    rebuilt_pallets = [
+        pallet for pallet in rebuilt_pallets
+        if pallet.get("lines")
+        or pallet.get("carried_top_rails")
+        or _pallet_identity(pallet) in empty_manual_pallets
+    ]
+
+    manual_identities = {
+        pallet_identity
+        for pallet_identity, pallet in current_pallets.items()
+        if pallet.get("manual_override")
+    }
+    integer_numbers = [
+        pallet.get("pallet_number")
+        for pallet in rebuilt_pallets
+        if isinstance(pallet.get("pallet_number"), int)
+    ]
+    next_number = max(integer_numbers, default=0) + 1
+    used_numbers = set()
+    for pallet in sorted(
+        rebuilt_pallets,
+        key=lambda entry: _pallet_identity(entry) not in manual_identities,
+    ):
+        number = pallet.get("pallet_number")
+        if number in used_numbers:
+            while next_number in used_numbers:
+                next_number += 1
+            pallet["pallet_number"] = next_number
+            number = next_number
+            next_number += 1
+        used_numbers.add(number)
+
+    if rebuilt_pallets and not any(
+        pallet.get("manual_override") for pallet in rebuilt_pallets
+    ):
+        # Keep plan-level manual intent discoverable after a save and reload,
+        # even when the originally edited pallet disappeared during regeneration.
+        rebuilt_pallets[0]["manual_override"] = True
+
+    for pallet in rebuilt_pallets:
+        _refresh_pallet_labels(pallet, result["config"])
+
+    result["pallets"] = rebuilt_pallets
+    result["summary"] = build_summary(
+        result["items"],
+        rebuilt_pallets,
+        config=result["config"],
+    )
+    result["warnings"] = validate_packaging(
+        result["items"],
+        rebuilt_pallets,
+        config=result["config"],
+    )
+    result["manual_layout_preserved"] = True
+    return result
 
 
 def build_summary(items, pallets, requirements=None, config=None):

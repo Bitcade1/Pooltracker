@@ -20,7 +20,7 @@ from packaging_planner import (
     SUPPORTED_EXTENSIONS,
     build_summary as build_packaging_summary,
     extract_invoice_files,
-    generate_packaging,
+    regenerate_packaging,
     normalise_config as normalise_packaging_config,
     normalise_items as normalise_packaging_items,
     validate_packaging,
@@ -3326,6 +3326,8 @@ class InvoicePackagingJob(db.Model):
     items_json = db.Column(db.Text, nullable=False, default="[]")
     pallets_json = db.Column(db.Text, nullable=False, default="[]")
     config_json = db.Column(db.Text, nullable=False, default="{}")
+    automatic_items_json = db.Column(db.Text, nullable=False, default="[]")
+    automatic_config_json = db.Column(db.Text, nullable=False, default="{}")
     extraction_warnings_json = db.Column(db.Text, nullable=False, default="[]")
     warnings_json = db.Column(db.Text, nullable=False, default="[]")
     acknowledged_warnings_json = db.Column(db.Text, nullable=False, default="[]")
@@ -3334,6 +3336,33 @@ class InvoicePackagingJob(db.Model):
 
 def ensure_invoice_packaging_tables():
     InvoicePackagingJob.__table__.create(db.engine, checkfirst=True)
+    existing_columns = {
+        row[1]
+        for row in db.session.execute(
+            text("PRAGMA table_info(invoice_packaging_job)")
+        ).fetchall()
+    }
+    migration_changed = False
+    if "automatic_items_json" not in existing_columns:
+        db.session.execute(text(
+            "ALTER TABLE invoice_packaging_job "
+            "ADD COLUMN automatic_items_json TEXT NOT NULL DEFAULT '[]'"
+        ))
+        db.session.execute(text(
+            "UPDATE invoice_packaging_job SET automatic_items_json = items_json"
+        ))
+        migration_changed = True
+    if "automatic_config_json" not in existing_columns:
+        db.session.execute(text(
+            "ALTER TABLE invoice_packaging_job "
+            "ADD COLUMN automatic_config_json TEXT NOT NULL DEFAULT '{}'"
+        ))
+        db.session.execute(text(
+            "UPDATE invoice_packaging_job SET automatic_config_json = config_json"
+        ))
+        migration_changed = True
+    if migration_changed:
+        db.session.commit()
 
 
 def packaging_json_load(value, fallback):
@@ -3457,6 +3486,8 @@ def invoice_packaging():
             items_json=json.dumps(items),
             pallets_json="[]",
             config_json=json.dumps(normalise_packaging_config({})),
+            automatic_items_json=json.dumps(items),
+            automatic_config_json=json.dumps(normalise_packaging_config({})),
             extraction_warnings_json=json.dumps(extraction_warnings),
             warnings_json="[]",
             acknowledged_warnings_json="[]",
@@ -3549,12 +3580,25 @@ def generate_invoice_packaging(job_id):
         items = normalise_packaging_items(data.get("items", []))
         if not items:
             raise ValueError("Add at least one invoice or manual item before generating.")
-        result = generate_packaging(items, data.get("config", {}))
+        pallets = data.get("pallets", [])
+        if not isinstance(pallets, list) or len(pallets) > 1000:
+            raise ValueError("The pallet data is invalid or too large.")
+        result = regenerate_packaging(
+            items,
+            data.get("config", {}),
+            existing_pallets=pallets,
+            baseline_items=packaging_json_load(job.automatic_items_json, []),
+            baseline_config=packaging_json_load(job.automatic_config_json, {}),
+            preserve_manual_layout=data.get("manual_layout_override") is True,
+            replace_manual_layout=data.get("replace_manual_layout") is True,
+        )
         job.title = (data.get("title") or job.title or "Packaging plan").strip()[:160]
         job.notes = (data.get("notes") or job.notes or "").strip()[:5000]
         job.items_json = json.dumps(result["items"])
         job.pallets_json = json.dumps(result["pallets"])
         job.config_json = json.dumps(result["config"])
+        job.automatic_items_json = json.dumps(result["items"])
+        job.automatic_config_json = json.dumps(result["config"])
         job.warnings_json = json.dumps(result["warnings"])
         job.acknowledged_warnings_json = "[]"
         job.updated_at = london_now().replace(tzinfo=None)
