@@ -6,6 +6,8 @@
 <style>
     html {
         box-sizing: border-box;
+        width: 100%;
+        height: 100%;
     }
 
     *,
@@ -19,6 +21,9 @@
         justify-content: flex-start;
         align-items: stretch;
         background-color: #f4f4f9;
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
         min-width: 0;
         overflow: hidden;
     }
@@ -30,6 +35,9 @@
 
     .container {
         width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
         max-width: none;
         margin: 0;
         padding: 0;
@@ -41,8 +49,9 @@
     }
 
     .dashboard-wrapper {
-        min-height: 100vh;
-        max-height: 100vh;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
         padding: 0.55rem 0.75rem;
         display: flex;
         flex-direction: column;
@@ -364,11 +373,11 @@
 
     .parts-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 145px));
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 145px));
         grid-auto-rows: auto;
         gap: 0.3rem;
         align-content: start;
-        justify-content: start;
+        justify-content: space-evenly;
         flex: 1;
         min-height: 0;
     }
@@ -501,6 +510,13 @@
             overflow-y: auto;
         }
 
+        .container,
+        .dashboard-wrapper {
+            height: auto;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
         .dashboard-wrapper {
             max-height: none;
             overflow: visible;
@@ -584,7 +600,7 @@
         }
 
         .parts-grid {
-            grid-template-columns: repeat(auto-fill, minmax(125px, 155px));
+            grid-template-columns: repeat(auto-fit, minmax(125px, 155px));
             grid-auto-rows: auto;
             gap: 0.35rem;
         }
