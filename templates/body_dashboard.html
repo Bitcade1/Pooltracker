@@ -211,9 +211,15 @@
         display: flex;
         justify-content: space-between;
         gap: 0.6rem;
+        flex-wrap: wrap;
         color: #475569;
         font-weight: 700;
         font-size: 0.8rem;
+    }
+
+    .bonus-needed {
+        color: #0f766e;
+        font-weight: 800;
     }
 
     .bonus-empty {
@@ -696,6 +702,9 @@
                         </div>
                         <div class="bonus-meta">
                             <span>{{ goal.percentage }}%</span>
+                            <span class="bonus-needed" title="{{ goal.remaining_workdays }} working days remaining">
+                                Needed/day: {{ goal.needed_per_day }}
+                            </span>
                             {% if goal.next_bonus and goal.target_hit %}
                                 <span>Next bonus hit</span>
                             {% elif goal.next_bonus %}

@@ -12345,6 +12345,29 @@ def body_dashboard_view():
         today.year,
         today.month
     )
+    remaining_body_workdays = remaining_weekdays_in_month(today)
+    for goal in bonus_progress:
+        goal_workdays = remaining_body_workdays
+        if goal.get("next_bonus"):
+            goal_workdays += weekdays_in_month(
+                goal.get("period_year"),
+                goal.get("period_month")
+            )
+
+        goal_remaining = int(goal.get("remaining", 0) or 0)
+        if goal_remaining <= 0:
+            needed_per_day_display = "0"
+        elif goal_workdays <= 0:
+            needed_per_day_display = "N/A"
+        else:
+            needed_per_day = goal_remaining / goal_workdays
+            needed_per_day = ceil(needed_per_day * 10) / 10
+            needed_per_day_display = (
+                f"{needed_per_day:.1f}".rstrip("0").rstrip(".")
+            )
+
+        goal["needed_per_day"] = needed_per_day_display
+        goal["remaining_workdays"] = goal_workdays
     tom_f_body_goal_missing = not any(
         normalize_bonus_worker_name(goal.get("worker")) == "tomf"
         for goal in bonus_progress
