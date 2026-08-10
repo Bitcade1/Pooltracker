@@ -12305,9 +12305,23 @@ def body_dashboard_view():
         })
 
     parts_data.sort(key=lambda item: item["bodies_possible"])
-    printed_parts_data = [p for p in parts_data if p["name"] in BODY_3D_PRINTED_PARTS]
-    support_parts_data = [p for p in parts_data if p["name"] in BODY_SUPPORT_PARTS]
-    other_parts_data = [p for p in parts_data if p["name"] not in BODY_3D_PRINTED_PARTS and p["name"] not in BODY_SUPPORT_PARTS]
+    low_stock_parts = [
+        part for part in parts_data
+        if part["bodies_possible"] < 10
+    ]
+    printed_parts_data = [
+        part for part in low_stock_parts
+        if part["name"] in BODY_3D_PRINTED_PARTS
+    ]
+    support_parts_data = [
+        part for part in low_stock_parts
+        if part["name"] in BODY_SUPPORT_PARTS
+    ]
+    other_parts_data = [
+        part for part in low_stock_parts
+        if part["name"] not in BODY_3D_PRINTED_PARTS
+        and part["name"] not in BODY_SUPPORT_PARTS
+    ]
 
     capacity_by_size = {}
     for size in ["7ft", "6ft"]:
