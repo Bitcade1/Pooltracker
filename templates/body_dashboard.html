@@ -356,7 +356,7 @@
 
     .parts-sections {
         display: grid;
-        grid-template-columns: 0.85fr 1.15fr 1.25fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 0.45rem;
         min-height: 0;
         height: 100%;
@@ -373,11 +373,11 @@
 
     .parts-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 145px));
-        grid-auto-rows: auto;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
+        grid-auto-rows: minmax(74px, auto);
         gap: 0.3rem;
         align-content: start;
-        justify-content: space-evenly;
+        justify-content: stretch;
         flex: 1;
         min-height: 0;
     }
@@ -689,14 +689,15 @@
         }
 
         .parts-grid {
-            grid-template-columns: repeat(auto-fit, minmax(145px, 185px));
-            grid-auto-rows: minmax(100px, 140px);
+            grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+            grid-auto-rows: minmax(110px, auto);
             gap: 0.6rem;
-            align-content: space-evenly;
+            align-content: start;
+            justify-content: stretch;
         }
 
         .part-card {
-            min-height: 100px;
+            min-height: 110px;
             padding: 0.55rem 0.65rem;
             gap: 0.25rem;
             border-radius: 8px;
