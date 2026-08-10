@@ -362,10 +362,10 @@
 
     .parts-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
-        grid-auto-rows: minmax(78px, 1fr);
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 132px), 1fr));
+        grid-auto-rows: minmax(78px, auto);
         gap: 0.3rem;
-        align-content: stretch;
+        align-content: start;
         flex: 1;
         min-height: 0;
     }
@@ -581,8 +581,8 @@
         }
 
         .parts-grid {
-            grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-            grid-auto-rows: minmax(86px, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+            grid-auto-rows: minmax(86px, auto);
             gap: 0.35rem;
         }
 
