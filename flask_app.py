@@ -12183,9 +12183,7 @@ def body_dashboard_view():
     }
 
     def normalize_worker_name(name):
-        if not name:
-            return ""
-        return re.sub(r'[^a-z]', '', name.lower())
+        return normalize_bonus_worker_name(name)
 
     def map_to_worker(name):
         norm = normalize_worker_name(name)
@@ -12195,27 +12193,33 @@ def body_dashboard_view():
                     return worker
         return None
 
-    # Current month Jack-only averages using actual recorded durations.
+    bonus_progress = dashboard_bonus_progress(
+        "bodies",
+        today.year,
+        today.month
+    )
+
+    def average_worker_name(name):
+        return map_to_worker(name) or (name or "").strip()
+
+    average_worker_names = ["Jack B"]
+    seen_average_workers = {normalize_worker_name("Jack B")}
+    for goal in bonus_progress:
+        worker_name = average_worker_name(goal.get("worker"))
+        worker_key = normalize_worker_name(worker_name)
+        if worker_name and worker_key not in seen_average_workers:
+            average_worker_names.append(worker_name)
+            seen_average_workers.add(worker_key)
+
+    previous_month = (start_of_month - timedelta(days=1)).replace(day=1)
     current_month_bodies = CompletedTable.query.filter(
         extract('year', CompletedTable.date) == today.year,
         extract('month', CompletedTable.date) == today.month
     ).all()
-    jack_type_stats_current = {
-        TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
-        TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
-    }
-    for body in current_month_bodies:
-        if map_to_worker(body.worker) != "Jack B":
-            continue
-        duration = calculate_body_duration(body)
-        if duration is None:
-            continue
-        body_type = table_type_from_serial(body.serial_number)
-        if body_type in jack_type_stats_current:
-            jack_type_stats_current[body_type]["seconds"] += duration.total_seconds()
-            jack_type_stats_current[body_type]["count"] += 1
-
-    previous_month = (start_of_month - timedelta(days=1)).replace(day=1)
+    previous_month_bodies = CompletedTable.query.filter(
+        extract('year', CompletedTable.date) == previous_month.year,
+        extract('month', CompletedTable.date) == previous_month.month
+    ).all()
 
     def average_seconds(stats):
         if not stats["count"]:
@@ -12246,17 +12250,20 @@ def body_dashboard_view():
             "class": status_class
         }
 
-    def jack_type_stats_for_month(month_date):
-        month_bodies = CompletedTable.query.filter(
-            extract('year', CompletedTable.date) == month_date.year,
-            extract('month', CompletedTable.date) == month_date.month
-        ).all()
+    def worker_type_stats(month_bodies, worker_name):
         stats = {
             TABLE_TYPE_CHAMPION: {"seconds": 0, "count": 0},
             TABLE_TYPE_LITE: {"seconds": 0, "count": 0},
         }
+        target_worker_key = normalize_worker_name(average_worker_name(worker_name))
         for body in month_bodies:
-            if map_to_worker(body.worker) != "Jack B":
+            recorded_worker_key = normalize_worker_name(
+                average_worker_name(body.worker)
+            )
+            worker_matches = recorded_worker_key == target_worker_key
+            if target_worker_key == "unknown":
+                worker_matches = recorded_worker_key in ("", "unknown")
+            if not worker_matches:
                 continue
             duration = calculate_body_duration(body)
             if duration is None:
@@ -12267,21 +12274,28 @@ def body_dashboard_view():
                 stats[body_type]["count"] += 1
         return stats
 
-    jack_type_stats_previous = jack_type_stats_for_month(previous_month)
-    jack_type_average_rows = []
-    for table_type, label in (
-        (TABLE_TYPE_CHAMPION, "Champion"),
-        (TABLE_TYPE_LITE, "Lite"),
-    ):
-        current_avg = average_seconds(jack_type_stats_current[table_type])
-        previous_avg = average_seconds(jack_type_stats_previous[table_type])
-        comparison = comparison_for_average(current_avg, previous_avg)
-        jack_type_average_rows.append({
-            "label": label,
-            "current_avg": format_avg_seconds(current_avg),
-            "last_month_avg": format_avg_seconds(previous_avg),
-            "comparison_text": comparison["text"],
-            "comparison_class": comparison["class"],
+    worker_type_average_groups = []
+    for worker_name in average_worker_names:
+        current_stats = worker_type_stats(current_month_bodies, worker_name)
+        previous_stats = worker_type_stats(previous_month_bodies, worker_name)
+        average_rows = []
+        for table_type, label in (
+            (TABLE_TYPE_CHAMPION, "Champion"),
+            (TABLE_TYPE_LITE, "Lite"),
+        ):
+            current_avg = average_seconds(current_stats[table_type])
+            previous_avg = average_seconds(previous_stats[table_type])
+            comparison = comparison_for_average(current_avg, previous_avg)
+            average_rows.append({
+                "label": label,
+                "current_avg": format_avg_seconds(current_avg),
+                "last_month_avg": format_avg_seconds(previous_avg),
+                "comparison_text": comparison["text"],
+                "comparison_class": comparison["class"],
+            })
+        worker_type_average_groups.append({
+            "worker": worker_name,
+            "average_rows": average_rows,
         })
 
     parts_data = []
@@ -12354,11 +12368,6 @@ def body_dashboard_view():
         if data["bodies_possible"] == min_capacity
         for part_name in data["limiting_parts"]
     })
-    bonus_progress = dashboard_bonus_progress(
-        "bodies",
-        today.year,
-        today.month
-    )
     remaining_body_workdays = remaining_weekdays_in_month(today)
     for goal in bonus_progress:
         goal_workdays = remaining_body_workdays
@@ -12403,7 +12412,7 @@ def body_dashboard_view():
         limiting_overall=limiting_overall,
         min_capacity=min_capacity,
         previous_month_label=previous_month.strftime("%B %Y"),
-        jack_type_average_rows=jack_type_average_rows,
+        worker_type_average_groups=worker_type_average_groups,
         printed_parts_data=printed_parts_data,
         support_parts_data=support_parts_data,
         other_parts_data=other_parts_data,
