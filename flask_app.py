@@ -2023,6 +2023,7 @@ class CncQueueItem(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
     completed_by = db.Column(db.String(50), nullable=True)
+    completion_wood_change = db.Column(db.Text, nullable=True)
 
 
 CNC_MACHINE_NUMBERS = [1, 2, 3, 4]
@@ -2034,6 +2035,26 @@ CNC_QUEUE_LOW_NOTIFY_THRESHOLD = 3
 def ensure_cnc_tables():
     CncJob.__table__.create(db.engine, checkfirst=True)
     CncQueueItem.__table__.create(db.engine, checkfirst=True)
+    queue_item_columns = {
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info(cnc_queue_item)")).fetchall()
+    }
+    if "completion_wood_change" not in queue_item_columns:
+        try:
+            db.session.execute(
+                text("ALTER TABLE cnc_queue_item ADD COLUMN completion_wood_change TEXT")
+            )
+            db.session.commit()
+        except OperationalError:
+            db.session.rollback()
+            refreshed_columns = {
+                row[1]
+                for row in db.session.execute(
+                    text("PRAGMA table_info(cnc_queue_item)")
+                ).fetchall()
+            }
+            if "completion_wood_change" not in refreshed_columns:
+                raise
 
 
 def _coerce_positive_int_list(values):
@@ -2326,52 +2347,83 @@ def _record_cnc_job_wood_count(job):
     }
 
 
-def _remember_cnc_wood_log(item_id, wood_result):
-    if not wood_result or not wood_result.get("logged"):
-        return
-    logs = session.get(CNC_WOOD_LOG_SESSION_KEY) or {}
-    logs[str(item_id)] = {
-        "entries": wood_result.get("entries", []),
-        "inventory_deltas": wood_result.get("inventory_deltas", {}),
+def _serialize_cnc_completion_wood_change(wood_result):
+    payload = {
+        "logged": bool(wood_result and wood_result.get("logged")),
+        "entries": (wood_result or {}).get("entries", []),
+        "inventory_deltas": (wood_result or {}).get("inventory_deltas", {}),
     }
-    session[CNC_WOOD_LOG_SESSION_KEY] = logs
-    session.modified = True
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def _load_cnc_completion_wood_change(item):
+    saved_change = getattr(item, "completion_wood_change", None)
+    if saved_change is not None:
+        try:
+            payload = json.loads(saved_change)
+        except (TypeError, ValueError, json.JSONDecodeError) as error:
+            raise ValueError("Saved CNC undo data is invalid.") from error
+        if not isinstance(payload, dict):
+            raise ValueError("Saved CNC undo data is invalid.")
+        return {
+            "logged": bool(payload.get("logged")),
+            "entries": payload.get("entries") or [],
+            "inventory_deltas": payload.get("inventory_deltas") or {},
+        }
+
+    remembered = _get_remembered_cnc_wood_log(item.id)
+    if not remembered:
+        return None
+    return {
+        "logged": True,
+        "entries": remembered.get("entries") or [],
+        "inventory_deltas": remembered.get("inventory_deltas") or {},
+    }
+
+
+def _reverse_cnc_completion_wood_change(change, log_date=None):
+    if not change.get("logged"):
+        return {
+            "logged": False,
+            "message": "Wood count was not changed when this job was completed."
+        }
+
+    reverse_entries = [
+        {"section": entry.get("section"), "count": -int(entry.get("count", 0))}
+        for entry in change.get("entries", [])
+    ]
+    reverse_inventory = {
+        field: -int(delta)
+        for field, delta in (change.get("inventory_deltas") or {}).items()
+    }
+    _apply_wood_count_entries(
+        reverse_entries,
+        reverse_inventory,
+        log_date=log_date
+    )
+    return {
+        "logged": True,
+        "message": "Wood count reversed."
+    }
 
 
 def _get_remembered_cnc_wood_log(item_id):
     logs = session.get(CNC_WOOD_LOG_SESSION_KEY) or {}
+    if not isinstance(logs, dict):
+        return None
     return logs.get(str(item_id))
 
 
 def _forget_cnc_wood_log(item_id):
     logs = session.get(CNC_WOOD_LOG_SESSION_KEY) or {}
+    if not isinstance(logs, dict):
+        session.pop(CNC_WOOD_LOG_SESSION_KEY, None)
+        session.modified = True
+        return
     if str(item_id) in logs:
         logs.pop(str(item_id), None)
         session[CNC_WOOD_LOG_SESSION_KEY] = logs
         session.modified = True
-
-
-def _reverse_remembered_cnc_wood_log(item_id):
-    remembered = _get_remembered_cnc_wood_log(item_id)
-    if not remembered:
-        return {
-            "logged": False,
-            "message": "Wood count was not changed for this undo."
-        }
-
-    reverse_entries = [
-        {"section": entry.get("section"), "count": -int(entry.get("count", 0))}
-        for entry in remembered.get("entries", [])
-    ]
-    reverse_inventory = {
-        field: -int(delta)
-        for field, delta in (remembered.get("inventory_deltas") or {}).items()
-    }
-    _apply_wood_count_entries(reverse_entries, reverse_inventory)
-    return {
-        "logged": True,
-        "message": "Wood count reversed."
-    }
 
 
 def _payload_bool(value):
@@ -12489,6 +12541,15 @@ def cnc_dashboard():
         .limit(200)
         .all()
     )
+    remembered_wood_logs = session.get(CNC_WOOD_LOG_SESSION_KEY) or {}
+    if not isinstance(remembered_wood_logs, dict):
+        remembered_wood_logs = {}
+    completed_undo_item_ids = {
+        item.id
+        for item in completed_today
+        if item.completion_wood_change is not None
+        or str(item.id) in remembered_wood_logs
+    }
     last_recorded_rows = (
         db.session.query(CncQueueItem.machine_number, func.max(CncQueueItem.completed_at))
         .filter(*completed_today_filters)
@@ -12542,6 +12603,7 @@ def cnc_dashboard():
         queues=queues,
         machine_numbers=CNC_MACHINE_NUMBERS,
         completed_today=completed_today,
+        completed_undo_item_ids=completed_undo_item_ids,
         completed_today_count=completed_today_count,
         last_recorded_by_machine=last_recorded_by_machine,
         machine_runs_today_by_machine=machine_runs_today_by_machine,
@@ -12983,9 +13045,10 @@ def api_cnc_complete_queue_item():
     item.status = CNC_STATUS_COMPLETED
     item.completed_at = datetime.utcnow()
     item.completed_by = session.get('worker', 'Unknown')
+    item.completion_wood_change = _serialize_cnc_completion_wood_change(wood_result)
     _cnc_reindex_machine(machine_number)
     db.session.commit()
-    _remember_cnc_wood_log(item.id, wood_result)
+    _forget_cnc_wood_log(item.id)
     _cnc_notify_low_queue_transitions(previous_counts)
 
     return jsonify({
@@ -13017,8 +13080,23 @@ def api_cnc_undo_complete_queue_item():
 
     machine_number = item.machine_number
     try:
-        wood_result = _reverse_remembered_cnc_wood_log(item.id)
+        wood_change = _load_cnc_completion_wood_change(item)
     except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 409
+    if wood_change is None:
+        return jsonify({
+            "success": False,
+            "error": "This completion is too old to undo safely because its wood changes were not recorded."
+        }), 409
+
+    completed_local = utc_to_london(item.completed_at)
+    completion_log_date = completed_local.date() if completed_local else None
+    try:
+        wood_result = _reverse_cnc_completion_wood_change(
+            wood_change,
+            log_date=completion_log_date
+        )
+    except (AttributeError, TypeError, ValueError) as error:
         db.session.rollback()
         return jsonify({"success": False, "error": str(error)}), 400
 
@@ -13035,11 +13113,11 @@ def api_cnc_undo_complete_queue_item():
     item.position = 1
     item.completed_at = None
     item.completed_by = None
+    item.completion_wood_change = None
 
     _cnc_reindex_machine(machine_number)
     db.session.commit()
-    if wood_result.get("logged"):
-        _forget_cnc_wood_log(item.id)
+    _forget_cnc_wood_log(item.id)
 
     return jsonify({
         "success": True,

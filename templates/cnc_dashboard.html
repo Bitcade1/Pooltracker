@@ -588,7 +588,7 @@
 
     .completed-row {
         display: grid;
-        grid-template-columns: 90px 120px 1fr 120px;
+        grid-template-columns: 90px 120px minmax(0, 1fr) 120px 100px;
         gap: 8px;
         border-bottom: 1px solid #e2e8f0;
         padding: 7px 2px;
@@ -600,6 +600,32 @@
         font-weight: 800;
         color: #0f172a;
         background: #f1f5f9;
+    }
+
+    .completed-undo-btn {
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        background: #b42318;
+        color: #ffffff;
+        font-size: 0.95rem;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .completed-undo-btn:hover:not(:disabled) {
+        background: #8f1c13;
+    }
+
+    .completed-undo-btn:focus-visible {
+        outline: 3px solid #f59e0b;
+        outline-offset: 2px;
+    }
+
+    .completed-undo-btn:disabled {
+        background: #cbd5e1;
+        color: #64748b;
+        cursor: not-allowed;
     }
 
     .machine-run-summary {
@@ -695,6 +721,11 @@
         .completed-row {
             grid-template-columns: 1fr;
             gap: 2px;
+        }
+
+        .completed-undo-btn {
+            width: 100%;
+            margin-top: 5px;
         }
 
         .machine-run-grid {
@@ -830,6 +861,7 @@
                 <div>Machine</div>
                 <div>Job</div>
                 <div>Worker</div>
+                <div>Action</div>
             </div>
             {% for item in completed_today %}
                 <div class="completed-row">
@@ -837,10 +869,28 @@
                     <div>CNC {{ item.machine_number }}</div>
                     <div>{{ item.job.name }} (Qty {{ item.job.quantity }})</div>
                     <div>{{ item.completed_by or '-' }}</div>
+                    <div
+                        {% if item.id not in completed_undo_item_ids %}
+                            title="Undo is unavailable because this completion predates safe undo tracking."
+                        {% endif %}
+                    >
+                        <button
+                            type="button"
+                            class="completed-undo-btn"
+                            data-item-id="{{ item.id }}"
+                            data-job-name="{{ item.job.name|e }}"
+                            data-machine-number="{{ item.machine_number }}"
+                            aria-label="Undo {{ item.job.name|e }} on CNC {{ item.machine_number }}"
+                            {% if item.id not in completed_undo_item_ids %}
+                                disabled
+                            {% endif %}
+                        >{% if item.id in completed_undo_item_ids %}Undo{% else %}No undo{% endif %}</button>
+                    </div>
                 </div>
             {% else %}
                 <div class="completed-row">
                     <div>No completed jobs yet today.</div>
+                    <div></div>
                     <div></div>
                     <div></div>
                     <div></div>
@@ -1070,6 +1120,41 @@
             this.disabled = false;
             alert(error.message || "Unable to undo completion.");
         }
+    });
+
+    document.querySelectorAll(".completed-undo-btn:not(:disabled)").forEach((button) => {
+        button.addEventListener("click", async function () {
+            if (completionInProgress) {
+                return;
+            }
+
+            const itemId = parseInt(button.getAttribute("data-item-id"), 10);
+            if (!Number.isInteger(itemId)) {
+                return;
+            }
+
+            const jobName = button.getAttribute("data-job-name") || "this job";
+            const machineNumber = button.getAttribute("data-machine-number") || "";
+            const confirmed = window.confirm(
+                `Undo "${jobName}" on CNC ${machineNumber}? This will return it to the front of the queue and reverse any wood or MDF changes.`
+            );
+            if (!confirmed) {
+                return;
+            }
+
+            completionInProgress = true;
+            button.disabled = true;
+            button.textContent = "Undoing...";
+            try {
+                await postJson("/api/cnc/queue/undo_complete", { item_id: itemId });
+                window.location.reload();
+            } catch (error) {
+                completionInProgress = false;
+                button.disabled = false;
+                button.textContent = "Undo";
+                alert(error.message || "Unable to undo completion.");
+            }
+        });
     });
 
     document.querySelectorAll(".complete-btn").forEach((button) => {
