@@ -1452,6 +1452,17 @@ def bonus_goal_progress(area, year=None, month=None):
             .all()
         )
         counts = {(worker or "Unknown"): count for worker, count in rows}
+    elif area == "cushions":
+        rows = (
+            db.session.query(CushionCompletedSet.worker, func.count(CushionCompletedSet.id))
+            .filter(
+                extract('year', CushionCompletedSet.completed_at) == year,
+                extract('month', CushionCompletedSet.completed_at) == month
+            )
+            .group_by(CushionCompletedSet.worker)
+            .all()
+        )
+        counts = {(worker or "Unknown"): count for worker, count in rows}
     elif area == "cnc":
         monthly_total = cnc_completed_quantity_total(year=year, month=month)
         counts = {goal.worker_name: monthly_total for goal in goals}
