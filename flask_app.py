@@ -13083,22 +13083,36 @@ def api_cnc_undo_complete_queue_item():
         wood_change = _load_cnc_completion_wood_change(item)
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 409
-    if wood_change is None:
-        return jsonify({
-            "success": False,
-            "error": "This completion is too old to undo safely because its wood changes were not recorded."
-        }), 409
 
-    completed_local = utc_to_london(item.completed_at)
-    completion_log_date = completed_local.date() if completed_local else None
-    try:
-        wood_result = _reverse_cnc_completion_wood_change(
-            wood_change,
-            log_date=completion_log_date
-        )
-    except (AttributeError, TypeError, ValueError) as error:
-        db.session.rollback()
-        return jsonify({"success": False, "error": str(error)}), 400
+    wood_warning = wood_change is None
+    if wood_warning:
+        if not _payload_bool(data.get("allow_without_wood_reversal")):
+            return jsonify({
+                "success": False,
+                "error": (
+                    "This older completion can only be undone without automatically "
+                    "reversing its wood and MDF changes."
+                )
+            }), 409
+        wood_result = {
+            "logged": False,
+            "message": (
+                "The job was returned to the queue, but its original wood and MDF changes "
+                "were not recorded and could not be reversed automatically. Please check "
+                "and correct the wood counts and MDF stock before completing it again."
+            )
+        }
+    else:
+        completed_local = utc_to_london(item.completed_at)
+        completion_log_date = completed_local.date() if completed_local else None
+        try:
+            wood_result = _reverse_cnc_completion_wood_change(
+                wood_change,
+                log_date=completion_log_date
+            )
+        except (AttributeError, TypeError, ValueError) as error:
+            db.session.rollback()
+            return jsonify({"success": False, "error": str(error)}), 400
 
     queued_items = (
         CncQueueItem.query
@@ -13126,6 +13140,7 @@ def api_cnc_undo_complete_queue_item():
         "job_name": item.job.name if item.job else "",
         "wood_counted": bool(wood_result.get("logged")),
         "wood_message": wood_result.get("message", ""),
+        "wood_warning": wood_warning,
     }), 200
 
 

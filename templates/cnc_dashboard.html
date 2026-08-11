@@ -869,22 +869,19 @@
                     <div>CNC {{ item.machine_number }}</div>
                     <div>{{ item.job.name }} (Qty {{ item.job.quantity }})</div>
                     <div>{{ item.completed_by or '-' }}</div>
-                    <div
-                        {% if item.id not in completed_undo_item_ids %}
-                            title="Undo is unavailable because this completion predates safe undo tracking."
-                        {% endif %}
-                    >
+                    <div>
                         <button
                             type="button"
                             class="completed-undo-btn"
                             data-item-id="{{ item.id }}"
                             data-job-name="{{ item.job.name|e }}"
                             data-machine-number="{{ item.machine_number }}"
+                            data-wood-reversal-available="{{ 'true' if item.id in completed_undo_item_ids else 'false' }}"
                             aria-label="Undo {{ item.job.name|e }} on CNC {{ item.machine_number }}"
                             {% if item.id not in completed_undo_item_ids %}
-                                disabled
+                                title="This older completion can be returned to the queue, but its wood and MDF changes cannot be reversed automatically."
                             {% endif %}
-                        >{% if item.id in completed_undo_item_ids %}Undo{% else %}No undo{% endif %}</button>
+                        >Undo</button>
                     </div>
                 </div>
             {% else %}
@@ -1122,7 +1119,7 @@
         }
     });
 
-    document.querySelectorAll(".completed-undo-btn:not(:disabled)").forEach((button) => {
+    document.querySelectorAll(".completed-undo-btn").forEach((button) => {
         button.addEventListener("click", async function () {
             if (completionInProgress) {
                 return;
@@ -1135,9 +1132,12 @@
 
             const jobName = button.getAttribute("data-job-name") || "this job";
             const machineNumber = button.getAttribute("data-machine-number") || "";
-            const confirmed = window.confirm(
-                `Undo "${jobName}" on CNC ${machineNumber}? This will return it to the front of the queue and reverse any wood or MDF changes.`
-            );
+            const woodReversalAvailable =
+                button.getAttribute("data-wood-reversal-available") === "true";
+            const confirmationMessage = woodReversalAvailable
+                ? `Undo "${jobName}" on CNC ${machineNumber}? This will return it to the front of the queue and reverse any wood or MDF changes.`
+                : `Undo "${jobName}" on CNC ${machineNumber}? Only the CNC completion will be undone. Its wood and MDF changes cannot be reversed automatically, so check and correct the stock before completing it again.`;
+            const confirmed = window.confirm(confirmationMessage);
             if (!confirmed) {
                 return;
             }
@@ -1146,7 +1146,13 @@
             button.disabled = true;
             button.textContent = "Undoing...";
             try {
-                await postJson("/api/cnc/queue/undo_complete", { item_id: itemId });
+                const data = await postJson("/api/cnc/queue/undo_complete", {
+                    item_id: itemId,
+                    allow_without_wood_reversal: !woodReversalAvailable
+                });
+                if (data.wood_warning) {
+                    alert(data.wood_message || "Please check the wood counts and MDF stock.");
+                }
                 window.location.reload();
             } catch (error) {
                 completionInProgress = false;
