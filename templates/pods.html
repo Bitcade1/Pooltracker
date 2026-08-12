@@ -71,6 +71,16 @@
       .collapsible:hover {
           background-color: #0056b3;
       }
+      .pod-type-toggle::after {
+          content: "+";
+          float: right;
+          font-size: 1.25em;
+          font-weight: bold;
+          line-height: 1;
+      }
+      .pod-type-toggle[aria-expanded="true"]::after {
+          content: "-";
+      }
       .collapsible-content {
           padding: 15px;
           display: none;
@@ -316,7 +326,12 @@
 
       function toggleCollapsible(id) {
           var content = document.getElementById(id);
-          content.style.display = content.style.display === "block" ? "none" : "block";
+          var willOpen = content.style.display !== "block";
+          content.style.display = willOpen ? "block" : "none";
+          var toggle = document.querySelector('[aria-controls="' + id + '"]');
+          if (toggle) {
+              toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+          }
       }
 
       function toggleProductionTargets() {
@@ -578,18 +593,33 @@
       </div>
     </div>
 
-    <div class="type-breakdown">
-      <h2>Champion vs Lite This Month</h2>
+    <button
+      type="button"
+      class="collapsible pod-type-toggle"
+      onclick="toggleCollapsible('podTypeCounts')"
+      aria-controls="podTypeCounts"
+      aria-expanded="false"
+    >Pod Types Made This Month</button>
+    <div id="podTypeCounts" class="collapsible-content">
       <div class="type-summary">
         <div class="type-stat champion">
-          <div class="type-stat-label">Champion</div>
-          <div class="type-stat-value">{{ pod_type_totals.champion }}</div>
+          <div class="type-stat-label">7ft Champion</div>
+          <div class="type-stat-value">{{ pod_variant_totals.champion_7ft }}</div>
+        </div>
+        <div class="type-stat champion">
+          <div class="type-stat-label">6ft Champion</div>
+          <div class="type-stat-value">{{ pod_variant_totals.champion_6ft }}</div>
         </div>
         <div class="type-stat lite">
-          <div class="type-stat-label">Lite</div>
-          <div class="type-stat-value">{{ pod_type_totals.lite }}</div>
+          <div class="type-stat-label">7ft Lite</div>
+          <div class="type-stat-value">{{ pod_variant_totals.lite_7ft }}</div>
+        </div>
+        <div class="type-stat lite">
+          <div class="type-stat-label">6ft Lite</div>
+          <div class="type-stat-value">{{ pod_variant_totals.lite_6ft }}</div>
         </div>
       </div>
+      <h3>By Worker</h3>
       <table>
         <thead>
           <tr>

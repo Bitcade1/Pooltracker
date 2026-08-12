@@ -475,6 +475,25 @@ def format_pod_serial(base_serial, size_label, table_type):
     return f"{base_serial} - 6" if size_label == "6ft" else base_serial
 
 
+def count_pod_variants(pods):
+    totals = {
+        "champion_7ft": 0,
+        "champion_6ft": 0,
+        "lite_7ft": 0,
+        "lite_6ft": 0,
+    }
+    for pod in pods:
+        serial_number = getattr(pod, "serial_number", "")
+        type_key = (
+            "lite"
+            if table_type_from_serial(serial_number) == TABLE_TYPE_LITE
+            else "champion"
+        )
+        size_key = "6ft" if serial_is_6ft(serial_number) else "7ft"
+        totals[f"{type_key}_{size_key}"] += 1
+    return totals
+
+
 def gully_parts_for_completion(serial_number):
     size_label = "6ft" if serial_is_6ft(serial_number) else "7ft"
     return {GULLY_SET_PART_NAMES[size_label]: 1}
@@ -5875,12 +5894,11 @@ def pods():
 
         return formatted_stats
 
-    pod_type_totals = {"champion": 0, "lite": 0}
+    pod_variant_totals = count_pod_variants(all_pods_this_month)
     pod_type_worker_counts = {}
     for pod in all_pods_this_month:
         pod_type = table_type_from_serial(pod.serial_number)
         type_key = "lite" if pod_type == TABLE_TYPE_LITE else "champion"
-        pod_type_totals[type_key] += 1
 
         worker_name = (pod.worker or "Unknown").strip() or "Unknown"
         if worker_name not in pod_type_worker_counts:
@@ -6209,7 +6227,7 @@ def pods():
         target_6ft=target_6ft,
         default_size=default_size,
         default_table_type=default_table_type,
-        pod_type_totals=pod_type_totals,
+        pod_variant_totals=pod_variant_totals,
         pod_type_worker_rows=pod_type_worker_rows,
         pod_quick_add_parts=pod_quick_add_parts
     )
