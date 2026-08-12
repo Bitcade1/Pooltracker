@@ -458,6 +458,22 @@ def matched_body_picker_pod_ids(pods, completed_bodies, excluded_pod_ids=None):
     ))
 
 
+def available_body_picker_pods(pods, completed_bodies, excluded_pod_ids=None):
+    """Return pods still available in the body picker."""
+    pods = list(pods)
+    excluded_pod_ids = set(excluded_pod_ids or ())
+    matched_pod_ids = matched_body_picker_pod_ids(
+        pods,
+        completed_bodies,
+        excluded_pod_ids,
+    )
+    return [
+        pod
+        for pod in pods
+        if pod.id not in excluded_pod_ids and pod.id not in matched_pod_ids
+    ]
+
+
 def next_numeric_pod_base_serial(serials, fallback=1000):
     numeric_serials = []
     for serial in serials:
@@ -5914,6 +5930,20 @@ def pods():
         pod_type_worker_counts.values(),
         key=lambda row: (-row["total"], row["worker"].lower())
     )
+
+    all_completed_pods = CompletedPods.query.order_by(CompletedPods.id.asc()).all()
+    completed_bodies_for_picker = (
+        CompletedTable.query
+        .with_entities(CompletedTable.id, CompletedTable.serial_number)
+        .order_by(CompletedTable.id.asc())
+        .all()
+    )
+    available_pods = available_body_picker_pods(
+        all_completed_pods,
+        completed_bodies_for_picker,
+        load_hidden_body_picker_pod_ids(),
+    )
+    available_pod_variant_totals = count_pod_variants(available_pods)
     
     # Helper: last 5 working days (Monday-Friday)
     def get_last_n_working_days(n, reference_date):
@@ -6229,6 +6259,8 @@ def pods():
         default_table_type=default_table_type,
         pod_variant_totals=pod_variant_totals,
         pod_type_worker_rows=pod_type_worker_rows,
+        available_pod_total=len(available_pods),
+        available_pod_variant_totals=available_pod_variant_totals,
         pod_quick_add_parts=pod_quick_add_parts
     )
 
@@ -9267,18 +9299,11 @@ def bodies():
         .order_by(CompletedTable.id.asc())
         .all()
     )
-    matched_pod_ids = matched_body_picker_pod_ids(
+    unconverted_pods = available_body_picker_pods(
         all_completed_pods,
         completed_bodies_for_picker,
         hidden_body_picker_pod_ids,
     )
-
-    # Keep size and Champion/Lite variants independent, consuming one pod per body.
-    unconverted_pods = [
-        pod
-        for pod in all_completed_pods
-        if pod.id not in hidden_body_picker_pod_ids and pod.id not in matched_pod_ids
-    ]
 
     def ensure_quick_add_hardware_part(part_name):
         hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
