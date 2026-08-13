@@ -1106,6 +1106,29 @@ def new_printed_parts_snapshot(part_name, count, recorded_at=None):
     )
 
 
+def current_printed_part_inventory(part_name):
+    """Return the canonical name and current snapshot/baseline count for a part."""
+    latest_entry = (
+        PrintedPartsCount.query
+        .filter(func.lower(PrintedPartsCount.part_name) == part_name.lower())
+        .order_by(
+            PrintedPartsCount.date.desc(),
+            PrintedPartsCount.time.desc(),
+            PrintedPartsCount.id.desc(),
+        )
+        .first()
+    )
+    if latest_entry:
+        return latest_entry.part_name, latest_entry.count or 0
+
+    hardware_part = HardwarePart.query.filter(
+        func.lower(HardwarePart.name) == part_name.lower()
+    ).first()
+    if hardware_part:
+        return hardware_part.name, hardware_part.initial_count or 0
+    return part_name, 0
+
+
 class CompletedPods(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     worker = db.Column(db.String(50), nullable=False)
@@ -2622,19 +2645,22 @@ def check_and_notify_low_stock(part_name, old_count, new_count, collected_warnin
     return None
 
 
-def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4, collected_warnings=None):
-    target_units = strip_delta * units_per_strip
-    units_delta = int(round(target_units))
-    if abs(target_units - units_delta) > 1e-6:
-        return False, part_name, 0.0
-
+def fractional_strip_inventory_state(part_name, units_per_strip=4):
     hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
     canonical_name = hardware_part.name if hardware_part else part_name
     latest_entry = (PrintedPartsCount.query
                     .filter(func.lower(PrintedPartsCount.part_name) == canonical_name.lower())
-                    .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
+                    .order_by(
+                        PrintedPartsCount.date.desc(),
+                        PrintedPartsCount.time.desc(),
+                        PrintedPartsCount.id.desc(),
+                    )
                     .first())
-    current_strips = latest_entry.count if latest_entry else (hardware_part.initial_count if hardware_part else 0)
+    current_strips = (
+        (latest_entry.count or 0)
+        if latest_entry
+        else ((hardware_part.initial_count or 0) if hardware_part else 0)
+    )
 
     remainder_key = f"{slugify_key(canonical_name)}_remainder"
     remainder_entry = TableStock.query.filter_by(type=remainder_key).first()
@@ -2643,6 +2669,29 @@ def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4,
 
     available_units = (current_strips * units_per_strip) - used_units
     available_strips = available_units / units_per_strip if units_per_strip else 0.0
+    return {
+        "canonical_name": canonical_name,
+        "current_strips": current_strips,
+        "remainder_key": remainder_key,
+        "remainder_entry": remainder_entry,
+        "used_units": used_units,
+        "available_units": available_units,
+        "available_strips": available_strips,
+    }
+
+
+def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4, collected_warnings=None):
+    target_units = strip_delta * units_per_strip
+    units_delta = int(round(target_units))
+    if abs(target_units - units_delta) > 1e-6:
+        return False, part_name, 0.0
+
+    state = fractional_strip_inventory_state(part_name, units_per_strip)
+    canonical_name = state["canonical_name"]
+    remainder_key = state["remainder_key"]
+    remainder_entry = state["remainder_entry"]
+    available_units = state["available_units"]
+    available_strips = state["available_strips"]
     new_available_units = available_units + units_delta
     if new_available_units < 0:
         return False, canonical_name, available_strips
@@ -2671,20 +2720,9 @@ def adjust_fractional_strip_inventory(part_name, strip_delta, units_per_strip=4,
 
 
 def fractional_strip_display_count(part_name, units_per_strip=4):
-    hardware_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == part_name.lower()).first()
-    canonical_name = hardware_part.name if hardware_part else part_name
-    latest_entry = (PrintedPartsCount.query
-                    .filter(func.lower(PrintedPartsCount.part_name) == canonical_name.lower())
-                    .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
-                    .first())
-    strips = latest_entry.count if latest_entry else (hardware_part.initial_count if hardware_part else 0)
-    remainder_entry = TableStock.query.filter_by(type=f"{slugify_key(canonical_name)}_remainder").first()
-    used_units = remainder_entry.count if remainder_entry else 0
-    used_units = int(used_units or 0)
-
-    total_units = (strips * units_per_strip) - used_units
-    display_count = max(0.0, total_units / units_per_strip) if units_per_strip else 0.0
-    return round(display_count, 2), canonical_name
+    state = fractional_strip_inventory_state(part_name, units_per_strip)
+    display_count = max(0.0, state["available_strips"])
+    return round(display_count, 2), state["canonical_name"]
 
 
 @app.route('/logout')
@@ -9282,6 +9320,154 @@ from sqlalchemy import func, extract, desc
 from datetime import datetime, date, timedelta
 from calendar import monthrange
 
+
+def body_piece_inventory_label(part_key):
+    piece_labels = {
+        "window_side": "Window Side",
+        "blank_side": "Blank Side",
+        "triangle_end": "Colour End",
+        "color_ball_end": "White Ball End",
+    }
+    for color_key, color_label in LAMINATE_COLOR_KEY_TO_LABEL.items():
+        prefix = f"{color_key}_"
+        if not part_key.startswith(prefix):
+            continue
+        remainder = part_key[len(prefix):]
+        size_key, separator, piece_key = remainder.partition("_")
+        if separator:
+            piece_label = piece_labels.get(piece_key, piece_key.replace("_", " ").title())
+            return f"{color_label} {size_key}ft {piece_label} body piece"
+    return part_key.replace("_", " ").title()
+
+
+def body_inventory_amount_text(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def pallet_wrap_inventory_state():
+    part_name = "Pallet Wrap"
+    bodies_per_roll = 7
+    remainder_key = "pallet_wrap_remainder"
+    canonical_name, current_rolls = current_printed_part_inventory(part_name)
+    remainder_entry = TableStock.query.filter_by(type=remainder_key).first()
+    used_in_current_roll = int(remainder_entry.count or 0) if remainder_entry else 0
+    bodies_available = (current_rolls * bodies_per_roll) - used_in_current_roll
+    return {
+        "canonical_name": canonical_name,
+        "current_rolls": current_rolls,
+        "bodies_per_roll": bodies_per_roll,
+        "remainder_key": remainder_key,
+        "remainder_entry": remainder_entry,
+        "used_in_current_roll": used_in_current_roll,
+        "bodies_available": bodies_available,
+    }
+
+
+def collect_body_completion_shortages(serial_number, table_type, laminate_color_key):
+    """Collect every blocking stock shortage without changing inventory."""
+    shortages = []
+
+    for part_key in body_piece_keys_for(serial_number, table_type, laminate_color_key):
+        part_entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
+        available = (part_entry.count or 0) if part_entry else 0
+        if available < 1:
+            missing = 1 - available
+            name = body_piece_inventory_label(part_key)
+            shortages.append({
+                "kind": "body_piece",
+                "key": part_key,
+                "name": name,
+                "required": 1,
+                "available": available,
+                "missing": missing,
+                "message": (
+                    f"{name} - need 1, have {body_inventory_amount_text(available)}; "
+                    f"add {body_inventory_amount_text(missing)}"
+                ),
+            })
+
+    for part_name, quantity_needed in body_parts_for_completion(
+        serial_number,
+        table_type,
+        laminate_color_key,
+    ).items():
+        if allows_negative_inventory(part_name):
+            continue
+
+        if part_name == BRAD_NAILS_PART_NAME:
+            state = fractional_strip_inventory_state(
+                part_name,
+                BRAD_NAILS_UNITS_PER_STRIP,
+            )
+            available = state["available_strips"]
+            canonical_name = state["canonical_name"]
+            kind = "fractional_strip"
+        else:
+            canonical_name, available = current_printed_part_inventory(part_name)
+            kind = "printed_part"
+
+        if available < quantity_needed:
+            missing = quantity_needed - available
+            shortages.append({
+                "kind": kind,
+                "key": part_name,
+                "name": canonical_name,
+                "required": quantity_needed,
+                "available": available,
+                "missing": missing,
+                "message": (
+                    f"{canonical_name} - need {body_inventory_amount_text(quantity_needed)}, "
+                    f"have {body_inventory_amount_text(available)}; "
+                    f"add {body_inventory_amount_text(missing)}"
+                ),
+            })
+
+    wrap_state = pallet_wrap_inventory_state()
+    if wrap_state["bodies_available"] < 1:
+        rolls_to_add = max(
+            1,
+            ceil(
+                (1 - wrap_state["bodies_available"])
+                / wrap_state["bodies_per_roll"]
+            ),
+        )
+        roll_word = "roll" if rolls_to_add == 1 else "rolls"
+        shortages.append({
+            "kind": "pallet_wrap",
+            "key": wrap_state["canonical_name"],
+            "name": wrap_state["canonical_name"],
+            "required": 1,
+            "available": max(0, wrap_state["bodies_available"]),
+            "missing": rolls_to_add,
+            "message": (
+                f"{wrap_state['canonical_name']} - no wrap capacity left; "
+                f"add {rolls_to_add} {roll_word}"
+            ),
+        })
+
+    return shortages
+
+
+def body_shortage_fingerprint(shortages):
+    """Build a stable, session-safe signature of the shortages the worker saw."""
+    return sorted(
+        [
+            shortage["kind"],
+            shortage["key"],
+            body_inventory_amount_text(shortage["required"]),
+            body_inventory_amount_text(shortage["available"]),
+            body_inventory_amount_text(shortage["missing"]),
+        ]
+        for shortage in shortages
+    )
+
+
 @app.route('/bodies', methods=['GET', 'POST'])
 def bodies():
     if 'worker' not in session:
@@ -9438,6 +9624,53 @@ def bodies():
             actual_table_type,
             laminate_color_key
         )
+
+        if CompletedTable.query.filter_by(serial_number=serial_number).first():
+            session.pop("body_shortage_confirmation", None)
+            session.pop("body_shortage_prompt", None)
+            flash("Error: Serial number already exists. Please use a unique serial number.", "error")
+            return redirect_back_to_body_form()
+
+        requested_shortage_confirmation = request.form.get("confirm_shortages") == "yes"
+        submitted_confirmation_token = request.form.get("shortage_confirmation_token", "")
+        stored_confirmation = session.get("body_shortage_confirmation") or {}
+        body_shortages = collect_body_completion_shortages(
+            serial_number,
+            actual_table_type,
+            laminate_color_key,
+        )
+        shortage_fingerprint = body_shortage_fingerprint(body_shortages)
+        shortages_confirmed = (
+            requested_shortage_confirmation
+            and submitted_confirmation_token
+            and submitted_confirmation_token == stored_confirmation.get("token")
+            and serial_number == stored_confirmation.get("serial_number")
+            and actual_table_type == stored_confirmation.get("table_type")
+            and laminate_color_key == stored_confirmation.get("laminate_color_key")
+            and worker == stored_confirmation.get("worker")
+            and shortage_fingerprint == stored_confirmation.get("shortage_fingerprint")
+        )
+
+        if body_shortages and not shortages_confirmed:
+            confirmation_token = str(uuid.uuid4())
+            session["body_shortage_confirmation"] = {
+                "token": confirmation_token,
+                "serial_number": serial_number,
+                "table_type": actual_table_type,
+                "laminate_color_key": laminate_color_key,
+                "worker": worker,
+                "shortage_fingerprint": shortage_fingerprint,
+            }
+            session["body_shortage_prompt"] = [
+                shortage["message"] for shortage in body_shortages
+            ]
+            session.modified = True
+            return redirect_back_to_body_form()
+
+        session.pop("body_shortage_confirmation", None)
+        session.pop("body_shortage_prompt", None)
+        automatically_added_parts = []
+
         if actual_table_type == TABLE_TYPE_CHAMPION:
             size_key = "6" if serial_is_6ft(serial_number) else "7"
             color_key = color_key_from_serial(serial_number)
@@ -9451,16 +9684,16 @@ def bodies():
             for part_key in body_piece_keys:
                 part_entry = BodyPieceCount.query.filter_by(part_key=part_key).first()
                 if not part_entry:
-                    flash(f"No inventory set up for body piece {part_key}!", "error")
-                    db.session.rollback()
-                    return redirect_back_to_body_form()
+                    part_entry = BodyPieceCount(part_key=part_key, count=0)
+                    db.session.add(part_entry)
+                elif part_entry.count is None:
+                    part_entry.count = 0
                 if part_entry.count < 1:
-                    flash(
-                        f"Not enough inventory for body piece {part_key}! Need 1, have {part_entry.count}",
-                        "error"
+                    missing = 1 - part_entry.count
+                    part_entry.count += missing
+                    automatically_added_parts.append(
+                        f"{body_piece_inventory_label(part_key)} +{body_inventory_amount_text(missing)}"
                     )
-                    db.session.rollback()
-                    return redirect_back_to_body_form()
                 body_piece_entries.append(part_entry)
             for part_entry in body_piece_entries:
                 old_count = part_entry.count
@@ -9475,6 +9708,27 @@ def bodies():
         # Deduct each required part from the inventory
         for part_name, quantity_needed in parts_to_deduct.items():
             if part_name == BRAD_NAILS_PART_NAME:
+                fractional_state = fractional_strip_inventory_state(
+                    part_name,
+                    BRAD_NAILS_UNITS_PER_STRIP,
+                )
+                if fractional_state["available_strips"] < quantity_needed:
+                    missing = quantity_needed - fractional_state["available_strips"]
+                    added, canonical_name, _ = adjust_fractional_strip_inventory(
+                        part_name,
+                        missing,
+                        units_per_strip=BRAD_NAILS_UNITS_PER_STRIP,
+                        collected_warnings=[],
+                    )
+                    if not added:
+                        db.session.rollback()
+                        flash(f"Could not add the missing {canonical_name} stock.", "error")
+                        return redirect_back_to_body_form()
+                    db.session.flush()
+                    automatically_added_parts.append(
+                        f"{canonical_name} +{body_inventory_amount_text(missing)}"
+                    )
+
                 ok, canonical_name, available_strips = adjust_fractional_strip_inventory(
                     part_name,
                     -quantity_needed,
@@ -9489,73 +9743,65 @@ def bodies():
                     db.session.rollback()
                     return redirect_back_to_body_form()
                 continue
-            part_entry = (PrintedPartsCount.query
-                            .filter_by(part_name=part_name)
-                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
-                            .first())
-            
-            old_count = part_entry.count if part_entry else 0
+
+            canonical_name, old_count = current_printed_part_inventory(part_name)
             allow_negative_stock = allows_negative_inventory(part_name)
-            if old_count >= quantity_needed or allow_negative_stock:
-                new_count = old_count - quantity_needed
-                db.session.add(new_printed_parts_snapshot(part_name, new_count))
-                check_and_notify_low_stock(
-                    part_name,
-                    old_count,
-                    new_count,
-                    collected_warnings=low_stock_messages
+            if old_count < quantity_needed and not allow_negative_stock:
+                missing = quantity_needed - old_count
+                topped_up_count = old_count + missing
+                db.session.add(new_printed_parts_snapshot(canonical_name, topped_up_count))
+                db.session.flush()
+                automatically_added_parts.append(
+                    f"{canonical_name} +{body_inventory_amount_text(missing)}"
                 )
-                check_and_notify_chinese_parts_order_more(
-                    part_name,
-                    old_count,
-                    new_count,
-                    collected_warnings=low_stock_messages
-                )
-            else:
-                flash(f"Not enough inventory for {part_name} (need {quantity_needed}, have {old_count}) to complete the body!", "error")
-                db.session.rollback()
-                return redirect_back_to_body_form()
+                old_count = topped_up_count
+
+            new_count = old_count - quantity_needed
+            db.session.add(new_printed_parts_snapshot(canonical_name, new_count))
+            check_and_notify_low_stock(
+                canonical_name,
+                old_count,
+                new_count,
+                collected_warnings=low_stock_messages
+            )
+            check_and_notify_chinese_parts_order_more(
+                canonical_name,
+                old_count,
+                new_count,
+                collected_warnings=low_stock_messages
+            )
 
         # Deduct pallet wrap: 1 roll covers 7 bodies
-        pallet_wrap_name = "Pallet Wrap"
-        bodies_per_wrap_roll = 7
-        wrap_remainder_key = "pallet_wrap_remainder"
-        wrap_part = HardwarePart.query.filter(func.lower(HardwarePart.name) == pallet_wrap_name.lower()).first()
+        wrap_state = pallet_wrap_inventory_state()
+        pallet_wrap_name = wrap_state["canonical_name"]
+        bodies_per_wrap_roll = wrap_state["bodies_per_roll"]
+        wrap_remainder_key = wrap_state["remainder_key"]
+        wrap_part = HardwarePart.query.filter(
+            func.lower(HardwarePart.name) == pallet_wrap_name.lower()
+        ).first()
         if wrap_part:
             pallet_wrap_name = wrap_part.name  # use canonical stored name
         else:
             # ensure the hardware part exists so counts stay in sync with Counting Hardware page
             new_wrap_part = HardwarePart(name=pallet_wrap_name, initial_count=0)
             db.session.add(new_wrap_part)
-            db.session.commit()
+            db.session.flush()
 
-        def get_current_stock(part_name):
-            latest_entry = (PrintedPartsCount.query
-                            .filter(func.lower(PrintedPartsCount.part_name) == part_name.lower())
-                            .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
-                            .first())
-            if latest_entry:
-                return latest_entry.count
-            hardware_part = HardwarePart.query.filter_by(name=part_name).first()
-            if hardware_part:
-                return hardware_part.initial_count
-            return None
-
-        current_wrap_stock = get_current_stock(pallet_wrap_name)
-        if current_wrap_stock is None:
-            flash(f"{pallet_wrap_name} is not set up in inventory yet. Please add it before completing bodies.", "error")
-            db.session.rollback()
-            return redirect_back_to_body_form()
-
-        remainder_entry = TableStock.query.filter_by(type=wrap_remainder_key).first()
-        used_in_current_roll = remainder_entry.count if remainder_entry else 0  # bodies already wrapped on the current roll
+        current_wrap_stock = wrap_state["current_rolls"]
+        remainder_entry = wrap_state["remainder_entry"]
+        used_in_current_roll = wrap_state["used_in_current_roll"]
 
         # Total bodies available across all rolls (including the open one if any)
         bodies_available = current_wrap_stock * bodies_per_wrap_roll - used_in_current_roll
-        if bodies_available <= 0:
-            flash(f"Not enough {pallet_wrap_name} in stock to wrap this body.", "error")
-            db.session.rollback()
-            return redirect_back_to_body_form()
+        if bodies_available < 1:
+            rolls_to_add = max(1, ceil((1 - bodies_available) / bodies_per_wrap_roll))
+            current_wrap_stock += rolls_to_add
+            db.session.add(new_printed_parts_snapshot(pallet_wrap_name, current_wrap_stock))
+            db.session.flush()
+            automatically_added_parts.append(
+                f"{pallet_wrap_name} +{body_inventory_amount_text(rolls_to_add)}"
+            )
+            bodies_available += rolls_to_add * bodies_per_wrap_roll
 
         bodies_available -= 1  # wrap this body
 
@@ -9576,7 +9822,6 @@ def bodies():
             remainder_entry.count = used_in_current_roll
         else:
             db.session.add(TableStock(type=wrap_remainder_key, count=used_in_current_roll))
-        db.session.commit()
 
         # Create new CompletedTable record
         new_table = CompletedTable(
@@ -9590,8 +9835,7 @@ def bodies():
         )
         try:
             db.session.add(new_table)
-            db.session.commit()
-            flash("Body entry added successfully and inventory updated!", "success")
+            db.session.flush()
 
             # Calculate time taken
             try:
@@ -9637,7 +9881,12 @@ def bodies():
                 for warning in low_stock_messages:
                     message_lines.append(f"- {warning}")
                 message_lines.append("")
-            if body_pod_mismatch_messages or low_stock_messages:
+            if automatically_added_parts:
+                message_lines.append("STOCK AUTOMATICALLY ADDED")
+                for added_part in automatically_added_parts:
+                    message_lines.append(f"- {added_part}")
+                message_lines.append("")
+            if body_pod_mismatch_messages or low_stock_messages or automatically_added_parts:
                 message_lines.append("Completion Details:")
             message_lines.append(f"Worker: {worker}")
             message_lines.append(f"Selected Pod: {selected_pod_serial}")
@@ -9649,15 +9898,10 @@ def bodies():
                 title_prefixes.append("[MISMATCH]")
             if low_stock_messages:
                 title_prefixes.append("[LOW STOCK]")
+            if automatically_added_parts:
+                title_prefixes.append("[STOCK ADDED]")
             title_prefix = " ".join(title_prefixes)
             title = f"{title_prefix} Body Completed: {type_label} {size} {color}".strip()
-            try:
-                requests.post("https://ntfy.sh/PoolTableTrackerV2",
-                              data=message,
-                              headers={"Title": title})
-            except requests.RequestException as e:
-                print(f"Ntfy notification failed: {e}")
-            # --- End NTFY Notification ---
             if body_pod_mismatch_messages:
                 flash(
                     "Warning: selected pod does not match the completed body. "
@@ -9692,6 +9936,24 @@ def bodies():
             f"Completed body {serial_number}"
         )
         db.session.commit()
+        try:
+            requests.post(
+                "https://ntfy.sh/PoolTableTrackerV2",
+                data=message,
+                headers={"Title": title},
+            )
+        except requests.RequestException as e:
+            print(f"Ntfy notification failed: {e}")
+        # --- End NTFY Notification ---
+        if automatically_added_parts:
+            flash(
+                "Body completed. Added the missing stock: "
+                + ", ".join(automatically_added_parts)
+                + ".",
+                "success",
+            )
+        else:
+            flash("Body entry added successfully and inventory updated!", "success")
         session.pop("body_completion_form_values", None)
 
         return redirect(url_for('bodies'))
@@ -10218,6 +10480,13 @@ def bodies():
     last_entry = CompletedTable.query.order_by(CompletedTable.id.desc()).first()
     current_time = last_entry.finish_time if last_entry else datetime.now().strftime("%H:%M")
     body_form_values = session.get("body_completion_form_values") or {}
+    body_shortage_prompt = session.pop("body_shortage_prompt", [])
+    body_shortage_confirmation = session.get("body_shortage_confirmation") or {}
+    body_shortage_confirmation_token = (
+        body_shortage_confirmation.get("token", "")
+        if body_shortage_prompt
+        else ""
+    )
     form_start_time = body_form_values.get("start_time") or current_time
     form_finish_time = body_form_values.get("finish_time") or current_time
     form_serial_number = body_form_values.get("serial_number") or ""
@@ -10245,6 +10514,8 @@ def bodies():
         form_issue=form_issue,
         form_lunch=form_lunch,
         body_form_restored=bool(body_form_values),
+        body_shortage_prompt=body_shortage_prompt,
+        body_shortage_confirmation_token=body_shortage_confirmation_token,
         unconverted_pod_serials=unconverted_pod_serials,
         unconverted_pods=unconverted_pods,
         completed_tables=completed_tables,
