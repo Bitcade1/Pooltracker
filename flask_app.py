@@ -21,6 +21,7 @@ from packaging_planner import (
     build_requirements as build_packaging_requirements,
     build_summary as build_packaging_summary,
     extract_invoice_files,
+    model_uses_lite_body as packaging_model_uses_lite_body,
     regenerate_packaging,
     normalise_config as normalise_packaging_config,
     normalise_items as normalise_packaging_items,
@@ -3604,8 +3605,8 @@ def packaging_stock_requirements(items, config=None):
 
             if component_label == "cushion set":
                 stock_key = cushion_stock_key(size_label)
-            elif component_label == "body" and re.fullmatch(
-                r"lite", (line.get("model") or "").strip(), re.IGNORECASE
+            elif component_label == "body" and packaging_model_uses_lite_body(
+                line.get("model")
             ):
                 stock_key = body_stock_type_key(size_label, TABLE_TYPE_LITE, "black")
             else:
@@ -13891,9 +13892,30 @@ def table_stock():
         else:
             other_data[stock_type] = entry.count
 
-    # Pre-calculate totals for the section headers
-    total_champion_bodies = sum(value for key, value in table_data.items() if key.startswith('body_'))
-    total_lite_bodies = sum(value for key, value in lite_body_data.items() if key in lite_body_keys)
+    # Only total the stock keys displayed on this page. This keeps legacy or
+    # malformed body_* rows from silently changing the header totals.
+    body_stock_summary = {}
+    for size in sizes:
+        champion_count = sum(
+            table_data.get(
+                f"body_{size.lower()}_{color.lower().replace(' ', '_')}",
+                0,
+            )
+            for color in colors
+        )
+        lite_count = lite_body_data.get(f"body_{size.lower()}_lite", 0)
+        body_stock_summary[size] = {
+            "champion": champion_count,
+            "lite": lite_count,
+            "total": champion_count + lite_count,
+        }
+
+    total_champion_bodies = sum(
+        summary["champion"] for summary in body_stock_summary.values()
+    )
+    total_lite_bodies = sum(
+        summary["lite"] for summary in body_stock_summary.values()
+    )
     total_bodies = total_champion_bodies + total_lite_bodies
     total_rails = sum(
         top_rail_data.get(f"top_rail_{size.lower()}_{color.lower().replace(' ', '_')}", 0)
@@ -13972,7 +13994,9 @@ def table_stock():
         stock_costs_lite=stock_costs_lite,
         grand_total=formatted_grand_total,
         total_bodies=total_bodies,
+        total_champion_bodies=total_champion_bodies,
         total_lite_bodies=total_lite_bodies,
+        body_stock_summary=body_stock_summary,
         total_rails=total_rails,
         total_cushions=total_cushions,
         recent_stock_logs=recent_stock_logs

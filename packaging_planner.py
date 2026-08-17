@@ -32,6 +32,8 @@ ITEM_TYPE_LABELS = {
     "other": "Other component",
 }
 
+LITE_BODY_MODELS = {"league", "lite"}
+
 SUPPORTED_EXTENSIONS = {
     ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff",
     ".csv", ".xlsx", ".xlsm", ".docx", ".txt",
@@ -41,6 +43,7 @@ MODEL_PATTERNS = (
     ("Premium Edition", re.compile(r"\bpremium(?:\s+edition)?\b", re.I)),
     ("Champion", re.compile(r"\bchampion\b", re.I)),
     ("League", re.compile(r"\bleague\b", re.I)),
+    ("Lite", re.compile(r"\blite\b", re.I)),
 )
 
 COLOUR_PATTERNS = (
@@ -177,6 +180,10 @@ def normalise_item_type(value, description=""):
     if underscored in ITEM_TYPES:
         return underscored
     return infer_item_type(description)
+
+
+def model_uses_lite_body(value):
+    return _clean_text(value).lower() in LITE_BODY_MODELS
 
 
 def build_item(values, source_file="", raw_text="", confidence=None):

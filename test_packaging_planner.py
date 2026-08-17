@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from packaging_planner import regenerate_packaging
+from packaging_planner import build_item, model_uses_lite_body, regenerate_packaging
 
 
 class RegeneratePackagingTests(unittest.TestCase):
@@ -157,6 +157,15 @@ class RegeneratePackagingTests(unittest.TestCase):
 
         self.assertFalse(result["manual_layout_preserved"])
         self.assertEqual(0, result["summary"]["carried_top_rails"])
+
+    def test_league_and_lite_models_use_lite_body_stock(self):
+        self.assertTrue(model_uses_lite_body("League"))
+        self.assertTrue(model_uses_lite_body("Lite"))
+        self.assertFalse(model_uses_lite_body("Champion"))
+        self.assertEqual(
+            "Lite",
+            build_item({"description": "7ft Lite Pool table - Black"})["model"],
+        )
 
 
 if __name__ == "__main__":
