@@ -228,6 +228,13 @@
         color: #166534;
     }
 
+    .stock-removed-notice {
+        margin: 12px 0;
+        border-color: #a7f3d0;
+        background: #ecfdf5;
+        color: #065f46;
+    }
+
     .table-wrap {
         width: 100%;
         overflow-x: auto;
@@ -635,7 +642,7 @@
                 <option value="">Choose a plan</option>
                 {% for job in recent_jobs %}
                 <option value="{{ url_for('invoice_packaging', plan=job.id) }}" {% if plan and plan.id == job.id %}selected{% endif %}>
-                    #{{ job.id }} - {{ job.title }} - {{ job.updated_at.strftime('%d/%m/%Y %H:%M') }}
+                    #{{ job.id }} - {{ job.title }}{% if job.stock_removed_at %} - STOCK REMOVED{% endif %} - {{ job.updated_at.strftime('%d/%m/%Y %H:%M') }}
                 </option>
                 {% endfor %}
             </select>
@@ -681,6 +688,12 @@
     </section>
 
     {% if plan %}
+    <div id="stock-removed-notice" class="status-message stock-removed-notice no-print"
+        role="status" {% if not plan.stock_removed_at %}hidden{% endif %}>
+        {% if plan.stock_removed_at %}
+        Sent tables were removed from stock on {{ plan.stock_removed_at_display }}{% if plan.stock_removed_by %} by {{ plan.stock_removed_by }}{% endif %}.
+        {% endif %}
+    </div>
     <h1 class="print-title">{{ plan.title }} - Packaging List</h1>
 
     {% if plan.extraction_warnings %}
@@ -779,6 +792,7 @@
                 <button type="button" class="warning" onclick="validatePlan()">Validate Packaging</button>
                 <button type="button" class="secondary" onclick="window.print()">Print Packaging List</button>
                 <button type="button" class="secondary" onclick="printZebraLabels()">Print Zebra Stickers</button>
+                <button type="button" id="remove-stock-button" class="danger" onclick="removePlanFromStock()">Remove Sent Tables From Stock</button>
                 <button type="button" class="push-right" onclick="addPallet()">Create Pallet</button>
             </div>
             <label class="field" style="margin-top: 12px;">
@@ -906,6 +920,26 @@
                 button.disabled = value;
             }
         });
+        renderStockRemovalStatus();
+    }
+
+    function renderStockRemovalStatus() {
+        const button = document.getElementById("remove-stock-button");
+        const notice = document.getElementById("stock-removed-notice");
+        const stockWasRemoved = Boolean(state.stock_removed_at);
+        if (button) {
+            button.disabled = busy || stockWasRemoved;
+            button.textContent = stockWasRemoved
+                ? "Sent Tables Already Removed From Stock"
+                : "Remove Sent Tables From Stock";
+        }
+        if (notice) {
+            notice.hidden = !stockWasRemoved;
+            if (stockWasRemoved) {
+                const worker = state.stock_removed_by ? ` by ${state.stock_removed_by}` : "";
+                notice.textContent = `Sent tables were removed from stock on ${state.stock_removed_at_display}${worker}.`;
+            }
+        }
     }
 
     function typeOptions(selected) {
@@ -1452,6 +1486,47 @@
         setStatus(data.warnings.length ? "Validation complete. Review the warnings." : "Validation passed with no warnings.", data.warnings.length ? "" : "success");
     }
 
+    async function removePlanFromStock() {
+        if (state.stock_removed_at) {
+            setStatus("Stock for this plan has already been removed.", "error");
+            return;
+        }
+
+        const saved = await apiRequest(`/api/invoice_packaging/${planId}/save`, requestPayload());
+        if (!saved) return;
+        state = saved.plan;
+        manualLayoutDirty = state.pallets.some((pallet) => Boolean(pallet.manual_override));
+
+        const previewData = await apiRequest(
+            `/api/invoice_packaging/${planId}/remove_from_stock`,
+            {confirm: false}
+        );
+        if (!previewData) return;
+        const previewLines = previewData.preview.map((detail) => (
+            `${detail.quantity} x ${detail.label} (${detail.count_before} to ${detail.count_after})`
+        ));
+        const confirmed = window.confirm(
+            "Remove these sent items from finished table stock?\n\n"
+            + previewLines.join("\n")
+            + "\n\nThis plan can only remove stock once."
+        );
+        if (!confirmed) {
+            renderAll();
+            setStatus("Stock was not changed.");
+            return;
+        }
+
+        const data = await apiRequest(
+            `/api/invoice_packaging/${planId}/remove_from_stock`,
+            {confirm: true}
+        );
+        if (!data) return;
+        state = data.plan;
+        manualLayoutDirty = state.pallets.some((pallet) => Boolean(pallet.manual_override));
+        renderAll();
+        setStatus("Sent tables removed from stock and recorded in stock history.", "success");
+    }
+
     async function printZebraLabels() {
         if (!state.pallets.length) {
             setStatus("Generate the packaging list before printing stickers.", "error");
@@ -1479,6 +1554,7 @@
         renderSummary();
         renderWarnings();
         renderPallets();
+        renderStockRemovalStatus();
     }
 
     renderAll();

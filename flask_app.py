@@ -18,6 +18,7 @@ from io import StringIO
 from packaging_planner import (
     ITEM_TYPE_LABELS,
     SUPPORTED_EXTENSIONS,
+    build_requirements as build_packaging_requirements,
     build_summary as build_packaging_summary,
     extract_invoice_files,
     regenerate_packaging,
@@ -953,6 +954,7 @@ TABLE_STOCK_ACTION_LABELS = {
     "complete_top_rail": "Top rail completed",
     "delete_top_rail": "Top rail deleted",
     "complete_cushion_set": "Cushion set completed",
+    "invoice_dispatch": "Invoice dispatch",
     "correction": "Correction",
 }
 
@@ -3468,6 +3470,9 @@ class InvoicePackagingJob(db.Model):
     warnings_json = db.Column(db.Text, nullable=False, default="[]")
     acknowledged_warnings_json = db.Column(db.Text, nullable=False, default="[]")
     notes = db.Column(db.Text, nullable=False, default="")
+    stock_removed_at = db.Column(db.DateTime, nullable=True)
+    stock_removed_by = db.Column(db.String(50), nullable=True)
+    stock_removal_json = db.Column(db.Text, nullable=False, default="[]")
 
 
 def ensure_invoice_packaging_tables():
@@ -3495,6 +3500,22 @@ def ensure_invoice_packaging_tables():
         ))
         db.session.execute(text(
             "UPDATE invoice_packaging_job SET automatic_config_json = config_json"
+        ))
+        migration_changed = True
+    if "stock_removed_at" not in existing_columns:
+        db.session.execute(text(
+            "ALTER TABLE invoice_packaging_job ADD COLUMN stock_removed_at DATETIME"
+        ))
+        migration_changed = True
+    if "stock_removed_by" not in existing_columns:
+        db.session.execute(text(
+            "ALTER TABLE invoice_packaging_job ADD COLUMN stock_removed_by VARCHAR(50)"
+        ))
+        migration_changed = True
+    if "stock_removal_json" not in existing_columns:
+        db.session.execute(text(
+            "ALTER TABLE invoice_packaging_job "
+            "ADD COLUMN stock_removal_json TEXT NOT NULL DEFAULT '[]'"
         ))
         migration_changed = True
     if migration_changed:
@@ -3530,8 +3551,86 @@ def packaging_job_payload(job):
             job.acknowledged_warnings_json, []
         ),
         "notes": job.notes or "",
+        "stock_removed_at": (
+            job.stock_removed_at.isoformat() if job.stock_removed_at else ""
+        ),
+        "stock_removed_at_display": (
+            job.stock_removed_at.strftime("%d/%m/%Y %H:%M")
+            if job.stock_removed_at else ""
+        ),
+        "stock_removed_by": job.stock_removed_by or "",
+        "stock_removal": packaging_json_load(job.stock_removal_json, []),
         "summary": build_packaging_summary(items, pallets, config=config),
     }
+
+
+def packaging_stock_color_key(colour):
+    normalised = re.sub(r"[^a-z]+", "_", (colour or "").strip().lower()).strip("_")
+    aliases = {
+        "black": "black",
+        "rustic_oak": "rustic_oak",
+        "grey_oak": "grey_oak",
+        "gray_oak": "grey_oak",
+        "stone": "stone",
+        "rustic_black": "rustic_black",
+    }
+    return aliases.get(normalised)
+
+
+def packaging_stock_requirements(items, config=None):
+    clean_items = normalise_packaging_items(items)
+    clean_config = normalise_packaging_config(config or {})
+    component_requirements = build_packaging_requirements(clean_items, clean_config)
+    stock_requirements = defaultdict(int)
+    invalid_lines = []
+
+    component_lines = (
+        ("body", component_requirements["bodies"]),
+        ("top rail", component_requirements["top_rails"]),
+        ("cushion set", component_requirements["cushions"]),
+    )
+    for component_label, lines in component_lines:
+        for line in lines:
+            size_label = (line.get("size") or "").strip().lower()
+            if size_label not in {"6ft", "7ft"}:
+                invalid_lines.append(
+                    f"{line.get('description') or component_label}: choose a 6ft or 7ft size"
+                )
+                continue
+
+            quantity = max(0, int(line.get("quantity", 0) or 0))
+            if not quantity:
+                continue
+
+            if component_label == "cushion set":
+                stock_key = cushion_stock_key(size_label)
+            elif component_label == "body" and re.fullmatch(
+                r"lite", (line.get("model") or "").strip(), re.IGNORECASE
+            ):
+                stock_key = body_stock_type_key(size_label, TABLE_TYPE_LITE, "black")
+            else:
+                color_key = packaging_stock_color_key(line.get("colour"))
+                if not color_key:
+                    invalid_lines.append(
+                        f"{line.get('description') or component_label}: choose a stock colour"
+                    )
+                    continue
+                if component_label == "body":
+                    stock_key = body_stock_type_key(
+                        size_label, TABLE_TYPE_CHAMPION, color_key
+                    )
+                else:
+                    stock_key = top_rail_stock_type_key(size_label, color_key)
+            stock_requirements[stock_key] += quantity
+
+    if invalid_lines:
+        unique_errors = list(dict.fromkeys(invalid_lines))
+        raise ValueError("Cannot remove stock. " + "; ".join(unique_errors) + ".")
+    if not stock_requirements:
+        raise ValueError(
+            "This plan has no bodies, top rails, or cushion sets to remove from stock."
+        )
+    return dict(stock_requirements)
 
 
 def packaging_job_or_404(job_id):
@@ -3765,6 +3864,84 @@ def validate_invoice_packaging(job_id):
             "summary": summary,
         })
     except (TypeError, ValueError) as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+
+
+@app.route("/api/invoice_packaging/<int:job_id>/remove_from_stock", methods=["POST"])
+def remove_invoice_packaging_from_stock(job_id):
+    if "worker" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    job = packaging_job_or_404(job_id)
+    if job.stock_removed_at:
+        removed_at = job.stock_removed_at.strftime("%d/%m/%Y %H:%M")
+        removed_by = f" by {job.stock_removed_by}" if job.stock_removed_by else ""
+        return jsonify({
+            "success": False,
+            "error": f"Stock for this plan was already removed on {removed_at}{removed_by}.",
+        }), 409
+
+    data = request.get_json(silent=True) or {}
+    try:
+        requirements = packaging_stock_requirements(
+            packaging_json_load(job.items_json, []),
+            packaging_json_load(job.config_json, {}),
+        )
+        stock_rows = {}
+        preview = []
+        shortages = []
+        for stock_key, quantity in requirements.items():
+            stock_entry = TableStock.query.filter_by(type=stock_key).first()
+            available = stock_entry.count if stock_entry else 0
+            stock_rows[stock_key] = stock_entry
+            detail = {
+                "stock_type": stock_key,
+                "label": table_stock_type_label(stock_key),
+                "quantity": quantity,
+                "count_before": available,
+                "count_after": available - quantity,
+            }
+            preview.append(detail)
+            if available < quantity:
+                shortages.append(
+                    f"{detail['label']} needs {quantity}, but only {available} available"
+                )
+
+        preview.sort(key=lambda detail: detail["label"])
+        if shortages:
+            raise ValueError("Not enough finished table stock. " + "; ".join(shortages) + ".")
+
+        if data.get("confirm") is not True:
+            return jsonify({"success": True, "preview": preview})
+
+        worker_name = session.get("worker") or "Unknown"
+        note = f"Invoice packaging plan #{job.id}: {job.title}"[:200]
+        for detail in preview:
+            stock_entry = stock_rows[detail["stock_type"]]
+            stock_entry.count = detail["count_after"]
+            record_table_stock_log(
+                detail["stock_type"],
+                "invoice_dispatch",
+                worker_name,
+                -detail["quantity"],
+                detail["count_before"],
+                detail["count_after"],
+                note,
+            )
+
+        removed_at = london_now().replace(tzinfo=None)
+        job.stock_removed_at = removed_at
+        job.stock_removed_by = worker_name
+        job.stock_removal_json = json.dumps(preview)
+        job.updated_at = removed_at
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "plan": packaging_job_payload(job),
+            "removed_stock": preview,
+        })
+    except (TypeError, ValueError) as error:
+        db.session.rollback()
         return jsonify({"success": False, "error": str(error)}), 400
 
 
