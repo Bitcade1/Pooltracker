@@ -879,6 +879,8 @@ ALL_CHINESE_PARTS = [
     "Center pockets",
     "Corner pockets",
     "Sticker Set",
+    "Latch",
+    "Catch Plate",
 ]
 CHINESE_PARTS_CAPACITY = {
     "Table legs": 4,
@@ -899,8 +901,11 @@ CHINESE_PARTS_CAPACITY = {
     "Center pockets": 2,
     "Corner pockets": 4,
     "Sticker Set": 1,
+    "Latch": 12,
+    "Catch Plate": 12,
 }
 CHINESE_PARTS_ALLOW_NEGATIVE = set(ALL_CHINESE_PARTS)
+CHINESE_PART_NAME_KEYS = {part.casefold() for part in ALL_CHINESE_PARTS}
 CHINESE_PARTS_ORDER_MORE_PART = "Sticker Set"
 CHINESE_PARTS_ORDER_MORE_THRESHOLD = 300
 CHINESE_PARTS_ON_ORDER_FILE = os.path.join(basedir, "on_order_chinese_parts.json")
@@ -4349,6 +4354,10 @@ def inventory():
     # 4) TABLE PARTS
     # ---------------------------------------------------------------------
     table_parts = {part: 0 for part in ALL_CHINESE_PARTS}
+    all_hardware_parts = HardwarePart.query.all()
+    hardware_initial_counts = {
+        part.name.casefold(): part.initial_count for part in all_hardware_parts
+    }
 
     table_parts_counts = {part: 0 for part in table_parts}
     for part in table_parts_counts:
@@ -4358,7 +4367,11 @@ def inventory():
             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
             .first()
         )
-        table_parts_counts[part] = latest_entry[0] if latest_entry else 0
+        table_parts_counts[part] = (
+            latest_entry[0]
+            if latest_entry
+            else hardware_initial_counts.get(part.casefold(), 0)
+        )
 
     table_parts_on_order_counts = saved_chinese_parts_on_order_counts()
     max_tables_possible_stock, tables_possible_per_part_stock = calculate_chinese_parts_build_capacity(
@@ -4372,7 +4385,10 @@ def inventory():
     # ---------------------------------------------------------------------
     # 5) HARDWARE PARTS (FROM DB)
     # ---------------------------------------------------------------------
-    hardware_parts_query = HardwarePart.query.all()
+    hardware_parts_query = [
+        part for part in all_hardware_parts
+        if part.name.casefold() not in CHINESE_PART_NAME_KEYS
+    ]
     hardware_counts = {}
     for hp in hardware_parts_query:
         latest_entry = (
@@ -4491,10 +4507,10 @@ def build_stock_snapshot():
 
         if part_name in packaging_parts:
             display_category = "Packaging"
-        elif part_name in hardware_defaults:
-            display_category = "Hardware Parts"
         elif part_name in table_parts:
             display_category = "Chinese Parts"
+        elif part_name in hardware_defaults:
+            display_category = "Hardware Parts"
         else:
             display_category = "3D Printed Parts"
 
@@ -5174,11 +5190,14 @@ def counting_chinese_parts():
         return redirect(url_for('login'))
 
     table_parts = list(ALL_CHINESE_PARTS)
+    hardware_initial_counts = {
+        part.name.casefold(): part.initial_count for part in HardwarePart.query.all()
+    }
 
     def get_table_parts_counts():
         """
         Return a dictionary of { part_name: current_count } for each part.
-        We query a single row per part_name; if none exists, assume 0.
+        If no count has been logged yet, retain any legacy hardware starting count.
         """
         counts = {}
         for part in table_parts:
@@ -5186,7 +5205,11 @@ def counting_chinese_parts():
                               .filter_by(part_name=part)
                               .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                               .first())
-            counts[part] = existing_entry.count if existing_entry else 0
+            counts[part] = (
+                existing_entry.count
+                if existing_entry
+                else hardware_initial_counts.get(part.casefold(), 0)
+            )
         return counts
 
     # Fetch current counts for all parts
@@ -5213,7 +5236,11 @@ def counting_chinese_parts():
                           .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
                           .first())
 
-        current_count = existing_entry.count if existing_entry else 0
+        current_count = (
+            existing_entry.count
+            if existing_entry
+            else hardware_initial_counts.get(selected_part.casefold(), 0)
+        )
 
         # Perform the requested action
         if action == 'increment':
@@ -5432,7 +5459,10 @@ def counting_hardware():
         db.session.commit()
 
     # 1. Fetch all hardware parts
-    hardware_parts = HardwarePart.query.all()
+    hardware_parts = [
+        part for part in HardwarePart.query.all()
+        if part.name.casefold() not in CHINESE_PART_NAME_KEYS
+    ]
 
     # Default selected part comes from query param if present; otherwise first in list
     selected_part = request.args.get('selected') if request.args.get('selected') else (hardware_parts[0].name if hardware_parts else None)

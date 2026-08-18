@@ -457,6 +457,8 @@ def inventory_summary():
         "Center pockets": 0,
         "Corner pockets": 0,
         "Sticker Set": 0,
+        "Latch": 0,
+        "Catch Plate": 0,
     }
     table_parts_capacity = {
         "Table legs": 4,
@@ -479,6 +481,12 @@ def inventory_summary():
         "Center pockets": 2,
         "Corner pockets": 4,
         "Sticker Set": 1,
+        "Latch": 12,
+        "Catch Plate": 12,
+    }
+    all_hardware_parts = HardwarePart.query.all()
+    hardware_initial_counts = {
+        part.name.casefold(): part.initial_count for part in all_hardware_parts
     }
     table_parts_counts = {}
     for part_name_def in table_parts_definitions:
@@ -488,7 +496,11 @@ def inventory_summary():
             .order_by(PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc())
             .first()
         )
-        table_parts_counts[part_name_def] = latest_entry[0] if latest_entry else 0
+        table_parts_counts[part_name_def] = (
+            latest_entry[0]
+            if latest_entry
+            else hardware_initial_counts.get(part_name_def.casefold(), 0)
+        )
     
     printed_parts_definitions = [
         "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
@@ -509,7 +521,11 @@ def inventory_summary():
         )
         printed_parts_counts[part_name_def] = latest_entry[0] if latest_entry else 0
     
-    hardware_parts_db = HardwarePart.query.all()
+    table_part_names = {name.casefold() for name in table_parts_definitions}
+    hardware_parts_db = [
+        part for part in all_hardware_parts
+        if part.name.casefold() not in table_part_names
+    ]
     hardware_counts = {}
     for part_hw in hardware_parts_db:
         latest_entry = (
@@ -696,10 +712,9 @@ VALID_PARTS = [
     "Chrome corner", "Top Rail Trim - 814mm (Left)",
     "Top Rail Trim - 814mm (Right)", "Top Rail Trim - 822mm", "Ramp 170mm", "Ramp 158mm",
     "Ramp 918mm", "Ramp 376mm", "Chrome handles",
-    "Center pockets", "Corner pockets", "Sticker Set",
+    "Center pockets", "Corner pockets", "Sticker Set", "Latch", "Catch Plate",
     "M5 x 18 x 1.25 Penny Mudguard Washer",  # Added new hardware
     "M5 x 20 Socket Cap Screw",              # Added new hardware
-    "Catch Plate",                           # Added new hardware
     "4.8x32mm Self Tapping Screw",           # Added new hardware
     *PACKAGING_PART_NAMES,
     *CUSHION_CONSUMABLE_PART_NAMES
