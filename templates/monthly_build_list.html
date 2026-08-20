@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monthly Build List - Pool Table Tracker</title>
+    <title>Monthly Body List - Pool Table Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         body { align-items: flex-start; }
@@ -27,7 +27,11 @@
         .form-field { min-width: 0; }
         .form-field label { display: block; margin-bottom: 6px; }
         .form-field input, .form-field select { width: 100%; padding: 11px; border: 1px solid #cfd5dd; border-radius: 7px; box-sizing: border-box; font-size: 1rem; background: #fff; }
+        .form-field textarea { width: 100%; min-height: 170px; padding: 11px; border: 1px solid #cfd5dd; border-radius: 7px; box-sizing: border-box; font: inherit; resize: vertical; }
         .form-grid button { min-height: 43px; }
+        .import-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: start; }
+        .import-options { display: grid; gap: 12px; }
+        .format-example { margin-top: 12px; padding: 12px; border-radius: 8px; background: #eef5ff; color: #344054; font-size: .9rem; white-space: pre-line; }
         .deadline-panel { padding: 0; overflow: hidden; }
         .deadline-header { background: #172033; color: #fff; padding: 16px 18px; display: flex; justify-content: space-between; gap: 14px; align-items: center; }
         .deadline-title { font-size: 1.28rem; font-weight: 800; }
@@ -66,7 +70,7 @@
         #save-message { min-height: 20px; color: #b42318; font-weight: 700; margin-top: 10px; }
 
         @media (max-width: 760px) {
-            .form-grid, .form-grid.three { grid-template-columns: 1fr; }
+            .form-grid, .form-grid.three, .import-grid { grid-template-columns: 1fr; }
             .progress-layout { grid-template-columns: 1fr; }
             .deadline-header, .row-heading { align-items: flex-start; }
             .deadline-header { flex-direction: column; }
@@ -79,8 +83,8 @@
     <div class="container build-container{% if selected_list and selected_list.archived %} archived{% endif %}">
         <div class="page-heading">
             <div>
-                <h1>Monthly Build List</h1>
-                <p>Tick one square whenever one physical table is finished.</p>
+                <h1>Monthly Body List</h1>
+                <p>Tick one square whenever one body is finished.</p>
             </div>
             {% if all_lists %}
                 <div class="top-actions">
@@ -107,7 +111,40 @@
         {% endwith %}
 
         <details class="panel muted-panel manager" {% if not selected_list %}open{% endif %}>
-            <summary>Create a new monthly list</summary>
+            <summary>Create a body list from a document</summary>
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="import_list">
+                <div class="import-grid">
+                    <div class="form-field">
+                        <label for="body-list-document">Upload document</label>
+                        <input id="body-list-document" type="file" name="body_list_document" accept=".txt,.md,.docx">
+                        <p class="help-text">Accepted files: plain text, Markdown, or Word documents.</p>
+                        <label for="body-list-text" style="margin-top: 14px;">Or paste the list here</label>
+                        <textarea id="body-list-text" name="body_list_text" placeholder="Ready for 5pm 10th of Sep&#10;&#10;Signature League&#10;- 6FT Black - 8&#10;- 7FT Black - 10"></textarea>
+                    </div>
+                    <div class="import-options">
+                        <div class="form-field">
+                            <label for="import-list-name">List name (optional)</label>
+                            <input id="import-list-name" type="text" name="name" maxlength="120" placeholder="September body production">
+                        </div>
+                        <div class="form-field">
+                            <label for="import-list-month">Month and year</label>
+                            <input id="import-list-month" type="month" name="month" required>
+                            <p class="help-text">This supplies the year when the document only says September.</p>
+                        </div>
+                        <button type="submit">Import and create list</button>
+                    </div>
+                </div>
+                <div class="format-example">Keep the document in this simple order:
+Deadline heading: Ready for 5pm 10th of Sep
+Model heading: Signature Champion
+Body row: - 7FT Rustic Oak - 4
+Undated heading: STOCK FOR CHRISTMAS</div>
+            </form>
+        </details>
+
+        <details class="panel muted-panel manager">
+            <summary>Create an empty body list manually</summary>
             <form method="POST">
                 <input type="hidden" name="action" value="create_list">
                 <div class="form-grid three">
@@ -119,7 +156,7 @@
                         <label for="new-list-month">Month</label>
                         <input id="new-list-month" type="month" name="month" required>
                     </div>
-                    <button type="submit">Create list</button>
+                    <button type="submit">Create empty list</button>
                 </div>
             </form>
         </details>
@@ -130,7 +167,7 @@
                 <div class="progress-layout">
                     <div>
                         <div class="progress-number"><span id="list-completed">{{ completed_tables }}</span> / <span id="list-total">{{ total_tables }}</span></div>
-                        <div class="progress-caption">tables completed (<span id="list-percent">{{ progress_percent }}</span>%)</div>
+                        <div class="progress-caption">bodies completed (<span id="list-percent">{{ progress_percent }}</span>%)</div>
                     </div>
                     <div class="progress-track" aria-label="Overall progress">
                         <div id="list-progress-bar" class="progress-bar" style="width: {{ progress_percent }}%"></div>
@@ -200,7 +237,7 @@
                                         {% if not selected_list.archived %}
                                             <div class="row-actions">
                                                 <button id="edit-button-{{ item.id }}" type="button" class="secondary-button small-button" onclick="toggleEditForm({{ item.id }})">Edit</button>
-                                                <form class="inline-form" method="POST" onsubmit="return confirm('Remove this row and all of its ticks?');">
+                                                <form class="inline-form" method="POST" onsubmit="return confirm('Remove this body row and all of its ticks?');">
                                                     <input type="hidden" name="action" value="delete_item">
                                                     <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
                                                     <input type="hidden" name="item_id" value="{{ item.id }}">
@@ -252,7 +289,7 @@
                                                 data-item-id="{{ item.id }}"
                                                 data-unit-number="{{ unit_number }}"
                                                 aria-pressed="{{ 'true' if completion else 'false' }}"
-                                                title="{% if completion %}Completed by {{ completion.completed_by }} on {{ completion.completed_at.strftime('%d/%m/%Y at %H:%M') }}{% else %}Table {{ unit_number }} - not completed{% endif %}"
+                                                title="{% if completion %}Completed by {{ completion.completed_by }} on {{ completion.completed_at.strftime('%d/%m/%Y at %H:%M') }}{% else %}Body {{ unit_number }} - not completed{% endif %}"
                                                 onclick="toggleUnit(this)"
                                                 {% if selected_list.archived %}disabled{% endif %}
                                             >{% if completion %}&#10003;{% else %}{{ unit_number }}{% endif %}</button>
@@ -261,12 +298,12 @@
                                 </div>
                             {% endfor %}
                         {% else %}
-                            <div class="empty-state">No table rows in this section yet.</div>
+                            <div class="empty-state">No body rows in this section yet.</div>
                         {% endif %}
 
                         {% if not selected_list.archived %}
                             <details class="add-row" {% if not deadline.items %}open{% endif %}>
-                                <summary>Add a table row</summary>
+                                <summary>Add a body row</summary>
                                 <form method="POST">
                                     <input type="hidden" name="action" value="add_item">
                                     <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
@@ -292,11 +329,11 @@
                                             <input id="quantity-{{ deadline.id }}" type="number" name="quantity" min="1" max="200" value="1" required>
                                         </div>
                                     </div>
-                                    <button type="submit">Add table row</button>
+                                    <button type="submit">Add body row</button>
                                 </form>
                             </details>
 
-                            <form method="POST" onsubmit="return confirm('Remove this whole section and all its table rows?');">
+                            <form method="POST" onsubmit="return confirm('Remove this whole section and all its body rows?');">
                                 <input type="hidden" name="action" value="delete_deadline">
                                 <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
                                 <input type="hidden" name="deadline_id" value="{{ deadline.id }}">
@@ -306,7 +343,7 @@
                     </div>
                 </section>
             {% else %}
-                <div class="panel empty-state">Add the first deadline or stock section, then add its table rows.</div>
+                <div class="panel empty-state">Add the first deadline or stock section, then add its body rows.</div>
             {% endfor %}
 
             <details class="panel manager">
@@ -315,7 +352,7 @@
                     <div class="table-scroll">
                         <table class="log-table">
                             <thead>
-                                <tr><th>Completed</th><th>Worker</th><th>Table</th><th>Section</th></tr>
+                                <tr><th>Completed</th><th>Worker</th><th>Body</th><th>Section</th></tr>
                             </thead>
                             <tbody>
                                 {% for completion in completion_log %}
@@ -330,7 +367,7 @@
                         </table>
                     </div>
                 {% else %}
-                    <p>No tables have been ticked off yet.</p>
+                    <p>No bodies have been ticked off yet.</p>
                 {% endif %}
             </details>
 
@@ -348,7 +385,7 @@
                 </form>
             </div>
         {% else %}
-            <div class="panel empty-state">Create the first monthly build list above.</div>
+            <div class="panel empty-state">Create the first monthly body list above.</div>
             <div class="footer-actions"><a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a></div>
         {% endif %}
 
@@ -390,7 +427,7 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.message || "The table could not be saved.");
+                    throw new Error(result.message || "The body could not be saved.");
                 }
 
                 button.classList.toggle("completed", result.completed);
@@ -398,7 +435,7 @@
                 button.innerHTML = result.completed ? "&#10003;" : unitNumber;
                 button.title = result.completed
                     ? `Completed by ${result.completed_by} on ${result.completed_at}`
-                    : `Table ${unitNumber} - not completed`;
+                    : `Body ${unitNumber} - not completed`;
 
                 const row = button.closest(".build-row");
                 row.querySelector(".line-completed").textContent = result.line_completed;

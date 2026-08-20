@@ -13,8 +13,9 @@ import re  # Add this import at the top of the file
 import csv
 import json
 import uuid
+import html as html_lib
 from math import ceil, floor
-from io import StringIO
+from io import StringIO, BytesIO
 from packaging_planner import (
     ITEM_TYPE_LABELS,
     SUPPORTED_EXTENSIONS,
@@ -1452,20 +1453,24 @@ def elapsed_weekdays_in_month(target_date):
     )
 
 
-def remaining_weekdays_in_month(target_date):
+def remaining_weekdays_in_month(target_date, excluded_dates=None):
+    excluded_dates = set(excluded_dates or [])
     month_end = date(target_date.year, target_date.month, monthrange(target_date.year, target_date.month)[1])
     return sum(
         1
         for offset in range((month_end - target_date).days + 1)
         if (target_date + timedelta(days=offset)).weekday() < 5
+        and (target_date + timedelta(days=offset)) not in excluded_dates
     )
 
 
-def weekdays_in_month(year, month):
+def weekdays_in_month(year, month, excluded_dates=None):
+    excluded_dates = set(excluded_dates or [])
     return sum(
         1
         for day in range(1, monthrange(int(year), int(month))[1] + 1)
         if date(int(year), int(month), day).weekday() < 5
+        and date(int(year), int(month), day) not in excluded_dates
     )
 
 
@@ -13044,13 +13049,23 @@ def body_dashboard_view():
         if data["bodies_possible"] == min_capacity
         for part_name in data["limiting_parts"]
     })
-    remaining_body_workdays = remaining_weekdays_in_month(today)
+    bank_holidays_by_month = fetch_uk_bank_holidays()
+    body_bank_holidays = {
+        holiday_date
+        for month_holidays in bank_holidays_by_month.values()
+        for holiday_date in month_holidays
+    }
+    remaining_body_workdays = remaining_weekdays_in_month(
+        today,
+        excluded_dates=body_bank_holidays,
+    )
     for goal in bonus_progress:
         goal_workdays = remaining_body_workdays
         if goal.get("next_bonus"):
             goal_workdays += weekdays_in_month(
                 goal.get("period_year"),
-                goal.get("period_month")
+                goal.get("period_month"),
+                excluded_dates=body_bank_holidays,
             )
 
         goal_remaining = int(goal.get("remaining", 0) or 0)
@@ -13768,9 +13783,26 @@ def api_cnc_undo_complete_queue_item():
     }), 200
 
 
+UK_BANK_HOLIDAY_CACHE_SECONDS = 6 * 60 * 60
+
+
+def _copy_bank_holiday_map(bank_holidays):
+    return {
+        month: list(holiday_dates)
+        for month, holiday_dates in (bank_holidays or {}).items()
+    }
+
+
 def fetch_uk_bank_holidays():
+    now = datetime.utcnow()
+    cached = app.config.get("_uk_bank_holiday_cache")
+    if cached:
+        cached_at = cached.get("fetched_at")
+        if cached_at and (now - cached_at).total_seconds() < UK_BANK_HOLIDAY_CACHE_SECONDS:
+            return _copy_bank_holiday_map(cached.get("holidays"))
+
     try:
-        response = requests.get("https://www.gov.uk/bank-holidays.json")
+        response = requests.get("https://www.gov.uk/bank-holidays.json", timeout=5)
         response.raise_for_status()
         data = response.json()
         holidays = data["england-and-wales"]["events"]
@@ -13781,9 +13813,15 @@ def fetch_uk_bank_holidays():
             if month not in bank_holidays:
                 bank_holidays[month] = []
             bank_holidays[month].append(holiday_date)
-        return bank_holidays
-    except requests.RequestException as e:
+        app.config["_uk_bank_holiday_cache"] = {
+            "fetched_at": now,
+            "holidays": _copy_bank_holiday_map(bank_holidays),
+        }
+        return _copy_bank_holiday_map(bank_holidays)
+    except (requests.RequestException, KeyError, TypeError, ValueError) as e:
         print(f"Error fetching bank holidays: {e}")
+        if cached:
+            return _copy_bank_holiday_map(cached.get("holidays"))
         return {}
 
 @app.route('/working_days', methods=['GET'])
@@ -13827,6 +13865,173 @@ def monthly_build_list_redirect(build_list_id=None):
     return redirect(url_for('monthly_build_list'))
 
 
+BODY_LIST_IMPORT_EXTENSIONS = {'.txt', '.md', '.docx'}
+BODY_LIST_IMPORT_MAX_BYTES = 5 * 1024 * 1024
+BODY_LIST_MONTH_NUMBERS = {}
+for _month_number in range(1, 13):
+    BODY_LIST_MONTH_NUMBERS[date(2000, _month_number, 1).strftime('%B').casefold()] = _month_number
+    BODY_LIST_MONTH_NUMBERS[date(2000, _month_number, 1).strftime('%b').casefold()] = _month_number
+BODY_LIST_MONTH_NUMBERS['sept'] = 9
+
+
+def read_body_list_import_text(uploaded_file, pasted_text):
+    pasted_text = (pasted_text or '').strip()
+    if pasted_text:
+        return pasted_text
+    if not uploaded_file or not uploaded_file.filename:
+        raise ValueError("Choose a document or paste the body list text.")
+
+    extension = os.path.splitext(uploaded_file.filename)[1].lower()
+    if extension not in BODY_LIST_IMPORT_EXTENSIONS:
+        raise ValueError("Use a .txt, .md, or .docx document.")
+
+    file_bytes = uploaded_file.read(BODY_LIST_IMPORT_MAX_BYTES + 1)
+    if len(file_bytes) > BODY_LIST_IMPORT_MAX_BYTES:
+        raise ValueError("The document is too large. The maximum size is 5 MB.")
+    if not file_bytes:
+        raise ValueError("The uploaded document is empty.")
+
+    if extension == '.docx':
+        try:
+            from docx import Document
+            document = Document(BytesIO(file_bytes))
+            lines = [paragraph.text for paragraph in document.paragraphs]
+            for table in document.tables:
+                for row in table.rows:
+                    lines.append(' '.join(cell.text for cell in row.cells))
+            return '\n'.join(lines)
+        except Exception as exc:
+            raise ValueError("The Word document could not be read.") from exc
+
+    for encoding in ('utf-8-sig', 'cp1252'):
+        try:
+            return file_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("The text document could not be read.")
+
+
+def normalise_body_list_import_line(raw_line):
+    line = html_lib.unescape(raw_line or '')
+    line = line.replace('\u00a0', ' ')
+    line = line.replace('\u2013', '-').replace('\u2014', '-').replace('\u2212', '-')
+    line = line.strip()
+    line = re.sub(r'^#+\s*', '', line)
+    line = line.replace('**', '').replace('__', '').strip()
+    if not line or re.fullmatch(r'\\+', line):
+        return ''
+    return re.sub(r'\s+', ' ', line)
+
+
+def parse_body_list_import(import_text, month_start):
+    ready_pattern = re.compile(
+        r'^ready\s+for\s+'
+        r'(?:(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s+)?'
+        r'(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?'
+        r'([a-z]+)(?:\s+(\d{4}))?$',
+        re.IGNORECASE,
+    )
+    item_patterns = (
+        re.compile(r'^[-*\u2022]?\s*(6|7)\s*FT\s+(.+?)\s*-\s*(\d+)\s*$', re.IGNORECASE),
+        re.compile(r'^[-*\u2022]?\s*(6|7)\s*FT\s+(.+?)\s+(\d+)\s*$', re.IGNORECASE),
+    )
+    colour_labels = {label.casefold(): label for label in LAMINATE_COLOR_LABELS}
+    sections = []
+    current_section = None
+    current_model = None
+    errors = []
+
+    for raw_line in (import_text or '').splitlines():
+        line = normalise_body_list_import_line(raw_line)
+        if not line:
+            continue
+
+        ready_match = ready_pattern.match(line)
+        if ready_match:
+            hour_text, minute_text, meridiem, day_text, month_text, year_text = ready_match.groups()
+            month_number = BODY_LIST_MONTH_NUMBERS.get(month_text.casefold())
+            if not month_number:
+                errors.append(f"Unknown month in '{line}'.")
+                current_section = None
+                current_model = None
+                continue
+            hour = int(hour_text or 17)
+            minute = int(minute_text or 0)
+            if meridiem:
+                if hour < 1 or hour > 12:
+                    errors.append(f"Invalid time in '{line}'.")
+                    current_section = None
+                    current_model = None
+                    continue
+                hour = hour % 12 + (12 if meridiem.casefold() == 'pm' else 0)
+            try:
+                due_at = datetime(
+                    int(year_text or month_start.year),
+                    month_number,
+                    int(day_text),
+                    hour,
+                    minute,
+                )
+            except ValueError:
+                errors.append(f"Invalid deadline in '{line}'.")
+                current_section = None
+                current_model = None
+                continue
+            current_section = {'label': 'Ready for', 'due_at': due_at, 'items': []}
+            sections.append(current_section)
+            current_model = None
+            continue
+
+        if line.casefold().startswith('stock'):
+            current_section = {'label': line, 'due_at': None, 'items': []}
+            sections.append(current_section)
+            current_model = None
+            continue
+
+        item_match = None
+        for item_pattern in item_patterns:
+            item_match = item_pattern.match(line)
+            if item_match:
+                break
+        if item_match:
+            if not current_section:
+                errors.append(f"Add a deadline or stock heading before '{line}'.")
+                continue
+            if not current_model:
+                errors.append(f"Add a model heading before '{line}'.")
+                continue
+            size_number, colour, quantity_text = item_match.groups()
+            quantity = int(quantity_text)
+            if quantity < 1 or quantity > 200:
+                errors.append(f"Quantity must be between 1 and 200 in '{line}'.")
+                continue
+            colour = colour.strip(' -')
+            colour = colour_labels.get(colour.casefold(), colour.title())
+            current_section['items'].append({
+                'model_name': current_model,
+                'size': f"{size_number}FT",
+                'colour': colour,
+                'quantity': quantity,
+            })
+            continue
+
+        if line.casefold().startswith('ready for'):
+            errors.append(f"Could not understand deadline '{line}'.")
+            current_section = None
+            current_model = None
+            continue
+
+        if current_section:
+            current_model = line.strip(' -*')[:100]
+
+    sections = [section for section in sections if section['items']]
+    if errors:
+        raise ValueError(' '.join(errors[:4]))
+    if not sections:
+        raise ValueError("No body rows were found in the document. Check the example format.")
+    return sections
+
+
 @app.route('/monthly_build_list', methods=['GET', 'POST'])
 def monthly_build_list():
     if 'worker' not in session:
@@ -13838,17 +14043,74 @@ def monthly_build_list():
     if request.method == 'POST':
         action = (request.form.get('action') or '').strip()
 
+        if action == 'import_list':
+            month_value = (request.form.get('month') or '').strip()
+            name = (request.form.get('name') or '').strip()
+            try:
+                month_start = date.fromisoformat(f"{month_value}-01")
+            except ValueError:
+                flash("Choose the month and year for the body list.", "error")
+                return monthly_build_list_redirect()
+
+            try:
+                import_text = read_body_list_import_text(
+                    request.files.get('body_list_document'),
+                    request.form.get('body_list_text'),
+                )
+                imported_sections = parse_body_list_import(import_text, month_start)
+            except ValueError as exc:
+                flash(str(exc), "error")
+                return monthly_build_list_redirect()
+
+            if not name:
+                name = f"{month_start.strftime('%B %Y')} Body List"
+            build_list = MonthlyBuildList(
+                name=name[:120],
+                month_start=month_start,
+                created_by=session.get('worker', 'Unknown'),
+                created_at=london_now(),
+            )
+            db.session.add(build_list)
+            db.session.flush()
+
+            imported_body_count = 0
+            for deadline_position, section in enumerate(imported_sections, start=1):
+                deadline = MonthlyBuildDeadline(
+                    build_list_id=build_list.id,
+                    label=section['label'][:120],
+                    due_at=section['due_at'],
+                    position=deadline_position,
+                )
+                db.session.add(deadline)
+                db.session.flush()
+                for item_position, imported_item in enumerate(section['items'], start=1):
+                    db.session.add(MonthlyBuildItem(
+                        deadline_id=deadline.id,
+                        model_name=imported_item['model_name'][:100],
+                        size=imported_item['size'][:20],
+                        colour=imported_item['colour'][:50],
+                        quantity=imported_item['quantity'],
+                        position=item_position,
+                    ))
+                    imported_body_count += imported_item['quantity']
+            db.session.commit()
+            flash(
+                f"Imported {imported_body_count} bodies across {len(imported_sections)} sections.",
+                "success",
+            )
+            return monthly_build_list_redirect(build_list.id)
+
         if action == 'create_list':
             month_value = (request.form.get('month') or '').strip()
             name = (request.form.get('name') or '').strip()
             try:
                 month_start = date.fromisoformat(f"{month_value}-01")
             except ValueError:
-                flash("Choose a valid month for the build list.", "error")
+                flash("Choose a valid month for the body list.", "error")
                 return monthly_build_list_redirect()
 
             if not name:
-                name = f"{month_start.strftime('%B %Y')} Build List"
+                name = f"{month_start.strftime('%B %Y')} Body List"
 
             build_list = MonthlyBuildList(
                 name=name[:120],
@@ -13858,18 +14120,18 @@ def monthly_build_list():
             )
             db.session.add(build_list)
             db.session.commit()
-            flash("Monthly build list created. Add its first deadline below.", "success")
+            flash("Monthly body list created. Add its first deadline below.", "success")
             return monthly_build_list_redirect(build_list.id)
 
         try:
             build_list_id = int(request.form.get('build_list_id', ''))
         except (TypeError, ValueError):
-            flash("Select a build list first.", "error")
+            flash("Select a body list first.", "error")
             return monthly_build_list_redirect()
 
         build_list = db.session.get(MonthlyBuildList, build_list_id)
         if not build_list:
-            flash("That build list could not be found.", "error")
+            flash("That body list could not be found.", "error")
             return monthly_build_list_redirect()
         if build_list.archived and action != 'reopen_list':
             flash("Reopen this archived list before making changes.", "error")
@@ -13924,7 +14186,7 @@ def monthly_build_list():
             size = (request.form.get('size') or '').strip().upper()
             colour = (request.form.get('colour') or '').strip()
             if not deadline or not model_name or not size or not colour:
-                flash("Complete all table details before adding the row.", "error")
+                flash("Complete all body details before adding the row.", "error")
                 return monthly_build_list_redirect(build_list.id)
             if quantity < 1 or quantity > 200:
                 flash("Quantity must be between 1 and 200.", "error")
@@ -13945,7 +14207,7 @@ def monthly_build_list():
                 position=next_position,
             ))
             db.session.commit()
-            flash("Table row added.", "success")
+            flash("Body row added.", "success")
             return monthly_build_list_redirect(build_list.id)
 
         if action == 'edit_item':
@@ -13969,7 +14231,7 @@ def monthly_build_list():
             size = (request.form.get('size') or '').strip().upper()
             colour = (request.form.get('colour') or '').strip()
             if not item or not model_name or not size or not colour:
-                flash("Complete all table details before saving.", "error")
+                flash("Complete all body details before saving.", "error")
                 return monthly_build_list_redirect(build_list.id)
             if quantity < 1 or quantity > 200:
                 flash("Quantity must be between 1 and 200.", "error")
@@ -13983,7 +14245,7 @@ def monthly_build_list():
             )
             if quantity < highest_completed_unit:
                 flash(
-                    f"Untick table {highest_completed_unit} before reducing this row below it.",
+                    f"Untick body {highest_completed_unit} before reducing this row below it.",
                     "error",
                 )
                 return monthly_build_list_redirect(build_list.id)
@@ -13993,7 +14255,7 @@ def monthly_build_list():
             item.colour = colour[:50]
             item.quantity = quantity
             db.session.commit()
-            flash("Table row updated.", "success")
+            flash("Body row updated.", "success")
             return monthly_build_list_redirect(build_list.id)
 
         if action == 'delete_item':
@@ -14013,7 +14275,7 @@ def monthly_build_list():
             if item:
                 db.session.delete(item)
                 db.session.commit()
-                flash("Table row removed.", "success")
+                flash("Body row removed.", "success")
             return monthly_build_list_redirect(build_list.id)
 
         if action == 'delete_deadline':
@@ -14028,13 +14290,13 @@ def monthly_build_list():
             if deadline:
                 db.session.delete(deadline)
                 db.session.commit()
-                flash("Section and its table rows removed.", "success")
+                flash("Section and its body rows removed.", "success")
             return monthly_build_list_redirect(build_list.id)
 
         if action in {'archive_list', 'reopen_list'}:
             build_list.archived = action == 'archive_list'
             db.session.commit()
-            flash("Build list archived." if build_list.archived else "Build list reopened.", "success")
+            flash("Body list archived." if build_list.archived else "Body list reopened.", "success")
             return monthly_build_list_redirect(build_list.id)
 
         flash("No valid action was selected.", "error")
@@ -14087,9 +14349,9 @@ def toggle_monthly_build_unit(item_id, unit_number):
     ensure_monthly_build_list_tables()
     item = db.session.get(MonthlyBuildItem, item_id)
     if not item:
-        return jsonify({'success': False, 'message': 'Table row not found.'}), 404
+        return jsonify({'success': False, 'message': 'Body row not found.'}), 404
     if unit_number < 1 or unit_number > item.quantity:
-        return jsonify({'success': False, 'message': 'Table number is outside this row.'}), 400
+        return jsonify({'success': False, 'message': 'Body number is outside this row.'}), 400
     if item.deadline.build_list.archived:
         return jsonify({'success': False, 'message': 'Reopen this list before changing it.'}), 409
 
