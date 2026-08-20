@@ -1170,6 +1170,97 @@ class ProductionSchedule(db.Model):
         return f"<ProductionSchedule {self.month}/{self.year} 7ft={self.target_7ft} 6ft={self.target_6ft}>"
 
 
+class MonthlyBuildList(db.Model):
+    __tablename__ = 'monthly_build_list'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    month_start = db.Column(db.Date, nullable=False, index=True)
+    created_by = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=london_now)
+    archived = db.Column(db.Boolean, nullable=False, default=False)
+
+    deadlines = db.relationship(
+        'MonthlyBuildDeadline',
+        backref='build_list',
+        lazy=True,
+        cascade='all, delete-orphan',
+        order_by='MonthlyBuildDeadline.position',
+    )
+
+
+class MonthlyBuildDeadline(db.Model):
+    __tablename__ = 'monthly_build_deadline'
+    id = db.Column(db.Integer, primary_key=True)
+    build_list_id = db.Column(
+        db.Integer,
+        db.ForeignKey('monthly_build_list.id'),
+        nullable=False,
+        index=True,
+    )
+    label = db.Column(db.String(120), nullable=False)
+    due_at = db.Column(db.DateTime, nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=1)
+
+    items = db.relationship(
+        'MonthlyBuildItem',
+        backref='deadline',
+        lazy=True,
+        cascade='all, delete-orphan',
+        order_by='MonthlyBuildItem.position',
+    )
+
+
+class MonthlyBuildItem(db.Model):
+    __tablename__ = 'monthly_build_item'
+    id = db.Column(db.Integer, primary_key=True)
+    deadline_id = db.Column(
+        db.Integer,
+        db.ForeignKey('monthly_build_deadline.id'),
+        nullable=False,
+        index=True,
+    )
+    model_name = db.Column(db.String(100), nullable=False)
+    size = db.Column(db.String(20), nullable=False)
+    colour = db.Column(db.String(50), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=1)
+
+    completions = db.relationship(
+        'MonthlyBuildCompletion',
+        backref='item',
+        lazy=True,
+        cascade='all, delete-orphan',
+        order_by='MonthlyBuildCompletion.unit_number',
+    )
+
+
+class MonthlyBuildCompletion(db.Model):
+    __tablename__ = 'monthly_build_completion'
+    __table_args__ = (
+        db.UniqueConstraint('item_id', 'unit_number', name='uq_monthly_build_item_unit'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(
+        db.Integer,
+        db.ForeignKey('monthly_build_item.id'),
+        nullable=False,
+        index=True,
+    )
+    unit_number = db.Column(db.Integer, nullable=False)
+    completed_by = db.Column(db.String(50), nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
+def ensure_monthly_build_list_tables():
+    if app.config.get('_monthly_build_list_tables_ready'):
+        return
+    MonthlyBuildList.__table__.create(db.engine, checkfirst=True)
+    MonthlyBuildDeadline.__table__.create(db.engine, checkfirst=True)
+    MonthlyBuildItem.__table__.create(db.engine, checkfirst=True)
+    MonthlyBuildCompletion.__table__.create(db.engine, checkfirst=True)
+    app.config['_monthly_build_list_tables_ready'] = True
+
+
 class BonusGoal(db.Model):
     __tablename__ = 'bonus_goal'
     __table_args__ = (
@@ -13728,6 +13819,284 @@ from sqlalchemy.exc import IntegrityError
 # Assume you have already:
 # from .models import db, ProductionSchedule
 # app = Flask(__name__)
+
+
+def monthly_build_list_redirect(build_list_id=None):
+    if build_list_id:
+        return redirect(url_for('monthly_build_list', list_id=build_list_id))
+    return redirect(url_for('monthly_build_list'))
+
+
+@app.route('/monthly_build_list', methods=['GET', 'POST'])
+def monthly_build_list():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    ensure_monthly_build_list_tables()
+
+    if request.method == 'POST':
+        action = (request.form.get('action') or '').strip()
+
+        if action == 'create_list':
+            month_value = (request.form.get('month') or '').strip()
+            name = (request.form.get('name') or '').strip()
+            try:
+                month_start = date.fromisoformat(f"{month_value}-01")
+            except ValueError:
+                flash("Choose a valid month for the build list.", "error")
+                return monthly_build_list_redirect()
+
+            if not name:
+                name = f"{month_start.strftime('%B %Y')} Build List"
+
+            build_list = MonthlyBuildList(
+                name=name[:120],
+                month_start=month_start,
+                created_by=session.get('worker', 'Unknown'),
+                created_at=london_now(),
+            )
+            db.session.add(build_list)
+            db.session.commit()
+            flash("Monthly build list created. Add its first deadline below.", "success")
+            return monthly_build_list_redirect(build_list.id)
+
+        try:
+            build_list_id = int(request.form.get('build_list_id', ''))
+        except (TypeError, ValueError):
+            flash("Select a build list first.", "error")
+            return monthly_build_list_redirect()
+
+        build_list = db.session.get(MonthlyBuildList, build_list_id)
+        if not build_list:
+            flash("That build list could not be found.", "error")
+            return monthly_build_list_redirect()
+        if build_list.archived and action != 'reopen_list':
+            flash("Reopen this archived list before making changes.", "error")
+            return monthly_build_list_redirect(build_list.id)
+
+        if action == 'add_deadline':
+            label = (request.form.get('label') or '').strip()
+            due_date = (request.form.get('due_date') or '').strip()
+            due_time = (request.form.get('due_time') or '').strip()
+            due_at = None
+            if due_date:
+                try:
+                    due_at = datetime.strptime(
+                        f"{due_date} {due_time or '17:00'}",
+                        "%Y-%m-%d %H:%M",
+                    )
+                except ValueError:
+                    flash("Enter a valid deadline date and time.", "error")
+                    return monthly_build_list_redirect(build_list.id)
+            if not label:
+                label = "Ready for" if due_at else "Production"
+
+            next_position = (
+                db.session.query(func.max(MonthlyBuildDeadline.position))
+                .filter_by(build_list_id=build_list.id)
+                .scalar()
+                or 0
+            ) + 1
+            db.session.add(MonthlyBuildDeadline(
+                build_list_id=build_list.id,
+                label=label[:120],
+                due_at=due_at,
+                position=next_position,
+            ))
+            db.session.commit()
+            flash("Section added.", "success")
+            return monthly_build_list_redirect(build_list.id)
+
+        if action == 'add_item':
+            try:
+                deadline_id = int(request.form.get('deadline_id', ''))
+                quantity = int(request.form.get('quantity', ''))
+            except (TypeError, ValueError):
+                flash("Quantity must be a whole number.", "error")
+                return monthly_build_list_redirect(build_list.id)
+
+            deadline = MonthlyBuildDeadline.query.filter_by(
+                id=deadline_id,
+                build_list_id=build_list.id,
+            ).first()
+            model_name = (request.form.get('model_name') or '').strip()
+            size = (request.form.get('size') or '').strip().upper()
+            colour = (request.form.get('colour') or '').strip()
+            if not deadline or not model_name or not size or not colour:
+                flash("Complete all table details before adding the row.", "error")
+                return monthly_build_list_redirect(build_list.id)
+            if quantity < 1 or quantity > 200:
+                flash("Quantity must be between 1 and 200.", "error")
+                return monthly_build_list_redirect(build_list.id)
+
+            next_position = (
+                db.session.query(func.max(MonthlyBuildItem.position))
+                .filter_by(deadline_id=deadline.id)
+                .scalar()
+                or 0
+            ) + 1
+            db.session.add(MonthlyBuildItem(
+                deadline_id=deadline.id,
+                model_name=model_name[:100],
+                size=size[:20],
+                colour=colour[:50],
+                quantity=quantity,
+                position=next_position,
+            ))
+            db.session.commit()
+            flash("Table row added.", "success")
+            return monthly_build_list_redirect(build_list.id)
+
+        if action == 'delete_item':
+            try:
+                item_id = int(request.form.get('item_id', ''))
+            except (TypeError, ValueError):
+                item_id = 0
+            item = (
+                MonthlyBuildItem.query
+                .join(MonthlyBuildDeadline)
+                .filter(
+                    MonthlyBuildItem.id == item_id,
+                    MonthlyBuildDeadline.build_list_id == build_list.id,
+                )
+                .first()
+            )
+            if item:
+                db.session.delete(item)
+                db.session.commit()
+                flash("Table row removed.", "success")
+            return monthly_build_list_redirect(build_list.id)
+
+        if action == 'delete_deadline':
+            try:
+                deadline_id = int(request.form.get('deadline_id', ''))
+            except (TypeError, ValueError):
+                deadline_id = 0
+            deadline = MonthlyBuildDeadline.query.filter_by(
+                id=deadline_id,
+                build_list_id=build_list.id,
+            ).first()
+            if deadline:
+                db.session.delete(deadline)
+                db.session.commit()
+                flash("Section and its table rows removed.", "success")
+            return monthly_build_list_redirect(build_list.id)
+
+        if action in {'archive_list', 'reopen_list'}:
+            build_list.archived = action == 'archive_list'
+            db.session.commit()
+            flash("Build list archived." if build_list.archived else "Build list reopened.", "success")
+            return monthly_build_list_redirect(build_list.id)
+
+        flash("No valid action was selected.", "error")
+        return monthly_build_list_redirect(build_list.id)
+
+    all_lists = MonthlyBuildList.query.order_by(
+        MonthlyBuildList.archived.asc(),
+        MonthlyBuildList.month_start.desc(),
+        MonthlyBuildList.id.desc(),
+    ).all()
+    selected_list = None
+    requested_id = request.args.get('list_id', type=int)
+    if requested_id:
+        selected_list = db.session.get(MonthlyBuildList, requested_id)
+    if not selected_list and all_lists:
+        selected_list = next((item for item in all_lists if not item.archived), all_lists[0])
+
+    total_tables = 0
+    completed_tables = 0
+    completion_log = []
+    if selected_list:
+        for deadline in selected_list.deadlines:
+            for item in deadline.items:
+                item.completions_by_unit = {
+                    completion.unit_number: completion
+                    for completion in item.completions
+                }
+                total_tables += item.quantity
+                completed_tables += len(item.completions)
+                completion_log.extend(item.completions)
+        completion_log.sort(key=lambda entry: entry.completed_at, reverse=True)
+
+    return render_template(
+        'monthly_build_list.html',
+        all_lists=all_lists,
+        selected_list=selected_list,
+        total_tables=total_tables,
+        completed_tables=completed_tables,
+        completion_log=completion_log[:100],
+        model_suggestions=['Signature League', 'Signature Champion'],
+        colour_suggestions=LAMINATE_COLOR_LABELS,
+    )
+
+
+@app.route('/api/monthly_build_list/items/<int:item_id>/units/<int:unit_number>', methods=['POST'])
+def toggle_monthly_build_unit(item_id, unit_number):
+    if 'worker' not in session:
+        return jsonify({'success': False, 'message': 'Please log in first.'}), 401
+
+    ensure_monthly_build_list_tables()
+    item = db.session.get(MonthlyBuildItem, item_id)
+    if not item:
+        return jsonify({'success': False, 'message': 'Table row not found.'}), 404
+    if unit_number < 1 or unit_number > item.quantity:
+        return jsonify({'success': False, 'message': 'Table number is outside this row.'}), 400
+    if item.deadline.build_list.archived:
+        return jsonify({'success': False, 'message': 'Reopen this list before changing it.'}), 409
+
+    payload = request.get_json(silent=True) or {}
+    should_complete = payload.get('completed') is True
+    completion = MonthlyBuildCompletion.query.filter_by(
+        item_id=item.id,
+        unit_number=unit_number,
+    ).first()
+
+    if should_complete and not completion:
+        completion = MonthlyBuildCompletion(
+            item_id=item.id,
+            unit_number=unit_number,
+            completed_by=session.get('worker', 'Unknown'),
+            completed_at=london_now(),
+        )
+        db.session.add(completion)
+    elif not should_complete and completion:
+        db.session.delete(completion)
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+
+    completion = MonthlyBuildCompletion.query.filter_by(
+        item_id=item.id,
+        unit_number=unit_number,
+    ).first()
+    line_completed = MonthlyBuildCompletion.query.filter_by(item_id=item.id).count()
+    build_list_id = item.deadline.build_list_id
+    list_completed = (
+        MonthlyBuildCompletion.query
+        .join(MonthlyBuildItem)
+        .join(MonthlyBuildDeadline)
+        .filter(MonthlyBuildDeadline.build_list_id == build_list_id)
+        .count()
+    )
+    list_total = (
+        db.session.query(func.coalesce(func.sum(MonthlyBuildItem.quantity), 0))
+        .join(MonthlyBuildDeadline)
+        .filter(MonthlyBuildDeadline.build_list_id == build_list_id)
+        .scalar()
+    )
+    return jsonify({
+        'success': True,
+        'completed': completion is not None,
+        'completed_by': completion.completed_by if completion else None,
+        'completed_at': completion.completed_at.strftime('%d/%m/%Y %H:%M') if completion else None,
+        'line_completed': line_completed,
+        'line_total': item.quantity,
+        'list_completed': int(list_completed),
+        'list_total': int(list_total or 0),
+    })
 
 @app.route('/production_schedule', methods=['GET', 'POST'])
 def production_schedule():

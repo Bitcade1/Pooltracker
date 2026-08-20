@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Build List - Pool Table Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body { align-items: flex-start; }
+        .build-container { max-width: 1180px; text-align: left; }
+        .page-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+        .page-heading h1 { margin: 0 0 6px; }
+        .page-heading p { margin: 0; color: #59616d; }
+        .top-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .top-actions select { min-width: 240px; }
+        .panel { background: #fff; border: 1px solid #dfe3e8; border-radius: 12px; padding: 18px; margin-top: 16px; }
+        .muted-panel { background: #f7f8fa; }
+        .panel h2, .panel h3 { margin: 0; }
+        .progress-layout { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 18px; }
+        .progress-number { font-size: 2rem; font-weight: 800; color: #172033; }
+        .progress-caption { color: #667085; font-size: .9rem; }
+        .progress-track { height: 18px; overflow: hidden; border-radius: 999px; background: #e5e7eb; }
+        .progress-bar { height: 100%; min-width: 0; background: #28a745; transition: width .2s ease; }
+        details.manager > summary { cursor: pointer; font-weight: 700; color: #0759b5; }
+        .form-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; align-items: end; }
+        .form-grid.three { grid-template-columns: 2fr 1fr 1fr; }
+        .form-field { min-width: 0; }
+        .form-field label { display: block; margin-bottom: 6px; }
+        .form-field input, .form-field select { width: 100%; padding: 11px; border: 1px solid #cfd5dd; border-radius: 7px; box-sizing: border-box; font-size: 1rem; background: #fff; }
+        .form-grid button { min-height: 43px; }
+        .deadline-panel { padding: 0; overflow: hidden; }
+        .deadline-header { background: #172033; color: #fff; padding: 16px 18px; display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+        .deadline-title { font-size: 1.28rem; font-weight: 800; }
+        .deadline-date { color: #dbe8ff; margin-top: 3px; }
+        .deadline-progress { font-weight: 700; white-space: nowrap; }
+        .deadline-body { padding: 16px 18px; }
+        .build-row { border: 1px solid #dfe3e8; border-radius: 10px; padding: 14px; background: #fafbfc; }
+        .build-row + .build-row { margin-top: 12px; }
+        .row-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+        .row-title { font-size: 1.08rem; font-weight: 800; color: #172033; }
+        .row-progress { color: #586174; margin-top: 4px; font-weight: 700; }
+        .unit-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+        .unit-check { width: 48px; height: 48px; padding: 0; border: 2px solid #98a2b3; border-radius: 8px; background: #fff; color: #344054; font-size: .9rem; font-weight: 800; }
+        .unit-check:hover { background: #eef5ff; border-color: #1672d4; }
+        .unit-check.completed { background: #28a745; border-color: #208638; color: #fff; }
+        .unit-check:disabled { cursor: wait; opacity: .65; }
+        .archived .unit-check:disabled { cursor: not-allowed; }
+        .inline-form { display: inline; margin: 0; }
+        .danger-button { background: #b42318; padding: 8px 10px; font-size: .85rem; }
+        .danger-button:hover { background: #8f1c13; }
+        .secondary-button { background: #667085; }
+        .secondary-button:hover { background: #475467; }
+        .small-button { padding: 8px 10px; font-size: .88rem; }
+        .add-row { border-top: 1px solid #e4e7ec; margin-top: 16px; padding-top: 14px; }
+        .add-row summary { cursor: pointer; color: #0759b5; font-weight: 700; }
+        .empty-state { padding: 34px 20px; text-align: center; color: #667085; }
+        .help-text { color: #667085; font-size: .9rem; margin: 8px 0 0; }
+        .archived-banner { background: #fff4e5; border: 1px solid #f5c26b; color: #7a4b00; border-radius: 8px; padding: 12px; margin-top: 14px; }
+        .log-table { width: 100%; margin-top: 12px; }
+        .log-table th, .log-table td { text-align: left; }
+        .footer-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+        .footer-actions a { width: auto; margin: 0; }
+        #save-message { min-height: 20px; color: #b42318; font-weight: 700; margin-top: 10px; }
+
+        @media (max-width: 760px) {
+            .form-grid, .form-grid.three { grid-template-columns: 1fr; }
+            .progress-layout { grid-template-columns: 1fr; }
+            .deadline-header, .row-heading { align-items: flex-start; }
+            .deadline-header { flex-direction: column; }
+            .unit-check { width: 44px; height: 44px; }
+            .top-actions, .top-actions select { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container build-container{% if selected_list and selected_list.archived %} archived{% endif %}">
+        <div class="page-heading">
+            <div>
+                <h1>Monthly Build List</h1>
+                <p>Tick one square whenever one physical table is finished.</p>
+            </div>
+            {% if all_lists %}
+                <div class="top-actions">
+                    <label for="list-picker">Viewing</label>
+                    <select id="list-picker" onchange="window.location.href=this.value">
+                        {% for build_list in all_lists %}
+                            <option value="{{ url_for('monthly_build_list', list_id=build_list.id) }}" {% if selected_list and selected_list.id == build_list.id %}selected{% endif %}>
+                                {{ build_list.name }}{% if build_list.archived %} (Archived){% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% endif %}
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <details class="panel muted-panel manager" {% if not selected_list %}open{% endif %}>
+            <summary>Create a new monthly list</summary>
+            <form method="POST">
+                <input type="hidden" name="action" value="create_list">
+                <div class="form-grid three">
+                    <div class="form-field">
+                        <label for="new-list-name">List name (optional)</label>
+                        <input id="new-list-name" type="text" name="name" maxlength="120" placeholder="September production">
+                    </div>
+                    <div class="form-field">
+                        <label for="new-list-month">Month</label>
+                        <input id="new-list-month" type="month" name="month" required>
+                    </div>
+                    <button type="submit">Create list</button>
+                </div>
+            </form>
+        </details>
+
+        {% if selected_list %}
+            {% set progress_percent = ((completed_tables * 100 / total_tables) if total_tables else 0)|round(0)|int %}
+            <section class="panel">
+                <div class="progress-layout">
+                    <div>
+                        <div class="progress-number"><span id="list-completed">{{ completed_tables }}</span> / <span id="list-total">{{ total_tables }}</span></div>
+                        <div class="progress-caption">tables completed (<span id="list-percent">{{ progress_percent }}</span>%)</div>
+                    </div>
+                    <div class="progress-track" aria-label="Overall progress">
+                        <div id="list-progress-bar" class="progress-bar" style="width: {{ progress_percent }}%"></div>
+                    </div>
+                </div>
+                <div id="save-message" role="alert"></div>
+                {% if selected_list.archived %}
+                    <div class="archived-banner">This list is archived and read-only. Reopen it to make changes.</div>
+                {% endif %}
+            </section>
+
+            {% if not selected_list.archived %}
+                <details class="panel muted-panel manager" {% if not selected_list.deadlines %}open{% endif %}>
+                    <summary>Add a deadline or stock section</summary>
+                    <form method="POST">
+                        <input type="hidden" name="action" value="add_deadline">
+                        <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="section-label">Section title</label>
+                                <input id="section-label" type="text" name="label" maxlength="120" placeholder="Ready for or Stock for Christmas">
+                            </div>
+                            <div class="form-field">
+                                <label for="due-date">Deadline date (optional)</label>
+                                <input id="due-date" type="date" name="due_date">
+                            </div>
+                            <div class="form-field">
+                                <label for="due-time">Time</label>
+                                <input id="due-time" type="time" name="due_time" value="17:00">
+                            </div>
+                            <button type="submit">Add section</button>
+                        </div>
+                    </form>
+                    <p class="help-text">Leave the date blank for an undated section such as Stock for Christmas.</p>
+                </details>
+            {% endif %}
+
+            {% for deadline in selected_list.deadlines %}
+                {% set section = namespace(total=0, completed=0) %}
+                {% for item in deadline.items %}
+                    {% set section.total = section.total + item.quantity %}
+                    {% set section.completed = section.completed + (item.completions|length) %}
+                {% endfor %}
+                <section class="panel deadline-panel" data-deadline-id="{{ deadline.id }}">
+                    <div class="deadline-header">
+                        <div>
+                            <div class="deadline-title">{{ deadline.label }}</div>
+                            {% if deadline.due_at %}
+                                <div class="deadline-date">{{ deadline.due_at.strftime('%d %B %Y at %H:%M') }}</div>
+                            {% else %}
+                                <div class="deadline-date">No fixed deadline</div>
+                            {% endif %}
+                        </div>
+                        <div class="deadline-progress">
+                            <span class="section-completed">{{ section.completed }}</span> / <span class="section-total">{{ section.total }}</span> done
+                        </div>
+                    </div>
+                    <div class="deadline-body">
+                        {% if deadline.items %}
+                            {% for item in deadline.items %}
+                                <div class="build-row" data-item-id="{{ item.id }}">
+                                    <div class="row-heading">
+                                        <div>
+                                            <div class="row-title">{{ item.model_name }} &middot; {{ item.size }} &middot; {{ item.colour }}</div>
+                                            <div class="row-progress"><span class="line-completed">{{ item.completions|length }}</span> of {{ item.quantity }} finished</div>
+                                        </div>
+                                        {% if not selected_list.archived %}
+                                            <form class="inline-form" method="POST" onsubmit="return confirm('Remove this row and all of its ticks?');">
+                                                <input type="hidden" name="action" value="delete_item">
+                                                <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
+                                                <input type="hidden" name="item_id" value="{{ item.id }}">
+                                                <button type="submit" class="danger-button small-button">Remove row</button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                    <div class="unit-grid">
+                                        {% for unit_number in range(1, item.quantity + 1) %}
+                                            {% set completion = item.completions_by_unit.get(unit_number) %}
+                                            <button
+                                                type="button"
+                                                class="unit-check{% if completion %} completed{% endif %}"
+                                                data-item-id="{{ item.id }}"
+                                                data-unit-number="{{ unit_number }}"
+                                                aria-pressed="{{ 'true' if completion else 'false' }}"
+                                                title="{% if completion %}Completed by {{ completion.completed_by }} on {{ completion.completed_at.strftime('%d/%m/%Y at %H:%M') }}{% else %}Table {{ unit_number }} - not completed{% endif %}"
+                                                onclick="toggleUnit(this)"
+                                                {% if selected_list.archived %}disabled{% endif %}
+                                            >{% if completion %}&#10003;{% else %}{{ unit_number }}{% endif %}</button>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state">No table rows in this section yet.</div>
+                        {% endif %}
+
+                        {% if not selected_list.archived %}
+                            <details class="add-row" {% if not deadline.items %}open{% endif %}>
+                                <summary>Add a table row</summary>
+                                <form method="POST">
+                                    <input type="hidden" name="action" value="add_item">
+                                    <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
+                                    <input type="hidden" name="deadline_id" value="{{ deadline.id }}">
+                                    <div class="form-grid">
+                                        <div class="form-field">
+                                            <label for="model-{{ deadline.id }}">Model</label>
+                                            <input id="model-{{ deadline.id }}" type="text" name="model_name" list="model-suggestions" placeholder="Signature Champion" required>
+                                        </div>
+                                        <div class="form-field">
+                                            <label for="size-{{ deadline.id }}">Size</label>
+                                            <select id="size-{{ deadline.id }}" name="size" required>
+                                                <option value="6FT">6FT</option>
+                                                <option value="7FT">7FT</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-field">
+                                            <label for="colour-{{ deadline.id }}">Colour</label>
+                                            <input id="colour-{{ deadline.id }}" type="text" name="colour" list="colour-suggestions" value="Black" required>
+                                        </div>
+                                        <div class="form-field">
+                                            <label for="quantity-{{ deadline.id }}">Quantity</label>
+                                            <input id="quantity-{{ deadline.id }}" type="number" name="quantity" min="1" max="200" value="1" required>
+                                        </div>
+                                    </div>
+                                    <button type="submit">Add table row</button>
+                                </form>
+                            </details>
+
+                            <form method="POST" onsubmit="return confirm('Remove this whole section and all its table rows?');">
+                                <input type="hidden" name="action" value="delete_deadline">
+                                <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
+                                <input type="hidden" name="deadline_id" value="{{ deadline.id }}">
+                                <button type="submit" class="danger-button small-button">Remove section</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </section>
+            {% else %}
+                <div class="panel empty-state">Add the first deadline or stock section, then add its table rows.</div>
+            {% endfor %}
+
+            <details class="panel manager">
+                <summary>Completion log</summary>
+                {% if completion_log %}
+                    <div class="table-scroll">
+                        <table class="log-table">
+                            <thead>
+                                <tr><th>Completed</th><th>Worker</th><th>Table</th><th>Section</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for completion in completion_log %}
+                                    <tr>
+                                        <td>{{ completion.completed_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                        <td>{{ completion.completed_by }}</td>
+                                        <td>{{ completion.item.model_name }} / {{ completion.item.size }} / {{ completion.item.colour }} (#{{ completion.unit_number }})</td>
+                                        <td>{{ completion.item.deadline.label }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p>No tables have been ticked off yet.</p>
+                {% endif %}
+            </details>
+
+            <div class="footer-actions">
+                <a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a>
+                <form class="inline-form" method="POST">
+                    <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
+                    {% if selected_list.archived %}
+                        <input type="hidden" name="action" value="reopen_list">
+                        <button type="submit" class="secondary-button">Reopen list</button>
+                    {% else %}
+                        <input type="hidden" name="action" value="archive_list">
+                        <button type="submit" class="secondary-button" onclick="return confirm('Archive this list? It will become read-only.');">Archive list</button>
+                    {% endif %}
+                </form>
+            </div>
+        {% else %}
+            <div class="panel empty-state">Create the first monthly build list above.</div>
+            <div class="footer-actions"><a href="{{ url_for('home') }}" class="menu-button">Back to Main Menu</a></div>
+        {% endif %}
+
+        <datalist id="model-suggestions">
+            {% for model in model_suggestions %}<option value="{{ model }}">{% endfor %}
+        </datalist>
+        <datalist id="colour-suggestions">
+            {% for colour in colour_suggestions %}<option value="{{ colour }}">{% endfor %}
+        </datalist>
+    </div>
+
+    <script>
+        async function toggleUnit(button) {
+            const wasCompleted = button.classList.contains("completed");
+            const itemId = button.dataset.itemId;
+            const unitNumber = button.dataset.unitNumber;
+            const message = document.getElementById("save-message");
+            button.disabled = true;
+            message.textContent = "";
+
+            try {
+                const response = await fetch(`/api/monthly_build_list/items/${itemId}/units/${unitNumber}`, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ completed: !wasCompleted })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || "The table could not be saved.");
+                }
+
+                button.classList.toggle("completed", result.completed);
+                button.setAttribute("aria-pressed", result.completed ? "true" : "false");
+                button.innerHTML = result.completed ? "&#10003;" : unitNumber;
+                button.title = result.completed
+                    ? `Completed by ${result.completed_by} on ${result.completed_at}`
+                    : `Table ${unitNumber} - not completed`;
+
+                const row = button.closest(".build-row");
+                row.querySelector(".line-completed").textContent = result.line_completed;
+                const section = button.closest(".deadline-panel");
+                section.querySelector(".section-completed").textContent = section.querySelectorAll(".unit-check.completed").length;
+                document.getElementById("list-completed").textContent = result.list_completed;
+                document.getElementById("list-total").textContent = result.list_total;
+                const percent = result.list_total ? (result.list_completed * 100 / result.list_total) : 0;
+                document.getElementById("list-progress-bar").style.width = `${percent}%`;
+                document.getElementById("list-percent").textContent = Math.round(percent);
+            } catch (error) {
+                message.textContent = error.message;
+            } finally {
+                button.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
