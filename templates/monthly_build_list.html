@@ -37,6 +37,7 @@
         .build-row { border: 1px solid #dfe3e8; border-radius: 10px; padding: 14px; background: #fafbfc; }
         .build-row + .build-row { margin-top: 12px; }
         .row-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+        .row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .row-title { font-size: 1.08rem; font-weight: 800; color: #172033; }
         .row-progress { color: #586174; margin-top: 4px; font-weight: 700; }
         .unit-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
@@ -51,6 +52,8 @@
         .secondary-button { background: #667085; }
         .secondary-button:hover { background: #475467; }
         .small-button { padding: 8px 10px; font-size: .88rem; }
+        .edit-row-form { display: none; border-top: 1px solid #dfe3e8; margin-top: 14px; padding-top: 14px; }
+        .edit-row-form.open { display: block; }
         .add-row { border-top: 1px solid #e4e7ec; margin-top: 16px; padding-top: 14px; }
         .add-row summary { cursor: pointer; color: #0759b5; font-weight: 700; }
         .empty-state { padding: 34px 20px; text-align: center; color: #667085; }
@@ -195,14 +198,51 @@
                                             <div class="row-progress"><span class="line-completed">{{ item.completions|length }}</span> of {{ item.quantity }} finished</div>
                                         </div>
                                         {% if not selected_list.archived %}
-                                            <form class="inline-form" method="POST" onsubmit="return confirm('Remove this row and all of its ticks?');">
-                                                <input type="hidden" name="action" value="delete_item">
-                                                <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
-                                                <input type="hidden" name="item_id" value="{{ item.id }}">
-                                                <button type="submit" class="danger-button small-button">Remove row</button>
-                                            </form>
+                                            <div class="row-actions">
+                                                <button id="edit-button-{{ item.id }}" type="button" class="secondary-button small-button" onclick="toggleEditForm({{ item.id }})">Edit</button>
+                                                <form class="inline-form" method="POST" onsubmit="return confirm('Remove this row and all of its ticks?');">
+                                                    <input type="hidden" name="action" value="delete_item">
+                                                    <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
+                                                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                                                    <button type="submit" class="danger-button small-button">Remove row</button>
+                                                </form>
+                                            </div>
                                         {% endif %}
                                     </div>
+                                    {% if not selected_list.archived %}
+                                        <div id="edit-row-{{ item.id }}" class="edit-row-form">
+                                            <form method="POST">
+                                                <input type="hidden" name="action" value="edit_item">
+                                                <input type="hidden" name="build_list_id" value="{{ selected_list.id }}">
+                                                <input type="hidden" name="item_id" value="{{ item.id }}">
+                                                <div class="form-grid">
+                                                    <div class="form-field">
+                                                        <label for="edit-model-{{ item.id }}">Model</label>
+                                                        <input id="edit-model-{{ item.id }}" type="text" name="model_name" list="model-suggestions" value="{{ item.model_name }}" required>
+                                                    </div>
+                                                    <div class="form-field">
+                                                        <label for="edit-size-{{ item.id }}">Size</label>
+                                                        <select id="edit-size-{{ item.id }}" name="size" required>
+                                                            <option value="6FT" {% if item.size == '6FT' %}selected{% endif %}>6FT</option>
+                                                            <option value="7FT" {% if item.size == '7FT' %}selected{% endif %}>7FT</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-field">
+                                                        <label for="edit-colour-{{ item.id }}">Colour</label>
+                                                        <input id="edit-colour-{{ item.id }}" type="text" name="colour" list="colour-suggestions" value="{{ item.colour }}" required>
+                                                    </div>
+                                                    <div class="form-field">
+                                                        <label for="edit-quantity-{{ item.id }}">Quantity</label>
+                                                        <input id="edit-quantity-{{ item.id }}" type="number" name="quantity" min="1" max="200" value="{{ item.quantity }}" required>
+                                                    </div>
+                                                </div>
+                                                <div class="row-actions">
+                                                    <button type="submit">Save changes</button>
+                                                    <button type="button" class="secondary-button" onclick="toggleEditForm({{ item.id }})">Cancel</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    {% endif %}
                                     <div class="unit-grid">
                                         {% for unit_number in range(1, item.quantity + 1) %}
                                             {% set completion = item.completions_by_unit.get(unit_number) %}
@@ -321,6 +361,18 @@
     </div>
 
     <script>
+        function toggleEditForm(itemId) {
+            const form = document.getElementById(`edit-row-${itemId}`);
+            if (!form) {
+                return;
+            }
+            const isOpen = form.classList.toggle("open");
+            const triggerButton = document.getElementById(`edit-button-${itemId}`);
+            if (triggerButton) {
+                triggerButton.textContent = isOpen ? "Close edit" : "Edit";
+            }
+        }
+
         async function toggleUnit(button) {
             const wasCompleted = button.classList.contains("completed");
             const itemId = button.dataset.itemId;

@@ -13948,6 +13948,54 @@ def monthly_build_list():
             flash("Table row added.", "success")
             return monthly_build_list_redirect(build_list.id)
 
+        if action == 'edit_item':
+            try:
+                item_id = int(request.form.get('item_id', ''))
+                quantity = int(request.form.get('quantity', ''))
+            except (TypeError, ValueError):
+                flash("Quantity must be a whole number.", "error")
+                return monthly_build_list_redirect(build_list.id)
+
+            item = (
+                MonthlyBuildItem.query
+                .join(MonthlyBuildDeadline)
+                .filter(
+                    MonthlyBuildItem.id == item_id,
+                    MonthlyBuildDeadline.build_list_id == build_list.id,
+                )
+                .first()
+            )
+            model_name = (request.form.get('model_name') or '').strip()
+            size = (request.form.get('size') or '').strip().upper()
+            colour = (request.form.get('colour') or '').strip()
+            if not item or not model_name or not size or not colour:
+                flash("Complete all table details before saving.", "error")
+                return monthly_build_list_redirect(build_list.id)
+            if quantity < 1 or quantity > 200:
+                flash("Quantity must be between 1 and 200.", "error")
+                return monthly_build_list_redirect(build_list.id)
+
+            highest_completed_unit = (
+                db.session.query(func.max(MonthlyBuildCompletion.unit_number))
+                .filter_by(item_id=item.id)
+                .scalar()
+                or 0
+            )
+            if quantity < highest_completed_unit:
+                flash(
+                    f"Untick table {highest_completed_unit} before reducing this row below it.",
+                    "error",
+                )
+                return monthly_build_list_redirect(build_list.id)
+
+            item.model_name = model_name[:100]
+            item.size = size[:20]
+            item.colour = colour[:50]
+            item.quantity = quantity
+            db.session.commit()
+            flash("Table row updated.", "success")
+            return monthly_build_list_redirect(build_list.id)
+
         if action == 'delete_item':
             try:
                 item_id = int(request.form.get('item_id', ''))
