@@ -75,6 +75,46 @@ class RegeneratePackagingTests(unittest.TestCase):
             ),
         )
 
+    def test_regenerate_preserves_single_body_move(self):
+        initial = regenerate_packaging(self.items)
+        body_pallets = [
+            pallet
+            for pallet in initial["pallets"]
+            if pallet["pallet_type"] == "body"
+        ]
+        self.assertEqual([5, 1], [
+            sum(line["quantity"] for line in pallet["lines"])
+            for pallet in body_pallets
+        ])
+
+        source_line = body_pallets[0]["lines"][0]
+        moved_line = copy.deepcopy(source_line)
+        moved_line["id"] = "line-single-body-move"
+        moved_line["quantity"] = 1
+        source_line["quantity"] -= 1
+        body_pallets[1]["lines"].append(moved_line)
+        body_pallets[0]["manual_override"] = True
+        body_pallets[1]["manual_override"] = True
+
+        result = regenerate_packaging(
+            self.items,
+            existing_pallets=initial["pallets"],
+        )
+        regenerated_body_pallets = [
+            pallet
+            for pallet in result["pallets"]
+            if pallet["pallet_type"] == "body"
+        ]
+        self.assertTrue(result["manual_layout_preserved"])
+        self.assertEqual([4, 2], [
+            sum(line["quantity"] for line in pallet["lines"])
+            for pallet in regenerated_body_pallets
+        ])
+        self.assertNotIn(
+            "body_mismatch",
+            {warning["code"] for warning in result["warnings"]},
+        )
+
     def test_regenerate_updates_items_while_replaying_move(self):
         manual_layout = self.manual_layout()
         updated_items = copy.deepcopy(self.items)

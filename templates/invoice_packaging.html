@@ -489,23 +489,33 @@
 
     .line-actions {
         display: grid;
-        grid-template-columns: 80px minmax(130px, 1fr) auto;
+        grid-template-columns: 90px minmax(130px, 1fr) auto;
         gap: 6px;
         margin-top: 8px;
     }
 
-    .line-actions.top-rail-actions {
-        grid-template-columns: 90px minmax(130px, 1fr) auto;
+    .line-actions > :nth-child(1) { grid-column: 1; grid-row: 1; }
+    .line-actions > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    .line-actions > :nth-child(3) { grid-column: 2; grid-row: 2; }
+    .line-actions > :nth-child(4) { grid-column: 3; grid-row: 2; }
+    .line-actions > :nth-child(5) { grid-column: 3; grid-row: 1; }
+
+    .line-control {
+        display: grid;
+        gap: 3px;
+        color: #64748b;
+        font-size: 0.7rem;
+        font-weight: 800;
     }
 
-    .top-rail-actions > :nth-child(1) { grid-column: 1; grid-row: 1; }
-    .top-rail-actions > :nth-child(2) { grid-column: 1; grid-row: 2; }
-    .top-rail-actions > :nth-child(3) { grid-column: 2; grid-row: 2; }
-    .top-rail-actions > :nth-child(4) { grid-column: 3; grid-row: 2; }
-    .top-rail-actions > :nth-child(5) { grid-column: 3; grid-row: 1; }
+    .line-control .cell-input,
+    .line-control .cell-select {
+        min-width: 0;
+        width: 100%;
+    }
 
     @media (max-width: 480px) {
-        .top-rail-actions > * {
+        .line-actions > * {
             grid-column: 1 !important;
             grid-row: auto !important;
         }
@@ -854,7 +864,7 @@
         <div class="panel-heading">
             <div>
                 <h2>3. Packaging List</h2>
-                <p>Move lines, change quantities, add pallets, or delete pallets as required.</p>
+                <p>To move one table, leave Move qty as 1, choose its new pallet, then select Move.</p>
             </div>
         </div>
         <div class="panel-body">
@@ -880,6 +890,11 @@
         leg_box: "Leg box",
         other: "Other"
     };
+
+    function componentQuantityLabel(componentType, quantity) {
+        const label = String(componentLabels[componentType] || "item").toLowerCase();
+        return integerValue(quantity) === 1 ? label : `${label}s`;
+    }
 
     function escapeHtml(value) {
         return String(value ?? "")
@@ -1131,33 +1146,38 @@
             line.po_number ? `PO ${line.po_number}` : "",
             line.description
         ].filter(Boolean).join(" | ");
-        const moveControls = line.component_type === "top_rail"
-            ? `
+        const componentLabel = componentLabels[line.component_type] || line.component_type || "Item";
+        const availableQuantity = Math.max(0, integerValue(line.quantity, 0));
+        const moveDisabled = availableQuantity < 1 ? "disabled" : "";
+        const moveControls = `
+            <label class="line-control">
+                <span>Move qty</span>
                 <input class="cell-input" id="move-quantity-${escapeHtml(line.id)}" type="number" min="1"
-                    max="${integerValue(line.quantity, 0)}" value="${integerValue(line.quantity, 0)}"
-                    aria-label="Top rails to move">
-                <select class="cell-select" id="move-target-${escapeHtml(line.id)}" aria-label="Move top rails to pallet">
+                    max="${availableQuantity}" value="${availableQuantity ? 1 : 0}" ${moveDisabled}
+                    aria-label="${escapeHtml(componentLabel)} quantity to move">
+            </label>
+            <label class="line-control">
+                <span>Move to</span>
+                <select class="cell-select" id="move-target-${escapeHtml(line.id)}" ${moveDisabled} aria-label="Move ${escapeHtml(componentLabel)} to pallet">
                     ${allPalletOptions(pallet.id)}
                 </select>
-                <button type="button" class="small secondary"
-                    onclick="moveTopRails('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})">Move</button>
-            `
-            : `
-                <select class="cell-select" aria-label="Move line target"
-                    onchange="moveLine('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value); this.value='${escapeHtml(pallet.id)}';">
-                    ${allPalletOptions(pallet.id)}
-                </select>
-            `;
+            </label>
+            <button type="button" class="small secondary" ${moveDisabled}
+                onclick="moveAllocation('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})">Move</button>
+        `;
         return `
             <div class="pallet-line ${line.component_type === "top_rail" ? "is-draggable" : ""}"
                 ${line.component_type === "top_rail" ? `draggable="true" ondragstart="startTopRailDrag(event, '${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})" ondragend="endTopRailDrag()"` : ""}>
                 ${carried ? `<span class="on-top-label">Carried on body pallet</span>` : ""}
-                <div class="line-main">${integerValue(line.quantity, 0)} x ${escapeHtml(componentLabels[line.component_type] || line.component_type || "Item")}</div>
+                <div class="line-main">${integerValue(line.quantity, 0)} x ${escapeHtml(componentLabel)}</div>
                 <div class="line-details">${escapeHtml(details || "Manual allocation")}</div>
-                <div class="line-actions ${line.component_type === "top_rail" ? "top-rail-actions" : ""} no-print">
-                    <input class="cell-input" type="number" min="0" value="${integerValue(line.quantity, 0)}"
-                        aria-label="Line quantity"
-                        onchange="changeLineQuantity('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value)">
+                <div class="line-actions no-print">
+                    <label class="line-control">
+                        <span>On pallet</span>
+                        <input class="cell-input" type="number" min="0" value="${integerValue(line.quantity, 0)}"
+                            aria-label="Quantity currently on this pallet"
+                            onchange="changeLineQuantity('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried}, this.value)">
+                    </label>
                     ${moveControls}
                     <button type="button" class="small danger" onclick="removeLine('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})">Remove</button>
                 </div>
@@ -1241,7 +1261,7 @@
         renderPallets();
     }
 
-    function moveTopRails(sourcePalletId, lineId, carried) {
+    function moveAllocation(sourcePalletId, lineId, carried) {
         const quantityInput = document.getElementById(`move-quantity-${lineId}`);
         const targetSelect = document.getElementById(`move-target-${lineId}`);
         if (!quantityInput || !targetSelect) return;
@@ -1294,7 +1314,10 @@
             ? availableQuantity
             : Math.max(0, integerValue(requestedQuantity));
         if (!moveQuantity || moveQuantity > availableQuantity) {
-            setStatus(`Choose between 1 and ${availableQuantity} top rails to move.`, "error");
+            setStatus(
+                `Choose between 1 and ${availableQuantity} ${componentQuantityLabel(result.line.component_type, availableQuantity)} to move.`,
+                "error"
+            );
             return;
         }
 
@@ -1317,6 +1340,10 @@
         target.manual_override = true;
         manualLayoutDirty = true;
         renderPallets();
+        setStatus(
+            `Moved ${moveQuantity} ${componentQuantityLabel(movedLine.component_type, moveQuantity)} to pallet ${target.pallet_number}. Select Save Manual Layout to keep this move.`,
+            "success"
+        );
     }
 
     function removeLine(palletId, lineId, carried) {
