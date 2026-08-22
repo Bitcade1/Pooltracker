@@ -12407,9 +12407,11 @@ def top_rail_dashboard_view():
     limiting_parts = [item for item in parts_data if item["rails_possible"] == min_rails_possible]
 
     deficits_by_size = {"7ft": [], "6ft": []}
+    total_top_rails_behind = 0
     for config in TOP_RAIL_TABLE_STOCK_CONFIGS:
         body_stock = _top_rail_balance_body_stock(config)
         rail_stock = _table_stock_count(config["rail_key"])
+        total_top_rails_behind += max(body_stock - rail_stock, 0)
 
         if body_stock == 0 and rail_stock == 0:
             status_text = "No bodies or rails."
@@ -12550,6 +12552,7 @@ def top_rail_dashboard_view():
         limiting_parts=limiting_parts,
         min_rails_possible=min_rails_possible,
         deficits_by_size=deficits_by_size,
+        total_top_rails_behind=total_top_rails_behind,
         avg_top_rail_time_label=avg_top_rail_time_label,
         avg_top_rail_time=avg_top_rail_time,
         last_month_avg_top_rail_time=last_month_avg_top_rail_time,

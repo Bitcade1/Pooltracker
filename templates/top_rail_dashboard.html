@@ -101,6 +101,19 @@
         border-left: 4px solid #27ae60;
     }
 
+    .stat-card.rail-deficit {
+        border-left: 4px solid #27ae60;
+    }
+
+    .stat-card.rail-deficit.has-shortage {
+        border-left-color: #c62828;
+        background: #ffebee;
+    }
+
+    .stat-card.rail-deficit.has-shortage .stat-value {
+        color: #b71c1c;
+    }
+
     .bonus-panel {
         background: #ffffff;
         border-radius: 10px;
@@ -481,6 +494,10 @@
         <div class="stat-card">
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
+        </div>
+        <div class="stat-card rail-deficit {% if total_top_rails_behind > 0 %}has-shortage{% endif %}">
+            <span class="stat-label">Top Rails Behind Bodies</span>
+            <span class="stat-value">{{ total_top_rails_behind }}</span>
         </div>
         <div class="stat-card next-serial wide">
             <span class="stat-label">Next Serial</span>
