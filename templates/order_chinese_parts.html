@@ -829,9 +829,7 @@
                         <tbody>
                             <tr class="{% if target_table_count is not none and latches_supplier.need_to_order > 0 %}shortage-row{% endif %}">
                                 <td class="part-name">Latch</td>
-                                <td>
-                                    <input class="on-order-input" type="number" id="latches_stock" name="latches_stock" min="0" inputmode="numeric" value="{{ latches_supplier.stock }}" aria-label="Latch stock">
-                                </td>
+                                <td class="{% if latches_supplier.stock < 0 %}stock-negative{% endif %}">{{ latches_supplier.stock }}</td>
                                 <td>
                                     <input class="on-order-input" type="number" id="latches_on_order" name="latches_on_order" min="0" inputmode="numeric" value="{{ latches_supplier.on_order }}" aria-label="Latches saved on order">
                                 </td>

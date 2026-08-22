@@ -16895,7 +16895,8 @@ def order_chinese_parts():
 
     # Fetch latest count for each part
     part_stock = {}
-    for part in list(chinese_parts) + supplemental_parts:
+    inventory_parts = list(chinese_parts) + supplemental_parts + ["Latch"]
+    for part in inventory_parts:
         latest_entry = (
             db.session.query(PrintedPartsCount.count)
             .filter_by(part_name=part)
@@ -16934,7 +16935,6 @@ def order_chinese_parts():
         saved_latches = {}
     saved_arrivals = saved_on_order.get("arrivals", [])
     saved_target_tables = safe_int(saved_on_order.get("last_target_tables"), None)
-    saved_latches_stock = safe_int(saved_latches.get("stock"), 0)
     saved_latches_order_quantity = safe_int(saved_latches.get("order_quantity"), 0)
     saved_latches_on_order = safe_int(saved_latches.get("on_order"), 0)
     saved_latches_order_total = safe_float(
@@ -16951,13 +16951,11 @@ def order_chinese_parts():
     if request.method == 'GET':
         gullies_units_on_order = saved_gullies_units + saved_hidden_gully_units
         target_table_count = saved_target_tables
-        latches_stock = saved_latches_stock
         latches_on_order = saved_latches_on_order
         latches_cost_each = saved_latches_cost_each
     else:
         # On POST, always take the submitted units; if blank/invalid, default to 0
         gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
-        latches_stock = safe_int(request.form.get('latches_stock'), saved_latches_stock)
         latches_on_order = safe_int(
             request.form.get('latches_on_order'),
             saved_latches_on_order,
@@ -16967,6 +16965,8 @@ def order_chinese_parts():
         if action and action.startswith('paid_all:'):
             paid_all_supplier = action.split(':', 1)[1]
             action = 'paid_all'
+
+    latches_stock = part_stock.get("Latch", 0)
 
     # Pull "on order" quantities from the form (default to saved), using a single input for gullies (tables' worth)
     part_on_order = {}
