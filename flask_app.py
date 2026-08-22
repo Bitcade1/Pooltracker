@@ -16936,6 +16936,7 @@ def order_chinese_parts():
     saved_target_tables = safe_int(saved_on_order.get("last_target_tables"), None)
     saved_latches_stock = safe_int(saved_latches.get("stock"), 0)
     saved_latches_order_quantity = safe_int(saved_latches.get("order_quantity"), 0)
+    saved_latches_on_order = safe_int(saved_latches.get("on_order"), 0)
     saved_latches_order_total = safe_float(
         saved_latches.get("order_total"),
         safe_float(saved_payments.get("latches", {}).get("order_total") if isinstance(saved_payments.get("latches"), dict) else 0.0),
@@ -16951,11 +16952,16 @@ def order_chinese_parts():
         gullies_units_on_order = saved_gullies_units + saved_hidden_gully_units
         target_table_count = saved_target_tables
         latches_stock = saved_latches_stock
+        latches_on_order = saved_latches_on_order
         latches_cost_each = saved_latches_cost_each
     else:
         # On POST, always take the submitted units; if blank/invalid, default to 0
         gullies_units_on_order = safe_int(request.form.get('gullies_on_order_units'), 0)
         latches_stock = safe_int(request.form.get('latches_stock'), saved_latches_stock)
+        latches_on_order = safe_int(
+            request.form.get('latches_on_order'),
+            saved_latches_on_order,
+        )
         latches_cost_each = safe_float(request.form.get('latches_cost_each'), saved_latches_cost_each)
         action = request.form.get('action')
         if action and action.startswith('paid_all:'):
@@ -17160,22 +17166,31 @@ def order_chinese_parts():
     if gullies_per_table:
         max_tables_possible_candidates.append(gullies_can_build)
         max_tables_possible_candidates_with_on_order.append(gullies_can_build_total)
-    max_tables_possible = min(max_tables_possible_candidates) if max_tables_possible_candidates else 0
-    max_tables_possible_with_on_order = min(max_tables_possible_candidates_with_on_order) if max_tables_possible_candidates_with_on_order else 0
     metal_total_order_cost = sum(row.get("order_cost") or 0.0 for row in metal_parts)
     plastic_total_order_cost = 0.0
     for row in plastic_rows:
         data = row.get("data", {})
         plastic_total_order_cost += data.get("order_cost") or 0.0
+    latches_total_available = latches_stock + latches_on_order
     latches_required = target_table_count * latches_per_table if target_table_count is not None else None
-    latches_need_to_order = max(0, latches_required - latches_stock) if latches_required is not None else None
+    latches_need_to_order = max(0, latches_required - latches_total_available) if latches_required is not None else None
     latches_order_quantity = latches_need_to_order if latches_need_to_order is not None else 0
     latches_order_total = latches_order_quantity * latches_cost_each
     combined_total_order_cost = total_order_cost + latches_order_total
+    if latches_per_table:
+        max_tables_possible_candidates.append(latches_stock // latches_per_table)
+        max_tables_possible_candidates_with_on_order.append(
+            latches_total_available // latches_per_table
+        )
+    max_tables_possible = min(max_tables_possible_candidates) if max_tables_possible_candidates else 0
+    max_tables_possible_with_on_order = min(max_tables_possible_candidates_with_on_order) if max_tables_possible_candidates_with_on_order else 0
     latches_supplier = {
         "stock": latches_stock,
+        "on_order": latches_on_order,
+        "total_available": latches_total_available,
         "per_table": latches_per_table,
         "required": latches_required,
+        "can_build": latches_total_available // latches_per_table if latches_per_table else 0,
         "can_build_now": latches_stock // latches_per_table if latches_per_table else 0,
         "need_to_order": latches_need_to_order,
         "order_quantity": latches_order_quantity,

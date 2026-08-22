@@ -815,6 +815,8 @@
                             <tr>
                                 <th>Part</th>
                                 <th>Stock</th>
+                                <th>Saved On Order</th>
+                                <th>Total Available</th>
                                 <th>Per Table</th>
                                 <th>Can Build</th>
                                 <th>Cost Each</th>
@@ -830,11 +832,15 @@
                                 <td>
                                     <input class="on-order-input" type="number" id="latches_stock" name="latches_stock" min="0" inputmode="numeric" value="{{ latches_supplier.stock }}" aria-label="Latch stock">
                                 </td>
+                                <td>
+                                    <input class="on-order-input" type="number" id="latches_on_order" name="latches_on_order" min="0" inputmode="numeric" value="{{ latches_supplier.on_order }}" aria-label="Latches saved on order">
+                                </td>
+                                <td>{{ latches_supplier.total_available }}</td>
                                 <td>{{ latches_supplier.per_table }}</td>
                                 <td>
                                     <span class="build-stack">
-                                        <span class="build-value">{{ latches_supplier.can_build_now }}</span>
-                                        <span class="muted">from stock</span>
+                                        <span class="build-value">{{ latches_supplier.can_build }}</span>
+                                        <span class="muted">now: {{ latches_supplier.can_build_now }}</span>
                                     </span>
                                 </td>
                                 <td>
