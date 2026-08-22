@@ -285,42 +285,6 @@
             font-size: 1.15rem;
         }
 
-        .manual-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 12px;
-            align-items: end;
-        }
-
-        .manual-field label {
-            display: block;
-            margin-bottom: 6px;
-            color: #334155;
-            font-weight: 700;
-        }
-
-        .manual-total {
-            min-height: 74px;
-            padding: 12px;
-            border: 1px solid #dce3ec;
-            border-radius: 8px;
-            background: #f8fafc;
-        }
-
-        .manual-total span {
-            display: block;
-            margin-bottom: 8px;
-            color: #64748b;
-            font-size: 0.78rem;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
-        .manual-total strong {
-            color: #111827;
-            font-size: 1.35rem;
-        }
-
         .table-wrap {
             width: 100%;
             max-width: 100%;
@@ -569,8 +533,7 @@
             }
 
             .target-row,
-            .summary-grid,
-            .manual-grid {
+            .summary-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -837,38 +800,55 @@
                 <div class="section-header">
                     <div>
                         <h2>Latches Supplier</h2>
-                        <p class="section-subtitle">Uses 12 latches per table. Enter stock and cost each.</p>
+                        <p class="section-subtitle">Current stock, unit cost, and shortages for latches.</p>
                     </div>
+                    {% if target_table_count is not none %}
                     <div class="supplier-total">
                         <span>Order Cost</span>
                         <strong>&pound;{{ latches_supplier.order_total|format_number }}</strong>
                     </div>
+                    {% endif %}
                 </div>
-                <div class="manual-grid">
-                    <div class="manual-field">
-                        <label for="latches_stock">Stock</label>
-                        <input type="number" id="latches_stock" name="latches_stock" min="0" inputmode="numeric" value="{{ latches_supplier.stock }}">
-                    </div>
-                    <div class="manual-field">
-                        <label for="latches_cost_each">Cost each ex VAT</label>
-                        <input type="number" id="latches_cost_each" name="latches_cost_each" min="0" step="0.01" value="{{ '%.2f'|format(latches_supplier.cost_each or 0) }}">
-                    </div>
-                    <div class="manual-total">
-                        <span>Per Table</span>
-                        <strong>{{ latches_supplier.per_table }}</strong>
-                    </div>
-                    <div class="manual-total">
-                        <span>Can Build</span>
-                        <strong>{{ latches_supplier.can_build_now }}</strong>
-                    </div>
-                    <div class="manual-total">
-                        <span>Need to Order</span>
-                        <strong>{{ latches_supplier.need_to_order if latches_supplier.need_to_order is not none else '-' }}</strong>
-                    </div>
-                    <div class="manual-total">
-                        <span>Order Cost</span>
-                        <strong>&pound;{{ latches_supplier.order_total|format_number }}</strong>
-                    </div>
+                <div class="table-wrap">
+                    <table class="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>Part</th>
+                                <th>Stock</th>
+                                <th>Per Table</th>
+                                <th>Can Build</th>
+                                <th>Cost Each</th>
+                                {% if target_table_count is not none %}
+                                <th>Need to Order</th>
+                                <th>Order Cost</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="{% if target_table_count is not none and latches_supplier.need_to_order > 0 %}shortage-row{% endif %}">
+                                <td class="part-name">Latch</td>
+                                <td>
+                                    <input class="on-order-input" type="number" id="latches_stock" name="latches_stock" min="0" inputmode="numeric" value="{{ latches_supplier.stock }}" aria-label="Latch stock">
+                                </td>
+                                <td>{{ latches_supplier.per_table }}</td>
+                                <td>
+                                    <span class="build-stack">
+                                        <span class="build-value">{{ latches_supplier.can_build_now }}</span>
+                                        <span class="muted">from stock</span>
+                                    </span>
+                                </td>
+                                <td>
+                                    <input class="money-input" type="number" id="latches_cost_each" name="latches_cost_each" min="0" step="0.01" value="{{ '%.2f'|format(latches_supplier.cost_each or 0) }}" aria-label="Latch cost each excluding VAT">
+                                </td>
+                                {% if target_table_count is not none %}
+                                <td>
+                                    <span class="qty-pill {% if latches_supplier.need_to_order > 0 %}qty-warning{% else %}qty-ok{% endif %}">{{ latches_supplier.need_to_order }}</span>
+                                </td>
+                                <td>&pound;{{ latches_supplier.order_total|format_number }}</td>
+                                {% endif %}
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
