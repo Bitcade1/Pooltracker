@@ -3143,7 +3143,10 @@ def dashboard():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    today = datetime.utcnow().date()
+    CushionCompletedSet.__table__.create(db.engine, checkfirst=True)
+
+    now = london_now()
+    today = now.date()
     start_of_week = today - timedelta(days=today.weekday())
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
@@ -3168,6 +3171,19 @@ def dashboard():
     pods_week = get_count(CompletedPods, start_of_week)
     pods_month = get_count(CompletedPods, start_of_month)
     pods_year = get_count(CompletedPods, start_of_year)
+
+    def get_cushion_count(start_date=None):
+        query = CushionCompletedSet.query
+        if start_date:
+            query = query.filter(
+                CushionCompletedSet.completed_at >= datetime.combine(start_date, time.min)
+            )
+        return query.count()
+
+    cushions_today = get_cushion_count(today)
+    cushions_week = get_cushion_count(start_of_week)
+    cushions_month = get_cushion_count(start_of_month)
+    cushions_year = get_cushion_count(start_of_year)
 
     def get_wood_count(section, start_date=None):
         query = WoodCount.query.filter_by(section=section)
@@ -3247,11 +3263,21 @@ def dashboard():
         first_month = shift_month(current_month_start, -months_back)
         month_starts = [shift_month(first_month, i) for i in range(total_months)]
 
-    def monthly_counts(model):
+    def monthly_counts(model, date_column=None):
+        date_column = date_column if date_column is not None else model.date
         counts = []
         for idx, start_date in enumerate(month_starts):
             end_date = month_starts[idx + 1] if idx + 1 < len(month_starts) else shift_month(start_date, 1)
-            total = model.query.filter(model.date >= start_date, model.date < end_date).count()
+            if isinstance(date_column.type, db.DateTime):
+                range_start = datetime.combine(start_date, time.min)
+                range_end = datetime.combine(end_date, time.min)
+            else:
+                range_start = start_date
+                range_end = end_date
+            total = model.query.filter(
+                date_column >= range_start,
+                date_column < range_end
+            ).count()
             counts.append(total)
         return counts
 
@@ -3259,38 +3285,58 @@ def dashboard():
     chart_data_pods = monthly_counts(CompletedPods)
     chart_data_bodies = monthly_counts(CompletedTable)
     chart_data_top_rails = monthly_counts(TopRail)
+    chart_data_cushions = monthly_counts(
+        CushionCompletedSet,
+        CushionCompletedSet.completed_at
+    )
+
+    stats = {
+        "pods": {
+            "today": pods_today,
+            "week": pods_week,
+            "month": pods_month,
+            "year": pods_year,
+        },
+        "bodies": {
+            "today": bodies_today,
+            "week": bodies_week,
+            "month": bodies_month,
+            "year": bodies_year,
+        },
+        "top_rails": {
+            "today": top_rails_today,
+            "week": top_rails_week,
+            "month": top_rails_month,
+            "year": top_rails_year,
+        },
+        "cushions": {
+            "today": cushions_today,
+            "week": cushions_week,
+            "month": cushions_month,
+            "year": cushions_year,
+        },
+    }
+    summary = {
+        period: sum(area[period] for area in stats.values())
+        for period in ("today", "week", "month", "year")
+    }
 
     return render_template(
         'dashboard.html',
-        stats={
-            "top_rails": {
-                "today": top_rails_today,
-                "week": top_rails_week,
-                "month": top_rails_month,
-                "year": top_rails_year,
-            },
-            "bodies": {
-                "today": bodies_today,
-                "week": bodies_week,
-                "month": bodies_month,
-                "year": bodies_year,
-            },
-            "pods": {
-                "today": pods_today,
-                "week": pods_week,
-                "month": pods_month,
-                "year": pods_year,
-            },
-        },
+        stats=stats,
+        summary=summary,
         chart_labels=chart_labels,
         chart_pods=chart_data_pods,
         chart_bodies=chart_data_bodies,
         chart_top_rails=chart_data_top_rails,
+        chart_cushions=chart_data_cushions,
+        chart_range_label=f"{chart_labels[0]} to {chart_labels[-1]}",
         months_back=months_back,
         months_forward=months_forward,
         start_month=start_month_arg.strftime("%Y-%m") if start_month_arg else "",
         end_month=end_month_arg.strftime("%Y-%m") if end_month_arg else "",
-        wood_counts=wood_counts
+        wood_counts=wood_counts,
+        updated_at=now.strftime("%d %b %Y, %H:%M")
     )
 
 

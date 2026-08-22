@@ -7,288 +7,680 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        :root {
+            --page: #08111f;
+            --panel-soft: #142238;
+            --border: rgba(148, 163, 184, 0.16);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --blue: #38bdf8;
+            --purple: #a78bfa;
+            --amber: #fbbf24;
+            --green: #34d399;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            background: linear-gradient(135deg, #0f172a 0%, #1f2937 35%, #0b1021 100%);
-            color: #e5e7eb;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: block;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+            background:
+                radial-gradient(circle at 10% 0%, rgba(14, 165, 233, 0.12), transparent 32rem),
+                radial-gradient(circle at 95% 18%, rgba(139, 92, 246, 0.1), transparent 30rem),
+                var(--page);
+            color: var(--text);
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
         }
-        .container {
-            max-width: 1200px;
+
+        a { color: inherit; }
+
+        .dashboard-shell {
+            width: min(1380px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 30px 16px 80px;
+            padding: 24px 0 56px;
         }
-        .hero {
-            background: linear-gradient(135deg, #1d4ed8, #2563eb, #1e40af);
-            border-radius: 16px;
-            padding: 18px 20px;
-            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.35);
+
+        .topbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 18px;
         }
-        .hero h1 {
-            margin: 0;
-            font-size: 2rem;
-            letter-spacing: 0.02em;
-        }
-        .hero p {
-            margin: 0;
-            color: #e0e7ff;
-        }
-        .range-form {
+
+        .brand {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 11px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.13em;
+            text-transform: uppercase;
+        }
+
+        .brand-mark {
+            display: grid;
+            width: 34px;
+            height: 34px;
+            place-items: center;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 10px;
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--blue);
+            letter-spacing: 0;
+        }
+
+        .topnav {
+            display: flex;
+            gap: 8px;
             flex-wrap: wrap;
-            color: #e5e7eb;
+            justify-content: flex-end;
         }
-        .range-form label {
-            font-size: 0.9rem;
-            color: #e5e7eb;
+
+        .nav-link, .area-link, .reset-link {
+            border-radius: 9px;
+            text-decoration: none;
+            transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
         }
-        .range-form input {
-            width: 70px;
-            padding: 6px 8px;
-            border-radius: 8px;
-            border: 1px solid #3b82f6;
-            background: #0f172a;
-            color: #e5e7eb;
+
+        .nav-link {
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            color: #cbd5e1;
+            font-size: 0.84rem;
+            font-weight: 700;
         }
-        .range-form input[type="month"] {
-            width: 150px;
+
+        .nav-link:hover {
+            border-color: rgba(56, 189, 248, 0.45);
+            background: rgba(56, 189, 248, 0.08);
+            color: #fff;
         }
-        .range-form button {
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: none;
-            background: #f59e0b;
-            color: #0b1021;
+
+        .hero {
+            position: relative;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 24px;
+            overflow: hidden;
+            padding: 30px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 22px;
+            background: linear-gradient(125deg, rgba(14, 116, 144, 0.32), rgba(30, 41, 59, 0.86) 48%, rgba(67, 56, 202, 0.24));
+            box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            right: -100px;
+            bottom: -130px;
+            width: 340px;
+            height: 340px;
+            border-radius: 50%;
+            background: rgba(56, 189, 248, 0.09);
+            pointer-events: none;
+        }
+
+        .eyebrow {
+            margin: 0 0 8px;
+            color: #7dd3fc;
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .hero h1 {
+            margin: 0;
+            color: #fff;
+            font-size: clamp(2rem, 5vw, 3.25rem);
+            line-height: 1.02;
+            letter-spacing: -0.045em;
+        }
+
+        .hero-copy {
+            max-width: 650px;
+            margin: 13px 0 0;
+            color: #cbd5e1;
+            font-size: 1rem;
+            line-height: 1.55;
+        }
+
+        .hero-total {
+            z-index: 1;
+            min-width: 180px;
+            align-self: center;
+            padding: 18px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 16px;
+            background: rgba(8, 17, 31, 0.48);
+            backdrop-filter: blur(10px);
+        }
+
+        .hero-total-label {
+            display: block;
+            color: #a5f3fc;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+        }
+
+        .hero-total-value {
+            display: block;
+            margin-top: 4px;
+            font-size: 2.65rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        .hero-total-meta {
+            display: block;
+            margin-top: 7px;
+            color: var(--muted);
+            font-size: 0.75rem;
+        }
+
+        .section-heading {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 18px;
+            margin: 30px 0 12px;
+        }
+
+        .section-heading h2, .chart-toolbar h2 {
+            margin: 0;
+            color: var(--text);
+            font-size: 1.2rem;
+            letter-spacing: -0.02em;
+        }
+
+        .section-heading p, .chart-toolbar p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        .summary-strip {
+            display: flex;
+            gap: 18px;
+            color: var(--muted);
+            font-size: 0.78rem;
+            white-space: nowrap;
+        }
+
+        .summary-strip strong {
+            margin-left: 5px;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+        }
+
+        .production-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .area-card {
+            --accent: var(--blue);
+            position: relative;
+            overflow: hidden;
+            min-width: 0;
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 17px;
+            background: linear-gradient(145deg, rgba(20, 34, 56, 0.96), rgba(12, 23, 40, 0.96));
+            box-shadow: 0 14px 35px rgba(0, 0, 0, 0.16);
+        }
+
+        .area-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 3px;
+            background: var(--accent);
+        }
+
+        .area-card.pods { --accent: var(--blue); }
+        .area-card.bodies { --accent: var(--purple); }
+        .area-card.top-rails { --accent: var(--amber); }
+        .area-card.cushions { --accent: var(--green); }
+
+        .area-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .area-name {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 0;
+            color: #f8fafc;
+            font-size: 1rem;
+        }
+
+        .area-dot {
+            width: 9px;
+            height: 9px;
+            flex: 0 0 auto;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 14px var(--accent);
+        }
+
+        .area-link {
+            padding: 5px 7px;
+            color: var(--muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .area-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .primary-stat { margin: 22px 0 17px; }
+
+        .primary-stat strong {
+            display: block;
+            color: #fff;
+            font-size: 2.65rem;
+            line-height: 0.9;
+            letter-spacing: -0.05em;
+        }
+
+        .primary-stat span {
+            display: block;
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .period-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 6px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .period-stat { min-width: 0; }
+
+        .period-stat span {
+            display: block;
+            overflow: hidden;
+            color: var(--muted);
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .period-stat strong {
+            display: block;
+            margin-top: 3px;
+            color: #e2e8f0;
+            font-size: 1.05rem;
+        }
+
+        .chart-panel {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: rgba(12, 23, 40, 0.88);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.2);
+        }
+
+        .chart-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .chart-toolbar p { font-size: 0.8rem; }
+
+        .range-toggle {
+            flex: 0 0 auto;
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            background: var(--panel-soft);
+            color: #e2e8f0;
+            font-size: 0.78rem;
             font-weight: 700;
             cursor: pointer;
         }
-        .cards {
-            margin-top: 18px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 12px;
-        }
-        .card {
-            background: #0f172a;
-            border: 1px solid #1f2937;
+
+        .range-toggle:hover { border-color: rgba(56, 189, 248, 0.4); }
+
+        .range-panel {
+            margin-bottom: 14px;
+            padding: 14px;
+            border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 14px 16px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+            background: rgba(20, 34, 56, 0.62);
         }
-        .card h3 {
-            margin: 0 0 8px 0;
-            font-size: 0.95rem;
-            color: #9ca3af;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+
+        .range-form {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(120px, 1fr)) auto auto;
+            align-items: end;
+            gap: 10px;
+            margin: 0;
         }
-        .card .value {
-            font-size: 2rem;
+
+        .range-form label {
+            color: var(--muted);
+            font-size: 0.7rem;
             font-weight: 700;
-            color: #f9fafb;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
-        .chart-panel {
-            margin-top: 24px;
-            background: #0b1222;
-            border-radius: 16px;
-            padding: 16px;
-            border: 1px solid #1f2937;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+
+        .range-form input {
+            width: 100%;
+            height: 39px;
+            margin-top: 6px;
+            padding: 7px 9px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #0a1526;
+            color: #e2e8f0;
+            color-scheme: dark;
         }
-        .chart-panel h2 {
-            margin: 0 0 10px 0;
-            font-size: 1.35rem;
-            color: #e5e7eb;
+
+        .range-form button, .reset-link {
+            display: inline-grid;
+            height: 39px;
+            margin: 0;
+            place-items: center;
+            padding: 0 14px;
+            border: 1px solid #0284c7;
+            border-radius: 8px;
+            background: #0284c7;
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
         }
-        .chart-panel p {
-            margin: 0 0 10px 0;
-            color: #9ca3af;
+
+        .range-form button:hover { background: #0369a1; }
+
+        .reset-link {
+            border-color: var(--border);
+            background: transparent;
+            color: #cbd5e1;
         }
+
+        .reset-link:hover {
+            border-color: rgba(148, 163, 184, 0.36);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
         .chart-holder {
             position: relative;
-            height: 360px;
             width: 100%;
+            height: 390px;
+            padding: 4px 0 0;
         }
-        canvas {
-            background: #0f172a;
-            border-radius: 12px;
-            padding: 10px;
+
+        .chart-fallback {
+            display: none;
+            place-items: center;
+            height: 100%;
+            color: var(--muted);
+            text-align: center;
         }
-        @media (max-width: 720px) {
-            .hero {
-                flex-direction: column;
+
+        @media (max-width: 1050px) {
+            .production-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .range-form { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+        }
+
+        @media (max-width: 680px) {
+            .dashboard-shell {
+                width: min(100% - 20px, 1380px);
+                padding-top: 12px;
+            }
+
+            .topbar, .section-heading, .chart-toolbar {
                 align-items: flex-start;
+                flex-direction: column;
             }
-            .hero h1 {
-                font-size: 1.6rem;
+
+            .topnav {
+                width: 100%;
+                justify-content: flex-start;
             }
-            .card .value {
-                font-size: 1.6rem;
+
+            .hero {
+                grid-template-columns: 1fr;
+                padding: 23px 20px;
             }
+
+            .hero-total {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .summary-strip { white-space: normal; }
+            .production-grid, .range-form { grid-template-columns: 1fr; }
+            .range-form button, .reset-link { width: 100%; }
+            .chart-panel { padding: 16px 12px; }
+            .chart-holder { height: 330px; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="hero">
+    {% set production_areas = [
+        ('pods', 'Pods', stats.pods, 'pod_dashboard_view'),
+        ('bodies', 'Bodies', stats.bodies, 'body_dashboard_view'),
+        ('top-rails', 'Top Rails', stats.top_rails, 'top_rail_dashboard_view'),
+        ('cushions', 'Cushion Sets', stats.cushions, 'counting_cushions')
+    ] %}
+
+    <main class="dashboard-shell">
+        <header class="topbar">
+            <div class="brand">
+                <span class="brand-mark">PT</span>
+                Pool Table Tracker
+            </div>
+            <nav class="topnav" aria-label="Dashboard navigation">
+                <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+                <a class="nav-link" href="{{ url_for('production_comparison') }}">Compare Production</a>
+                <a class="nav-link" href="{{ url_for('counting_cushions') }}">Cushion Production</a>
+            </nav>
+        </header>
+
+        <section class="hero">
             <div>
+                <p class="eyebrow">Live production overview</p>
                 <h1>Production Dashboard</h1>
-                <p>Pods, Bodies and Top Rails — last 12 months</p>
+                <p class="hero-copy">A clear view of completed pods, bodies, top rails, and cushion sets across every key reporting period.</p>
             </div>
-            <form class="range-form" method="get">
-                <label>Months back
-                    <input type="number" name="months_back" min="0" max="36" value="{{ months_back }}">
-                </label>
-                <label>Months forward
-                    <input type="number" name="months_forward" min="0" max="12" value="{{ months_forward }}">
-                </label>
-                <label>Start month
-                    <input type="month" name="start_month" value="{{ start_month }}">
-                </label>
-                <label>End month
-                    <input type="month" name="end_month" value="{{ end_month }}">
-                </label>
-                <button type="submit">Update</button>
-            </form>
-        </div>
+            <div class="hero-total" aria-label="Total items completed today">
+                <span class="hero-total-label">Completed today</span>
+                <strong class="hero-total-value">{{ summary.today }}</strong>
+                <span class="hero-total-meta">Updated {{ updated_at }}</span>
+            </div>
+        </section>
 
-        <div class="cards">
-            <div class="card">
-                <h3>Pods Today</h3>
-                <div class="value">{{ stats.pods.today }}</div>
+        <div class="section-heading">
+            <div>
+                <h2>Production at a glance</h2>
+                <p>Completed units recorded by each production area.</p>
             </div>
-            <div class="card">
-                <h3>Pods This Month</h3>
-                <div class="value">{{ stats.pods.month }}</div>
-            </div>
-            <div class="card">
-                <h3>Bodies Today</h3>
-                <div class="value">{{ stats.bodies.today }}</div>
-            </div>
-            <div class="card">
-                <h3>Bodies This Month</h3>
-                <div class="value">{{ stats.bodies.month }}</div>
-            </div>
-            <div class="card">
-                <h3>Top Rails Today</h3>
-                <div class="value">{{ stats.top_rails.today }}</div>
-            </div>
-            <div class="card">
-                <h3>Top Rails This Month</h3>
-                <div class="value">{{ stats.top_rails.month }}</div>
+            <div class="summary-strip" aria-label="Combined production totals">
+                <span>This week <strong>{{ summary.week }}</strong></span>
+                <span>This month <strong>{{ summary.month }}</strong></span>
             </div>
         </div>
 
-        <div class="chart-panel">
-            <h2>Last 12 Months by Element</h2>
-            <p>Monthly totals for pods, bodies, and top rails.</p>
+        <section class="production-grid" aria-label="Production totals by area">
+            {% for card_class, label, area, route_name in production_areas %}
+                <article class="area-card {{ card_class }}">
+                    <div class="area-header">
+                        <h3 class="area-name"><span class="area-dot"></span>{{ label }}</h3>
+                        <a class="area-link" href="{{ url_for(route_name) }}">View area &rarr;</a>
+                    </div>
+                    <div class="primary-stat">
+                        <strong>{{ area.today }}</strong>
+                        <span>Today</span>
+                    </div>
+                    <div class="period-stats">
+                        <div class="period-stat">
+                            <span>Week</span>
+                            <strong>{{ area.week }}</strong>
+                        </div>
+                        <div class="period-stat">
+                            <span>Month</span>
+                            <strong>{{ area.month }}</strong>
+                        </div>
+                        <div class="period-stat">
+                            <span>Year</span>
+                            <strong>{{ area.year }}</strong>
+                        </div>
+                    </div>
+                </article>
+            {% endfor %}
+        </section>
+
+        <section class="chart-panel">
+            <div class="chart-toolbar">
+                <div>
+                    <h2>Monthly production trend</h2>
+                    <p>{{ chart_range_label }}. Select any legend item to show or hide it.</p>
+                </div>
+                <button class="range-toggle" type="button" id="range-toggle" aria-expanded="{{ 'true' if start_month or end_month else 'false' }}" aria-controls="range-panel">Change date range</button>
+            </div>
+
+            <div class="range-panel" id="range-panel" {% if not start_month and not end_month %}hidden{% endif %}>
+                <form class="range-form" method="get">
+                    <label>Months back
+                        <input type="number" name="months_back" min="0" max="36" value="{{ months_back }}">
+                    </label>
+                    <label>Months forward
+                        <input type="number" name="months_forward" min="0" max="12" value="{{ months_forward }}">
+                    </label>
+                    <label>Start month
+                        <input type="month" name="start_month" value="{{ start_month }}">
+                    </label>
+                    <label>End month
+                        <input type="month" name="end_month" value="{{ end_month }}">
+                    </label>
+                    <button type="submit">Update chart</button>
+                    <a class="reset-link" href="{{ url_for('dashboard') }}">Reset</a>
+                </form>
+            </div>
+
             <div class="chart-holder">
-                <canvas id="productionChart"></canvas>
+                <canvas id="productionChart" aria-label="Monthly production totals chart" role="img"></canvas>
+                <div class="chart-fallback" id="chart-fallback">The chart could not be loaded. The production totals above are still up to date.</div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
     <script>
+        const rangeToggle = document.getElementById('range-toggle');
+        const rangePanel = document.getElementById('range-panel');
+
+        rangeToggle.addEventListener('click', () => {
+            const willOpen = rangePanel.hidden;
+            rangePanel.hidden = !willOpen;
+            rangeToggle.setAttribute('aria-expanded', String(willOpen));
+        });
+
         const labels = {{ chart_labels|tojson }};
-        const podsData = {{ chart_pods|tojson }};
-        const bodiesData = {{ chart_bodies|tojson }};
-        const topRailsData = {{ chart_top_rails|tojson }};
+        const datasets = [
+            { label: 'Pods', data: {{ chart_pods|tojson }}, color: '#38bdf8' },
+            { label: 'Bodies', data: {{ chart_bodies|tojson }}, color: '#a78bfa' },
+            { label: 'Top Rails', data: {{ chart_top_rails|tojson }}, color: '#fbbf24' },
+            { label: 'Cushion Sets', data: {{ chart_cushions|tojson }}, color: '#34d399' }
+        ];
 
-        const ctx = document.getElementById('productionChart');
-        const gradientPlugin = {
-            id: 'customGradient',
-            beforeDatasetsDraw(chart) {
-                const {ctx, chartArea} = chart;
-                if (!chartArea) return;
-                chart.data.datasets.forEach((dataset, idx) => {
-                    const colorStops = [
-                        ['#22d3ee', '#0ea5e9'], // pods
-                        ['#a855f7', '#7c3aed'], // bodies
-                        ['#f59e0b', '#d97706']  // top rails
-                    ];
-                    const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                    const stops = colorStops[idx] || ['#22d3ee', '#0ea5e9'];
-                    g.addColorStop(0, stops[0]);
-                    g.addColorStop(1, stops[1]);
-                    dataset.borderColor = stops[1];
-                    dataset.backgroundColor = g;
-                });
-            }
-        };
-
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Pods',
-                        data: podsData,
-                        tension: 0.35,
-                        fill: false,
-                        borderWidth: 3,
-                        pointRadius: 4,
-                        pointHoverRadius: 6
+        if (typeof Chart === 'undefined') {
+            document.getElementById('productionChart').style.display = 'none';
+            document.getElementById('chart-fallback').style.display = 'grid';
+        } else {
+            new Chart(document.getElementById('productionChart'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: datasets.map((series) => ({
+                        label: series.label,
+                        data: series.data,
+                        borderColor: series.color,
+                        backgroundColor: series.color,
+                        pointBackgroundColor: '#0c1728',
+                        pointBorderColor: series.color,
+                        pointBorderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        borderWidth: 2.5,
+                        tension: 0.3,
+                        fill: false
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            align: 'start',
+                            labels: {
+                                color: '#cbd5e1',
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                boxWidth: 8,
+                                boxHeight: 8,
+                                padding: 18
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#17243a',
+                            borderColor: 'rgba(148, 163, 184, 0.25)',
+                            borderWidth: 1,
+                            padding: 11,
+                            callbacks: {
+                                label: (context) => ` ${context.dataset.label}: ${context.parsed.y}`
+                            }
+                        }
                     },
-                    {
-                        label: 'Bodies',
-                        data: bodiesData,
-                        tension: 0.35,
-                        fill: false,
-                        borderWidth: 3,
-                        pointRadius: 4,
-                        pointHoverRadius: 6
-                    },
-                    {
-                        label: 'Top Rails',
-                        data: topRailsData,
-                        tension: 0.35,
-                        fill: false,
-                        borderWidth: 3,
-                        pointRadius: 4,
-                        pointHoverRadius: 6
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        labels: { color: '#e5e7eb', boxWidth: 14 }
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        callbacks: {
-                            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`
+                    scales: {
+                        x: {
+                            ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 0 },
+                            grid: { display: false },
+                            border: { color: 'rgba(148, 163, 184, 0.15)' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8', precision: 0 },
+                            grid: { color: 'rgba(148, 163, 184, 0.09)' },
+                            border: { display: false }
                         }
                     }
-                },
-                interaction: {
-                    mode: 'nearest',
-                    intersect: false
-                },
-                scales: {
-                    x: {
-                        ticks: { color: '#9ca3af' },
-                        grid: { color: 'rgba(148, 163, 184, 0.1)' }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: '#9ca3af' },
-                        grid: { color: 'rgba(148, 163, 184, 0.1)' }
-                    }
                 }
-            },
-            plugins: [gradientPlugin]
-        });
+            });
+        }
     </script>
 </body>
 </html>
