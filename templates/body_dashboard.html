@@ -118,6 +118,13 @@
         color: #15803d;
     }
 
+    .stat-card .stat-goal-daily {
+        color: #075985;
+        font-size: clamp(1rem, 1.6vw, 1.35rem);
+        font-weight: 900;
+        line-height: 1.1;
+    }
+
     .stat-card.highlight {
         border-left: 4px solid #27ae60;
     }
@@ -1055,6 +1062,9 @@
                 {% else %}
                     <span class="stat-goal">{{ combined_body_goal.remaining }} needed for combined goal of {{ combined_body_goal.target }}</span>
                 {% endif %}
+                <span class="stat-goal-daily" title="{{ combined_body_goal.remaining_workdays }} working days remaining">
+                    Combined pace needed: {{ combined_body_goal.needed_per_day }} tables/day
+                </span>
             {% endif %}
         </div>
         <div class="stat-card">

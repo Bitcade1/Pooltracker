@@ -13162,6 +13162,20 @@ def body_dashboard_view():
         today,
         excluded_dates=body_bank_holidays,
     )
+    if combined_body_goal:
+        combined_remaining = combined_body_goal["remaining"]
+        if combined_remaining <= 0:
+            combined_needed_per_day_display = "0"
+        elif remaining_body_workdays <= 0:
+            combined_needed_per_day_display = "N/A"
+        else:
+            combined_needed_per_day = combined_remaining / remaining_body_workdays
+            combined_needed_per_day = ceil(combined_needed_per_day * 10) / 10
+            combined_needed_per_day_display = (
+                f"{combined_needed_per_day:.1f}".rstrip("0").rstrip(".")
+            )
+        combined_body_goal["needed_per_day"] = combined_needed_per_day_display
+        combined_body_goal["remaining_workdays"] = remaining_body_workdays
     for goal in bonus_progress:
         goal_workdays = remaining_body_workdays
         if goal.get("next_bonus"):
