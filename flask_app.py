@@ -1499,17 +1499,19 @@ def cnc_elapsed_workdays(current_time=None):
     return completed_weekdays + (max(elapsed_hours, 0) / 7.5)
 
 
-def cnc_remaining_work_hours(current_time=None):
+def cnc_remaining_work_hours(current_time=None, excluded_dates=None):
     current_time = current_time or london_now()
     current_date = current_time.date()
+    excluded_dates = set(excluded_dates or [])
     month_end = date(current_date.year, current_date.month, monthrange(current_date.year, current_date.month)[1])
     future_weekdays = sum(
         1
         for offset in range(1, (month_end - current_date).days + 1)
         if (current_date + timedelta(days=offset)).weekday() < 5
+        and (current_date + timedelta(days=offset)) not in excluded_dates
     )
     remaining_hours = future_weekdays * 7.5
-    if current_date.weekday() >= 5:
+    if current_date.weekday() >= 5 or current_date in excluded_dates:
         return remaining_hours
 
     shift_start = datetime.combine(current_date, time(9, 0))
@@ -13263,11 +13265,24 @@ def cnc_dashboard():
     pacing_goal = max(bonus_progress, key=lambda goal: goal.get("remaining", 0), default=None)
     cnc_goal_target = pacing_goal.get("target", 0) if pacing_goal else 0
     cnc_goal_remaining = pacing_goal.get("remaining", 0) if pacing_goal else 0
-    remaining_work_hours = cnc_remaining_work_hours(current_time)
+    bank_holidays_by_month = fetch_uk_bank_holidays()
+    cnc_bank_holidays = {
+        holiday_date
+        for month_holidays in bank_holidays_by_month.values()
+        for holiday_date in month_holidays
+    }
+    remaining_work_hours = cnc_remaining_work_hours(
+        current_time,
+        excluded_dates=cnc_bank_holidays,
+    )
     if pacing_goal and pacing_goal.get("next_bonus"):
         next_bonus_year = pacing_goal.get("period_year")
         next_bonus_month = pacing_goal.get("period_month")
-        remaining_work_hours += weekdays_in_month(next_bonus_year, next_bonus_month) * 7.5
+        remaining_work_hours += weekdays_in_month(
+            next_bonus_year,
+            next_bonus_month,
+            excluded_dates=cnc_bank_holidays,
+        ) * 7.5
     remaining_workdays = remaining_work_hours / 7.5
     if cnc_goal_target <= 0:
         required_sheets_per_day_display = "No Goal"
