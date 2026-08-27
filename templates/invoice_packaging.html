@@ -265,7 +265,7 @@
     }
 
     .review-table {
-        min-width: 1270px;
+        min-width: 1370px;
     }
 
     .review-table .description-cell {
@@ -278,6 +278,30 @@
 
     .review-table .medium-cell {
         min-width: 130px;
+    }
+
+    .review-table .stock-choice-cell {
+        width: 115px;
+        text-align: center;
+    }
+
+    .stock-choice {
+        display: inline-grid;
+        justify-items: center;
+        gap: 4px;
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 700;
+        line-height: 1.2;
+        cursor: pointer;
+    }
+
+    .stock-choice input {
+        width: 20px;
+        height: 20px;
+        margin: 0;
+        accent-color: #b91c1c;
+        cursor: pointer;
     }
 
     .source-note,
@@ -652,7 +676,7 @@
                 <option value="">Choose a plan</option>
                 {% for job in recent_jobs %}
                 <option value="{{ url_for('invoice_packaging', plan=job.id) }}" {% if plan and plan.id == job.id %}selected{% endif %}>
-                    #{{ job.id }} - {{ job.title }}{% if job.stock_removed_at %} - STOCK REMOVED{% endif %} - {{ job.updated_at.strftime('%d/%m/%Y %H:%M') }}
+                    #{{ job.id }} - {{ job.title }}{% if job.stock_removed_at %} - STOCK PROCESSED{% endif %} - {{ job.updated_at.strftime('%d/%m/%Y %H:%M') }}
                 </option>
                 {% endfor %}
             </select>
@@ -701,7 +725,7 @@
     <div id="stock-removed-notice" class="status-message stock-removed-notice no-print"
         role="status" {% if not plan.stock_removed_at %}hidden{% endif %}>
         {% if plan.stock_removed_at %}
-        Sent tables were removed from stock on {{ plan.stock_removed_at_display }}{% if plan.stock_removed_by %} by {{ plan.stock_removed_by }}{% endif %}.
+        Finished-stock processing was recorded on {{ plan.stock_removed_at_display }}{% if plan.stock_removed_by %} by {{ plan.stock_removed_by }}{% endif %}.
         {% endif %}
     </div>
     <h1 class="print-title">{{ plan.title }} - Packaging List</h1>
@@ -725,7 +749,7 @@
         <div class="panel-heading">
             <div>
                 <h2>2. Review invoice items</h2>
-                <p>Correct every detected field before generating the packaging list.</p>
+                <p>Correct every detected field. Untick Remove from stock for sent items that must stay in finished stock.</p>
             </div>
             <button type="button" onclick="addItem()">Add Item</button>
         </div>
@@ -741,6 +765,7 @@
                         <th>Order type</th>
                         <th>PO number</th>
                         <th>Notes</th>
+                        <th>Remove from stock</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -945,14 +970,20 @@
         if (button) {
             button.disabled = busy || stockWasRemoved;
             button.textContent = stockWasRemoved
-                ? "Sent Tables Already Removed From Stock"
+                ? "Sent Tables Already Processed"
                 : "Remove Sent Tables From Stock";
         }
         if (notice) {
             notice.hidden = !stockWasRemoved;
             if (stockWasRemoved) {
                 const worker = state.stock_removed_by ? ` by ${state.stock_removed_by}` : "";
-                notice.textContent = `Sent tables were removed from stock on ${state.stock_removed_at_display}${worker}.`;
+                const keptQuantity = (state.items || [])
+                    .filter((item) => item.deduct_from_stock === false)
+                    .reduce((total, item) => total + integerValue(item.quantity), 0);
+                const keptNote = keptQuantity
+                    ? ` ${keptQuantity} sent item(s) marked Keep in stock were not deducted.`
+                    : "";
+                notice.textContent = `Finished-stock processing was recorded on ${state.stock_removed_at_display}${worker}.${keptNote}`;
             }
         }
     }
@@ -973,7 +1004,7 @@
     function renderItems() {
         const body = document.getElementById("items-body");
         if (!state.items.length) {
-            body.innerHTML = `<tr><td colspan="9" class="empty-state">No products detected. Use Add Item to enter the invoice manually.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="10" class="empty-state">No products detected. Use Add Item to enter the invoice manually.</td></tr>`;
             return;
         }
         body.innerHTML = state.items.map((item, index) => {
@@ -994,6 +1025,12 @@
                     <td class="medium-cell"><select class="cell-select" onchange="updateItem(${index}, 'item_type', this.value)">${typeOptions(item.item_type)}</select></td>
                     <td class="medium-cell"><input class="cell-input" value="${escapeHtml(item.po_number)}" onchange="updateItem(${index}, 'po_number', this.value)"></td>
                     <td class="medium-cell"><input class="cell-input" value="${escapeHtml(item.notes)}" onchange="updateItem(${index}, 'notes', this.value)"></td>
+                    <td class="stock-choice-cell">
+                        <label class="stock-choice">
+                            <input type="checkbox" ${item.deduct_from_stock !== false ? "checked" : ""} onchange="updateItem(${index}, 'deduct_from_stock', this.checked)">
+                            <span>${item.deduct_from_stock !== false ? "Will remove" : "Keep in stock"}</span>
+                        </label>
+                    </td>
                     <td><button type="button" class="small danger" onclick="removeItem(${index})">Remove</button></td>
                 </tr>
             `;
@@ -1003,7 +1040,8 @@
     function updateItem(index, field, value) {
         if (!state.items[index]) return;
         state.items[index][field] = field === "quantity" ? Math.max(1, integerValue(value, 1)) : value;
-        state.items[index].confidence = 1;
+        if (field !== "deduct_from_stock") state.items[index].confidence = 1;
+        if (field === "deduct_from_stock") renderItems();
     }
 
     function addItem() {
@@ -1018,6 +1056,7 @@
             item_type: "complete_table",
             po_number: "",
             notes: "",
+            deduct_from_stock: true,
             confidence: 1,
             raw_text: ""
         });
@@ -1532,10 +1571,17 @@
         const previewLines = previewData.preview.map((detail) => (
             `${detail.quantity} x ${detail.label} (${detail.count_before} to ${detail.count_after})`
         ));
+        const skippedSummary = previewData.skipped_item_count
+            ? `\n\n${previewData.skipped_quantity} item(s) across ${previewData.skipped_item_count} invoice line(s) are marked Keep in stock and will not be deducted.`
+            : "";
+        const stockSummary = previewLines.length
+            ? previewLines.join("\n")
+            : "No finished stock will be deducted.";
         const confirmed = window.confirm(
-            "Remove these sent items from finished table stock?\n\n"
-            + previewLines.join("\n")
-            + "\n\nThis plan can only remove stock once."
+            "Process the sent items against finished table stock?\n\n"
+            + stockSummary
+            + skippedSummary
+            + "\n\nThis plan can only be processed once."
         );
         if (!confirmed) {
             renderAll();
@@ -1551,7 +1597,12 @@
         state = data.plan;
         manualLayoutDirty = state.pallets.some((pallet) => Boolean(pallet.manual_override));
         renderAll();
-        setStatus("Sent tables removed from stock and recorded in stock history.", "success");
+        setStatus(
+            data.removed_stock.length
+                ? "Selected sent tables removed from stock and recorded in stock history."
+                : "Sent items recorded without changing finished stock.",
+            "success"
+        );
     }
 
     async function printZebraLabels() {

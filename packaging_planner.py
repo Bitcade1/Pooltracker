@@ -204,6 +204,13 @@ def build_item(values, source_file="", raw_text="", confidence=None):
     quantity = _safe_quantity(values.get("quantity"), 1)
     po_number = _clean_text(values.get("po_number"))
     notes = _clean_text(values.get("notes"))
+    deduct_from_stock = values.get("deduct_from_stock", True)
+    if isinstance(deduct_from_stock, str):
+        deduct_from_stock = deduct_from_stock.strip().lower() not in {
+            "0", "false", "no", "off",
+        }
+    else:
+        deduct_from_stock = bool(deduct_from_stock)
 
     if confidence is None:
         recognised = sum(bool(value) for value in (size, model, colour))
@@ -225,6 +232,7 @@ def build_item(values, source_file="", raw_text="", confidence=None):
         "item_type": item_type,
         "po_number": po_number,
         "notes": notes,
+        "deduct_from_stock": deduct_from_stock,
         "confidence": round(float(confidence), 2),
         "raw_text": _clean_text(raw_text)[:2000],
     }

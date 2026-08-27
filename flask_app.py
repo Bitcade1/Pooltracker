@@ -3729,8 +3729,14 @@ def packaging_stock_color_key(colour):
 
 def packaging_stock_requirements(items, config=None):
     clean_items = normalise_packaging_items(items)
+    stock_items = [
+        item for item in clean_items
+        if item.get("deduct_from_stock", True)
+    ]
+    if not stock_items:
+        return {}
     clean_config = normalise_packaging_config(config or {})
-    component_requirements = build_packaging_requirements(clean_items, clean_config)
+    component_requirements = build_packaging_requirements(stock_items, clean_config)
     stock_requirements = defaultdict(int)
     invalid_lines = []
 
@@ -3776,10 +3782,6 @@ def packaging_stock_requirements(items, config=None):
     if invalid_lines:
         unique_errors = list(dict.fromkeys(invalid_lines))
         raise ValueError("Cannot remove stock. " + "; ".join(unique_errors) + ".")
-    if not stock_requirements:
-        raise ValueError(
-            "This plan has no bodies, top rails, or cushion sets to remove from stock."
-        )
     return dict(stock_requirements)
 
 
@@ -4062,7 +4064,18 @@ def remove_invoice_packaging_from_stock(job_id):
             raise ValueError("Not enough finished table stock. " + "; ".join(shortages) + ".")
 
         if data.get("confirm") is not True:
-            return jsonify({"success": True, "preview": preview})
+            skipped_items = [
+                item for item in normalise_packaging_items(
+                    packaging_json_load(job.items_json, [])
+                )
+                if not item.get("deduct_from_stock", True)
+            ]
+            return jsonify({
+                "success": True,
+                "preview": preview,
+                "skipped_item_count": len(skipped_items),
+                "skipped_quantity": sum(item["quantity"] for item in skipped_items),
+            })
 
         worker_name = session.get("worker") or "Unknown"
         note = f"Invoice packaging plan #{job.id}: {job.title}"[:200]

@@ -1,7 +1,12 @@
 import copy
 import unittest
 
-from packaging_planner import build_item, model_uses_lite_body, regenerate_packaging
+from packaging_planner import (
+    build_item,
+    model_uses_lite_body,
+    normalise_items,
+    regenerate_packaging,
+)
 
 
 class RegeneratePackagingTests(unittest.TestCase):
@@ -206,6 +211,14 @@ class RegeneratePackagingTests(unittest.TestCase):
             "Lite",
             build_item({"description": "7ft Lite Pool table - Black"})["model"],
         )
+
+    def test_stock_deduction_choice_defaults_on_and_preserves_opt_out(self):
+        self.assertTrue(build_item({"description": "Table"})["deduct_from_stock"])
+        normalised = normalise_items([{
+            **self.items[0],
+            "deduct_from_stock": False,
+        }])
+        self.assertFalse(normalised[0]["deduct_from_stock"])
 
 
 if __name__ == "__main__":
