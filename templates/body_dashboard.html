@@ -1097,7 +1097,7 @@
         <div class="stat-card stat-month">
             <span class="stat-label">This Month</span>
             <span class="stat-value">{{ stats.monthly }}</span>
-            {% if combined_body_goal %}
+            {% if show_combined_body_goal and combined_body_goal %}
                 {% if combined_body_goal.target_hit %}
                     <span class="stat-goal is-hit">Combined goal of {{ combined_body_goal.target }} hit</span>
                 {% else %}
