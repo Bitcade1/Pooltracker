@@ -107,6 +107,17 @@
         overflow-wrap: anywhere;
     }
 
+    .stat-card .stat-goal {
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 800;
+        line-height: 1.15;
+    }
+
+    .stat-card .stat-goal.is-hit {
+        color: #15803d;
+    }
+
     .stat-card.highlight {
         border-left: 4px solid #27ae60;
     }
@@ -1038,6 +1049,13 @@
         <div class="stat-card">
             <span class="stat-label">This Month</span>
             <span class="stat-value">{{ stats.monthly }}</span>
+            {% if combined_body_goal %}
+                {% if combined_body_goal.target_hit %}
+                    <span class="stat-goal is-hit">Combined goal of {{ combined_body_goal.target }} hit</span>
+                {% else %}
+                    <span class="stat-goal">{{ combined_body_goal.remaining }} needed for combined goal of {{ combined_body_goal.target }}</span>
+                {% endif %}
+            {% endif %}
         </div>
         <div class="stat-card">
             <span class="stat-label">This Year</span>

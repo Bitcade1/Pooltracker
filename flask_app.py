@@ -12943,9 +12943,21 @@ def body_dashboard_view():
         today.year,
         today.month
     )
+    current_body_goals = bonus_goal_progress("bodies", today.year, today.month)
+    combined_body_goal_target = sum(
+        int(goal.get("target", 0) or 0)
+        for goal in current_body_goals
+    )
+    combined_body_goal = None
+    if combined_body_goal_target:
+        combined_body_goal = {
+            "target": combined_body_goal_target,
+            "remaining": max(combined_body_goal_target - stats["monthly"], 0),
+            "target_hit": stats["monthly"] >= combined_body_goal_target,
+        }
     body_goal_celebrations = []
     seen_body_goal_celebration_keys = set()
-    for goal in bonus_goal_progress("bodies", today.year, today.month):
+    for goal in current_body_goals:
         carryover_count = bonus_goal_carryover_count(
             "bodies",
             goal.get("worker"),
@@ -13194,6 +13206,7 @@ def body_dashboard_view():
         other_parts_data=other_parts_data,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        combined_body_goal=combined_body_goal,
         body_goal_celebrations=body_goal_celebrations,
         tom_f_body_goal_missing=tom_f_body_goal_missing,
         tom_f_body_count=tom_f_body_count,
