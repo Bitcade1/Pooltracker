@@ -12943,6 +12943,33 @@ def body_dashboard_view():
         today.year,
         today.month
     )
+    body_goal_celebrations = []
+    seen_body_goal_celebration_keys = set()
+    for goal in bonus_goal_progress("bodies", today.year, today.month):
+        carryover_count = bonus_goal_carryover_count(
+            "bodies",
+            goal.get("worker"),
+            today.year,
+            today.month,
+        )
+        if carryover_count:
+            goal = make_bonus_goal_progress_row(
+                "bodies",
+                goal.get("worker"),
+                goal.get("current", 0) + carryover_count,
+                goal.get("target", 0),
+                today.year,
+                today.month,
+            )
+            goal["carryover"] = carryover_count
+        body_goal_celebrations.append(goal)
+        seen_body_goal_celebration_keys.add(goal.get("goal_key"))
+    for goal in bonus_progress:
+        if (
+            goal.get("next_bonus")
+            and goal.get("goal_key") not in seen_body_goal_celebration_keys
+        ):
+            body_goal_celebrations.append(goal)
 
     def average_worker_name(name):
         return map_to_worker(name) or (name or "").strip()
@@ -13151,12 +13178,6 @@ def body_dashboard_view():
         for goal in bonus_progress
     )
     tom_f_body_count = bonus_goal_actual_count("bodies", "Tom F", today.year, today.month)
-    latest_completed_body = (
-        CompletedTable.query
-        .order_by(CompletedTable.id.desc())
-        .first()
-    )
-
     return render_template(
         'body_dashboard.html',
         stats=stats,
@@ -13173,9 +13194,9 @@ def body_dashboard_view():
         other_parts_data=other_parts_data,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        body_goal_celebrations=body_goal_celebrations,
         tom_f_body_goal_missing=tom_f_body_goal_missing,
         tom_f_body_count=tom_f_body_count,
-        latest_completed_body=latest_completed_body
     )
 
 
