@@ -66,24 +66,60 @@
     .stat-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.4rem;
+        gap: 0.8rem;
         align-items: stretch;
         justify-content: stretch;
     }
 
     .stat-card {
-        background: #ffffff;
-        border-radius: 8px;
-        padding: 0.35rem 0.5rem;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
+        position: relative;
+        overflow: hidden;
+        border: 3px solid rgba(255, 255, 255, .72);
+        border-radius: 18px;
+        padding: 0.85rem 1rem;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .22);
         display: flex;
         flex-direction: column;
-        gap: 0.15rem;
-        min-height: 58px;
+        justify-content: center;
+        gap: 0.3rem;
+        min-height: 138px;
         align-items: center;
         text-align: center;
         width: 100%;
         min-width: 0;
+    }
+
+    .stat-card::after {
+        content: "";
+        position: absolute;
+        right: -36px;
+        bottom: -52px;
+        width: 150px;
+        height: 150px;
+        border: 24px solid rgba(255, 255, 255, .12);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    .stat-card > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .stat-card.stat-today {
+        background: linear-gradient(135deg, #065f46, #047857);
+    }
+
+    .stat-card.stat-week {
+        background: linear-gradient(135deg, #0c4a6e, #0369a1);
+    }
+
+    .stat-card.stat-month {
+        background: linear-gradient(135deg, #581c87, #7e22ce);
+    }
+
+    .stat-card.stat-year {
+        background: linear-gradient(135deg, #7c2d12, #c2410c);
     }
 
     .stat-card.wide {
@@ -91,42 +127,43 @@
     }
 
     .stat-card .stat-label {
-        font-size: 0.78rem;
-        font-weight: 600;
-        color: #566573;
+        color: #ffffff;
+        font-size: clamp(1.05rem, 1.7vw, 1.5rem);
+        font-weight: 1000;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.1em;
+        line-height: 1;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, .25);
         overflow-wrap: anywhere;
     }
 
     .stat-card .stat-value {
-        font-size: 1.85rem;
-        font-weight: 800;
-        color: #1f2d3d;
-        line-height: 1;
+        color: #ffffff;
+        font-size: clamp(3.4rem, 5vw, 5rem);
+        font-weight: 1000;
+        line-height: .9;
+        text-shadow: 0 5px 12px rgba(0, 0, 0, .3);
         overflow-wrap: anywhere;
     }
 
     .stat-card .stat-goal {
-        color: #475569;
+        color: #ffffff;
         font-size: clamp(1.05rem, 1.8vw, 1.5rem);
         font-weight: 900;
         line-height: 1.1;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, .28);
     }
 
     .stat-card .stat-goal.is-hit {
-        color: #15803d;
+        color: #d9f99d;
     }
 
     .stat-card .stat-goal-daily {
-        color: #075985;
+        color: #e0f2fe;
         font-size: clamp(1rem, 1.6vw, 1.35rem);
         font-weight: 900;
         line-height: 1.1;
-    }
-
-    .stat-card.highlight {
-        border-left: 4px solid #27ae60;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, .28);
     }
 
     .bonus-panel {
@@ -568,11 +605,15 @@
         }
 
         .stat-card {
-            min-height: 78px;
+            min-height: 125px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 1.15rem;
         }
 
         .stat-card .stat-value {
-            font-size: 2rem;
+            font-size: 3.75rem;
         }
 
         .bonus-panel,
@@ -622,18 +663,18 @@
         }
 
         .stat-card {
-            min-height: 96px;
-            padding: 0.75rem 1rem;
+            min-height: 138px;
+            padding: 0.85rem 1rem;
             gap: 0.3rem;
-            border-radius: 12px;
+            border-radius: 18px;
         }
 
         .stat-card .stat-label {
-            font-size: 1rem;
+            font-size: clamp(1.05rem, 1.7vw, 1.5rem);
         }
 
         .stat-card .stat-value {
-            font-size: 2.75rem;
+            font-size: clamp(3.4rem, 5vw, 5rem);
         }
 
         .bonus-panel,
@@ -1045,15 +1086,15 @@
 
 <div class="dashboard-wrapper">
     <section class="stat-grid">
-        <div class="stat-card highlight">
+        <div class="stat-card stat-today">
             <span class="stat-label">Today</span>
             <span class="stat-value">{{ stats.daily }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-week">
             <span class="stat-label">This Week</span>
             <span class="stat-value">{{ stats.weekly }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-month">
             <span class="stat-label">This Month</span>
             <span class="stat-value">{{ stats.monthly }}</span>
             {% if combined_body_goal %}
@@ -1067,7 +1108,7 @@
                 </span>
             {% endif %}
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-year">
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
         </div>
