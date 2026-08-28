@@ -13221,6 +13221,7 @@ def body_dashboard_view():
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
         combined_body_goal=combined_body_goal,
+        remaining_body_workdays=remaining_body_workdays,
         body_goal_celebrations=body_goal_celebrations,
         tom_f_body_goal_missing=tom_f_body_goal_missing,
         tom_f_body_count=tom_f_body_count,

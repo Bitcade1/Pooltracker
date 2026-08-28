@@ -65,7 +65,7 @@
 
     .stat-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 0.8rem;
         align-items: stretch;
         justify-content: stretch;
@@ -122,6 +122,10 @@
         background: linear-gradient(135deg, #7c2d12, #c2410c);
     }
 
+    .stat-card.stat-days-left {
+        background: linear-gradient(135deg, #334155, #475569);
+    }
+
     .stat-card.wide {
         grid-column: span 2;
     }
@@ -162,6 +166,14 @@
         color: #e0f2fe;
         font-size: clamp(1rem, 1.6vw, 1.35rem);
         font-weight: 900;
+        line-height: 1.1;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, .28);
+    }
+
+    .stat-card .stat-note {
+        color: #e2e8f0;
+        font-size: clamp(.82rem, 1.2vw, 1.05rem);
+        font-weight: 800;
         line-height: 1.1;
         text-shadow: 0 2px 5px rgba(0, 0, 0, .28);
     }
@@ -1111,6 +1123,11 @@
         <div class="stat-card stat-year">
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
+        </div>
+        <div class="stat-card stat-days-left">
+            <span class="stat-label">Working Days Left</span>
+            <span class="stat-value">{{ remaining_body_workdays }}</span>
+            <span class="stat-note">UK bank holidays excluded</span>
         </div>
     </section>
 
