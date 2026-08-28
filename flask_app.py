@@ -13220,7 +13220,6 @@ def body_dashboard_view():
         other_parts_data=other_parts_data,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
-        show_combined_body_goal=today >= date(2026, 9, 1),
         combined_body_goal=combined_body_goal,
         body_goal_celebrations=body_goal_celebrations,
         tom_f_body_goal_missing=tom_f_body_goal_missing,
