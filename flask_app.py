@@ -12946,15 +12946,32 @@ def body_dashboard_view():
     current_body_goals = bonus_goal_progress("bodies", today.year, today.month)
     combined_body_goal_target = sum(
         int(goal.get("target", 0) or 0)
-        for goal in current_body_goals
+        for goal in bonus_progress
     )
+    combined_body_goal_remaining = sum(
+        int(goal.get("remaining", 0) or 0)
+        for goal in bonus_progress
+    )
+    combined_body_goal_periods = {
+        (int(goal.get("period_year")), int(goal.get("period_month")))
+        for goal in bonus_progress
+        if goal.get("period_year") and goal.get("period_month")
+    }
     combined_body_goal = None
     if combined_body_goal_target:
         combined_body_goal = {
             "target": combined_body_goal_target,
-            "remaining": max(combined_body_goal_target - stats["monthly"], 0),
-            "target_hit": stats["monthly"] >= combined_body_goal_target,
+            "remaining": combined_body_goal_remaining,
+            "target_hit": combined_body_goal_remaining <= 0,
         }
+        if len(combined_body_goal_periods) == 1:
+            goal_year, goal_month = next(iter(combined_body_goal_periods))
+            combined_body_goal["period_year"] = goal_year
+            combined_body_goal["period_month"] = goal_month
+            combined_body_goal["period_label"] = bonus_goal_month_label(
+                goal_year,
+                goal_month,
+            )
     body_goal_celebrations = []
     seen_body_goal_celebration_keys = set()
     for goal in current_body_goals:
@@ -13162,24 +13179,37 @@ def body_dashboard_view():
         today,
         excluded_dates=body_bank_holidays,
     )
+    displayed_body_workdays = remaining_body_workdays
+    displayed_body_workdays_period = bonus_goal_month_label(today.year, today.month)
     if combined_body_goal:
         combined_remaining = combined_body_goal["remaining"]
+        combined_goal_workdays = remaining_body_workdays
+        goal_year = combined_body_goal.get("period_year")
+        goal_month = combined_body_goal.get("period_month")
+        if goal_year and goal_month and (goal_year, goal_month) != (today.year, today.month):
+            combined_goal_workdays = weekdays_in_month(
+                goal_year,
+                goal_month,
+                excluded_dates=body_bank_holidays,
+            )
+            displayed_body_workdays = combined_goal_workdays
+            displayed_body_workdays_period = combined_body_goal["period_label"]
         if combined_remaining <= 0:
             combined_needed_per_day_display = "0"
-        elif remaining_body_workdays <= 0:
+        elif combined_goal_workdays <= 0:
             combined_needed_per_day_display = "N/A"
         else:
-            combined_needed_per_day = combined_remaining / remaining_body_workdays
+            combined_needed_per_day = combined_remaining / combined_goal_workdays
             combined_needed_per_day = ceil(combined_needed_per_day * 10) / 10
             combined_needed_per_day_display = (
                 f"{combined_needed_per_day:.1f}".rstrip("0").rstrip(".")
             )
         combined_body_goal["needed_per_day"] = combined_needed_per_day_display
-        combined_body_goal["remaining_workdays"] = remaining_body_workdays
+        combined_body_goal["remaining_workdays"] = combined_goal_workdays
     for goal in bonus_progress:
         goal_workdays = remaining_body_workdays
         if goal.get("next_bonus"):
-            goal_workdays += weekdays_in_month(
+            goal_workdays = weekdays_in_month(
                 goal.get("period_year"),
                 goal.get("period_month"),
                 excluded_dates=body_bank_holidays,
@@ -13221,7 +13251,8 @@ def body_dashboard_view():
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
         combined_body_goal=combined_body_goal,
-        remaining_body_workdays=remaining_body_workdays,
+        remaining_body_workdays=displayed_body_workdays,
+        body_workdays_period=displayed_body_workdays_period,
         body_goal_celebrations=body_goal_celebrations,
         tom_f_body_goal_missing=tom_f_body_goal_missing,
         tom_f_body_count=tom_f_body_count,
