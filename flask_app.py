@@ -12637,7 +12637,11 @@ def pod_dashboard_view():
             extract('year', CompletedPods.date) == today.year,
             extract('month', CompletedPods.date) == today.month
         ).count(),
-        "yearly": CompletedPods.query.filter(extract('year', CompletedPods.date) == today.year).count()
+        "yearly": CompletedPods.query.filter(extract('year', CompletedPods.date) == today.year).count(),
+        "last_year": CompletedPods.query.filter(
+            extract('year', CompletedPods.date) == today.year - 1
+        ).count(),
+        "last_year_label": today.year - 1,
     }
 
     next_serial, default_size = _next_pod_serial_and_size()
@@ -12814,6 +12818,17 @@ def pod_dashboard_view():
             "comparison_class": comparison["class"],
         })
 
+    bank_holidays_by_month = fetch_uk_bank_holidays()
+    pod_bank_holidays = {
+        holiday_date
+        for month_holidays in bank_holidays_by_month.values()
+        for holiday_date in month_holidays
+    }
+    remaining_pod_workdays = remaining_weekdays_in_month(
+        today,
+        excluded_dates=pod_bank_holidays,
+    )
+
     return render_template(
         'pod_dashboard.html',
         stats=stats,
@@ -12824,7 +12839,9 @@ def pod_dashboard_view():
         limiting_overall=limiting_overall,
         min_capacity=min_capacity,
         pod_type_average_rows=pod_type_average_rows,
-        previous_month_label=previous_month.strftime("%B %Y")
+        previous_month_label=previous_month.strftime("%B %Y"),
+        remaining_pod_workdays=remaining_pod_workdays,
+        pod_workdays_period=bonus_goal_month_label(today.year, today.month),
     )
 
 
