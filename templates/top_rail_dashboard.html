@@ -40,6 +40,15 @@
         align-items: stretch;
     }
 
+    .stat-grid.summary-grid,
+    .stat-grid.detail-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .stat-grid.summary-grid {
+        gap: 0.8rem;
+    }
+
     .stat-card {
         background: #ffffff;
         border-radius: 10px;
@@ -51,6 +60,83 @@
         min-height: 95px;
         align-items: center;
         text-align: center;
+    }
+
+    .stat-card.summary-card {
+        position: relative;
+        overflow: hidden;
+        border: 3px solid rgba(255, 255, 255, .72);
+        border-radius: 18px;
+        padding: 0.85rem 1rem;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .22);
+        justify-content: center;
+        gap: 0.3rem;
+        min-height: 138px;
+        min-width: 0;
+    }
+
+    .stat-card.summary-card::after {
+        content: "";
+        position: absolute;
+        right: -36px;
+        bottom: -52px;
+        width: 150px;
+        height: 150px;
+        border: 24px solid rgba(255, 255, 255, .12);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    .stat-card.summary-card > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .stat-card.stat-today {
+        background: linear-gradient(135deg, #065f46, #047857);
+    }
+
+    .stat-card.stat-week {
+        background: linear-gradient(135deg, #0c4a6e, #0369a1);
+    }
+
+    .stat-card.stat-month {
+        background: linear-gradient(135deg, #581c87, #7e22ce);
+    }
+
+    .stat-card.stat-year {
+        background: linear-gradient(135deg, #7c2d12, #c2410c);
+    }
+
+    .stat-card.stat-days-left {
+        background: linear-gradient(135deg, #334155, #475569);
+    }
+
+    .stat-card.summary-card .stat-label {
+        color: #ffffff;
+        font-size: clamp(1.05rem, 1.7vw, 1.5rem);
+        font-weight: 1000;
+        letter-spacing: 0.1em;
+        line-height: 1;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, .25);
+        overflow-wrap: anywhere;
+    }
+
+    .stat-card.summary-card .stat-value {
+        color: #ffffff;
+        font-size: clamp(3.4rem, 5vw, 5rem);
+        font-weight: 1000;
+        line-height: .9;
+        text-shadow: 0 5px 12px rgba(0, 0, 0, .3);
+        overflow-wrap: anywhere;
+    }
+
+    .stat-card.summary-card .stat-note {
+        color: #e2e8f0;
+        font-size: clamp(.82rem, 1.2vw, 1.05rem);
+        font-weight: 800;
+        line-height: 1.1;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, .28);
     }
 
     .stat-card.wide {
@@ -441,6 +527,10 @@
     }
 
     @media (max-width: 1200px) {
+        .stat-grid.summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .dashboard-body {
             grid-template-columns: minmax(0, 1fr);
         }
@@ -449,6 +539,16 @@
     @media (max-width: 680px) {
         .dashboard-wrapper {
             padding: 1.1rem 1rem 1.2rem;
+        }
+
+        .stat-grid.summary-grid,
+        .stat-grid.detail-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .stat-card.wide,
+        .stat-card.next-serial {
+            grid-column: 1 / -1;
         }
 
         .stat-card.next-serial .stat-label {
@@ -478,23 +578,32 @@
         </div>
     </div>
 
-    <section class="stat-grid">
-        <div class="stat-card highlight">
+    <section class="stat-grid summary-grid">
+        <div class="stat-card summary-card stat-today">
             <span class="stat-label">Today</span>
             <span class="stat-value">{{ stats.daily }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card summary-card stat-week">
             <span class="stat-label">This Week</span>
             <span class="stat-value">{{ stats.weekly }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card summary-card stat-month">
             <span class="stat-label">This Month</span>
             <span class="stat-value">{{ stats.monthly }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card summary-card stat-year">
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
+            <span class="stat-note">Last Year ({{ stats.last_year_label }}): {{ stats.last_year }}</span>
         </div>
+        <div class="stat-card summary-card stat-days-left">
+            <span class="stat-label">Working Days Left</span>
+            <span class="stat-value">{{ remaining_top_rail_workdays }}</span>
+            <span class="stat-note">{{ top_rail_workdays_period }}; UK bank holidays excluded</span>
+        </div>
+    </section>
+
+    <section class="stat-grid detail-grid">
         <div class="stat-card rail-deficit {% if total_top_rails_behind > 0 %}has-shortage{% endif %}">
             <span class="stat-label">Top Rails Behind Bodies</span>
             <span class="stat-value">{{ total_top_rails_behind }}</span>

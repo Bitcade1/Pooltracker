@@ -12402,7 +12402,11 @@ def top_rail_dashboard_view():
             extract('year', TopRail.date) == today.year,
             extract('month', TopRail.date) == today.month
         ).count(),
-        "yearly": TopRail.query.filter(extract('year', TopRail.date) == today.year).count()
+        "yearly": TopRail.query.filter(extract('year', TopRail.date) == today.year).count(),
+        "last_year": TopRail.query.filter(
+            extract('year', TopRail.date) == today.year - 1
+        ).count(),
+        "last_year_label": today.year - 1,
     }
 
     next_serial = "1000"
@@ -12602,6 +12606,17 @@ def top_rail_dashboard_view():
     last_month_avg_top_rail_time = format_avg_duration(previous_total_seconds, previous_counted_rails)
     bonus_progress = dashboard_bonus_progress("top_rails", today.year, today.month)
 
+    bank_holidays_by_month = fetch_uk_bank_holidays()
+    top_rail_bank_holidays = {
+        holiday_date
+        for month_holidays in bank_holidays_by_month.values()
+        for holiday_date in month_holidays
+    }
+    remaining_top_rail_workdays = remaining_weekdays_in_month(
+        today,
+        excluded_dates=top_rail_bank_holidays,
+    )
+
     return render_template(
         'top_rail_dashboard.html',
         stats=stats,
@@ -12619,7 +12634,9 @@ def top_rail_dashboard_view():
         last_month_avg_top_rail_time=last_month_avg_top_rail_time,
         last_top_rail_time=last_top_rail_time,
         bonus_progress=bonus_progress,
-        bonus_month_label=bonus_goal_month_label(today.year, today.month)
+        bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        remaining_top_rail_workdays=remaining_top_rail_workdays,
+        top_rail_workdays_period=bonus_goal_month_label(today.year, today.month),
     )
 
 
@@ -12805,7 +12822,7 @@ def pod_dashboard_view():
     pod_type_average_rows = []
     for table_type, label in (
         (TABLE_TYPE_CHAMPION, "Champion"),
-        (TABLE_TYPE_LITE, "Lite"),
+        (TABLE_TYPE_LITE, "League"),
     ):
         current_avg = average_seconds(current_type_stats[table_type])
         previous_avg = average_seconds(previous_type_stats[table_type])
