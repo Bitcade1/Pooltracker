@@ -1499,7 +1499,7 @@ def cnc_elapsed_workdays(current_time=None):
     return completed_weekdays + (max(elapsed_hours, 0) / 7.5)
 
 
-def cnc_remaining_work_hours(current_time=None, excluded_dates=None):
+def remaining_shift_work_hours(current_time=None, excluded_dates=None):
     current_time = current_time or london_now()
     current_date = current_time.date()
     excluded_dates = set(excluded_dates or [])
@@ -1528,6 +1528,10 @@ def cnc_remaining_work_hours(current_time=None, excluded_dates=None):
     if lunch_overlap_end > lunch_overlap_start:
         today_hours -= (lunch_overlap_end - lunch_overlap_start).total_seconds() / 3600
     return remaining_hours + max(today_hours, 0)
+
+
+def cnc_remaining_work_hours(current_time=None, excluded_dates=None):
+    return remaining_shift_work_hours(current_time, excluded_dates)
 
 
 def next_bonus_goal_month(year, month):
@@ -12864,7 +12868,8 @@ def pod_dashboard_view():
 
 @app.route('/body_dashboard')
 def body_dashboard_view():
-    today = date.today()
+    current_time = london_now()
+    today = current_time.date()
     start_of_week = today - timedelta(days=today.weekday())
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
@@ -13217,11 +13222,15 @@ def body_dashboard_view():
         today,
         excluded_dates=body_bank_holidays,
     )
+    remaining_body_pace_workdays = remaining_shift_work_hours(
+        current_time,
+        excluded_dates=body_bank_holidays,
+    ) / 7.5
     displayed_body_workdays = remaining_body_workdays
     displayed_body_workdays_period = bonus_goal_month_label(today.year, today.month)
     if combined_body_goal:
         combined_remaining = combined_body_goal["remaining"]
-        combined_goal_workdays = remaining_body_workdays
+        combined_goal_workdays = remaining_body_pace_workdays
         goal_year = combined_body_goal.get("period_year")
         goal_month = combined_body_goal.get("period_month")
         if goal_year and goal_month and (goal_year, goal_month) != (today.year, today.month):
@@ -13243,9 +13252,9 @@ def body_dashboard_view():
                 f"{combined_needed_per_day:.1f}".rstrip("0").rstrip(".")
             )
         combined_body_goal["needed_per_day"] = combined_needed_per_day_display
-        combined_body_goal["remaining_workdays"] = combined_goal_workdays
+        combined_body_goal["remaining_workdays"] = round(combined_goal_workdays, 2)
     for goal in bonus_progress:
-        goal_workdays = remaining_body_workdays
+        goal_workdays = remaining_body_pace_workdays
         if goal.get("next_bonus"):
             goal_workdays = weekdays_in_month(
                 goal.get("period_year"),
@@ -13266,7 +13275,7 @@ def body_dashboard_view():
             )
 
         goal["needed_per_day"] = needed_per_day_display
-        goal["remaining_workdays"] = goal_workdays
+        goal["remaining_workdays"] = round(goal_workdays, 2)
     tom_f_body_goal_missing = not any(
         normalize_bonus_worker_name(goal.get("worker")) == "tomf"
         for goal in bonus_progress
