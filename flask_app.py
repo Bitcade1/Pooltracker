@@ -13082,7 +13082,7 @@ def body_dashboard_view():
         average_rows = []
         for table_type, label in (
             (TABLE_TYPE_CHAMPION, "Champion"),
-            (TABLE_TYPE_LITE, "Lite"),
+            (TABLE_TYPE_LITE, "League"),
         ):
             current_avg = average_seconds(current_stats[table_type])
             previous_avg = average_seconds(previous_stats[table_type])
