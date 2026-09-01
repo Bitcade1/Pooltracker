@@ -12842,7 +12842,11 @@ def body_dashboard_view():
             extract('year', CompletedTable.date) == today.year,
             extract('month', CompletedTable.date) == today.month
         ).count(),
-        "yearly": CompletedTable.query.filter(extract('year', CompletedTable.date) == today.year).count()
+        "yearly": CompletedTable.query.filter(extract('year', CompletedTable.date) == today.year).count(),
+        "last_year": CompletedTable.query.filter(
+            extract('year', CompletedTable.date) == today.year - 1
+        ).count(),
+        "last_year_label": today.year - 1,
     }
 
     next_serial, default_size = _next_body_serial_and_size()
