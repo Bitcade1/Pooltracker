@@ -6159,14 +6159,16 @@ def pods():
 
         actual_table_type = table_type_from_serial(serial_number)
 
-        submitted_identity = pod_variant_identity(serial_number)
+        # A base serial identifies one physical table. Size/type suffixes must not
+        # allow the same table to be recorded as a second completed pod.
+        submitted_identity = pod_serial_identity(serial_number)
         existing_pod = next(
             (
                 pod for pod in CompletedPods.query.with_entities(
                     CompletedPods.id,
                     CompletedPods.serial_number,
                 ).all()
-                if pod_variant_identity(pod.serial_number) == submitted_identity
+                if pod_serial_identity(pod.serial_number) == submitted_identity
             ),
             None,
         )

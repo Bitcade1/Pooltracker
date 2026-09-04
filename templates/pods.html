@@ -512,6 +512,21 @@
           const serialNumberField = document.getElementById('serial_number');
           const baseSerialField = document.getElementById('base_serial_number');
           const liveStatus = document.getElementById('serial-live-status');
+          const completionForm = document.getElementById('pod-completion-form');
+          const completionButton = document.getElementById('pod-completion-submit');
+
+          if (completionForm && completionButton) {
+              let completionSubmitting = false;
+              completionForm.addEventListener('submit', function(event) {
+                  if (completionSubmitting) {
+                      event.preventDefault();
+                      return;
+                  }
+                  completionSubmitting = true;
+                  completionButton.disabled = true;
+                  completionButton.textContent = 'Saving Pod...';
+              });
+          }
 
           // Keep the hidden base in sync when somebody types a serial manually.
           serialNumberField.addEventListener('input', function() {
@@ -628,7 +643,7 @@
     </div>
     
     <!-- Form to Add a New Completed Pod -->
-    <form method="POST" action="{{ url_for('pods') }}">
+    <form method="POST" action="{{ url_for('pods') }}" id="pod-completion-form">
       <label for="start_time">Start Time:</label>
       <input type="time" id="start_time" name="start_time" value="{{ form_start_time }}" required>
       
@@ -671,7 +686,7 @@
         <option value="Yes" {% if form_lunch == 'Yes' %}selected{% endif %}>Yes</option>
       </select>
       
-      <button type="submit" class="button">Submit</button>
+      <button type="submit" class="button" id="pod-completion-submit">Submit</button>
     </form>
     
     <!-- Pods Completed Today Section -->
