@@ -72,7 +72,7 @@
 
         .label-border {
             display: grid;
-            grid-template-rows: auto auto minmax(0, 1fr) auto;
+            grid-template-rows: auto auto auto minmax(0, 1fr) auto;
             width: 100%;
             height: 100%;
             border: 1.2mm solid #000;
@@ -123,6 +123,55 @@
             border: 0.5mm solid #000;
             background: #000;
             color: #fff;
+        }
+
+        .invoice-strip {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 3mm;
+            align-items: center;
+            min-height: 12mm;
+            padding: 1.5mm 4mm;
+            border-bottom: 0.8mm solid #000;
+            background: #000;
+            color: #fff;
+        }
+
+        .invoice-count {
+            font-size: 4.8mm;
+            line-height: 1;
+            font-weight: 1000;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .invoice-names {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1mm;
+            justify-content: flex-end;
+            min-width: 0;
+            max-height: 12mm;
+            overflow: hidden;
+        }
+
+        .invoice-name {
+            max-width: 48%;
+            padding: 0.7mm 1.4mm;
+            border: 0.35mm solid #fff;
+            background: #fff;
+            color: #000;
+            font-size: 3mm;
+            line-height: 1.05;
+            font-weight: 900;
+            overflow-wrap: anywhere;
+        }
+
+        .invoice-line-reference {
+            display: block;
+            margin-bottom: 0.3mm;
+            font-weight: 1000;
+            text-transform: uppercase;
         }
 
         .label-content {
@@ -289,6 +338,21 @@
                     <span>{{ plan.title }}</span>
                 </div>
 
+                <div class="invoice-strip">
+                    <div class="invoice-count">
+                        {{ plan.source_files|length }} invoice{% if plan.source_files|length != 1 %}s{% endif %} on plan
+                    </div>
+                    <div class="invoice-names">
+                        {% if plan.source_files %}
+                            {% for source_file in plan.source_files %}
+                                <span class="invoice-name">Invoice #{{ invoice_references[source_file] }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="invoice-name">Manual items only</span>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <div class="label-content">
                     <div class="contents">
                         <h2 class="contents-title">Pallet contents</h2>
@@ -342,6 +406,13 @@
                                                 {{ line.description|default('Item') }}
                                             {% endif %}
                                             <span class="content-meta">
+                                                {% if line.source_file %}
+                                                    <span class="invoice-line-reference">
+                                                        {% for source_file in plan.source_files %}
+                                                            {% if source_file == line.source_file %}Invoice #{{ invoice_references[source_file] }}{% endif %}
+                                                        {% endfor %}
+                                                    </span>
+                                                {% endif %}
                                                 {% if line.po_number %}PO: {{ line.po_number }}{% endif %}
                                                 {% if line.notes %}{% if line.po_number %} - {% endif %}{{ line.notes }}{% endif %}
                                             </span>
@@ -355,12 +426,6 @@
                     </div>
 
                     <aside class="side-panel">
-                        <div class="side-block">
-                            <h2 class="side-title">Invoices on plan ({{ plan.source_files|length }})</h2>
-                            <div class="side-value">
-                                {{ plan.source_files|join(', ') if plan.source_files else 'Manual items only' }}
-                            </div>
-                        </div>
                         <div class="side-block">
                             <h2 class="side-title">Purchase orders</h2>
                             <div class="side-value">

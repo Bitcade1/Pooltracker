@@ -3718,6 +3718,28 @@ def packaging_job_payload(job):
     }
 
 
+def packaging_invoice_reference(filename):
+    stem = os.path.splitext(os.path.basename(str(filename or "")))[0].strip()
+    labelled_match = re.search(
+        r"(?:invoice|inv)\s*(?:number|no\.?|#)?[\s._:-]*"
+        r"([A-Z]{0,4}\d{3,}[A-Z0-9-]*)",
+        stem,
+        re.I,
+    )
+    if labelled_match:
+        return labelled_match.group(1).upper()
+
+    number_matches = re.findall(r"(?<!\d)(\d{3,})(?!\d)", stem)
+    if number_matches:
+        return number_matches[0]
+
+    compact_name = re.sub(r"\b(?:invoice|inv)\b", "", stem, flags=re.I)
+    compact_name = re.sub(r"[\s._-]+", " ", compact_name).strip(" #:-")
+    if len(compact_name) > 18:
+        compact_name = compact_name[:18].rstrip() + "..."
+    return compact_name or "Unknown"
+
+
 def packaging_stock_color_key(colour):
     normalised = re.sub(r"[^a-z]+", "_", (colour or "").strip().lower()).strip("_")
     aliases = {
@@ -4242,6 +4264,10 @@ def invoice_packaging_labels(job_id):
     return render_template(
         "invoice_packaging_labels.html",
         plan=plan,
+        invoice_references={
+            filename: packaging_invoice_reference(filename)
+            for filename in plan["source_files"]
+        },
     )
 
 
