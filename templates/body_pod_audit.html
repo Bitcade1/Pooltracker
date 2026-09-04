@@ -4,7 +4,26 @@
 
 {% block content %}
 <style>
+    body {
+        display: block;
+        min-height: 100vh;
+        background: #eef2f7;
+        color: #172033;
+    }
+
+    body > .container {
+        width: min(1480px, calc(100% - 28px));
+        max-width: 1480px;
+        margin: 20px auto 36px;
+        padding: 0;
+        overflow: visible;
+        background: transparent;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
     .audit-page {
+        width: 100%;
         text-align: left;
     }
 
@@ -14,11 +33,26 @@
         justify-content: space-between;
         gap: 12px;
         flex-wrap: wrap;
-        margin-bottom: 16px;
+        margin-bottom: 18px;
+        padding: 20px 22px;
+        border: 1px solid #d7dee9;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06);
     }
 
     .audit-header h1 {
+        margin: 0 0 5px;
+        color: #0f172a;
+        font-size: clamp(1.7rem, 3vw, 2.35rem);
+    }
+
+    .audit-subtitle {
+        max-width: 760px;
         margin: 0;
+        color: #64748b;
+        font-size: 0.96rem;
+        line-height: 1.45;
     }
 
     .audit-link {
@@ -31,6 +65,11 @@
         padding: 9px 12px;
         text-decoration: none;
         font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .audit-link:hover {
+        background: #1e293b;
     }
 
     .flash-messages {
@@ -69,10 +108,10 @@
 
     .undo-panel {
         border: 1px solid #bfdbfe;
-        border-radius: 8px;
+        border-radius: 10px;
         background: #eff6ff;
         padding: 12px;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -81,6 +120,8 @@
     }
 
     .undo-panel strong {
+        display: block;
+        margin-bottom: 3px;
         color: #0f172a;
     }
 
@@ -91,17 +132,38 @@
 
     .summary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 12px;
         margin-bottom: 18px;
     }
 
     .summary-card {
         border: 1px solid #dbe4ef;
-        border-radius: 8px;
+        border-left: 5px solid #64748b;
+        border-radius: 10px;
         background: #ffffff;
-        padding: 12px;
-        text-align: center;
+        padding: 13px 15px;
+        text-align: left;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+
+    .summary-card.info {
+        border-left-color: #2563eb;
+    }
+
+    .summary-card.muted {
+        border-left-color: #94a3b8;
+        background: #f8fafc;
+    }
+
+    .summary-card.warning {
+        border-left-color: #d97706;
+        background: #fffbeb;
+    }
+
+    .summary-card.danger {
+        border-left-color: #dc2626;
+        background: #fef2f2;
     }
 
     .summary-label {
@@ -113,7 +175,7 @@
 
     .summary-value {
         color: #0f172a;
-        font-size: 2rem;
+        font-size: 1.85rem;
         font-weight: 900;
         line-height: 1.1;
         margin-top: 6px;
@@ -122,9 +184,10 @@
     .audit-section {
         background: #ffffff;
         border: 1px solid #dbe4ef;
-        border-radius: 8px;
-        padding: 14px;
+        border-radius: 10px;
+        padding: 16px;
         margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
     }
 
     .audit-section h2 {
@@ -145,7 +208,37 @@
         margin: 0;
     }
 
+    .section-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+    }
+
+    .section-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        min-height: 28px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #334155;
+        font-size: 0.82rem;
+        font-weight: 900;
+    }
+
+    .section-description {
+        margin: -5px 0 13px;
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+
     .action-form {
+        display: inline-flex;
+        flex-direction: row;
+        gap: 0;
         margin: 0;
     }
 
@@ -158,6 +251,7 @@
         font-weight: 900;
         cursor: pointer;
         white-space: nowrap;
+        box-shadow: none;
     }
 
     .action-button:hover {
@@ -189,32 +283,85 @@
     }
 
     .table-wrap {
+        width: 100%;
         overflow-x: auto;
+        border: 1px solid #dbe4ef;
+        border-radius: 9px;
+        -webkit-overflow-scrolling: touch;
     }
 
     .audit-table {
         width: 100%;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
         border-collapse: collapse;
-        min-width: 980px;
+        min-width: 960px;
     }
 
     .audit-table th,
     .audit-table td {
         border-bottom: 1px solid #e2e8f0;
-        padding: 8px;
-        vertical-align: top;
+        padding: 11px 12px;
+        vertical-align: middle;
         text-align: left;
+    }
+
+    .audit-table td {
+        white-space: normal;
     }
 
     .audit-table th {
         background: #f8fafc;
-        color: #0f172a;
+        color: #475569;
+        font-size: 0.76rem;
         font-weight: 900;
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .audit-table tbody tr:nth-child(even) {
+        background: #fbfdff;
+    }
+
+    .audit-table tbody tr:hover {
+        background: #eff6ff;
+    }
+
+    .audit-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .picker-table th:nth-child(1),
+    .picker-table td:nth-child(1),
+    .picker-table th:nth-child(3),
+    .picker-table td:nth-child(3) {
+        min-width: 175px;
+    }
+
+    .picker-table th:nth-child(2),
+    .picker-table td:nth-child(2) {
+        min-width: 190px;
+    }
+
+    .picker-table th:nth-child(5),
+    .picker-table td:nth-child(5) {
+        min-width: 215px;
+    }
+
+    .compact-table {
+        min-width: 720px;
+    }
+
+    .mismatch-table {
+        min-width: 780px;
     }
 
     .serial-main {
         font-weight: 900;
         color: #0f172a;
+        overflow-wrap: anywhere;
     }
 
     .serial-meta,
@@ -222,6 +369,11 @@
         color: #475569;
         font-size: 0.92rem;
         line-height: 1.35;
+    }
+
+    .serial-meta + .serial-meta,
+    .note-list > div + div {
+        margin-top: 2px;
     }
 
     .status-pill {
@@ -232,6 +384,8 @@
         font-weight: 900;
         background: #e0f2fe;
         color: #075985;
+        line-height: 1.25;
+        white-space: normal;
     }
 
     .status-pill.warning {
@@ -245,15 +399,79 @@
     }
 
     .empty-state {
+        padding: 18px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        background: #f8fafc;
         color: #475569;
         font-weight: 800;
         margin: 0;
+        text-align: center;
+    }
+
+    @media (max-width: 900px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        body > .container {
+            width: calc(100% - 16px);
+            margin-top: 10px;
+        }
+
+        .audit-header {
+            align-items: stretch;
+            padding: 16px;
+        }
+
+        .audit-link {
+            width: 100%;
+        }
+
+        .summary-grid {
+            gap: 8px;
+        }
+
+        .summary-card {
+            padding: 11px 12px;
+        }
+
+        .summary-label {
+            font-size: 0.7rem;
+        }
+
+        .summary-value {
+            font-size: 1.55rem;
+        }
+
+        .audit-section {
+            padding: 12px;
+        }
+
+        .section-head {
+            align-items: stretch;
+        }
+
+        .section-head .action-form,
+        .section-head .action-button {
+            width: 100%;
+        }
+
+        .audit-table th,
+        .audit-table td {
+            padding: 9px 10px;
+        }
     }
 </style>
 
 <div class="audit-page">
     <div class="audit-header">
-        <h1>Body Pod Audit</h1>
+        <div>
+            <h1>Body Pod Audit</h1>
+            <p class="audit-subtitle">Check pods that remain in the picker, review possible body matches, and correct safe type or size mismatches.</p>
+        </div>
         <a class="audit-link" href="{{ url_for('bodies') }}">Back to Bodies</a>
     </div>
 
@@ -280,45 +498,51 @@
     {% endif %}
 
     <section class="summary-grid" aria-label="Audit summary">
-        <article class="summary-card">
+        <article class="summary-card info">
             <div class="summary-label">Pods Logged</div>
             <div class="summary-value">{{ summary.total_pods }}</div>
         </article>
-        <article class="summary-card">
+        <article class="summary-card info">
             <div class="summary-label">Bodies Logged</div>
             <div class="summary-value">{{ summary.total_bodies }}</div>
         </article>
-        <article class="summary-card">
+        <article class="summary-card {% if summary.pods_in_picker %}warning{% else %}muted{% endif %}">
             <div class="summary-label">Still In Picker</div>
             <div class="summary-value">{{ summary.pods_in_picker }}</div>
         </article>
-        <article class="summary-card">
+        <article class="summary-card muted">
             <div class="summary-label">Hidden Old Pods</div>
             <div class="summary-value">{{ summary.hidden_old_pods }}</div>
         </article>
-        <article class="summary-card">
+        <article class="summary-card {% if summary.likely_already_built %}warning{% else %}muted{% endif %}">
             <div class="summary-label">Likely Built</div>
             <div class="summary-value">{{ summary.likely_already_built }}</div>
         </article>
-        <article class="summary-card">
+        <article class="summary-card {% if summary.no_body_match %}danger{% else %}muted{% endif %}">
             <div class="summary-label">No Body Match</div>
             <div class="summary-value">{{ summary.no_body_match }}</div>
         </article>
-        <article class="summary-card">
+        <article class="summary-card {% if summary.type_mismatches %}danger{% else %}muted{% endif %}">
             <div class="summary-label">Type Mismatches</div>
             <div class="summary-value">{{ summary.type_mismatches }}</div>
         </article>
-        <article class="summary-card">
+        <article class="summary-card {% if summary.size_mismatches %}danger{% else %}muted{% endif %}">
             <div class="summary-label">Size Mismatches</div>
             <div class="summary-value">{{ summary.size_mismatches }}</div>
         </article>
     </section>
 
     <section class="audit-section">
-        <h2>Pods Still In The Body Picker</h2>
+        <div class="section-head">
+            <div class="section-title">
+                <h2>Pods Still In The Body Picker</h2>
+                <span class="section-count">{{ picker_rows|length }}</span>
+            </div>
+        </div>
+        <p class="section-description">Pods without an exact completed-body match. Review possible matches before hiding an old entry.</p>
         {% if picker_rows %}
             <div class="table-wrap">
-                <table class="audit-table">
+                <table class="audit-table picker-table">
                     <thead>
                         <tr>
                             <th>Pod</th>
@@ -390,11 +614,15 @@
 
     <section class="audit-section">
         <div class="section-head">
-            <h2>Hidden Old Pods</h2>
+            <div class="section-title">
+                <h2>Hidden Old Pods</h2>
+                <span class="section-count">{{ hidden_picker_rows|length }}</span>
+            </div>
         </div>
+        <p class="section-description">Older pod entries intentionally removed from the active body picker.</p>
         {% if hidden_picker_rows %}
             <div class="table-wrap">
-                <table class="audit-table">
+                <table class="audit-table compact-table">
                     <thead>
                         <tr>
                             <th>Pod</th>
@@ -443,7 +671,10 @@
 
     <section class="audit-section">
         <div class="section-head">
-            <h2>Type Or Size Mismatches</h2>
+            <div class="section-title">
+                <h2>Type Or Size Mismatches</h2>
+                <span class="section-count">{{ mismatch_rows|length }}</span>
+            </div>
             {% if mismatch_rows %}
                 <form class="action-form" method="POST" action="{{ url_for('body_pod_audit_fix') }}">
                     <input type="hidden" name="action" value="fix_all">
@@ -451,9 +682,10 @@
                 </form>
             {% endif %}
         </div>
+        <p class="section-description">Unambiguous pod and body pairs whose build type or size does not agree.</p>
         {% if mismatch_rows %}
             <div class="table-wrap">
-                <table class="audit-table">
+                <table class="audit-table mismatch-table">
                     <thead>
                         <tr>
                             <th>Pod</th>
