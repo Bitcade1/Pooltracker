@@ -356,6 +356,12 @@
 
                     <aside class="side-panel">
                         <div class="side-block">
+                            <h2 class="side-title">Invoices on plan ({{ plan.source_files|length }})</h2>
+                            <div class="side-value">
+                                {{ plan.source_files|join(', ') if plan.source_files else 'Manual items only' }}
+                            </div>
+                        </div>
+                        <div class="side-block">
                             <h2 class="side-title">Purchase orders</h2>
                             <div class="side-value">
                                 {{ po_numbers|join(', ') if po_numbers else 'Stock / No PO' }}

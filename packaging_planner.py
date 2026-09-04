@@ -1241,6 +1241,7 @@ def build_summary(items, pallets, requirements=None, config=None):
     order_groups = defaultdict(int)
     for item in items:
         key = (
+            item.get("source_file") or "",
             item.get("size") or "Unknown",
             item.get("model") or "Unspecified",
             item.get("colour") or "Unspecified",
@@ -1265,11 +1266,12 @@ def build_summary(items, pallets, requirements=None, config=None):
         "cushions_7ft": cushion_by_size["7ft"],
         "order_groups": [
             {
-                "size": key[0],
-                "model": key[1],
-                "colour": key[2],
-                "item_type": key[3],
-                "po_number": key[4],
+                "source_file": key[0],
+                "size": key[1],
+                "model": key[2],
+                "colour": key[3],
+                "item_type": key[4],
+                "po_number": key[5],
                 "quantity": quantity,
             }
             for key, quantity in sorted(order_groups.items())

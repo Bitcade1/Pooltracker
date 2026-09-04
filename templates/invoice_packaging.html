@@ -92,6 +92,16 @@
         align-items: end;
     }
 
+    .upload-grid.add-invoice-grid {
+        grid-template-columns: minmax(280px, 1fr) auto;
+    }
+
+    .new-plan-link {
+        align-self: center;
+        color: #1d4ed8;
+        font-weight: 800;
+    }
+
     .config-grid {
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     }
@@ -314,6 +324,47 @@
         line-height: 1.3;
     }
 
+    .invoice-overview {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border: 2px solid #2563eb;
+        border-radius: 10px;
+        background: #eff6ff;
+    }
+
+    .invoice-overview-title {
+        color: #1e3a8a;
+        font-size: 1.05rem;
+        font-weight: 900;
+    }
+
+    .invoice-file-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 9px;
+    }
+
+    .invoice-file-badge,
+    .line-invoice {
+        display: inline-block;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: #dbeafe;
+        color: #1e40af;
+        font-size: 0.74rem;
+        font-weight: 900;
+    }
+
+    .invoice-group-row td {
+        padding: 9px 12px;
+        border-top: 2px solid #93c5fd;
+        border-bottom: 1px solid #bfdbfe;
+        background: #eff6ff;
+        color: #1e3a8a;
+        font-weight: 900;
+    }
+
     .confidence-note.needs-review {
         color: #b45309;
         font-weight: 800;
@@ -511,6 +562,10 @@
         line-height: 1.35;
     }
 
+    .line-invoice {
+        margin-top: 6px;
+    }
+
     .line-actions {
         display: grid;
         grid-template-columns: 90px minmax(130px, 1fr) auto;
@@ -699,21 +754,36 @@
     <section class="panel upload-panel">
         <div class="panel-heading">
             <div>
-                <h2>1. Upload invoices</h2>
-                <p>Upload up to 20 files. Each file can be up to {{ max_upload_mb }} MB.</p>
+                <h2>{% if plan %}Add another invoice to this plan{% else %}1. Create a packaging plan{% endif %}</h2>
+                <p>
+                    {% if plan %}
+                    New invoice items will be added to this plan, not replace its existing invoices. A plan can hold up to 20 files.
+                    {% else %}
+                    Upload one or more invoices (up to 20). Each file can be up to {{ max_upload_mb }} MB.
+                    {% endif %}
+                </p>
             </div>
+            {% if plan %}
+            <a class="new-plan-link no-print" href="{{ url_for('invoice_packaging') }}">Start a separate plan</a>
+            {% endif %}
         </div>
         <div class="panel-body">
-            <form method="POST" enctype="multipart/form-data" class="upload-grid">
+            <form method="POST" enctype="multipart/form-data"
+                class="upload-grid{% if plan %} add-invoice-grid{% endif %}"
+                {% if plan %}id="add-invoices-form" onsubmit="appendInvoices(event)"{% endif %}>
+                {% if not plan %}
                 <label class="field">
                     Plan name
                     <input type="text" name="title" placeholder="Customer or dispatch name">
                 </label>
+                {% endif %}
                 <label class="field">
                     Invoice files
-                    <input type="file" name="invoices" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.csv,.xlsx,.xlsm,.docx,.txt">
+                    <input type="file" name="invoices" multiple required accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.csv,.xlsx,.xlsm,.docx,.txt">
                 </label>
-                <button type="submit">Extract and Review</button>
+                <button type="submit" {% if plan and plan.stock_removed_at %}disabled{% endif %}>
+                    {% if plan %}Add Invoice(s) to This Plan{% else %}Extract and Review{% endif %}
+                </button>
             </form>
             <p class="muted">
                 CSV, text PDFs, XLSX, DOCX, and OCR-enabled images are supported. Scanned files that cannot be read remain available for manual entry on the review screen.
@@ -730,20 +800,19 @@
     </div>
     <h1 class="print-title">{{ plan.title }} - Packaging List</h1>
 
-    {% if plan.extraction_warnings %}
-    <section class="panel no-print">
+    <section class="invoice-overview" aria-label="Invoices on this packaging plan">
+        <div class="invoice-overview-title" id="invoice-overview-title"></div>
+        <div class="invoice-file-list" id="invoice-file-list"></div>
+    </section>
+
+    <section class="panel no-print" id="extraction-warnings-panel" {% if not plan.extraction_warnings %}hidden{% endif %}>
         <div class="panel-body">
             <details class="extraction-details">
-                <summary>{{ plan.extraction_warnings|length }} extraction warning(s) - open to review</summary>
-                <ul class="extraction-list">
-                    {% for warning in plan.extraction_warnings %}
-                    <li>{{ warning }}</li>
-                    {% endfor %}
-                </ul>
+                <summary id="extraction-warnings-summary"></summary>
+                <ul class="extraction-list" id="extraction-warnings-list"></ul>
             </details>
         </div>
     </section>
-    {% endif %}
 
     <section class="panel review-panel">
         <div class="panel-heading">
@@ -860,6 +929,7 @@
             <table class="data-table">
                 <thead>
                     <tr>
+                        <th>Invoice</th>
                         <th>Size</th>
                         <th>Model</th>
                         <th>Colour</th>
@@ -1001,19 +1071,97 @@
         }).join("");
     }
 
+    function invoiceNumber(sourceFile) {
+        const index = (state.source_files || []).indexOf(sourceFile);
+        return index >= 0 ? index + 1 : null;
+    }
+
+    function invoiceDisplayLabel(sourceFile) {
+        if (!sourceFile) return "Manual item";
+        const number = invoiceNumber(sourceFile);
+        return number ? `Invoice ${number}: ${sourceFile}` : `Invoice: ${sourceFile}`;
+    }
+
+    function invoiceGroups() {
+        const groups = [];
+        const bySource = new Map();
+        (state.source_files || []).forEach((sourceFile, sourceIndex) => {
+            const group = {
+                key: `source-${sourceIndex}`,
+                label: `Invoice ${sourceIndex + 1} of ${state.source_files.length}: ${sourceFile}`,
+                sourceFile,
+                sourceIndex,
+                items: []
+            };
+            groups.push(group);
+            if (!bySource.has(sourceFile)) bySource.set(sourceFile, group);
+        });
+
+        let manualGroup = null;
+        state.items.forEach((item, index) => {
+            let group = item.source_file ? bySource.get(item.source_file) : null;
+            if (!group && item.source_file) {
+                group = {
+                    key: `unlisted-${groups.length}`,
+                    label: `Invoice: ${item.source_file}`,
+                    sourceFile: item.source_file,
+                    sourceIndex: null,
+                    items: []
+                };
+                groups.push(group);
+                bySource.set(item.source_file, group);
+            }
+            if (!group) {
+                if (!manualGroup) {
+                    manualGroup = {key: "manual", label: "Manual items", sourceFile: "", sourceIndex: null, items: []};
+                    groups.push(manualGroup);
+                }
+                group = manualGroup;
+            }
+            group.items.push({item, index});
+        });
+        return groups;
+    }
+
+    function renderInvoiceOverview() {
+        const sourceFiles = state.source_files || [];
+        const title = document.getElementById("invoice-overview-title");
+        const list = document.getElementById("invoice-file-list");
+        const countLabel = sourceFiles.length === 1 ? "1 invoice" : `${sourceFiles.length} invoices`;
+        title.textContent = `${countLabel} on this packaging plan`;
+        list.innerHTML = sourceFiles.length
+            ? sourceFiles.map((sourceFile, index) => (
+                `<span class="invoice-file-badge">Invoice ${index + 1}: ${escapeHtml(sourceFile)}</span>`
+            )).join("")
+            : `<span class="invoice-file-badge">Manual items only</span>`;
+    }
+
+    function renderExtractionWarnings() {
+        const warnings = state.extraction_warnings || [];
+        const panel = document.getElementById("extraction-warnings-panel");
+        panel.hidden = !warnings.length;
+        if (!warnings.length) return;
+        document.getElementById("extraction-warnings-summary").textContent =
+            `${warnings.length} extraction warning(s) - open to review`;
+        document.getElementById("extraction-warnings-list").innerHTML = warnings
+            .map((warning) => `<li>${escapeHtml(warning)}</li>`)
+            .join("");
+    }
+
     function renderItems() {
         const body = document.getElementById("items-body");
-        if (!state.items.length) {
-            body.innerHTML = `<tr><td colspan="10" class="empty-state">No products detected. Use Add Item to enter the invoice manually.</td></tr>`;
+        const groups = invoiceGroups();
+        if (!groups.length) {
+            body.innerHTML = `<tr><td colspan="10" class="empty-state">No invoices or products yet. Add an invoice above or use Add Item.</td></tr>`;
             return;
         }
-        body.innerHTML = state.items.map((item, index) => {
-            const confidence = Number(item.confidence ?? 1);
-            return `
+        body.innerHTML = groups.map((group) => {
+            const itemRows = group.items.length ? group.items.map(({item, index}) => {
+                const confidence = Number(item.confidence ?? 1);
+                return `
                 <tr>
                     <td class="description-cell">
                         <input class="cell-input" value="${escapeHtml(item.description)}" onchange="updateItem(${index}, 'description', this.value)">
-                        <span class="source-note">${escapeHtml(item.source_file || "Manual item")}</span>
                         <span class="confidence-note ${confidence < 0.65 ? "needs-review" : ""}">
                             ${confidence < 0.65 ? "Needs review - " : ""}${Math.round(confidence * 100)}% extraction confidence
                         </span>
@@ -1034,6 +1182,18 @@
                     <td><button type="button" class="small danger" onclick="removeItem(${index})">Remove</button></td>
                 </tr>
             `;
+            }).join("") : `<tr><td colspan="10" class="empty-state">No products were detected for this invoice. Use Add Item to enter its lines.</td></tr>`;
+            const addToInvoiceButton = Number.isInteger(group.sourceIndex)
+                ? `<button type="button" class="small no-print" onclick="addItemToInvoice(${group.sourceIndex})">Add Item to This Invoice</button>`
+                : "";
+            return `
+                <tr class="invoice-group-row"><td colspan="10">
+                    <div class="panel-heading" style="padding:0;border:0;background:transparent;align-items:center">
+                        <span>${escapeHtml(group.label)}</span>${addToInvoiceButton}
+                    </div>
+                </td></tr>
+                ${itemRows}
+            `;
         }).join("");
     }
 
@@ -1044,10 +1204,10 @@
         if (field === "deduct_from_stock") renderItems();
     }
 
-    function addItem() {
+    function addItem(sourceFile = "") {
         state.items.push({
             id: makeId("item"),
-            source_file: "",
+            source_file: sourceFile,
             description: "Manual item",
             size: "",
             model: "",
@@ -1061,6 +1221,12 @@
             raw_text: ""
         });
         renderItems();
+    }
+
+    function addItemToInvoice(sourceIndex) {
+        const sourceFile = (state.source_files || [])[sourceIndex];
+        if (sourceFile === undefined) return;
+        addItem(sourceFile);
     }
 
     function removeItem(index) {
@@ -1126,6 +1292,7 @@
         document.getElementById("order-summary-body").innerHTML = groups.length
             ? groups.map((group) => `
                 <tr>
+                    <td>${escapeHtml(invoiceDisplayLabel(group.source_file))}</td>
                     <td>${escapeHtml(group.size)}</td>
                     <td>${escapeHtml(group.model)}</td>
                     <td>${escapeHtml(group.colour)}</td>
@@ -1134,7 +1301,7 @@
                     <td>${integerValue(group.quantity, 0)}</td>
                 </tr>
             `).join("")
-            : `<tr><td colspan="6" class="empty-state">No order items yet.</td></tr>`;
+            : `<tr><td colspan="7" class="empty-state">No order items yet.</td></tr>`;
     }
 
     function renderWarnings() {
@@ -1210,6 +1377,11 @@
                 ${carried ? `<span class="on-top-label">Carried on body pallet</span>` : ""}
                 <div class="line-main">${integerValue(line.quantity, 0)} x ${escapeHtml(componentLabel)}</div>
                 <div class="line-details">${escapeHtml(details || "Manual allocation")}</div>
+                <span class="line-invoice">${escapeHtml(
+                    line.source_file
+                        ? invoiceDisplayLabel(line.source_file)
+                        : (line.origin_type === "automatic" ? "Combined from invoices on this plan" : "Manual allocation")
+                )}</span>
                 <div class="line-actions no-print">
                     <label class="line-control">
                         <span>On pallet</span>
@@ -1507,6 +1679,48 @@
         }
     }
 
+    async function appendInvoices(event) {
+        event.preventDefault();
+        if (busy || state.stock_removed_at) return;
+        const form = event.currentTarget;
+        const fileInput = form.querySelector('input[name="invoices"]');
+        if (!fileInput.files.length) {
+            setStatus("Choose at least one invoice file.", "error");
+            return;
+        }
+
+        const saved = await apiRequest(`/api/invoice_packaging/${planId}/save`, requestPayload());
+        if (!saved) return;
+        state = saved.plan;
+        manualLayoutDirty = state.pallets.some((pallet) => Boolean(pallet.manual_override));
+
+        setBusy(true);
+        try {
+            const response = await fetch(`/api/invoice_packaging/${planId}/add_invoices`, {
+                method: "POST",
+                body: new FormData(form)
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || "The invoices could not be added.");
+            }
+            state = data.plan;
+            manualLayoutDirty = state.pallets.some((pallet) => Boolean(pallet.manual_override));
+            form.reset();
+            renderAll();
+            const invoiceWord = data.added_invoice_count === 1 ? "invoice" : "invoices";
+            setStatus(
+                `${data.added_invoice_count} ${invoiceWord} added to this plan. Review the new items, then select Update Plan.`,
+                "success"
+            );
+        } catch (error) {
+            setStatus(error.message || "The invoices could not be added.", "error");
+            renderAll();
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function savePlan() {
         const data = await apiRequest(`/api/invoice_packaging/${planId}/save`, requestPayload());
         if (!data) return;
@@ -1627,6 +1841,8 @@
     }
 
     function renderAll() {
+        renderInvoiceOverview();
+        renderExtractionWarnings();
         renderItems();
         populateConfig();
         renderSummary();

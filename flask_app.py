@@ -3825,6 +3825,66 @@ def packaging_upload_signature_is_valid(uploaded_file, extension):
     return True
 
 
+def validate_packaging_uploads(uploads):
+    valid_uploads = []
+    upload_warnings = []
+    for uploaded_file in uploads:
+        filename = os.path.basename(uploaded_file.filename or "invoice")
+        extension = os.path.splitext(filename)[1].lower()
+        if extension not in SUPPORTED_EXTENSIONS:
+            upload_warnings.append(
+                f"{filename}: unsupported file type. Use PDF, image, CSV, XLSX, DOCX, or TXT."
+            )
+            continue
+        if packaging_upload_size(uploaded_file) > 10 * 1024 * 1024:
+            upload_warnings.append(
+                f"{filename}: file is larger than the 10 MB per-file limit."
+            )
+            continue
+        if not packaging_upload_signature_is_valid(uploaded_file, extension):
+            upload_warnings.append(
+                f"{filename}: file contents do not match its extension."
+            )
+            continue
+        valid_uploads.append(uploaded_file)
+    return valid_uploads, upload_warnings
+
+
+def extract_packaging_uploads(uploads, existing_source_files=None):
+    used_labels = {
+        str(filename).casefold()
+        for filename in (existing_source_files or [])
+    }
+    all_items = []
+    all_warnings = []
+    source_files = []
+    for uploaded_file in uploads:
+        items, warnings, filenames = extract_invoice_files([uploaded_file])
+        original_name = filenames[0]
+        stem, extension = os.path.splitext(original_name)
+        display_name = original_name
+        duplicate_number = 2
+        while display_name.casefold() in used_labels:
+            display_name = f"{stem} ({duplicate_number}){extension}"
+            duplicate_number += 1
+        used_labels.add(display_name.casefold())
+
+        if display_name != original_name:
+            for item in items:
+                if item.get("source_file") == original_name:
+                    item["source_file"] = display_name
+            warnings = [
+                f"{display_name}:{warning[len(original_name) + 1:]}"
+                if warning.startswith(f"{original_name}:") else warning
+                for warning in warnings
+            ]
+
+        all_items.extend(items)
+        all_warnings.extend(warnings)
+        source_files.append(display_name)
+    return all_items, all_warnings, source_files
+
+
 @app.route("/invoice_packaging", methods=["GET", "POST"])
 def invoice_packaging():
     if "worker" not in session:
@@ -3842,29 +3902,16 @@ def invoice_packaging():
             flash("Upload no more than 20 invoice files at once.", "error")
             return redirect(url_for("invoice_packaging"))
 
-        valid_uploads = []
-        upload_warnings = []
-        for uploaded_file in uploads:
-            filename = os.path.basename(uploaded_file.filename or "invoice")
-            extension = os.path.splitext(filename)[1].lower()
-            if extension not in SUPPORTED_EXTENSIONS:
-                upload_warnings.append(
-                    f"{filename}: unsupported file type. Use PDF, image, CSV, XLSX, DOCX, or TXT."
-                )
-                continue
-            if packaging_upload_size(uploaded_file) > 10 * 1024 * 1024:
-                upload_warnings.append(
-                    f"{filename}: file is larger than the 10 MB per-file limit."
-                )
-                continue
-            if not packaging_upload_signature_is_valid(uploaded_file, extension):
-                upload_warnings.append(
-                    f"{filename}: file contents do not match its extension."
-                )
-                continue
-            valid_uploads.append(uploaded_file)
+        if not uploads:
+            flash("Choose at least one invoice file.", "error")
+            return redirect(url_for("invoice_packaging"))
 
-        items, extraction_warnings, source_files = extract_invoice_files(valid_uploads)
+        valid_uploads, upload_warnings = validate_packaging_uploads(uploads)
+        if not valid_uploads:
+            flash(" ".join(upload_warnings), "error")
+            return redirect(url_for("invoice_packaging"))
+
+        items, extraction_warnings, source_files = extract_packaging_uploads(valid_uploads)
         extraction_warnings = upload_warnings + extraction_warnings
         now = london_now().replace(tzinfo=None)
         default_title = f"Packaging plan - {now.strftime('%d %b %Y %H:%M')}"
@@ -3915,6 +3962,74 @@ def invoice_packaging():
         item_type_labels=ITEM_TYPE_LABELS,
         max_upload_mb=10,
     )
+
+
+@app.route("/api/invoice_packaging/<int:job_id>/add_invoices", methods=["POST"])
+def add_invoice_packaging_files(job_id):
+    if "worker" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    job = packaging_job_or_404(job_id)
+    if job.stock_removed_at:
+        return jsonify({
+            "success": False,
+            "error": "Invoices cannot be added after this plan has been processed against stock.",
+        }), 400
+
+    uploads = [
+        uploaded_file
+        for uploaded_file in request.files.getlist("invoices")
+        if uploaded_file and uploaded_file.filename
+    ]
+    if not uploads:
+        return jsonify({"success": False, "error": "Choose at least one invoice file."}), 400
+
+    existing_source_files = packaging_json_load(job.source_files_json, [])
+    valid_uploads, upload_warnings = validate_packaging_uploads(uploads)
+    if not valid_uploads:
+        return jsonify({
+            "success": False,
+            "error": " ".join(upload_warnings) or "No valid invoice files were selected.",
+        }), 400
+    if len(existing_source_files) + len(valid_uploads) > 20:
+        return jsonify({
+            "success": False,
+            "error": "A packaging plan cannot contain more than 20 invoice files.",
+        }), 400
+
+    try:
+        new_items, extraction_warnings, source_files = extract_packaging_uploads(
+            valid_uploads,
+            existing_source_files,
+        )
+        existing_items = packaging_json_load(job.items_json, [])
+        combined_items = normalise_packaging_items(existing_items + new_items)
+        if len(combined_items) > 2000:
+            raise ValueError("A packaging plan cannot contain more than 2,000 item rows.")
+
+        existing_warnings = packaging_json_load(job.extraction_warnings_json, [])
+        job.source_files_json = json.dumps(existing_source_files + source_files)
+        job.items_json = json.dumps(combined_items)
+        job.extraction_warnings_json = json.dumps(
+            existing_warnings + upload_warnings + extraction_warnings
+        )
+        job.warnings_json = json.dumps(validate_packaging(
+            combined_items,
+            packaging_json_load(job.pallets_json, []),
+            packaging_json_load(job.config_json, {}),
+        ))
+        job.acknowledged_warnings_json = "[]"
+        job.updated_at = london_now().replace(tzinfo=None)
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "added_invoice_count": len(source_files),
+            "added_item_count": len(new_items),
+            "plan": packaging_job_payload(job),
+        })
+    except (TypeError, ValueError) as error:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(error)}), 400
 
 
 @app.route("/api/invoice_packaging/<int:job_id>/save", methods=["POST"])
