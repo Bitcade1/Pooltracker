@@ -72,7 +72,7 @@
 
         .label-border {
             display: grid;
-            grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+            grid-template-rows: auto auto minmax(0, 1fr) auto;
             width: 100%;
             height: 100%;
             border: 1.2mm solid #000;
@@ -80,8 +80,8 @@
 
         .label-header {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 4mm;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 3mm;
             align-items: center;
             padding: 3mm 4mm;
             border-bottom: 0.8mm solid #000;
@@ -94,6 +94,7 @@
             font-weight: 1000;
             letter-spacing: -0.4mm;
             text-transform: uppercase;
+            white-space: nowrap;
         }
 
         .pallet-type {
@@ -125,20 +126,13 @@
             color: #fff;
         }
 
-        .invoice-strip {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr);
-            gap: 3mm;
-            align-items: center;
-            min-height: 12mm;
-            padding: 1.5mm 4mm;
-            border-bottom: 0.8mm solid #000;
-            background: #000;
-            color: #fff;
+        .header-invoices {
+            min-width: 0;
+            text-align: center;
         }
 
         .invoice-count {
-            font-size: 4.8mm;
+            font-size: 3.5mm;
             line-height: 1;
             font-weight: 1000;
             text-transform: uppercase;
@@ -149,19 +143,20 @@
             display: flex;
             flex-wrap: wrap;
             gap: 1mm;
-            justify-content: flex-end;
+            justify-content: center;
             min-width: 0;
-            max-height: 12mm;
+            max-height: 9mm;
+            margin-top: 1mm;
             overflow: hidden;
         }
 
         .invoice-name {
             max-width: 48%;
-            padding: 0.7mm 1.4mm;
-            border: 0.35mm solid #fff;
-            background: #fff;
-            color: #000;
-            font-size: 3mm;
+            padding: 0.6mm 1.2mm;
+            border: 0.35mm solid #000;
+            background: #000;
+            color: #fff;
+            font-size: 2.8mm;
             line-height: 1.05;
             font-weight: 900;
             overflow-wrap: anywhere;
@@ -229,6 +224,8 @@
         }
 
         .side-panel {
+            display: flex;
+            flex-direction: column;
             padding: 2mm 3mm;
             border-left: 0.5mm solid #000;
             overflow: hidden;
@@ -245,6 +242,13 @@
             line-height: 1.2;
             font-weight: 800;
             overflow-wrap: anywhere;
+        }
+
+        .side-block.plan-totals {
+            flex-shrink: 0;
+            margin-top: auto;
+            padding-top: 2mm;
+            border-top: 0.35mm solid #000;
         }
 
         .rails-on-top {
@@ -312,6 +316,20 @@
             <article class="label-border">
                 <header class="label-header">
                     <h1 class="pallet-number">Pallet {{ pallet.pallet_number }}</h1>
+                    <div class="header-invoices">
+                        <div class="invoice-count">
+                            {{ plan.source_files|length }} invoice{% if plan.source_files|length != 1 %}s{% endif %} on plan
+                        </div>
+                        <div class="invoice-names">
+                            {% if plan.source_files %}
+                                {% for source_file in plan.source_files %}
+                                    <span class="invoice-name">Invoice #{{ invoice_references[source_file] }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="invoice-name">Manual items only</span>
+                            {% endif %}
+                        </div>
+                    </div>
                     <div class="pallet-type">
                         {% if pallet.pallet_type == 'body' %}
                             Table Bodies
@@ -336,21 +354,6 @@
                         <span class="mixed-badge">Mixed Pallet</span>
                     {% endif %}
                     <span>{{ plan.title }}</span>
-                </div>
-
-                <div class="invoice-strip">
-                    <div class="invoice-count">
-                        {{ plan.source_files|length }} invoice{% if plan.source_files|length != 1 %}s{% endif %} on plan
-                    </div>
-                    <div class="invoice-names">
-                        {% if plan.source_files %}
-                            {% for source_file in plan.source_files %}
-                                <span class="invoice-name">Invoice #{{ invoice_references[source_file] }}</span>
-                            {% endfor %}
-                        {% else %}
-                            <span class="invoice-name">Manual items only</span>
-                        {% endif %}
-                    </div>
                 </div>
 
                 <div class="label-content">
@@ -436,7 +439,7 @@
                             <h2 class="side-title">Pallet notes</h2>
                             <div class="side-value">{{ pallet.notes|default('') or 'None' }}</div>
                         </div>
-                        <div class="side-block">
+                        <div class="side-block plan-totals">
                             <h2 class="side-title">Plan totals</h2>
                             <div class="side-value">
                                 {{ plan.summary.complete_tables }} complete tables<br>
