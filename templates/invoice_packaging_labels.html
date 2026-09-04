@@ -163,8 +163,7 @@
         }
 
         .invoice-line-reference {
-            display: block;
-            margin-bottom: 0.3mm;
+            display: inline;
             font-weight: 1000;
             text-transform: uppercase;
         }
@@ -213,6 +212,36 @@
 
         .content-detail {
             overflow-wrap: anywhere;
+        }
+
+        .label-content.dense .contents {
+            padding: 1.3mm 3mm;
+        }
+
+        .label-content.dense .contents-title {
+            margin-bottom: 0.7mm;
+            font-size: 3.1mm;
+        }
+
+        .label-content.dense .content-lines {
+            gap: 0.45mm;
+        }
+
+        .label-content.dense .content-line {
+            gap: 1.3mm;
+            font-size: 3.5mm;
+            line-height: 1;
+        }
+
+        .label-content.dense .content-quantity {
+            min-width: 16mm;
+            font-size: 4.5mm;
+        }
+
+        .label-content.dense .content-meta {
+            margin-top: 0.25mm;
+            font-size: 2.4mm;
+            line-height: 1;
         }
 
         .content-meta {
@@ -356,7 +385,7 @@
                     <span>{{ plan.title }}</span>
                 </div>
 
-                <div class="label-content">
+                <div class="label-content{% if (pallet_lines|length + carried_rails|length) >= 5 %} dense{% endif %}">
                     <div class="contents">
                         <h2 class="contents-title">Pallet contents</h2>
                         {% if pallet_lines %}
@@ -412,7 +441,7 @@
                                                 {% if line.source_file %}
                                                     <span class="invoice-line-reference">
                                                         {% for source_file in plan.source_files %}
-                                                            {% if source_file == line.source_file %}Invoice #{{ invoice_references[source_file] }}{% endif %}
+                                                            {% if source_file == line.source_file %}Invoice #{{ invoice_references[source_file] }}{% if line.po_number %} | {% endif %}{% endif %}
                                                         {% endfor %}
                                                     </span>
                                                 {% endif %}
