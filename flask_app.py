@@ -911,7 +911,6 @@ CHINESE_PARTS_ORDER_MORE_PART = "Sticker Set"
 CHINESE_PARTS_ORDER_MORE_THRESHOLD = 300
 CHINESE_PARTS_ON_ORDER_FILE = os.path.join(basedir, "on_order_chinese_parts.json")
 HIDDEN_BODY_PICKER_PODS_FILE = os.path.join(basedir, "hidden_body_picker_pods.json")
-BODY_PICKER_HIDE_MIN_AGE_DAYS = 60
 BRAD_NAILS_PART_NAME = "18G 10mm Brad Nails"
 BRAD_NAILS_UNITS_PER_STRIP = 4  # Track quarter-strip usage (0.25 = 1 unit, 0.5 = 2 units)
 
@@ -11128,7 +11127,6 @@ def body_pod_audit():
         return value.strftime("%d/%m/%Y") if value else "-"
 
     today = london_now().date()
-    hide_cutoff_date = today - timedelta(days=BODY_PICKER_HIDE_MIN_AGE_DAYS)
     hidden_body_picker_pod_ids = load_hidden_body_picker_pod_ids()
     completed_bodies = CompletedTable.query.order_by(CompletedTable.date.desc(), CompletedTable.id.desc()).all()
 
@@ -11169,7 +11167,6 @@ def body_pod_audit():
             "worker": pod.worker,
             "date": format_entry_date(pod.date),
             "age_days": age_days,
-            "can_hide": bool(pod.date and pod.date <= hide_cutoff_date),
             "hidden": pod.id in hidden_body_picker_pod_ids,
             "size": serial_size_label(pod_serial),
             "table_type": pod_type,
@@ -11265,7 +11262,6 @@ def body_pod_audit():
         summary=summary,
         picker_rows=picker_rows,
         hidden_picker_rows=hidden_picker_rows,
-        hide_min_age_days=BODY_PICKER_HIDE_MIN_AGE_DAYS,
         mismatch_rows=mismatch_rows,
         undo_available=bool(undo_items),
         undo_count=len(undo_items),
@@ -11295,10 +11291,6 @@ def body_pod_audit_hide_pod():
     hidden_ids = load_hidden_body_picker_pod_ids()
     try:
         if action == "hide":
-            hide_cutoff_date = london_now().date() - timedelta(days=BODY_PICKER_HIDE_MIN_AGE_DAYS)
-            if not pod.date or pod.date > hide_cutoff_date:
-                flash("Only pods older than 2 months can be hidden from the picker.", "error")
-                return redirect(url_for('body_pod_audit'))
             hidden_ids.add(pod.id)
             save_hidden_body_picker_pod_ids(hidden_ids)
             flash(f"Hidden pod {pod.serial_number} from the body picker.", "success")
