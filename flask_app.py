@@ -13377,15 +13377,13 @@ def body_dashboard_view():
             displayed_body_workdays = combined_goal_workdays
             displayed_body_workdays_period = combined_body_goal["period_label"]
         if combined_remaining <= 0:
-            combined_needed_per_day_display = "0"
+            combined_needed_per_day_display = "0.00"
         elif combined_goal_workdays <= 0:
             combined_needed_per_day_display = "N/A"
         else:
             combined_needed_per_day = combined_remaining / combined_goal_workdays
-            combined_needed_per_day = ceil(combined_needed_per_day * 10) / 10
-            combined_needed_per_day_display = (
-                f"{combined_needed_per_day:.1f}".rstrip("0").rstrip(".")
-            )
+            combined_needed_per_day = ceil(combined_needed_per_day * 100) / 100
+            combined_needed_per_day_display = f"{combined_needed_per_day:.2f}"
         combined_body_goal["needed_per_day"] = combined_needed_per_day_display
         combined_body_goal["remaining_workdays"] = round(combined_goal_workdays, 2)
     for goal in bonus_progress:
@@ -13399,15 +13397,13 @@ def body_dashboard_view():
 
         goal_remaining = int(goal.get("remaining", 0) or 0)
         if goal_remaining <= 0:
-            needed_per_day_display = "0"
+            needed_per_day_display = "0.00"
         elif goal_workdays <= 0:
             needed_per_day_display = "N/A"
         else:
             needed_per_day = goal_remaining / goal_workdays
-            needed_per_day = ceil(needed_per_day * 10) / 10
-            needed_per_day_display = (
-                f"{needed_per_day:.1f}".rstrip("0").rstrip(".")
-            )
+            needed_per_day = ceil(needed_per_day * 100) / 100
+            needed_per_day_display = f"{needed_per_day:.2f}"
 
         goal["needed_per_day"] = needed_per_day_display
         goal["remaining_workdays"] = round(goal_workdays, 2)
