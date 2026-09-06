@@ -179,6 +179,18 @@
         white-space: nowrap;
     }
 
+    .detail-grid .stat-card {
+        justify-content: center;
+    }
+
+    .stat-card.rail-deficit .stat-value,
+    .stat-card.average-time .stat-value {
+        font-size: clamp(3.75rem, 7vw, 6rem);
+        font-weight: 900;
+        line-height: 1.02;
+        white-space: nowrap;
+    }
+
     .next-serial-value {
         display: inline-block;
     }
@@ -559,6 +571,11 @@
             font-size: clamp(3.5rem, 14vw, 5.5rem);
         }
 
+        .stat-card.rail-deficit .stat-value,
+        .stat-card.average-time .stat-value {
+            font-size: clamp(3.25rem, 13vw, 5rem);
+        }
+
         .panel h3 {
             font-size: 1.1rem;
         }
@@ -612,7 +629,7 @@
             <span class="stat-label">Next Serial</span>
             <span class="stat-value next-serial-value">{{ next_serial }}</span>
         </div>
-        <div class="stat-card wide">
+        <div class="stat-card average-time wide">
             <span class="stat-label">{{ avg_top_rail_time_label }}</span>
             <span class="stat-value">{{ avg_top_rail_time }}</span>
             <span class="stat-label">Last Month Avg: {{ last_month_avg_top_rail_time }}</span>
