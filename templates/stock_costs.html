@@ -279,6 +279,9 @@
         .legend-finished {
             background: #f57c00;
         }
+        .legend-water {
+            background: #7e22ce;
+        }
         .snapshot-table {
             margin-top: 16px;
         }
@@ -509,6 +512,7 @@
                 <div class="snapshot-legend">
                     <span class="legend-item"><span class="legend-swatch legend-total"></span>Total (Ex VAT)</span>
                     <span class="legend-item"><span class="legend-swatch legend-parts"></span>Parts (Ex VAT)</span>
+                    <span class="legend-item"><span class="legend-swatch legend-water"></span>Parts on the Water (Ex VAT)</span>
                     <span class="legend-item"><span class="legend-swatch legend-finished"></span>Finished (Ex VAT)</span>
                 </div>
                 <div class="table-wrapper snapshot-table">
@@ -722,6 +726,7 @@
                 const series = [
                     {key: 'total_ex_vat', colour: '#1976d2', label: 'Total'},
                     {key: 'parts_ex_vat', colour: '#2e7d32', label: 'Parts'},
+                    {key: 'parts_on_water_ex_vat', colour: '#7e22ce', label: 'Parts on the Water'},
                     {key: 'finished_ex_vat', colour: '#f57c00', label: 'Finished'}
                 ];
                 const allValues = series.flatMap((entry) => (
