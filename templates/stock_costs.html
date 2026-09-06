@@ -186,16 +186,71 @@
             justify-content: flex-end;
             margin-bottom: 12px;
         }
+        .snapshot-chart-header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 10px;
+        }
+        .snapshot-chart-heading {
+            margin: 0;
+            color: #263238;
+            font-size: 1.15rem;
+        }
+        .snapshot-range-summary {
+            margin: 4px 0 0;
+            color: #607d8b;
+            font-size: 0.88rem;
+        }
+        .snapshot-range-controls {
+            display: inline-flex;
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid #d7e0ea;
+            border-radius: 9px;
+            background: #f5f7fb;
+        }
+        .snapshot-range-button {
+            min-width: 48px;
+            padding: 7px 10px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: #455a64;
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .snapshot-range-button:hover {
+            background: #e3edf8;
+        }
+        .snapshot-range-button.active {
+            background: #1976d2;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(25, 118, 210, 0.3);
+        }
         .snapshot-chart {
             background: #f5f7fb;
             border: 1px solid #e0e6ef;
             border-radius: 10px;
-            padding: 12px;
+            padding: 10px 12px 6px;
+            overflow: hidden;
         }
         .snapshot-chart svg {
             width: 100%;
             height: auto;
+            min-height: 280px;
             display: block;
+        }
+        .snapshot-chart-empty {
+            display: grid;
+            min-height: 280px;
+            place-items: center;
+            color: #607d8b;
+            font-weight: 600;
+            text-align: center;
         }
         .snapshot-legend {
             display: flex;
@@ -293,6 +348,21 @@
             .actions {
                 flex-direction: column;
                 align-items: stretch;
+            }
+            .snapshot-chart-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+            .snapshot-range-controls {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+            }
+            .snapshot-range-button {
+                min-width: 0;
+            }
+            .snapshot-chart svg,
+            .snapshot-chart-empty {
+                min-height: 230px;
             }
         }
     </style>
@@ -420,8 +490,21 @@
                     <input type="hidden" name="snapshot_action" value="create_snapshot">
                     <button type="submit" class="secondary-button">Create Snapshot Now</button>
                 </form>
+                <div class="snapshot-chart-header">
+                    <div>
+                        <h3 class="snapshot-chart-heading">Stock value trend</h3>
+                        <p class="snapshot-range-summary" id="snapshot-range-summary">Choose a period to view recent snapshots.</p>
+                    </div>
+                    <div class="snapshot-range-controls" role="group" aria-label="Stock snapshot chart period">
+                        <button type="button" class="snapshot-range-button" data-chart-months="1">1 month</button>
+                        <button type="button" class="snapshot-range-button active" data-chart-months="3" aria-pressed="true">3 months</button>
+                        <button type="button" class="snapshot-range-button" data-chart-months="6">6 months</button>
+                        <button type="button" class="snapshot-range-button" data-chart-months="12">12 months</button>
+                    </div>
+                </div>
                 <div class="snapshot-chart">
-                    <svg id="stock-snapshot-chart" viewBox="0 0 800 260" role="img" aria-label="Weekly stock value trend"></svg>
+                    <svg id="stock-snapshot-chart" viewBox="0 0 900 340" role="img" aria-label="Stock value trend for the last 3 months"></svg>
+                    <div class="snapshot-chart-empty" id="snapshot-chart-empty" hidden></div>
                 </div>
                 <div class="snapshot-legend">
                     <span class="legend-item"><span class="legend-swatch legend-total"></span>Total (Ex VAT)</span>
@@ -553,51 +636,194 @@
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            const snapshots = {{ stock_snapshots|tojson }};
+            const rawSnapshots = {{ stock_snapshots|tojson }};
             const chart = document.getElementById('stock-snapshot-chart');
-            if (!chart || !snapshots || snapshots.length === 0) {
-                return;
+            const emptyState = document.getElementById('snapshot-chart-empty');
+            const rangeSummary = document.getElementById('snapshot-range-summary');
+            const rangeButtons = Array.from(document.querySelectorAll('[data-chart-months]'));
+            const allowedRanges = [1, 3, 6, 12];
+            const RANGE_STORAGE_KEY = 'stock_snapshot_chart_months';
+            if (!chart || !emptyState || !rangeSummary) return;
+
+            const snapshotDate = (snapshot) => {
+                const dateValue = snapshot.timestamp || snapshot.week_key || snapshot.month_key;
+                if (!dateValue) return null;
+                const parsed = new Date(dateValue);
+                return Number.isNaN(parsed.getTime()) ? null : parsed;
+            };
+            const snapshots = (rawSnapshots || [])
+                .map((snapshot) => ({...snapshot, chartDate: snapshotDate(snapshot)}))
+                .filter((snapshot) => snapshot.chartDate)
+                .sort((left, right) => left.chartDate - right.chartDate);
+
+            const fullCurrency = new Intl.NumberFormat('en-GB', {
+                style: 'currency',
+                currency: 'GBP',
+                maximumFractionDigits: 0
+            });
+            const dateLabel = new Intl.DateTimeFormat('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: '2-digit'
+            });
+            const compactCurrency = (value) => {
+                const absoluteValue = Math.abs(value);
+                if (absoluteValue >= 1000000) return `£${(value / 1000000).toFixed(1)}m`;
+                if (absoluteValue >= 1000) return `£${(value / 1000).toFixed(0)}k`;
+                return `£${Math.round(value)}`;
+            };
+
+            let selectedMonths = 3;
+            try {
+                const storedRange = Number(localStorage.getItem(RANGE_STORAGE_KEY));
+                if (allowedRanges.includes(storedRange)) selectedMonths = storedRange;
+            } catch (error) {
+                // The chart still works when browser storage is unavailable.
             }
 
-            const totalValues = snapshots.map((s) => Number(s.total_ex_vat) || 0);
-            const partsValues = snapshots.map((s) => Number(s.parts_ex_vat) || 0);
-            const finishedValues = snapshots.map((s) => Number(s.finished_ex_vat) || 0);
-            const allValues = [...totalValues, ...partsValues, ...finishedValues];
-            const minValue = Math.min(...allValues);
-            const maxValue = Math.max(...allValues);
-            const min = minValue === maxValue ? minValue - 1 : minValue;
-            const max = minValue === maxValue ? maxValue + 1 : maxValue;
+            const showEmptyState = (message) => {
+                chart.hidden = true;
+                emptyState.hidden = false;
+                emptyState.textContent = message;
+            };
 
-            const width = 800;
-            const height = 260;
-            const padding = 40;
-            const innerWidth = width - (padding * 2);
-            const innerHeight = height - (padding * 2);
-            const buildPoints = (values) => values.map((val, index) => {
-                const ratio = values.length > 1 ? (index / (values.length - 1)) : 0;
-                const x = padding + (ratio * innerWidth);
-                const y = padding + innerHeight - ((val - min) / (max - min)) * innerHeight;
-                return `${x},${y}`;
-            }).join(' ');
+            const renderChart = () => {
+                rangeButtons.forEach((button) => {
+                    const isActive = Number(button.dataset.chartMonths) === selectedMonths;
+                    button.classList.toggle('active', isActive);
+                    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
 
-            const totalPoints = buildPoints(totalValues);
-            const partsPoints = buildPoints(partsValues);
-            const finishedPoints = buildPoints(finishedValues);
+                if (!snapshots.length) {
+                    rangeSummary.textContent = 'No dated snapshots are available.';
+                    showEmptyState('Create a stock snapshot to begin the trend graph.');
+                    return;
+                }
 
-            const totalLastPoint = totalPoints.split(' ').slice(-1)[0].split(',');
-            const partsLastPoint = partsPoints.split(' ').slice(-1)[0].split(',');
-            const finishedLastPoint = finishedPoints.split(' ').slice(-1)[0].split(',');
+                const latestDate = snapshots[snapshots.length - 1].chartDate;
+                const cutoffDate = new Date(latestDate);
+                cutoffDate.setMonth(cutoffDate.getMonth() - selectedMonths);
+                const visibleSnapshots = snapshots.filter(
+                    (snapshot) => snapshot.chartDate >= cutoffDate && snapshot.chartDate <= latestDate
+                );
+                if (!visibleSnapshots.length) {
+                    rangeSummary.textContent = `No snapshots in the last ${selectedMonths} month${selectedMonths === 1 ? '' : 's'}.`;
+                    showEmptyState('Choose a longer period to see earlier snapshots.');
+                    return;
+                }
 
-            chart.innerHTML = `
-                <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#cfd8dc" />
-                <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#cfd8dc" />
-                <polyline fill="none" stroke="#1976d2" stroke-width="3" points="${totalPoints}" />
-                <polyline fill="none" stroke="#2e7d32" stroke-width="3" points="${partsPoints}" />
-                <polyline fill="none" stroke="#f57c00" stroke-width="3" points="${finishedPoints}" />
-                <circle cx="${totalLastPoint[0]}" cy="${totalLastPoint[1]}" r="4" fill="#1976d2" />
-                <circle cx="${partsLastPoint[0]}" cy="${partsLastPoint[1]}" r="4" fill="#2e7d32" />
-                <circle cx="${finishedLastPoint[0]}" cy="${finishedLastPoint[1]}" r="4" fill="#f57c00" />
-            `;
+                chart.hidden = false;
+                emptyState.hidden = true;
+                const width = 900;
+                const height = 340;
+                const padding = {top: 24, right: 28, bottom: 54, left: 72};
+                const innerWidth = width - padding.left - padding.right;
+                const innerHeight = height - padding.top - padding.bottom;
+                const series = [
+                    {key: 'total_ex_vat', colour: '#1976d2', label: 'Total'},
+                    {key: 'parts_ex_vat', colour: '#2e7d32', label: 'Parts'},
+                    {key: 'finished_ex_vat', colour: '#f57c00', label: 'Finished'}
+                ];
+                const allValues = series.flatMap((entry) => (
+                    visibleSnapshots.map((snapshot) => Number(snapshot[entry.key]) || 0)
+                ));
+                const rawMin = Math.min(...allValues);
+                const rawMax = Math.max(...allValues);
+                const spread = rawMax - rawMin;
+                const scaleMargin = spread > 0
+                    ? spread * 0.1
+                    : Math.max(Math.abs(rawMax) * 0.05, 1);
+                const min = Math.max(0, rawMin - scaleMargin);
+                const max = Math.max(min + 1, rawMax + scaleMargin);
+                const xForIndex = (index) => {
+                    if (visibleSnapshots.length === 1) return padding.left + (innerWidth / 2);
+                    return padding.left + ((index / (visibleSnapshots.length - 1)) * innerWidth);
+                };
+                const yForValue = (value) => (
+                    padding.top + innerHeight - (((value - min) / (max - min)) * innerHeight)
+                );
+                const pointsForSeries = (key) => visibleSnapshots.map((snapshot, index) => ({
+                    x: xForIndex(index),
+                    y: yForValue(Number(snapshot[key]) || 0),
+                    value: Number(snapshot[key]) || 0,
+                    date: snapshot.chartDate
+                }));
+
+                const yTickCount = 5;
+                const yGrid = Array.from({length: yTickCount}, (_, index) => {
+                    const ratio = index / (yTickCount - 1);
+                    const value = max - ((max - min) * ratio);
+                    const y = padding.top + (innerHeight * ratio);
+                    return `
+                        <line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="#dbe3ec" stroke-width="1" />
+                        <text x="${padding.left - 10}" y="${y + 4}" fill="#607d8b" font-size="12" text-anchor="end">${compactCurrency(value)}</text>
+                    `;
+                }).join('');
+
+                const xTickCount = Math.min(6, visibleSnapshots.length);
+                const xTickIndexes = xTickCount === 1
+                    ? [0]
+                    : Array.from({length: xTickCount}, (_, index) => (
+                        Math.round((index / (xTickCount - 1)) * (visibleSnapshots.length - 1))
+                    ));
+                const xLabels = xTickIndexes.map((snapshotIndex) => {
+                    const x = xForIndex(snapshotIndex);
+                    const label = dateLabel.format(visibleSnapshots[snapshotIndex].chartDate);
+                    return `<text x="${x}" y="${height - 20}" fill="#607d8b" font-size="12" text-anchor="middle">${label}</text>`;
+                }).join('');
+
+                const renderedSeries = series.map((entry) => {
+                    const points = pointsForSeries(entry.key);
+                    const pointString = points.map((point) => `${point.x},${point.y}`).join(' ');
+                    const circles = points.map((point) => `
+                        <circle cx="${point.x}" cy="${point.y}" r="3.5" fill="${entry.colour}" stroke="#fff" stroke-width="1.5">
+                            <title>${entry.label}: ${fullCurrency.format(point.value)} on ${dateLabel.format(point.date)}</title>
+                        </circle>
+                    `).join('');
+                    return `
+                        <polyline fill="none" stroke="${entry.colour}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${pointString}" />
+                        ${circles}
+                    `;
+                }).join('');
+                const totalPoints = pointsForSeries('total_ex_vat');
+                const totalAreaPoints = totalPoints.length > 1
+                    ? `${padding.left},${padding.top + innerHeight} `
+                        + totalPoints.map((point) => `${point.x},${point.y}`).join(' ')
+                        + ` ${width - padding.right},${padding.top + innerHeight}`
+                    : '';
+
+                chart.innerHTML = `
+                    ${yGrid}
+                    ${totalAreaPoints ? `<polygon points="${totalAreaPoints}" fill="#1976d2" opacity="0.07" />` : ''}
+                    <line x1="${padding.left}" y1="${padding.top + innerHeight}" x2="${width - padding.right}" y2="${padding.top + innerHeight}" stroke="#90a4ae" stroke-width="1.5" />
+                    ${xLabels}
+                    ${renderedSeries}
+                `;
+                chart.setAttribute(
+                    'aria-label',
+                    `Stock value trend for the last ${selectedMonths} month${selectedMonths === 1 ? '' : 's'}`
+                );
+
+                const firstVisible = visibleSnapshots[0];
+                const lastVisible = visibleSnapshots[visibleSnapshots.length - 1];
+                rangeSummary.textContent =
+                    `${visibleSnapshots.length} snapshot${visibleSnapshots.length === 1 ? '' : 's'} | `
+                    + `${dateLabel.format(firstVisible.chartDate)} to ${dateLabel.format(lastVisible.chartDate)} | `
+                    + `Latest total ${fullCurrency.format(Number(lastVisible.total_ex_vat) || 0)}`;
+            };
+
+            rangeButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    selectedMonths = Number(button.dataset.chartMonths);
+                    try {
+                        localStorage.setItem(RANGE_STORAGE_KEY, String(selectedMonths));
+                    } catch (error) {
+                        // Remembering the range is optional.
+                    }
+                    renderChart();
+                });
+            });
+            renderChart();
         });
     </script>
 </body>
