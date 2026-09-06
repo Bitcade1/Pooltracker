@@ -515,9 +515,91 @@
         display: grid;
     }
 
+    .packaging-key {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 12px;
+        padding: 9px 11px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #f8fafc;
+    }
+
+    .packaging-key-label {
+        margin-right: 2px;
+        color: #334155;
+        font-size: 0.78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .packaging-key-note {
+        color: #64748b;
+        font-size: 0.76rem;
+        font-weight: 700;
+    }
+
     .pallet-line {
         padding: 10px 12px;
         border-top: 1px solid #e2e8f0;
+        border-left: 5px solid transparent;
+    }
+
+    .pallet-line.line-type-body { border-left-color: #2563eb; }
+    .pallet-line.line-type-top-rail { border-left-color: #f59e0b; }
+    .pallet-line.line-type-cushion { border-left-color: #16a34a; }
+    .pallet-line.line-type-leg-box { border-left-color: #7c3aed; }
+    .pallet-line.line-type-other { border-left-color: #64748b; }
+
+    .component-badge,
+    .detail-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 25px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 900;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .component-badge {
+        padding: 5px 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .component-body {
+        border-color: #60a5fa;
+        background: #dbeafe;
+        color: #1e3a8a;
+    }
+
+    .component-top-rail {
+        border-color: #f59e0b;
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .component-cushion {
+        border-color: #4ade80;
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .component-leg-box {
+        border-color: #a78bfa;
+        background: #ede9fe;
+        color: #5b21b6;
+    }
+
+    .component-other {
+        border-color: #94a3b8;
+        background: #e2e8f0;
+        color: #334155;
     }
 
     .pallet-line.is-draggable {
@@ -551,13 +633,88 @@
     }
 
     .line-main {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px;
         color: #0f172a;
         font-weight: 800;
     }
 
-    .line-details {
-        margin-top: 3px;
+    .line-quantity {
+        min-width: 34px;
+        font-size: 1.05rem;
+        font-weight: 950;
+    }
+
+    .line-attributes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 7px;
+    }
+
+    .detail-chip {
+        padding: 5px 8px;
+        border-color: #cbd5e1;
+        background: #fff;
+        color: #334155;
+    }
+
+    .size-chip {
+        min-width: 46px;
+        justify-content: center;
+        font-size: 0.82rem;
+    }
+
+    .size-6ft {
+        border-color: #06b6d4;
+        background: #cffafe;
+        color: #155e75;
+    }
+
+    .size-7ft {
+        border-color: #ec4899;
+        background: #fce7f3;
+        color: #9d174d;
+    }
+
+    .size-other {
+        border-color: #64748b;
+        background: #f1f5f9;
+        color: #334155;
+    }
+
+    .model-chip::before {
+        content: "Model";
+        margin-right: 5px;
         color: #64748b;
+        font-size: 0.61rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .colour-chip::before {
+        content: "";
+        width: 13px;
+        height: 13px;
+        margin-right: 6px;
+        border: 1px solid rgba(15, 23, 42, 0.32);
+        border-radius: 50%;
+        background: #cbd5e1;
+        flex: 0 0 auto;
+    }
+
+    .colour-black::before { background: #111827; }
+    .colour-grey-oak::before { background: linear-gradient(135deg, #9ca3af, #e5e7eb); }
+    .colour-rustic-oak::before { background: linear-gradient(135deg, #92400e, #d6a45f); }
+    .colour-stone::before { background: #a8a29e; }
+    .colour-rustic-black::before { background: linear-gradient(135deg, #111827, #78350f); }
+    .colour-white::before { background: #fff; }
+
+    .line-details {
+        margin-top: 7px;
+        color: #475569;
         font-size: 0.82rem;
         line-height: 1.35;
     }
@@ -678,6 +835,12 @@
         body {
             background: #fff;
             color: #000;
+        }
+
+        .packaging-page,
+        .packaging-page * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         .site-header,
@@ -963,6 +1126,16 @@
             </div>
         </div>
         <div class="panel-body">
+            <div class="packaging-key" aria-label="Packaging list colour key">
+                <span class="packaging-key-label">Quick key</span>
+                <span class="component-badge component-body">Body</span>
+                <span class="component-badge component-top-rail">Top rail</span>
+                <span class="component-badge component-cushion">Cushion</span>
+                <span class="component-badge component-leg-box">Leg box</span>
+                <span class="detail-chip size-chip size-6ft">6ft</span>
+                <span class="detail-chip size-chip size-7ft">7ft</span>
+                <span class="packaging-key-note">Finishes use a labelled colour swatch on each item.</span>
+            </div>
             <div class="pallets-grid" id="pallets-grid"></div>
         </div>
     </section>
@@ -1344,15 +1517,55 @@
         )).join("");
     }
 
+    function componentClass(componentType) {
+        return {
+            body: "body",
+            top_rail: "top-rail",
+            cushion: "cushion",
+            leg_box: "leg-box",
+            other: "other"
+        }[componentType] || "other";
+    }
+
+    function sizeClass(size) {
+        const value = String(size || "").trim().toLowerCase();
+        if (value === "6ft") return "size-6ft";
+        if (value === "7ft") return "size-7ft";
+        return "size-other";
+    }
+
+    function colourClass(colour) {
+        const value = String(colour || "").trim().toLowerCase();
+        return {
+            black: "colour-black",
+            "grey oak": "colour-grey-oak",
+            "gray oak": "colour-grey-oak",
+            "rustic oak": "colour-rustic-oak",
+            stone: "colour-stone",
+            "rustic black": "colour-rustic-black",
+            white: "colour-white"
+        }[value] || "colour-other";
+    }
+
     function lineHtml(pallet, line, carried) {
         const details = [
-            line.size,
-            line.model,
-            line.colour,
             line.po_number ? `PO ${line.po_number}` : "",
-            line.description
+            line.description,
+            line.notes
         ].filter(Boolean).join(" | ");
         const componentLabel = componentLabels[line.component_type] || line.component_type || "Item";
+        const componentStyle = componentClass(line.component_type);
+        const attributes = [
+            line.size
+                ? `<span class="detail-chip size-chip ${sizeClass(line.size)}">${escapeHtml(line.size)}</span>`
+                : "",
+            line.model
+                ? `<span class="detail-chip model-chip">${escapeHtml(line.model)}</span>`
+                : "",
+            line.colour
+                ? `<span class="detail-chip colour-chip ${colourClass(line.colour)}">${escapeHtml(line.colour)}</span>`
+                : ""
+        ].filter(Boolean).join("");
         const availableQuantity = Math.max(0, integerValue(line.quantity, 0));
         const moveDisabled = availableQuantity < 1 ? "disabled" : "";
         const moveControls = `
@@ -1372,11 +1585,15 @@
                 onclick="moveAllocation('${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})">Move</button>
         `;
         return `
-            <div class="pallet-line ${line.component_type === "top_rail" ? "is-draggable" : ""}"
+            <div class="pallet-line line-type-${componentStyle} ${line.component_type === "top_rail" ? "is-draggable" : ""}"
                 ${line.component_type === "top_rail" ? `draggable="true" ondragstart="startTopRailDrag(event, '${escapeHtml(pallet.id)}', '${escapeHtml(line.id)}', ${carried})" ondragend="endTopRailDrag()"` : ""}>
                 ${carried ? `<span class="on-top-label">Carried on body pallet</span>` : ""}
-                <div class="line-main">${integerValue(line.quantity, 0)} x ${escapeHtml(componentLabel)}</div>
-                <div class="line-details">${escapeHtml(details || "Manual allocation")}</div>
+                <div class="line-main">
+                    <span class="line-quantity">${integerValue(line.quantity, 0)} x</span>
+                    <span class="component-badge component-${componentStyle}">${escapeHtml(componentLabel)}</span>
+                </div>
+                ${attributes ? `<div class="line-attributes">${attributes}</div>` : ""}
+                ${details ? `<div class="line-details">${escapeHtml(details)}</div>` : ""}
                 <span class="line-invoice">${escapeHtml(
                     line.source_file
                         ? invoiceDisplayLabel(line.source_file)
