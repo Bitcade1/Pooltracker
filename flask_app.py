@@ -4270,6 +4270,42 @@ def invoice_packaging_labels(job_id):
     )
 
 
+@app.route("/invoice_packaging/<int:job_id>/pallet-list")
+def invoice_packaging_pallet_list(job_id):
+    if "worker" not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for("login"))
+
+    job = packaging_job_or_404(job_id)
+    plan = packaging_job_payload(job)
+    if not plan["pallets"]:
+        flash("Generate the packaging list before printing the pallet list.", "warning")
+        return redirect(url_for("invoice_packaging", plan=job.id))
+
+    return render_template(
+        "invoice_packaging_pallet_list.html",
+        plan=plan,
+        generated_at=london_now().strftime("%d/%m/%Y %H:%M"),
+        invoice_references={
+            filename: packaging_invoice_reference(filename)
+            for filename in plan["source_files"]
+        },
+        component_labels={
+            "body": "Table Body",
+            "top_rail": "Top Rail",
+            "cushion": "Cushion Set",
+            "leg_box": "Leg Box",
+            "other": "Other Item",
+        },
+        pallet_type_labels={
+            "body": "Table Bodies",
+            "top_rail": "Top Rails",
+            "cushion": "Cushions and Legs",
+            "custom": "Mixed / Custom",
+        },
+    )
+
+
 def ensure_production_comparison_tables():
     CompletedPods.__table__.create(db.engine, checkfirst=True)
     TopRail.__table__.create(db.engine, checkfirst=True)

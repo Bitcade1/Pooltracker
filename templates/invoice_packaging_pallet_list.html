@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ plan.title }} - Home Leisure Pallet List</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #e5e7eb;
+            color: #111827;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .print-controls {
+            position: sticky;
+            z-index: 20;
+            top: 0;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px;
+            background: #172033;
+            color: #fff;
+        }
+
+        .print-controls button,
+        .print-controls a {
+            min-height: 40px;
+            padding: 9px 16px;
+            border: 0;
+            border-radius: 5px;
+            background: #fff;
+            color: #172033;
+            font: inherit;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .print-controls .primary {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        .instruction {
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
+        .manifest {
+            width: min(1200px, calc(100% - 28px));
+            margin: 18px auto;
+            padding: 18px;
+            background: #fff;
+            box-shadow: 0 3px 16px rgba(15, 23, 42, 0.16);
+        }
+
+        .manifest-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            align-items: start;
+            padding-bottom: 12px;
+            border-bottom: 4px solid #111827;
+        }
+
+        .recipient-label {
+            margin: 0 0 4px;
+            font-size: 0.78rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.05;
+        }
+
+        .plan-title {
+            margin-top: 6px;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .document-meta {
+            display: grid;
+            gap: 4px;
+            min-width: 225px;
+            font-size: 0.83rem;
+            text-align: right;
+        }
+
+        .document-meta strong {
+            color: #374151;
+        }
+
+        .invoice-strip,
+        .plan-notes {
+            margin-top: 10px;
+            padding: 9px 11px;
+            border: 2px solid #4b5563;
+            font-size: 0.9rem;
+            line-height: 1.35;
+        }
+
+        .invoice-strip strong,
+        .plan-notes strong {
+            text-transform: uppercase;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 7px;
+            margin: 12px 0;
+        }
+
+        .summary-box {
+            padding: 8px;
+            border: 2px solid #111827;
+            text-align: center;
+        }
+
+        .summary-value {
+            display: block;
+            font-size: 1.45rem;
+            font-weight: 1000;
+            line-height: 1;
+        }
+
+        .summary-label {
+            display: block;
+            margin-top: 4px;
+            font-size: 0.69rem;
+            font-weight: 900;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .pallet-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .pallet {
+            border: 3px solid #111827;
+            break-inside: avoid-page;
+        }
+
+        .pallet-header {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 14px;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 3px solid #111827;
+            background: #e5e7eb;
+        }
+
+        .pallet-number {
+            font-size: 1.55rem;
+            font-weight: 1000;
+            line-height: 1;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .pallet-type {
+            font-size: 1rem;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .pallet-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: flex-end;
+        }
+
+        .status-badge {
+            padding: 4px 7px;
+            border: 2px solid #111827;
+            background: #fff;
+            font-size: 0.7rem;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th,
+        td {
+            padding: 7px 6px;
+            border-right: 1px solid #6b7280;
+            border-bottom: 1px solid #6b7280;
+            vertical-align: top;
+            text-align: left;
+            overflow-wrap: anywhere;
+        }
+
+        th:last-child,
+        td:last-child {
+            border-right: 0;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        th {
+            background: #111827;
+            color: #fff;
+            font-size: 0.67rem;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        td {
+            font-size: 0.82rem;
+            font-weight: 700;
+            line-height: 1.22;
+        }
+
+        .quantity-cell {
+            font-size: 1rem;
+            font-weight: 1000;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .item-name,
+        .finish-name {
+            font-weight: 1000;
+            text-transform: uppercase;
+        }
+
+        .item-description,
+        .line-note {
+            display: block;
+            margin-top: 3px;
+            color: #374151;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .carried-label {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 2px 4px;
+            border: 1px solid #111827;
+            font-size: 0.62rem;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .pallet-notes {
+            padding: 7px 10px;
+            border-top: 2px solid #111827;
+            font-size: 0.8rem;
+        }
+
+        .empty-pallet {
+            padding: 14px;
+            font-size: 0.9rem;
+            font-weight: 900;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .manifest-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 2px solid #111827;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        @media (max-width: 760px) {
+            .manifest-header {
+                grid-template-columns: 1fr;
+            }
+
+            .document-meta {
+                text-align: left;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .pallet-header {
+                grid-template-columns: 1fr;
+            }
+
+            .pallet-status {
+                justify-content: flex-start;
+            }
+        }
+
+        @page {
+            size: A4 landscape;
+            margin: 9mm;
+        }
+
+        @media print {
+            html,
+            body {
+                background: #fff;
+            }
+
+            body,
+            body * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .print-controls {
+                display: none !important;
+            }
+
+            .manifest {
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+
+            .pallet-list {
+                gap: 7mm;
+            }
+
+            .pallet {
+                page-break-inside: avoid;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="print-controls">
+        <button type="button" class="primary" onclick="window.print()">Print / Save as PDF</button>
+        <a href="{{ url_for('invoice_packaging', plan=plan.id) }}">Back to Packaging Plan</a>
+        <span class="instruction">A4 landscape, 100% scale. Select Save as PDF if you want to email the list.</span>
+    </div>
+
+    <main class="manifest">
+        <header class="manifest-header">
+            <div>
+                <p class="recipient-label">Prepared for Home Leisure</p>
+                <h1>Pallet Manifest</h1>
+                <div class="plan-title">{{ plan.title }}</div>
+            </div>
+            <div class="document-meta">
+                <div><strong>Plan:</strong> #{{ plan.id }}</div>
+                <div><strong>Prepared:</strong> {{ generated_at }}</div>
+                <div><strong>Prepared by:</strong> {{ plan.created_by or 'Pool Table Tracker' }}</div>
+            </div>
+        </header>
+
+        <div class="invoice-strip">
+            <strong>Invoices included:</strong>
+            {% if plan.source_files %}
+                {% for source_file in plan.source_files %}
+                    Invoice #{{ invoice_references[source_file] }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            {% else %}
+                Manual items only
+            {% endif %}
+        </div>
+
+        <section class="summary-grid" aria-label="Plan totals">
+            <div class="summary-box">
+                <span class="summary-value">{{ plan.pallets|length }}</span>
+                <span class="summary-label">Total Pallets</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-value">{{ plan.summary.total_bodies|default(0) }}</span>
+                <span class="summary-label">Bodies</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-value">{{ plan.summary.total_top_rails|default(0) }}</span>
+                <span class="summary-label">Top Rails</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-value">{{ plan.summary.total_cushion_sets|default(0) }}</span>
+                <span class="summary-label">Cushion Sets</span>
+            </div>
+            <div class="summary-box">
+                <span class="summary-value">{{ plan.summary.total_leg_boxes|default(0) }}</span>
+                <span class="summary-label">Leg Boxes</span>
+            </div>
+        </section>
+
+        {% if plan.notes %}
+        <div class="plan-notes"><strong>Dispatch notes:</strong> {{ plan.notes }}</div>
+        {% endif %}
+
+        <section class="pallet-list" aria-label="Pallet contents">
+            {% for pallet in plan.pallets|sort(attribute='pallet_number') %}
+                {% set pallet_lines = pallet.lines|default([]) %}
+                {% set carried_rails = pallet.carried_top_rails|default([]) %}
+                {% set pallet_totals = namespace(quantity=0) %}
+                {% for line in pallet_lines + carried_rails %}
+                    {% set pallet_totals.quantity = pallet_totals.quantity + (line.quantity|int) %}
+                {% endfor %}
+                <article class="pallet">
+                    <header class="pallet-header">
+                        <div class="pallet-number">Pallet {{ pallet.pallet_number }}</div>
+                        <div class="pallet-type">{{ pallet_type_labels.get(pallet.pallet_type, 'Pallet') }}</div>
+                        <div class="pallet-status">
+                            <span class="status-badge">{{ pallet_totals.quantity }} item{% if pallet_totals.quantity != 1 %}s{% endif %}</span>
+                            {% if pallet.is_mixed %}<span class="status-badge">Mixed</span>{% endif %}
+                        </div>
+                    </header>
+
+                    {% if pallet_lines or carried_rails %}
+                    <table>
+                        <colgroup>
+                            <col style="width: 7%">
+                            <col style="width: 19%">
+                            <col style="width: 8%">
+                            <col style="width: 14%">
+                            <col style="width: 14%">
+                            <col style="width: 13%">
+                            <col style="width: 25%">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>Qty</th>
+                                <th>Item</th>
+                                <th>Size</th>
+                                <th>Model</th>
+                                <th>Colour / Finish</th>
+                                <th>Invoice</th>
+                                <th>PO / Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for line in pallet_lines + carried_rails %}
+                            <tr>
+                                <td class="quantity-cell">{{ line.quantity }} x</td>
+                                <td>
+                                    <span class="item-name">{{ component_labels.get(line.component_type, line.component_type|replace('_', ' ')|title) }}</span>
+                                    {% if line.description %}<span class="item-description">{{ line.description }}</span>{% endif %}
+                                    {% if line in carried_rails %}<span class="carried-label">Carried on this body pallet</span>{% endif %}
+                                </td>
+                                <td>{{ line.size or '-' }}</td>
+                                <td>{{ line.model or '-' }}</td>
+                                <td><span class="finish-name">{{ line.colour or '-' }}</span></td>
+                                <td>
+                                    {% if line.source_file %}
+                                        Invoice #{{ invoice_references.get(line.source_file, 'Unknown') }}
+                                    {% elif line.origin_type == 'automatic' %}
+                                        Combined
+                                    {% else %}
+                                        Manual
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if line.po_number %}<strong>PO {{ line.po_number }}</strong>{% endif %}
+                                    {% if line.notes %}<span class="line-note">{{ line.notes }}</span>{% endif %}
+                                    {% if not line.po_number and not line.notes %}-{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="empty-pallet">Empty pallet</div>
+                    {% endif %}
+
+                    {% if pallet.notes %}
+                    <div class="pallet-notes"><strong>Pallet note:</strong> {{ pallet.notes }}</div>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </section>
+
+        <footer class="manifest-footer">
+            <span>Pool Table Tracker - Home Leisure Pallet Manifest</span>
+            <span>{{ plan.pallets|length }} pallet{% if plan.pallets|length != 1 %}s{% endif %} total</span>
+        </footer>
+    </main>
+</body>
+</html>

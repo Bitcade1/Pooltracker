@@ -1057,7 +1057,8 @@
                 <button type="button" class="danger" onclick="generatePlan(true)">Reset to Automatic Layout</button>
                 <button type="button" class="secondary" onclick="savePlan()">Save Manual Layout</button>
                 <button type="button" class="warning" onclick="validatePlan()">Validate Packaging</button>
-                <button type="button" class="secondary" onclick="window.print()">Print Packaging List</button>
+                <button type="button" onclick="printHomeLeisureList()">Print Home Leisure List</button>
+                <button type="button" class="secondary" onclick="window.print()">Print Full Packaging Plan</button>
                 <button type="button" class="secondary" onclick="printZebraLabels()">Print Zebra Stickers</button>
                 <button type="button" id="remove-stock-button" class="danger" onclick="removePlanFromStock()">Remove Sent Tables From Stock</button>
                 <button type="button" class="push-right" onclick="addPallet()">Create Pallet</button>
@@ -2055,6 +2056,27 @@
         state = data.plan;
         renderAll();
         labelWindow.location.href = `/invoice_packaging/${planId}/labels`;
+    }
+
+    async function printHomeLeisureList() {
+        if (!state.pallets.length) {
+            setStatus("Generate the packaging list before printing the Home Leisure list.", "error");
+            return;
+        }
+        const listWindow = window.open("", "_blank");
+        if (!listWindow) {
+            setStatus("Allow pop-ups for this site so the Home Leisure print page can open.", "error");
+            return;
+        }
+        listWindow.document.write("<p style='font-family:Arial;padding:20px'>Preparing the Home Leisure pallet list...</p>");
+        const data = await apiRequest(`/api/invoice_packaging/${planId}/save`, requestPayload());
+        if (!data) {
+            listWindow.close();
+            return;
+        }
+        state = data.plan;
+        renderAll();
+        listWindow.location.href = `/invoice_packaging/${planId}/pallet-list`;
     }
 
     function renderAll() {
