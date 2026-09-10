@@ -178,7 +178,8 @@
         text-shadow: 0 2px 5px rgba(0, 0, 0, .28);
     }
 
-    .stat-year-change {
+    .stat-year-change,
+    .stat-month-progress {
         display: inline-block;
         align-self: center;
         margin-top: .25rem;
@@ -194,6 +195,7 @@
     .stat-year-change.positive { color: #bbf7d0; }
     .stat-year-change.negative { color: #fecaca; }
     .stat-year-change.neutral { color: #e2e8f0; }
+    .stat-month-progress { color: #bae6fd; }
 
     .bonus-panel {
         background: #ffffff;
@@ -1147,6 +1149,7 @@
             <span class="stat-label">Working Days Left</span>
             <span class="stat-value">{{ remaining_body_workdays }}</span>
             <span class="stat-note">{{ body_workdays_period }}; UK bank holidays excluded</span>
+            <span class="stat-month-progress">{{ body_month_elapsed_percent }}% of working month elapsed</span>
         </div>
     </section>
 

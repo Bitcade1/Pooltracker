@@ -1473,6 +1473,32 @@ def weekdays_in_month(year, month, excluded_dates=None):
     )
 
 
+def working_month_elapsed_percentage(year, month, current_date=None, excluded_dates=None):
+    """Return the percentage of completed working days in the selected month."""
+    current_date = current_date or date.today()
+    year = int(year)
+    month = int(month)
+    total_workdays = weekdays_in_month(year, month, excluded_dates=excluded_dates)
+    if total_workdays <= 0:
+        return 0
+
+    selected_month = (year, month)
+    current_month = (current_date.year, current_date.month)
+    if current_month < selected_month:
+        return 0
+    if current_month > selected_month:
+        return 100
+
+    excluded_dates = set(excluded_dates or [])
+    completed_workdays = sum(
+        1
+        for day in range(1, current_date.day)
+        if date(year, month, day).weekday() < 5
+        and date(year, month, day) not in excluded_dates
+    )
+    return round((completed_workdays / total_workdays) * 100)
+
+
 def cnc_elapsed_workdays(current_time=None):
     current_time = current_time or london_now()
     current_date = current_time.date()
@@ -12820,6 +12846,12 @@ def top_rail_dashboard_view():
         today,
         excluded_dates=top_rail_bank_holidays,
     )
+    top_rail_month_elapsed_percent = working_month_elapsed_percentage(
+        today.year,
+        today.month,
+        current_date=today,
+        excluded_dates=top_rail_bank_holidays,
+    )
 
     return render_template(
         'top_rail_dashboard.html',
@@ -12841,6 +12873,7 @@ def top_rail_dashboard_view():
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
         remaining_top_rail_workdays=remaining_top_rail_workdays,
         top_rail_workdays_period=bonus_goal_month_label(today.year, today.month),
+        top_rail_month_elapsed_percent=top_rail_month_elapsed_percent,
     )
 
 
@@ -13050,6 +13083,12 @@ def pod_dashboard_view():
         today,
         excluded_dates=pod_bank_holidays,
     )
+    pod_month_elapsed_percent = working_month_elapsed_percentage(
+        today.year,
+        today.month,
+        current_date=today,
+        excluded_dates=pod_bank_holidays,
+    )
 
     return render_template(
         'pod_dashboard.html',
@@ -13064,6 +13103,7 @@ def pod_dashboard_view():
         previous_month_label=previous_month.strftime("%B %Y"),
         remaining_pod_workdays=remaining_pod_workdays,
         pod_workdays_period=bonus_goal_month_label(today.year, today.month),
+        pod_month_elapsed_percent=pod_month_elapsed_percent,
     )
 
 
@@ -13430,6 +13470,8 @@ def body_dashboard_view():
     ) / 7.5
     displayed_body_workdays = remaining_body_workdays
     displayed_body_workdays_period = bonus_goal_month_label(today.year, today.month)
+    displayed_body_workdays_year = today.year
+    displayed_body_workdays_month = today.month
     if combined_body_goal:
         combined_remaining = combined_body_goal["remaining"]
         combined_goal_workdays = remaining_body_pace_workdays
@@ -13443,6 +13485,8 @@ def body_dashboard_view():
             )
             displayed_body_workdays = combined_goal_workdays
             displayed_body_workdays_period = combined_body_goal["period_label"]
+            displayed_body_workdays_year = int(goal_year)
+            displayed_body_workdays_month = int(goal_month)
         if combined_remaining <= 0:
             combined_needed_per_day_display = "0.00"
         elif combined_goal_workdays <= 0:
@@ -13474,6 +13518,12 @@ def body_dashboard_view():
 
         goal["needed_per_day"] = needed_per_day_display
         goal["remaining_workdays"] = round(goal_workdays, 2)
+    body_month_elapsed_percent = working_month_elapsed_percentage(
+        displayed_body_workdays_year,
+        displayed_body_workdays_month,
+        current_date=today,
+        excluded_dates=body_bank_holidays,
+    )
     tom_f_body_goal_missing = not any(
         normalize_bonus_worker_name(goal.get("worker")) == "tomf"
         for goal in bonus_progress
@@ -13498,6 +13548,7 @@ def body_dashboard_view():
         combined_body_goal=combined_body_goal,
         remaining_body_workdays=displayed_body_workdays,
         body_workdays_period=displayed_body_workdays_period,
+        body_month_elapsed_percent=body_month_elapsed_percent,
         body_goal_celebrations=body_goal_celebrations,
         tom_f_body_goal_missing=tom_f_body_goal_missing,
         tom_f_body_count=tom_f_body_count,
