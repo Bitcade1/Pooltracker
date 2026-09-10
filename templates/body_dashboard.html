@@ -178,6 +178,23 @@
         text-shadow: 0 2px 5px rgba(0, 0, 0, .28);
     }
 
+    .stat-year-change {
+        display: inline-block;
+        align-self: center;
+        margin-top: .25rem;
+        padding: .28rem .6rem;
+        border: 1px solid rgba(255, 255, 255, .45);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, .28);
+        font-size: clamp(.78rem, 1.1vw, .95rem);
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .stat-year-change.positive { color: #bbf7d0; }
+    .stat-year-change.negative { color: #fecaca; }
+    .stat-year-change.neutral { color: #e2e8f0; }
+
     .bonus-panel {
         background: #ffffff;
         border-radius: 8px;
@@ -1124,6 +1141,7 @@
             <span class="stat-label">This Year</span>
             <span class="stat-value">{{ stats.yearly }}</span>
             <span class="stat-note">Last Year ({{ stats.last_year_label }}): {{ stats.last_year }}</span>
+            <span class="stat-year-change {{ stats.year_change_class }}">{{ stats.year_change_label }}</span>
         </div>
         <div class="stat-card stat-days-left">
             <span class="stat-label">Working Days Left</span>

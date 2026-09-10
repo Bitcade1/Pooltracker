@@ -12565,6 +12565,34 @@ def bonus_goals():
     )
 
 
+def add_year_on_year_change(stats):
+    """Add a display-safe percentage comparison to a dashboard stats mapping."""
+    current_count = int(stats.get("yearly") or 0)
+    previous_count = int(stats.get("last_year") or 0)
+
+    if previous_count:
+        percentage_change = ((current_count - previous_count) / previous_count) * 100
+        if percentage_change > 0:
+            label = f"{percentage_change:.1f}% increase"
+            change_class = "positive"
+        elif percentage_change < 0:
+            label = f"{abs(percentage_change):.1f}% decrease"
+            change_class = "negative"
+        else:
+            label = "No change (0.0%)"
+            change_class = "neutral"
+    elif current_count:
+        label = "New this year"
+        change_class = "positive"
+    else:
+        label = "No change (0.0%)"
+        change_class = "neutral"
+
+    stats["year_change_label"] = label
+    stats["year_change_class"] = change_class
+    return stats
+
+
 @app.route('/top_rail_dashboard')
 def top_rail_dashboard_view():
     today = date.today()
@@ -12583,6 +12611,7 @@ def top_rail_dashboard_view():
         ).count(),
         "last_year_label": today.year - 1,
     }
+    add_year_on_year_change(stats)
 
     next_serial = "1000"
     last_rail = TopRail.query.order_by(TopRail.id.desc()).first()
@@ -12835,6 +12864,7 @@ def pod_dashboard_view():
         ).count(),
         "last_year_label": today.year - 1,
     }
+    add_year_on_year_change(stats)
 
     next_serial, default_size = _next_pod_serial_and_size()
     next_serial_display = f"{next_serial} - 6" if default_size == "6ft" else next_serial
@@ -13058,6 +13088,7 @@ def body_dashboard_view():
         ).count(),
         "last_year_label": today.year - 1,
     }
+    add_year_on_year_change(stats)
 
     next_serial, default_size = _next_body_serial_and_size()
     next_serial_display = f"{next_serial} - 6" if default_size == "6ft" else next_serial
