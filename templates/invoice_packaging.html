@@ -356,6 +356,28 @@
         font-weight: 900;
     }
 
+    .invoice-file-badge.duplicate-po,
+    .cell-input.duplicate-po-input {
+        border: 2px solid #dc2626;
+        background: #fef2f2;
+        color: #991b1b;
+    }
+
+    .duplicate-po-note {
+        display: block;
+        margin-top: 4px;
+        color: #b91c1c;
+        font-size: 0.74rem;
+        font-weight: 900;
+    }
+
+    .duplicate-po-notice {
+        margin-top: 12px;
+        border: 2px solid #dc2626;
+        background: #fef2f2;
+        color: #991b1b;
+    }
+
     .invoice-group-row td {
         padding: 9px 12px;
         border-top: 2px solid #93c5fd;
@@ -968,6 +990,8 @@
         <div class="invoice-file-list" id="invoice-file-list"></div>
     </section>
 
+    <div id="duplicate-po-notice" class="status-message duplicate-po-notice no-print" role="alert" hidden></div>
+
     <section class="panel no-print" id="extraction-warnings-panel" {% if not plan.extraction_warnings %}hidden{% endif %}>
         <div class="panel-body">
             <details class="extraction-details">
@@ -1250,6 +1274,26 @@
         return index >= 0 ? index + 1 : null;
     }
 
+    function normalisePoKey(value) {
+        let key = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (key.startsWith("PO") && key.length > 4) key = key.slice(2);
+        return key;
+    }
+
+    function historicalDuplicatePoWarnings() {
+        return (state.warnings || []).filter(
+            (warning) => warning.code === "historical_duplicate_po"
+        );
+    }
+
+    function duplicatePoKeys() {
+        return new Set(
+            historicalDuplicatePoWarnings().map(
+                (warning) => warning.po_key || normalisePoKey(warning.po_number)
+            )
+        );
+    }
+
     function invoiceDisplayLabel(sourceFile) {
         if (!sourceFile) return "Manual item";
         const number = invoiceNumber(sourceFile);
@@ -1303,10 +1347,15 @@
         const list = document.getElementById("invoice-file-list");
         const countLabel = sourceFiles.length === 1 ? "1 invoice" : `${sourceFiles.length} invoices`;
         title.textContent = `${countLabel} on this packaging plan`;
+        const duplicateKeys = duplicatePoKeys();
         list.innerHTML = sourceFiles.length
-            ? sourceFiles.map((sourceFile, index) => (
-                `<span class="invoice-file-badge">Invoice ${index + 1}: ${escapeHtml(sourceFile)}</span>`
-            )).join("")
+            ? sourceFiles.map((sourceFile, index) => {
+                const hasDuplicatePo = state.items.some((item) => (
+                    item.source_file === sourceFile
+                    && duplicateKeys.has(normalisePoKey(item.po_number))
+                ));
+                return `<span class="invoice-file-badge ${hasDuplicatePo ? "duplicate-po" : ""}">Invoice ${index + 1}: ${escapeHtml(sourceFile)}${hasDuplicatePo ? " - DUPLICATE PO" : ""}</span>`;
+            }).join("")
             : `<span class="invoice-file-badge">Manual items only</span>`;
     }
 
@@ -1332,6 +1381,7 @@
         body.innerHTML = groups.map((group) => {
             const itemRows = group.items.length ? group.items.map(({item, index}) => {
                 const confidence = Number(item.confidence ?? 1);
+                const duplicatePo = duplicatePoKeys().has(normalisePoKey(item.po_number));
                 return `
                 <tr>
                     <td class="description-cell">
@@ -1345,7 +1395,10 @@
                     <td class="medium-cell"><input class="cell-input" list="model-options" value="${escapeHtml(item.model)}" onchange="updateItem(${index}, 'model', this.value)"></td>
                     <td class="medium-cell"><input class="cell-input" list="colour-options" value="${escapeHtml(item.colour)}" onchange="updateItem(${index}, 'colour', this.value)"></td>
                     <td class="medium-cell"><select class="cell-select" onchange="updateItem(${index}, 'item_type', this.value)">${typeOptions(item.item_type)}</select></td>
-                    <td class="medium-cell"><input class="cell-input" value="${escapeHtml(item.po_number)}" onchange="updateItem(${index}, 'po_number', this.value)"></td>
+                    <td class="medium-cell">
+                        <input class="cell-input ${duplicatePo ? "duplicate-po-input" : ""}" value="${escapeHtml(item.po_number)}" onchange="updateItem(${index}, 'po_number', this.value)">
+                        ${duplicatePo ? '<span class="duplicate-po-note">Already used</span>' : ""}
+                    </td>
                     <td class="medium-cell"><input class="cell-input" value="${escapeHtml(item.notes)}" onchange="updateItem(${index}, 'notes', this.value)"></td>
                     <td class="stock-choice-cell">
                         <label class="stock-choice">
@@ -1493,6 +1546,15 @@
                 <span><strong>${warning.severity === "important" ? "Important override" : "Check"}:</strong> ${escapeHtml(warning.message)}</span>
             </label>
         `).join("");
+    }
+
+    function renderDuplicatePoNotice() {
+        const notice = document.getElementById("duplicate-po-notice");
+        const warnings = historicalDuplicatePoWarnings();
+        notice.hidden = !warnings.length;
+        notice.innerHTML = warnings.length
+            ? `<strong>DUPLICATE PO WARNING</strong><br>${warnings.map((warning) => escapeHtml(warning.message)).join("<br>")}`
+            : "";
     }
 
     function acknowledgeWarning(warningId, checked) {
@@ -2006,6 +2068,10 @@
         const skippedSummary = previewData.skipped_item_count
             ? `\n\n${previewData.skipped_quantity} item(s) across ${previewData.skipped_item_count} invoice line(s) are marked Keep in stock and will not be deducted.`
             : "";
+        const duplicatePoWarnings = previewData.duplicate_po_warnings || [];
+        const duplicatePoSummary = duplicatePoWarnings.length
+            ? "\n\nDUPLICATE PO WARNING:\n" + duplicatePoWarnings.map((warning) => warning.message).join("\n")
+            : "";
         const stockSummary = previewLines.length
             ? previewLines.join("\n")
             : "No finished stock will be deducted.";
@@ -2013,6 +2079,7 @@
             "Process the sent items against finished table stock?\n\n"
             + stockSummary
             + skippedSummary
+            + duplicatePoSummary
             + "\n\nThis plan can only be processed once."
         );
         if (!confirmed) {
@@ -2023,7 +2090,10 @@
 
         const data = await apiRequest(
             `/api/invoice_packaging/${planId}/remove_from_stock`,
-            {confirm: true}
+            {
+                confirm: true,
+                confirm_duplicate_pos: duplicatePoWarnings.length > 0
+            }
         );
         if (!data) return;
         state = data.plan;
@@ -2086,6 +2156,7 @@
         populateConfig();
         renderSummary();
         renderWarnings();
+        renderDuplicatePoNotice();
         renderPallets();
         renderStockRemovalStatus();
     }

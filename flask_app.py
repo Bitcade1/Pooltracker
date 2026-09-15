@@ -3709,11 +3709,93 @@ def packaging_json_load(value, fallback):
     return parsed if isinstance(parsed, type(fallback)) else fallback
 
 
+def packaging_po_key(value):
+    """Return a forgiving comparison key for purchase-order numbers."""
+    key = re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+    if key.startswith("PO") and len(key) > 4:
+        key = key[2:]
+    return key
+
+
+def packaging_historical_po_warnings(items, current_job_id):
+    """Flag POs which already appear on another invoice packaging plan."""
+    current_pos = {}
+    for item in normalise_packaging_items(items):
+        po_number = str(item.get("po_number") or "").strip()
+        po_key = packaging_po_key(po_number)
+        if po_key:
+            current_pos.setdefault(po_key, po_number)
+    if not current_pos:
+        return []
+
+    previous_uses = defaultdict(list)
+    previous_jobs = (
+        InvoicePackagingJob.query
+        .filter(InvoicePackagingJob.id != current_job_id)
+        .order_by(InvoicePackagingJob.updated_at.desc(), InvoicePackagingJob.id.desc())
+        .all()
+    )
+    for previous_job in previous_jobs:
+        job_po_keys = {
+            packaging_po_key(item.get("po_number"))
+            for item in normalise_packaging_items(
+                packaging_json_load(previous_job.items_json, [])
+            )
+            if item.get("po_number")
+        }
+        for po_key in current_pos.keys() & job_po_keys:
+            previous_uses[po_key].append(previous_job)
+
+    warnings = []
+    for po_key, jobs in previous_uses.items():
+        po_number = current_pos[po_key]
+        plan_details = []
+        for previous_job in jobs[:3]:
+            if previous_job.stock_removed_at:
+                status = f"processed {previous_job.stock_removed_at.strftime('%d/%m/%Y')}"
+            else:
+                saved_at = previous_job.updated_at or previous_job.created_at
+                status = (
+                    f"saved {saved_at.strftime('%d/%m/%Y')}"
+                    if saved_at else "saved previously"
+                )
+            plan_details.append(
+                f"plan #{previous_job.id} ({previous_job.title}, {status})"
+            )
+        if len(jobs) > 3:
+            plan_details.append(f"and {len(jobs) - 3} more plan(s)")
+        message = (
+            f"PO {po_number} already appears on "
+            + ", ".join(plan_details)
+            + ". Check this is not a duplicate invoice before continuing."
+        )
+        warnings.append({
+            "id": f"historical_duplicate_po-{uuid.uuid5(uuid.NAMESPACE_URL, po_key + message).hex[:10]}",
+            "code": "historical_duplicate_po",
+            "message": message,
+            "severity": "important",
+            "po_number": po_number,
+            "po_key": po_key,
+        })
+    return warnings
+
+
+def packaging_validation_warnings(items, pallets, config, current_job_id):
+    warnings = validate_packaging(items, pallets, config)
+    warnings.extend(packaging_historical_po_warnings(items, current_job_id))
+    return warnings
+
+
 def packaging_job_payload(job):
     items = packaging_json_load(job.items_json, [])
     pallets = packaging_json_load(job.pallets_json, [])
     config = normalise_packaging_config(packaging_json_load(job.config_json, {}))
-    warnings = packaging_json_load(job.warnings_json, [])
+    warnings = [
+        warning for warning in packaging_json_load(job.warnings_json, [])
+        if warning.get("code") != "historical_duplicate_po"
+    ]
+    historical_po_warnings = packaging_historical_po_warnings(items, job.id)
+    warnings.extend(historical_po_warnings)
     return {
         "id": job.id,
         "title": job.title,
@@ -3726,6 +3808,9 @@ def packaging_job_payload(job):
         "config": config,
         "extraction_warnings": packaging_json_load(job.extraction_warnings_json, []),
         "warnings": warnings,
+        "duplicate_po_numbers": [
+            warning["po_number"] for warning in historical_po_warnings
+        ],
         "acknowledged_warning_ids": packaging_json_load(
             job.acknowledged_warnings_json, []
         ),
@@ -3979,6 +4064,10 @@ def invoice_packaging():
             notes="",
         )
         db.session.add(job)
+        db.session.flush()
+        job.warnings_json = json.dumps(
+            packaging_historical_po_warnings(items, job.id)
+        )
         db.session.commit()
         if extraction_warnings:
             flash(
@@ -4060,10 +4149,11 @@ def add_invoice_packaging_files(job_id):
         job.extraction_warnings_json = json.dumps(
             existing_warnings + upload_warnings + extraction_warnings
         )
-        job.warnings_json = json.dumps(validate_packaging(
+        job.warnings_json = json.dumps(packaging_validation_warnings(
             combined_items,
             packaging_json_load(job.pallets_json, []),
             packaging_json_load(job.config_json, {}),
+            job.id,
         ))
         job.acknowledged_warnings_json = "[]"
         job.updated_at = london_now().replace(tzinfo=None)
@@ -4094,7 +4184,7 @@ def save_invoice_packaging(job_id):
         if not isinstance(pallets, list) or len(pallets) > 1000:
             raise ValueError("The pallet data is invalid or too large.")
         config = normalise_packaging_config(data.get("config", {}))
-        warnings = validate_packaging(items, pallets, config)
+        warnings = packaging_validation_warnings(items, pallets, config, job.id)
         summary = build_packaging_summary(items, pallets, config=config)
         current_warning_ids = {warning["id"] for warning in warnings}
         acknowledged_ids = [
@@ -4145,6 +4235,13 @@ def generate_invoice_packaging(job_id):
             preserve_manual_layout=data.get("manual_layout_override") is True,
             replace_manual_layout=data.get("replace_manual_layout") is True,
         )
+        result["warnings"] = [
+            warning for warning in result["warnings"]
+            if warning.get("code") != "historical_duplicate_po"
+        ]
+        result["warnings"].extend(
+            packaging_historical_po_warnings(result["items"], job.id)
+        )
         job.title = (data.get("title") or job.title or "Packaging plan").strip()[:160]
         job.notes = (data.get("notes") or job.notes or "").strip()[:5000]
         job.items_json = json.dumps(result["items"])
@@ -4167,13 +4264,13 @@ def validate_invoice_packaging(job_id):
     if "worker" not in session:
         return jsonify({"success": False, "error": "Not logged in"}), 401
 
-    packaging_job_or_404(job_id)
+    job = packaging_job_or_404(job_id)
     data = request.get_json(silent=True) or {}
     try:
         items = normalise_packaging_items(data.get("items", []))
         pallets = data.get("pallets", [])
         config = normalise_packaging_config(data.get("config", {}))
-        warnings = validate_packaging(items, pallets, config)
+        warnings = packaging_validation_warnings(items, pallets, config, job.id)
         summary = build_packaging_summary(items, pallets, config=config)
         return jsonify({
             "success": True,
@@ -4201,6 +4298,23 @@ def remove_invoice_packaging_from_stock(job_id):
 
     data = request.get_json(silent=True) or {}
     try:
+        duplicate_po_warnings = packaging_historical_po_warnings(
+            packaging_json_load(job.items_json, []),
+            job.id,
+        )
+        if (
+            data.get("confirm") is True
+            and duplicate_po_warnings
+            and data.get("confirm_duplicate_pos") is not True
+        ):
+            return jsonify({
+                "success": False,
+                "error": (
+                    "This plan contains a PO that appears on another packaging plan. "
+                    "Review the duplicate PO warning before continuing."
+                ),
+            }), 409
+
         requirements = packaging_stock_requirements(
             packaging_json_load(job.items_json, []),
             packaging_json_load(job.config_json, {}),
@@ -4241,6 +4355,7 @@ def remove_invoice_packaging_from_stock(job_id):
                 "preview": preview,
                 "skipped_item_count": len(skipped_items),
                 "skipped_quantity": sum(item["quantity"] for item in skipped_items),
+                "duplicate_po_warnings": duplicate_po_warnings,
             })
 
         worker_name = session.get("worker") or "Unknown"
