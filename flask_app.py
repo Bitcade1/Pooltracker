@@ -3786,6 +3786,49 @@ def packaging_validation_warnings(items, pallets, config, current_job_id):
     return warnings
 
 
+def packaging_po_search_results(search_value, limit=50):
+    search_key = packaging_po_key(search_value)
+    if not search_key:
+        return []
+
+    results = []
+    jobs = (
+        InvoicePackagingJob.query
+        .order_by(InvoicePackagingJob.updated_at.desc(), InvoicePackagingJob.id.desc())
+        .all()
+    )
+    for job in jobs:
+        matches_by_po = {}
+        for item in normalise_packaging_items(packaging_json_load(job.items_json, [])):
+            po_number = str(item.get("po_number") or "").strip()
+            po_key = packaging_po_key(po_number)
+            if not po_key or search_key not in po_key:
+                continue
+            match = matches_by_po.setdefault(po_key, {
+                "po_number": po_number,
+                "quantity": 0,
+                "source_files": set(),
+            })
+            match["quantity"] += max(1, int(item.get("quantity") or 1))
+            if item.get("source_file"):
+                match["source_files"].add(item["source_file"])
+
+        for match in matches_by_po.values():
+            results.append({
+                "job_id": job.id,
+                "job_title": job.title,
+                "po_number": match["po_number"],
+                "quantity": match["quantity"],
+                "source_files": sorted(match["source_files"]),
+                "updated_at": job.updated_at,
+                "stock_removed_at": job.stock_removed_at,
+                "stock_removed_by": job.stock_removed_by or "",
+            })
+            if len(results) >= limit:
+                return results
+    return results
+
+
 def packaging_job_payload(job):
     items = packaging_json_load(job.items_json, [])
     pallets = packaging_json_load(job.pallets_json, [])
@@ -4091,12 +4134,16 @@ def invoice_packaging():
         .limit(25)
         .all()
     )
+    po_search = (request.args.get("po_search") or "").strip()[:80]
+    po_search_results = packaging_po_search_results(po_search) if po_search else []
     return render_template(
         "invoice_packaging.html",
         plan=packaging_job_payload(selected_job) if selected_job else None,
         recent_jobs=recent_jobs,
         item_type_labels=ITEM_TYPE_LABELS,
         max_upload_mb=10,
+        po_search=po_search,
+        po_search_results=po_search_results,
     )
 
 

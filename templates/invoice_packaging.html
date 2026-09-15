@@ -378,6 +378,23 @@
         color: #991b1b;
     }
 
+    .po-search-form {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto auto;
+        gap: 10px;
+        align-items: end;
+    }
+
+    .po-status-processed {
+        color: #991b1b;
+        font-weight: 900;
+    }
+
+    .po-status-saved {
+        color: #92400e;
+        font-weight: 800;
+    }
+
     .invoice-group-row td {
         padding: 9px 12px;
         border-top: 2px solid #93c5fd;
@@ -818,7 +835,8 @@
         }
 
         .planner-header,
-        .upload-grid {
+        .upload-grid,
+        .po-search-form {
             display: grid;
             grid-template-columns: 1fr;
         }
@@ -935,6 +953,68 @@
     {% endwith %}
 
     <div id="status-message" class="status-message no-print" hidden></div>
+
+    <section class="panel no-print" aria-label="Search purchase orders">
+        <div class="panel-heading">
+            <div>
+                <h2>Search PO numbers</h2>
+                <p>Check whether a full or partial PO number has appeared on any saved packaging plan.</p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <form method="GET" action="{{ url_for('invoice_packaging') }}" class="po-search-form">
+                {% if plan %}<input type="hidden" name="plan" value="{{ plan.id }}">{% endif %}
+                <label class="field">
+                    PO number
+                    <input type="search" name="po_search" value="{{ po_search }}" maxlength="80" placeholder="Enter all or part of a PO number" required>
+                </label>
+                <button type="submit">Search POs</button>
+                {% if po_search %}
+                <a class="new-plan-link" href="{% if plan %}{{ url_for('invoice_packaging', plan=plan.id) }}{% else %}{{ url_for('invoice_packaging') }}{% endif %}">Clear search</a>
+                {% endif %}
+            </form>
+
+            {% if po_search %}
+            <div class="table-wrap" style="margin-top: 14px;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>PO number</th>
+                            <th>Packaging plan</th>
+                            <th>Invoice file</th>
+                            <th>Qty</th>
+                            <th>Status</th>
+                            <th>Last updated</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in po_search_results %}
+                        <tr>
+                            <td><strong>{{ result.po_number }}</strong></td>
+                            <td>#{{ result.job_id }} - {{ result.job_title }}</td>
+                            <td>{{ result.source_files|join(', ') if result.source_files else 'Manual item' }}</td>
+                            <td>{{ result.quantity }}</td>
+                            <td>
+                                {% if result.stock_removed_at %}
+                                <span class="po-status-processed">PROCESSED {{ result.stock_removed_at.strftime('%d/%m/%Y') }}</span>
+                                {% if result.stock_removed_by %}<br><small>by {{ result.stock_removed_by }}</small>{% endif %}
+                                {% else %}
+                                <span class="po-status-saved">SAVED - NOT PROCESSED</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ result.updated_at.strftime('%d/%m/%Y %H:%M') if result.updated_at else '-' }}</td>
+                            <td><a class="new-plan-link" href="{{ url_for('invoice_packaging', plan=result.job_id, po_search=po_search) }}">Open plan</a></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="empty-state">No saved packaging plan contains PO {{ po_search }}.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </section>
 
     <section class="panel upload-panel">
         <div class="panel-heading">
