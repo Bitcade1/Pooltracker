@@ -3182,64 +3182,74 @@ def dashboard():
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
 
-    def get_count(model, start_date=None):
+    def get_count(model, start_date=None, end_date=None):
         query = model.query
         if start_date:
             query = query.filter(model.date >= start_date)
+        if end_date:
+            query = query.filter(model.date <= end_date)
         return query.count()
 
-    top_rails_today = get_count(TopRail, today)
-    top_rails_week = get_count(TopRail, start_of_week)
-    top_rails_month = get_count(TopRail, start_of_month)
-    top_rails_year = get_count(TopRail, start_of_year)
+    top_rails_today = get_count(TopRail, today, today)
+    top_rails_week = get_count(TopRail, start_of_week, today)
+    top_rails_month = get_count(TopRail, start_of_month, today)
+    top_rails_year = get_count(TopRail, start_of_year, today)
 
-    bodies_today = get_count(CompletedTable, today)
-    bodies_week = get_count(CompletedTable, start_of_week)
-    bodies_month = get_count(CompletedTable, start_of_month)
-    bodies_year = get_count(CompletedTable, start_of_year)
+    bodies_today = get_count(CompletedTable, today, today)
+    bodies_week = get_count(CompletedTable, start_of_week, today)
+    bodies_month = get_count(CompletedTable, start_of_month, today)
+    bodies_year = get_count(CompletedTable, start_of_year, today)
 
-    pods_today = get_count(CompletedPods, today)
-    pods_week = get_count(CompletedPods, start_of_week)
-    pods_month = get_count(CompletedPods, start_of_month)
-    pods_year = get_count(CompletedPods, start_of_year)
+    pods_today = get_count(CompletedPods, today, today)
+    pods_week = get_count(CompletedPods, start_of_week, today)
+    pods_month = get_count(CompletedPods, start_of_month, today)
+    pods_year = get_count(CompletedPods, start_of_year, today)
 
-    def get_cushion_count(start_date=None):
+    def get_cushion_count(start_date=None, end_date=None):
         query = CushionCompletedSet.query
         if start_date:
             query = query.filter(
                 CushionCompletedSet.completed_at >= datetime.combine(start_date, time.min)
             )
+        if end_date:
+            query = query.filter(
+                CushionCompletedSet.completed_at < datetime.combine(
+                    end_date + timedelta(days=1), time.min
+                )
+            )
         return query.count()
 
-    cushions_today = get_cushion_count(today)
-    cushions_week = get_cushion_count(start_of_week)
-    cushions_month = get_cushion_count(start_of_month)
-    cushions_year = get_cushion_count(start_of_year)
+    cushions_today = get_cushion_count(today, today)
+    cushions_week = get_cushion_count(start_of_week, today)
+    cushions_month = get_cushion_count(start_of_month, today)
+    cushions_year = get_cushion_count(start_of_year, today)
 
-    def get_wood_count(section, start_date=None):
+    def get_wood_count(section, start_date=None, end_date=None):
         query = WoodCount.query.filter_by(section=section)
         if start_date:
             query = query.filter(WoodCount.date >= start_date)
+        if end_date:
+            query = query.filter(WoodCount.date <= end_date)
         return query.count()
 
     wood_counts = {
         "body": {
-            "today": get_wood_count('Body', today),
-            "week": get_wood_count('Body', start_of_week),
-            "month": get_wood_count('Body', start_of_month),
-            "year": get_wood_count('Body', start_of_year),
+            "today": get_wood_count('Body', today, today),
+            "week": get_wood_count('Body', start_of_week, today),
+            "month": get_wood_count('Body', start_of_month, today),
+            "year": get_wood_count('Body', start_of_year, today),
         },
         "pod_sides": {
-            "today": get_wood_count('Pod Sides', today),
-            "week": get_wood_count('Pod Sides', start_of_week),
-            "month": get_wood_count('Pod Sides', start_of_month),
-            "year": get_wood_count('Pod Sides', start_of_year),
+            "today": get_wood_count('Pod Sides', today, today),
+            "week": get_wood_count('Pod Sides', start_of_week, today),
+            "month": get_wood_count('Pod Sides', start_of_month, today),
+            "year": get_wood_count('Pod Sides', start_of_year, today),
         },
         "bases": {
-            "today": get_wood_count('Bases', today),
-            "week": get_wood_count('Bases', start_of_week),
-            "month": get_wood_count('Bases', start_of_month),
-            "year": get_wood_count('Bases', start_of_year),
+            "today": get_wood_count('Bases', today, today),
+            "week": get_wood_count('Bases', start_of_week, today),
+            "month": get_wood_count('Bases', start_of_month, today),
+            "year": get_wood_count('Bases', start_of_year, today),
         },
     }
 
@@ -10210,6 +10220,7 @@ def bodies():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
+    today = london_now().date()
     
     # Retrieve issues and any pods not yet converted
     issues = [issue.description for issue in Issue.query.all()]
@@ -10568,7 +10579,7 @@ def bodies():
             serial_number=serial_number,
             issue=issue_text,
             lunch=lunch,
-            date=date.today()
+            date=today
         )
         try:
             db.session.add(new_table)
@@ -10584,12 +10595,12 @@ def bodies():
             except ValueError:
                 finish_time_obj = datetime.strptime(finish_time, "%H:%M:%S").time()
 
-            start_dt = datetime.combine(date.today(), start_time_obj)
-            finish_dt = datetime.combine(date.today(), finish_time_obj)
+            start_dt = datetime.combine(today, start_time_obj)
+            finish_dt = datetime.combine(today, finish_time_obj)
 
             # Handle overnight finish (next day)
             if finish_time_obj < start_time_obj:
-                finish_dt = datetime.combine(date.today() + timedelta(days=1), finish_time_obj)
+                finish_dt = datetime.combine(today + timedelta(days=1), finish_time_obj)
 
             # Adjust for lunch break (30 minutes)
             if lunch.lower() == "yes":
@@ -10607,7 +10618,7 @@ def bodies():
             size = completed_body_size
             color = laminate_color_key.replace('_', ' ').title()
             type_label = table_type_display_label(actual_table_type)
-            body_number_today = CompletedTable.query.filter_by(date=date.today()).count()
+            body_number_today = CompletedTable.query.filter_by(date=today).count()
             message_lines = []
             if body_pod_mismatch_messages:
                 message_lines.append("BODY/POD MISMATCH WARNING")
@@ -10700,7 +10711,6 @@ def bodies():
     # ---------------------------
     # GET request handling
     # ---------------------------
-    today = date.today()
     completed_tables = CompletedTable.query.filter_by(date=today).all()
     all_bodies_this_month = CompletedTable.query.filter(
         extract('year', CompletedTable.date) == today.year,
