@@ -6357,6 +6357,7 @@ def pods():
             # --- NTFY Notification ---
             size = "6ft" if is_6ft else "7ft"
             type_label = "Lite" if actual_table_type == TABLE_TYPE_LITE else "Champion"
+            pod_number_today = CompletedPods.query.filter_by(date=date.today()).count()
             message_lines = []
             if low_stock_messages:
                 message_lines.append("LOW STOCK WARNING")
@@ -6366,6 +6367,7 @@ def pods():
                 message_lines.append("Completion Details:")
             message_lines.append(f"Worker: {worker}")
             message_lines.append(f"Serial: {serial_number}")
+            message_lines.append(f"Pod Number Today: {pod_number_today}")
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
             if low_stock_messages:
@@ -10443,6 +10445,7 @@ def bodies():
             size = completed_body_size
             color = laminate_color_key.replace('_', ' ').title()
             type_label = table_type_display_label(actual_table_type)
+            body_number_today = CompletedTable.query.filter_by(date=date.today()).count()
             message_lines = []
             if body_pod_mismatch_messages:
                 message_lines.append("BODY/POD MISMATCH WARNING")
@@ -10464,6 +10467,7 @@ def bodies():
             message_lines.append(f"Worker: {worker}")
             message_lines.append(f"Selected Pod: {selected_pod_serial}")
             message_lines.append(f"Completed Body: {serial_number}")
+            message_lines.append(f"Body Number Today: {body_number_today}")
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
             title_prefixes = []
@@ -12012,6 +12016,7 @@ def top_rails():
             
             # --- NTFY Notification ---
             display_color = color.replace('_', ' ').title()
+            top_rail_number_today = TopRail.query.filter_by(date=date.today()).count()
             message_lines = []
             if low_stock_messages:
                 message_lines.append("LOW STOCK WARNING")
@@ -12021,6 +12026,7 @@ def top_rails():
                 message_lines.append("Completion Details:")
             message_lines.append(f"Worker: {worker}")
             message_lines.append(f"Serial: {serial_number}")
+            message_lines.append(f"Top Rail Number Today: {top_rail_number_today}")
             message_lines.append(f"Time Taken: {time_taken_str}")
             message = "\n".join(message_lines)
             if low_stock_messages:
