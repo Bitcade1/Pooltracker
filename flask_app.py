@@ -12884,7 +12884,7 @@ def top_rail_dashboard_view():
     for config in TOP_RAIL_TABLE_STOCK_CONFIGS:
         body_stock = _top_rail_balance_body_stock(config)
         rail_stock = _table_stock_count(config["rail_key"])
-        total_top_rails_behind += max(body_stock - rail_stock, 0)
+        total_top_rails_behind += body_stock - rail_stock
 
         if body_stock == 0 and rail_stock == 0:
             status_text = "No bodies or rails."
@@ -12909,6 +12909,11 @@ def top_rail_dashboard_view():
 
     for size in deficits_by_size:
         deficits_by_size[size].sort(key=lambda item: item["color"])
+
+    # The headline is the net position across every size and colour. Surplus
+    # rails therefore offset shortages elsewhere, while an overall surplus is
+    # displayed as zero rails behind.
+    total_top_rails_behind = max(total_top_rails_behind, 0)
 
     def parse_time_string(value):
         if not value:
