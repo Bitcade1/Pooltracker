@@ -60,7 +60,7 @@
     }
 
     .stat-grid.summary-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
         gap: 0.8rem;
     }
 
@@ -143,7 +143,7 @@
 
     .stat-card.summary-card .stat-value {
         color: #ffffff;
-        font-size: clamp(3.4rem, 5vw, 5rem);
+        font-size: clamp(2.75rem, 5vw, 5rem);
         font-weight: 1000;
         line-height: .9;
         text-shadow: 0 5px 12px rgba(0, 0, 0, .3);
@@ -818,10 +818,6 @@
     }
 
     @media (max-width: 1200px) {
-        .stat-grid.summary-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
         .dashboard-body {
             grid-template-columns: minmax(0, 1fr);
         }
@@ -834,7 +830,6 @@
         }
 
         .stat-grid,
-        .stat-grid.summary-grid,
         .stat-grid.detail-grid,
         .bonus-grid,
         .parts-grid {
@@ -862,6 +857,25 @@
 
         .stat-card .stat-value {
             font-size: 2rem;
+        }
+
+        .stat-card.summary-card {
+            min-height: 108px;
+            padding: 0.7rem 0.75rem;
+        }
+
+        .stat-card.summary-card .stat-label {
+            font-size: 1rem;
+        }
+
+        .stat-card.summary-card .stat-value {
+            font-size: 2.25rem;
+        }
+
+        .stat-card.summary-card .stat-note,
+        .stat-year-change,
+        .stat-month-progress {
+            font-size: 0.78rem;
         }
 
         .bonus-panel,
