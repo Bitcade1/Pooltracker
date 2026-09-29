@@ -588,6 +588,15 @@
         .last-run {
             margin-top: 8px;
         }
+
+        .queue-change-alert {
+            position: static;
+            transform: none;
+            width: auto;
+            padding: 9px 11px;
+            font-size: 0.95rem;
+            box-shadow: none;
+        }
     }
 </style>
 
@@ -788,7 +797,7 @@
 <script>
     const refreshStateKey = "cnc-queue-manager-scroll-state";
     const topQueueStateKey = "cnc-queue-manager-top-items";
-    const queuePanelStateKey = "cnc-queue-manager-open-panels";
+    const queuePanelStateKey = "cnc-queue-manager-open-panels-v2";
     const mobileQueueQuery = window.matchMedia("(max-width: 900px)");
     const idleRefreshDelayMs = 45000;
     const refreshCheckIntervalMs = 15000;
@@ -858,11 +867,11 @@
         }
 
         const savedState = readQueuePanelState();
-        panels.forEach((panel, index) => {
+        panels.forEach((panel) => {
             const machineNumber = panel.getAttribute("data-machine-number");
             panel.open = savedState && Object.prototype.hasOwnProperty.call(savedState, machineNumber)
                 ? Boolean(savedState[machineNumber])
-                : index === 0;
+                : false;
         });
     }
 
