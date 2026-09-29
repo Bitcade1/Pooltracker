@@ -361,6 +361,42 @@
         min-height: 54vh;
     }
 
+    .queue-summary {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        list-style: none;
+        cursor: pointer;
+    }
+
+    .queue-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .queue-summary .queue-count {
+        margin-bottom: 8px;
+    }
+
+    .queue-toggle {
+        display: none;
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: var(--machine-accent);
+        color: #ffffff;
+        font-size: 0.82rem;
+        font-weight: 900;
+    }
+
+    .queue-toggle::before {
+        content: "Show";
+    }
+
+    .queue-column[open] .queue-toggle::before {
+        content: "Hide";
+    }
+
     .queue-column.drag-over {
         box-shadow: inset 0 0 0 2px #111827;
     }
@@ -530,6 +566,28 @@
         .queues-grid {
             grid-template-columns: 1fr;
         }
+
+        .queue-column {
+            min-height: 0;
+            padding: 12px;
+        }
+
+        .queue-summary {
+            align-items: center;
+            min-height: 48px;
+        }
+
+        .queue-summary .queue-count {
+            margin-bottom: 0;
+        }
+
+        .queue-toggle {
+            display: inline-flex;
+        }
+
+        .last-run {
+            margin-top: 8px;
+        }
     }
 </style>
 
@@ -667,9 +725,14 @@
 
         <div class="queues-grid">
             {% for machine in machine_numbers %}
-                <section class="queue-column machine-{{ machine }}" data-machine-number="{{ machine }}">
-                    <h3 class="queue-heading">CNC {{ machine }}</h3>
-                    <div class="queue-count">{{ queues[machine]|length }} queued</div>
+                <details class="queue-column machine-{{ machine }}" data-machine-number="{{ machine }}" open>
+                    <summary class="queue-summary">
+                        <div>
+                            <h3 class="queue-heading">CNC {{ machine }}</h3>
+                            <div class="queue-count">{{ queues[machine]|length }} queued</div>
+                        </div>
+                        <span class="queue-toggle" aria-hidden="true"></span>
+                    </summary>
                     {% set last_completed = last_completed_by_machine.get(machine) %}
                     {% if last_completed and last_completed.job %}
                         <div class="last-run">
@@ -716,7 +779,7 @@
                             <p class="empty-text">Queue is empty.</p>
                         {% endfor %}
                     </div>
-                </section>
+                </details>
             {% endfor %}
         </div>
     </section>
@@ -725,6 +788,8 @@
 <script>
     const refreshStateKey = "cnc-queue-manager-scroll-state";
     const topQueueStateKey = "cnc-queue-manager-top-items";
+    const queuePanelStateKey = "cnc-queue-manager-open-panels";
+    const mobileQueueQuery = window.matchMedia("(max-width: 900px)");
     const idleRefreshDelayMs = 45000;
     const refreshCheckIntervalMs = 15000;
     let lastUserInteractionAt = Date.now();
@@ -757,6 +822,58 @@
         } catch (error) {
             // Ignore invalid saved state.
         }
+    }
+
+    function readQueuePanelState() {
+        try {
+            const raw = localStorage.getItem(queuePanelStateKey);
+            return raw ? JSON.parse(raw) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function saveQueuePanelState() {
+        if (!mobileQueueQuery.matches) {
+            return;
+        }
+        const state = {};
+        document.querySelectorAll(".queue-column").forEach((panel) => {
+            state[panel.getAttribute("data-machine-number")] = panel.open;
+        });
+        try {
+            localStorage.setItem(queuePanelStateKey, JSON.stringify(state));
+        } catch (error) {
+            // Ignore storage failures; queue panels remain usable.
+        }
+    }
+
+    function applyQueuePanelLayout() {
+        const panels = Array.from(document.querySelectorAll(".queue-column"));
+        if (!mobileQueueQuery.matches) {
+            panels.forEach((panel) => {
+                panel.open = true;
+            });
+            return;
+        }
+
+        const savedState = readQueuePanelState();
+        panels.forEach((panel, index) => {
+            const machineNumber = panel.getAttribute("data-machine-number");
+            panel.open = savedState && Object.prototype.hasOwnProperty.call(savedState, machineNumber)
+                ? Boolean(savedState[machineNumber])
+                : index === 0;
+        });
+    }
+
+    applyQueuePanelLayout();
+    document.querySelectorAll(".queue-column").forEach((panel) => {
+        panel.addEventListener("toggle", saveQueuePanelState);
+    });
+    if (typeof mobileQueueQuery.addEventListener === "function") {
+        mobileQueueQuery.addEventListener("change", applyQueuePanelLayout);
+    } else if (typeof mobileQueueQuery.addListener === "function") {
+        mobileQueueQuery.addListener(applyQueuePanelLayout);
     }
 
     function markUserInteraction() {
