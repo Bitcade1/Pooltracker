@@ -403,6 +403,39 @@
         color: var(--machine-accent);
     }
 
+    .last-run {
+        margin-bottom: 10px;
+        border: 1px dashed var(--machine-accent);
+        border-radius: 9px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.82);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .last-run-copy {
+        min-width: 0;
+        color: #334155;
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .last-run-copy strong {
+        display: block;
+        margin-top: 2px;
+        color: #0f172a;
+        font-size: 0.95rem;
+        overflow-wrap: anywhere;
+    }
+
+    .repeat-last {
+        flex: 0 0 auto;
+        background: var(--machine-accent);
+        white-space: nowrap;
+    }
+
     .queue-list {
         display: flex;
         flex-direction: column;
@@ -637,6 +670,21 @@
                 <section class="queue-column machine-{{ machine }}" data-machine-number="{{ machine }}">
                     <h3 class="queue-heading">CNC {{ machine }}</h3>
                     <div class="queue-count">{{ queues[machine]|length }} queued</div>
+                    {% set last_completed = last_completed_by_machine.get(machine) %}
+                    {% if last_completed and last_completed.job %}
+                        <div class="last-run">
+                            <div class="last-run-copy">
+                                Last completed
+                                <strong>{{ last_completed.job.name }}</strong>
+                            </div>
+                            <button
+                                type="button"
+                                class="btn btn-small repeat-last"
+                                data-job-id="{{ last_completed.job.id }}"
+                                data-machine-number="{{ machine }}"
+                            >Add Again</button>
+                        </div>
+                    {% endif %}
                     <div class="queue-list">
                         {% set queue_ns = namespace(previous_job_name='') %}
                         {% for item in queues[machine] %}
@@ -865,7 +913,7 @@
     }
 
     function blockDragFromControls() {
-        document.querySelectorAll(".job-card button, .job-card input, .queue-item button, .queue-item input").forEach((el) => {
+        document.querySelectorAll(".job-card button, .job-card input, .queue-item button, .queue-item input, .repeat-last").forEach((el) => {
             el.setAttribute("draggable", "false");
             el.addEventListener("mousedown", function (event) {
                 event.stopPropagation();
@@ -934,6 +982,20 @@
     });
 
     document.addEventListener("click", async function (event) {
+        const repeatLastButton = event.target.closest(".repeat-last");
+        if (repeatLastButton) {
+            const jobId = parseInt(repeatLastButton.getAttribute("data-job-id"), 10);
+            const machineNumber = parseInt(repeatLastButton.getAttribute("data-machine-number"), 10);
+            if (!Number.isInteger(jobId) || !Number.isInteger(machineNumber)) {
+                return;
+            }
+            await withReload(postJson("/api/cnc/queue/add", {
+                job_id: jobId,
+                machine_number: machineNumber
+            }));
+            return;
+        }
+
         const renameButton = event.target.closest(".edit-job-name");
         if (renameButton) {
             event.preventDefault();

@@ -13759,6 +13759,18 @@ def cnc_queue_manager():
     )
     queued_counts = {job_id: count for job_id, count in queue_counts_rows}
     queues = _cnc_queue_snapshot()
+    last_completed_by_machine = {}
+    for machine_number in CNC_MACHINE_NUMBERS:
+        last_completed_by_machine[machine_number] = (
+            CncQueueItem.query
+            .options(joinedload(CncQueueItem.job))
+            .filter_by(
+                machine_number=machine_number,
+                status=CNC_STATUS_COMPLETED,
+            )
+            .order_by(CncQueueItem.completed_at.desc(), CncQueueItem.id.desc())
+            .first()
+        )
     monthly_cut_history = cnc_monthly_cut_file_history()
 
     return render_template(
@@ -13766,6 +13778,7 @@ def cnc_queue_manager():
         jobs=jobs,
         queued_counts=queued_counts,
         queues=queues,
+        last_completed_by_machine=last_completed_by_machine,
         monthly_cut_history=monthly_cut_history,
         machine_numbers=CNC_MACHINE_NUMBERS
     )
