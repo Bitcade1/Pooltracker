@@ -3719,6 +3719,89 @@ def packaging_json_load(value, fallback):
     return parsed if isinstance(parsed, type(fallback)) else fallback
 
 
+def packaging_top_rail_balance(exclude_job_id=None):
+    """Return rails sent early but not yet recovered on processed deliveries."""
+    balance = defaultdict(int)
+    jobs = InvoicePackagingJob.query.filter(
+        InvoicePackagingJob.stock_removed_at.isnot(None)
+    ).all()
+    for processed_job in jobs:
+        if exclude_job_id is not None and processed_job.id == exclude_job_id:
+            continue
+        config = normalise_packaging_config(
+            packaging_json_load(processed_job.config_json, {})
+        )
+        for adjustment in config.get("top_rail_extras", []):
+            balance[(adjustment["size"], adjustment["colour"])] += adjustment["quantity"]
+        for adjustment in config.get("top_rail_carryovers", []):
+            balance[(adjustment["size"], adjustment["colour"])] -= adjustment["quantity"]
+    return {
+        key: quantity for key, quantity in balance.items() if quantity > 0
+    }
+
+
+def packaging_rail_balance_payload(balance):
+    return [
+        {"size": size, "colour": colour, "quantity": quantity}
+        for (size, colour), quantity in sorted(balance.items())
+    ]
+
+
+def packaging_auto_rail_carryovers(items):
+    """Apply as much outstanding rail credit as the new delivery can absorb."""
+    outstanding = packaging_top_rail_balance()
+    if not outstanding:
+        return []
+    base_config = normalise_packaging_config({})
+    requirements = build_packaging_requirements(
+        normalise_packaging_items(items), base_config
+    )
+    available = defaultdict(int)
+    for line in requirements["top_rails"]:
+        available[(line.get("size"), line.get("colour"))] += line.get("quantity", 0)
+    carryovers = []
+    for (size, colour), owed_quantity in sorted(outstanding.items()):
+        quantity = min(owed_quantity, available[(size, colour)])
+        if quantity:
+            carryovers.append({
+                "id": f"rail-carryover-{uuid.uuid4().hex[:12]}",
+                "size": size,
+                "colour": colour,
+                "quantity": quantity,
+            })
+    return carryovers
+
+
+def validate_packaging_rail_carryovers(config, current_job_id=None):
+    outstanding = packaging_top_rail_balance(exclude_job_id=current_job_id)
+    requested = defaultdict(int)
+    for adjustment in config.get("top_rail_carryovers", []):
+        requested[(adjustment["size"], adjustment["colour"])] += adjustment["quantity"]
+    overdrawn = []
+    for key, quantity in requested.items():
+        if quantity > outstanding.get(key, 0):
+            overdrawn.append(
+                f"{key[0]} {key[1]} requests {quantity}, but only "
+                f"{outstanding.get(key, 0)} is outstanding"
+            )
+    if overdrawn:
+        raise ValueError("Top-rail carry-forward is no longer available. " + "; ".join(overdrawn) + ".")
+
+
+def validate_packaging_rail_adjustments_locked(job, config):
+    if not job.stock_removed_at:
+        return
+    existing = normalise_packaging_config(
+        packaging_json_load(job.config_json, {})
+    )
+    for key in ("top_rail_extras", "top_rail_carryovers"):
+        if config.get(key, []) != existing.get(key, []):
+            raise ValueError(
+                "Extra top rails and next-delivery deductions cannot be changed "
+                "after stock has been processed."
+            )
+
+
 def packaging_po_key(value):
     """Return a forgiving comparison key for purchase-order numbers."""
     key = re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
@@ -3877,6 +3960,9 @@ def packaging_job_payload(job):
         ),
         "stock_removed_by": job.stock_removed_by or "",
         "stock_removal": packaging_json_load(job.stock_removal_json, []),
+        "outstanding_top_rails": packaging_rail_balance_payload(
+            packaging_top_rail_balance(exclude_job_id=job.id)
+        ),
         "summary": build_packaging_summary(items, pallets, config=config),
     }
 
@@ -3922,8 +4008,6 @@ def packaging_stock_requirements(items, config=None):
         item for item in clean_items
         if item.get("deduct_from_stock", True)
     ]
-    if not stock_items:
-        return {}
     clean_config = normalise_packaging_config(config or {})
     component_requirements = build_packaging_requirements(stock_items, clean_config)
     stock_requirements = defaultdict(int)
@@ -4100,6 +4184,9 @@ def invoice_packaging():
         extraction_warnings = upload_warnings + extraction_warnings
         now = london_now().replace(tzinfo=None)
         default_title = f"Packaging plan - {now.strftime('%d %b %Y %H:%M')}"
+        initial_config = normalise_packaging_config({
+            "top_rail_carryovers": packaging_auto_rail_carryovers(items),
+        })
         job = InvoicePackagingJob(
             title=(request.form.get("title") or default_title).strip()[:160],
             created_by=session["worker"],
@@ -4108,9 +4195,9 @@ def invoice_packaging():
             source_files_json=json.dumps(source_files),
             items_json=json.dumps(items),
             pallets_json="[]",
-            config_json=json.dumps(normalise_packaging_config({})),
+            config_json=json.dumps(initial_config),
             automatic_items_json=json.dumps(items),
-            automatic_config_json=json.dumps(normalise_packaging_config({})),
+            automatic_config_json=json.dumps(initial_config),
             extraction_warnings_json=json.dumps(extraction_warnings),
             warnings_json="[]",
             acknowledged_warnings_json="[]",
@@ -4241,6 +4328,7 @@ def save_invoice_packaging(job_id):
         if not isinstance(pallets, list) or len(pallets) > 1000:
             raise ValueError("The pallet data is invalid or too large.")
         config = normalise_packaging_config(data.get("config", {}))
+        validate_packaging_rail_adjustments_locked(job, config)
         warnings = packaging_validation_warnings(items, pallets, config, job.id)
         summary = build_packaging_summary(items, pallets, config=config)
         current_warning_ids = {warning["id"] for warning in warnings}
@@ -4283,9 +4371,11 @@ def generate_invoice_packaging(job_id):
         pallets = data.get("pallets", [])
         if not isinstance(pallets, list) or len(pallets) > 1000:
             raise ValueError("The pallet data is invalid or too large.")
+        requested_config = normalise_packaging_config(data.get("config", {}))
+        validate_packaging_rail_adjustments_locked(job, requested_config)
         result = regenerate_packaging(
             items,
-            data.get("config", {}),
+            requested_config,
             existing_pallets=pallets,
             baseline_items=packaging_json_load(job.automatic_items_json, []),
             baseline_config=packaging_json_load(job.automatic_config_json, {}),
@@ -4376,6 +4466,22 @@ def remove_invoice_packaging_from_stock(job_id):
             packaging_json_load(job.items_json, []),
             packaging_json_load(job.config_json, {}),
         )
+        config = normalise_packaging_config(
+            packaging_json_load(job.config_json, {})
+        )
+        validate_packaging_rail_carryovers(config, current_job_id=job.id)
+        dispatch_requirements = build_packaging_requirements(
+            normalise_packaging_items(packaging_json_load(job.items_json, [])),
+            config,
+        )
+        if (
+            dispatch_requirements["top_rail_carryover_applied"]
+            < dispatch_requirements["top_rail_carryover_requested"]
+        ):
+            raise ValueError(
+                "The next-delivery top-rail deduction is greater than the matching "
+                "rails on this delivery. Update the deduction before processing stock."
+            )
         stock_rows = {}
         preview = []
         shortages = []

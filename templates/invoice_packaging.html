@@ -1149,6 +1149,35 @@
         </div>
     </section>
 
+    <section class="panel no-print" aria-label="Extra top rail carry-forward">
+        <div class="panel-heading">
+            <div>
+                <h2>Extra Top Rails and Next-Delivery Deduction</h2>
+                <p>Record rails sent early here. Once this delivery is processed, matching rails are automatically deducted from the next delivery.</p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <h3>Extra rails going on this delivery</h3>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>Size</th><th>Colour</th><th>Quantity</th><th></th></tr></thead>
+                    <tbody id="extra-rails-body"></tbody>
+                </table>
+            </div>
+            <button type="button" class="small" style="margin-top: 10px;" onclick="addRailAdjustment('top_rail_extras')">Add Extra Top Rails</button>
+
+            <h3 style="margin-top: 22px;">Deduct rails previously sent early</h3>
+            <p id="outstanding-rails-note"></p>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>Size</th><th>Colour</th><th>Quantity</th><th></th></tr></thead>
+                    <tbody id="carryover-rails-body"></tbody>
+                </table>
+            </div>
+            <button type="button" class="small secondary" style="margin-top: 10px;" onclick="applyOutstandingRails()">Use All Outstanding Rails</button>
+        </div>
+    </section>
+
     <section class="panel no-print">
         <div class="panel-body">
             {% if plan.pallets and not plan.pallets[0].planner_version %}
@@ -1557,6 +1586,75 @@
         state.notes = document.getElementById("plan-notes").value;
     }
 
+    function railAdjustmentRows(configKey) {
+        const adjustments = state.config[configKey] || [];
+        if (!adjustments.length) {
+            const message = configKey === "top_rail_extras"
+                ? "No extra top rails on this delivery."
+                : "No previous extra rails are being deducted from this delivery.";
+            return `<tr><td colspan="4" class="empty-state">${message}</td></tr>`;
+        }
+        return adjustments.map((adjustment, index) => `
+            <tr>
+                <td><select class="cell-select" onchange="updateRailAdjustment('${configKey}', ${index}, 'size', this.value)">${sizeOptions(adjustment.size)}</select></td>
+                <td><input class="cell-input" list="colour-options" value="${escapeHtml(adjustment.colour)}" onchange="updateRailAdjustment('${configKey}', ${index}, 'colour', this.value)"></td>
+                <td><input class="cell-input" type="number" min="1" max="9999" value="${integerValue(adjustment.quantity, 1)}" onchange="updateRailAdjustment('${configKey}', ${index}, 'quantity', this.value)"></td>
+                <td><button type="button" class="small danger" onclick="removeRailAdjustment('${configKey}', ${index})">Remove</button></td>
+            </tr>
+        `).join("");
+    }
+
+    function renderRailAdjustments() {
+        state.config.top_rail_extras = state.config.top_rail_extras || [];
+        state.config.top_rail_carryovers = state.config.top_rail_carryovers || [];
+        document.getElementById("extra-rails-body").innerHTML = railAdjustmentRows("top_rail_extras");
+        document.getElementById("carryover-rails-body").innerHTML = railAdjustmentRows("top_rail_carryovers");
+        const outstanding = state.outstanding_top_rails || [];
+        document.getElementById("outstanding-rails-note").textContent = outstanding.length
+            ? "Currently outstanding: " + outstanding.map((rail) => `${rail.quantity} x ${rail.size} ${rail.colour}`).join(", ") + "."
+            : "There are no top rails waiting to be deducted.";
+    }
+
+    function addRailAdjustment(configKey) {
+        const outstanding = (state.outstanding_top_rails || [])[0];
+        const source = configKey === "top_rail_carryovers" && outstanding ? outstanding : {};
+        state.config[configKey] = state.config[configKey] || [];
+        state.config[configKey].push({
+            id: makeId("rail-adjustment"),
+            size: source.size || "6ft",
+            colour: source.colour || "Black",
+            quantity: source.quantity || 1
+        });
+        renderRailAdjustments();
+    }
+
+    function updateRailAdjustment(configKey, index, field, value) {
+        const adjustment = (state.config[configKey] || [])[index];
+        if (!adjustment) return;
+        adjustment[field] = field === "quantity" ? Math.max(1, integerValue(value, 1)) : value;
+    }
+
+    function removeRailAdjustment(configKey, index) {
+        state.config[configKey].splice(index, 1);
+        renderRailAdjustments();
+    }
+
+    function applyOutstandingRails() {
+        const outstanding = state.outstanding_top_rails || [];
+        if (!outstanding.length) {
+            setStatus("There are no outstanding extra top rails to deduct.");
+            return;
+        }
+        state.config.top_rail_carryovers = outstanding.map((rail) => ({
+            id: makeId("rail-carryover"),
+            size: rail.size,
+            colour: rail.colour,
+            quantity: rail.quantity
+        }));
+        renderRailAdjustments();
+        setStatus("Outstanding top rails added. Update the plan to check they match this delivery.", "success");
+    }
+
     function populateConfig() {
         Object.entries(state.config).forEach(([key, value]) => {
             const input = document.getElementById(`config-${key}`);
@@ -1570,6 +1668,8 @@
             ["Complete tables", summary.complete_tables],
             ["Bodies", summary.total_bodies],
             ["Top rails", summary.total_top_rails],
+            ["Extra rails sent early", summary.extra_top_rails],
+            ["Previous extras deducted", summary.carried_forward_top_rails],
             ["Cushion sets", summary.total_cushion_sets],
             ["Leg boxes", summary.total_leg_boxes],
             ["Body pallets", summary.body_pallets],
@@ -2234,6 +2334,7 @@
         renderExtractionWarnings();
         renderItems();
         populateConfig();
+        renderRailAdjustments();
         renderSummary();
         renderWarnings();
         renderDuplicatePoNotice();

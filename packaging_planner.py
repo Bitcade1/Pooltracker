@@ -506,6 +506,27 @@ def normalise_items(items):
 
 def normalise_config(config):
     config = dict(config or {})
+
+    def rail_adjustments(key):
+        clean = []
+        for adjustment in config.get(key, []) or []:
+            if not isinstance(adjustment, dict):
+                continue
+            size = _clean_text(adjustment.get("size"))
+            colour = _clean_text(adjustment.get("colour"))
+            quantity = _safe_quantity(adjustment.get("quantity"), 1)
+            if size not in {"6ft", "7ft"} or not colour:
+                continue
+            clean.append({
+                "id": _clean_text(adjustment.get("id")) or _new_id("rail-adjustment"),
+                "size": size,
+                "colour": colour,
+                "quantity": min(9999, quantity),
+            })
+            if len(clean) >= 100:
+                break
+        return clean
+
     return {
         "body_capacity": max(1, min(50, _safe_quantity(config.get("body_capacity"), 5))),
         "top_rail_capacity": max(1, min(100, _safe_quantity(config.get("top_rail_capacity"), 15))),
@@ -514,6 +535,8 @@ def normalise_config(config):
         "cushion_pallet_count": max(1, min(50, _safe_quantity(config.get("cushion_pallet_count"), 1))),
         "legs_per_6ft_table": max(0, min(100, int(config.get("legs_per_6ft_table", 4) or 0))),
         "legs_per_box": max(1, min(100, _safe_quantity(config.get("legs_per_box"), 8))),
+        "top_rail_extras": rail_adjustments("top_rail_extras"),
+        "top_rail_carryovers": rail_adjustments("top_rail_carryovers"),
     }
 
 
@@ -569,6 +592,49 @@ def build_requirements(items, config):
             elif inferred == "cushion_only":
                 requirements["cushions"].append(_component_line(item, "cushion"))
 
+    # Rails sent early are recovered from a later delivery by removing matching
+    # rails from that delivery's normal requirement. Keep the adjustment as plan
+    # configuration so complete-table quantities remain unchanged.
+    carryover_requested = 0
+    carryover_applied = 0
+    for adjustment in config.get("top_rail_carryovers", []):
+        remaining = adjustment["quantity"]
+        carryover_requested += remaining
+        for line in requirements["top_rails"]:
+            if remaining <= 0:
+                break
+            if (
+                line.get("size") != adjustment["size"]
+                or line.get("colour") != adjustment["colour"]
+            ):
+                continue
+            removed = min(line["quantity"], remaining)
+            line["quantity"] -= removed
+            remaining -= removed
+            carryover_applied += removed
+    requirements["top_rails"] = [
+        line for line in requirements["top_rails"] if line["quantity"] > 0
+    ]
+
+    extra_count = 0
+    for adjustment in config.get("top_rail_extras", []):
+        quantity = adjustment["quantity"]
+        extra_count += quantity
+        requirements["top_rails"].append({
+            "id": _new_id("line"),
+            "item_id": adjustment["id"],
+            "component_type": "top_rail",
+            "size": adjustment["size"],
+            "model": "",
+            "colour": adjustment["colour"],
+            "quantity": quantity,
+            "po_number": "",
+            "description": "Extra top rails sent early",
+            "notes": "To be deducted from a later delivery",
+            "source_file": "",
+            "origin_type": "top_rail_extra",
+        })
+
     required_legs = requirements["complete_6ft"] * config["legs_per_6ft_table"]
     automatic_leg_boxes = math.ceil(required_legs / config["legs_per_box"]) if required_legs else 0
     if automatic_leg_boxes:
@@ -591,6 +657,9 @@ def build_requirements(items, config):
         })
     requirements["required_legs"] = required_legs
     requirements["automatic_leg_boxes"] = automatic_leg_boxes
+    requirements["top_rail_extra_count"] = extra_count
+    requirements["top_rail_carryover_requested"] = carryover_requested
+    requirements["top_rail_carryover_applied"] = carryover_applied
     return requirements
 
 
@@ -1262,6 +1331,8 @@ def build_summary(items, pallets, requirements=None, config=None):
         "cushion_pallets": len(cushion_pallets),
         "physical_pallets": len(pallets),
         "carried_top_rails": carried_rails,
+        "extra_top_rails": requirements["top_rail_extra_count"],
+        "carried_forward_top_rails": requirements["top_rail_carryover_applied"],
         "cushions_6ft": cushion_by_size["6ft"],
         "cushions_7ft": cushion_by_size["7ft"],
         "order_groups": [
@@ -1293,6 +1364,16 @@ def validate_packaging(items, pallets, config=None, requirements=None):
     config = normalise_config(config)
     requirements = requirements or build_requirements(items, config)
     warnings = []
+    if (
+        requirements["top_rail_carryover_applied"]
+        < requirements["top_rail_carryover_requested"]
+    ):
+        warnings.append(_warning(
+            "rail_carryover_exceeds_delivery",
+            "The carried-forward top-rail deduction is greater than the matching "
+            "rails on this delivery. Reduce the deduction or add matching invoice items.",
+            "important",
+        ))
 
     required = {
         "body": _line_total(requirements["bodies"]),
