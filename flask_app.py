@@ -13516,11 +13516,11 @@ def body_dashboard_view():
         "bodies",
         today.year,
         today.month,
-        exclude_workers=["Tom F"],
+        exclude_workers=["Tom F", "James"],
     )
     current_body_goals = [
         goal for goal in bonus_goal_progress("bodies", today.year, today.month)
-        if normalize_bonus_worker_name(goal.get("worker")) != "tomf"
+        if normalize_bonus_worker_name(goal.get("worker")) not in {"tomf", "james"}
     ]
     combined_body_goal_target = sum(
         int(goal.get("target", 0) or 0)
@@ -13817,11 +13817,6 @@ def body_dashboard_view():
         current_date=today,
         excluded_dates=body_bank_holidays,
     )
-    james_body_goal_missing = not any(
-        normalize_bonus_worker_name(goal.get("worker")) == "james"
-        for goal in bonus_progress
-    )
-    james_body_count = bonus_goal_actual_count("bodies", "James", today.year, today.month)
     return render_template(
         'body_dashboard.html',
         stats=stats,
@@ -13843,8 +13838,6 @@ def body_dashboard_view():
         body_workdays_period=displayed_body_workdays_period,
         body_month_elapsed_percent=body_month_elapsed_percent,
         body_goal_celebrations=body_goal_celebrations,
-        james_body_goal_missing=james_body_goal_missing,
-        james_body_count=james_body_count,
     )
 
 
