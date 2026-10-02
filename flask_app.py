@@ -8229,6 +8229,7 @@ CUSHION_CONSUMABLES = [
     *CUSHION_CONSUMABLE_SANDING,
 ]
 CUSHION_SPINDLE_REMINDER_INTERVAL = 30
+CUSHION_ROUTER_BEARING_REMINDER_INTERVAL = 2000
 CUSHION_GLUE_END_DISPLAY_TEE_NUTS_PER_CUSHION = 4
 CUSHION_CUSHIONS_PER_SET = 6
 
@@ -8556,7 +8557,7 @@ def cushion_spindle_batch_added_total(batch_number=None):
     return int(query.scalar() or 0)
 
 
-def cushion_spindle_reminder_checkpoint(total_after, quantity, interval=CUSHION_SPINDLE_REMINDER_INTERVAL):
+def cushion_reminder_checkpoint(total_after, quantity, interval):
     try:
         total_after = max(0, int(total_after or 0))
         quantity = max(0, int(quantity or 0))
@@ -8569,6 +8570,40 @@ def cushion_spindle_reminder_checkpoint(total_after, quantity, interval=CUSHION_
     current_checkpoint = total_after // interval
     if current_checkpoint > previous_checkpoint:
         return current_checkpoint * interval
+    return None
+
+
+def cushion_spindle_reminder_checkpoint(total_after, quantity, interval=CUSHION_SPINDLE_REMINDER_INTERVAL):
+    return cushion_reminder_checkpoint(total_after, quantity, interval)
+
+
+def cushion_shaped_lengths_total():
+    # Machine wear accumulates across workers, variants and production batches.
+    return int(
+        db.session.query(func.coalesce(func.sum(CushionWorkflowLog.delta), 0))
+        .filter(
+            CushionWorkflowLog.action_type == "add",
+            CushionWorkflowLog.stage_key == "shape_cushions",
+            CushionWorkflowLog.delta > 0,
+        )
+        .scalar() or 0
+    )
+
+
+def cushion_router_bearing_countdown():
+    total_shaped = cushion_shaped_lengths_total()
+    remaining = CUSHION_ROUTER_BEARING_REMINDER_INTERVAL - (
+        total_shaped % CUSHION_ROUTER_BEARING_REMINDER_INTERVAL
+    )
+    return {"remaining": remaining, "next_checkpoint": total_shaped + remaining}
+
+
+def cushion_router_bearing_reminder_message(quantity):
+    checkpoint = cushion_reminder_checkpoint(
+        cushion_shaped_lengths_total(), quantity, CUSHION_ROUTER_BEARING_REMINDER_INTERVAL
+    )
+    if checkpoint:
+        return f"Change router bearings. {checkpoint:,} lengths shaped."
     return None
 
 
@@ -15968,10 +16003,16 @@ def counting_cushions():
                     quantity,
                     worker_name
                 )
+                router_bearing_reminder = (
+                    cushion_router_bearing_reminder_message(quantity)
+                    if stage_key == "shape_cushions" else None
+                )
                 db.session.commit()
 
                 if completed_sets:
                     flash(f"Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock.", "success")
+                if router_bearing_reminder:
+                    flash(router_bearing_reminder, "router-bearing-warning")
             elif action == "set_count":
                 stage_key = request.form.get('stage_key', '')
                 size_label = request.form.get('size_label', '')
@@ -16048,6 +16089,7 @@ def counting_cushions():
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
         extra_time_progress=cushion_extra_time_progress("Katie", today.year, today.month),
         compressor_context=cushion_compressor_context(worker_name),
+        router_bearing_countdown=cushion_router_bearing_countdown(),
         admin_url=url_for('cushion_production_admin')
     )
 
@@ -16084,6 +16126,7 @@ def counting_cushion_stage(stage_key):
         shape_no = request.form.get('shape_no', 0)
         end_type = request.form.get('end_type', '')
         spindle_reminder_message = None
+        router_bearing_reminder = None
         try:
             if action == "start_batch":
                 if stage_key != "cut_1m":
@@ -16107,6 +16150,8 @@ def counting_cushion_stage(stage_key):
                     worker_name
                 )
                 save_cushion_stage_lock(worker_name, stage_key, size_label, shape_no, end_type)
+                if stage_key == "shape_cushions":
+                    router_bearing_reminder = cushion_router_bearing_reminder_message(quantity)
                 if stage_key == "spindle_mould":
                     active_batch_after_add = get_active_cushion_batch()
                     if active_batch_after_add:
@@ -16122,6 +16167,8 @@ def counting_cushion_stage(stage_key):
                     flash(f"Added {len(completed_sets)} completed {target_record.size_label} cushion set(s) to stock.", "success")
                 if spindle_reminder_message:
                     flash(spindle_reminder_message, "inspection-warning")
+                if router_bearing_reminder:
+                    flash(router_bearing_reminder, "router-bearing-warning")
             elif action == "set_count":
                 new_count = request.form.get('new_count', 0)
                 record = set_cushion_stage_count(
@@ -16205,6 +16252,9 @@ def counting_cushion_stage(stage_key):
         next_stage=next_stage,
         stage_timing=stage_timing,
         compressor_context=cushion_compressor_context(worker_name),
+        router_bearing_countdown=(
+            cushion_router_bearing_countdown() if stage_key == "shape_cushions" else None
+        ),
         stage_lock=get_cushion_stage_lock(worker_name, stage_key),
         consumables=cushion_consumables_for_stage(stage_key),
         active_batch=active_batch,

@@ -443,7 +443,8 @@
         background: #1d4ed8;
     }
 
-    .flash.inspection-warning {
+    .flash.inspection-warning,
+    .flash.router-bearing-warning {
         background: #fef3c7;
         color: #92400e;
         border: 1px solid #f59e0b;
@@ -565,13 +566,14 @@
         {% if messages %}
             <div class="flash-messages">
                 {% for category, message in messages %}
-                    <p class="flash {{ category }}"{% if category == 'inspection-warning' %} data-inspection-warning="true"{% endif %}>{{ message }}</p>
+                    <p class="flash {{ category }}"{% if category in ['inspection-warning', 'router-bearing-warning'] %} data-inspection-warning="true" data-warning-title="{{ 'Change Router Bearings' if category == 'router-bearing-warning' else 'Check Rubber Length' }}"{% endif %}>{{ message }}</p>
                 {% endfor %}
             </div>
         {% endif %}
     {% endwith %}
 
     {% include '_cushion_compressor_check.html' %}
+    {% include '_cushion_router_bearing_countdown.html' %}
 
     <section class="panel">
         <div class="batch-panel">
@@ -963,11 +965,13 @@
         warningModal.className = "inspection-warning-modal";
         warningModal.innerHTML = `
             <div class="inspection-warning-card" role="alertdialog" aria-modal="true" aria-labelledby="inspection-warning-title">
-                <h2 id="inspection-warning-title">Check Rubber Length</h2>
-                <p>${inspectionWarning.textContent.trim()}</p>
+                <h2 id="inspection-warning-title"></h2>
+                <p></p>
                 <button type="button">OK</button>
             </div>
         `;
+        warningModal.querySelector("h2").textContent = inspectionWarning.dataset.warningTitle;
+        warningModal.querySelector("p").textContent = inspectionWarning.textContent.trim();
         const closeButton = warningModal.querySelector("button");
         closeButton.addEventListener("click", function () {
             warningModal.remove();

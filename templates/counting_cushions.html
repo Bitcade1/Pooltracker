@@ -493,6 +493,13 @@
         margin: 0;
     }
 
+    .flash.router-bearing-warning {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #f59e0b;
+        font-weight: 900;
+    }
+
     @media (max-width: 760px) {
         .cushion-page {
             padding: 10px;
@@ -561,6 +568,7 @@
     {% endwith %}
 
     {% include '_cushion_compressor_check.html' %}
+    {% include '_cushion_router_bearing_countdown.html' %}
 
     <section class="bonus-panel" aria-label="Katie cushion bonus progress">
         <div class="bonus-head">
