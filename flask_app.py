@@ -8437,6 +8437,14 @@ class CushionStageLock(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=london_now)
 
 
+class CushionRouterBearingTracking(db.Model):
+    __tablename__ = 'cushion_router_bearing_tracking'
+
+    id = db.Column(db.Integer, primary_key=True)
+    started_after_log_id = db.Column(db.Integer, nullable=False, default=0)
+    started_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
 def ensure_cushion_workflow_tables():
     TableStock.__table__.create(db.engine, checkfirst=True)
     CushionWorkflowCount.__table__.create(db.engine, checkfirst=True)
@@ -8447,6 +8455,22 @@ def ensure_cushion_workflow_tables():
     CushionStageLock.__table__.create(db.engine, checkfirst=True)
     ensure_cushion_workflow_log_batch_columns()
     ensure_cushion_batch_columns()
+    ensure_cushion_router_bearing_tracking()
+
+
+def ensure_cushion_router_bearing_tracking():
+    CushionRouterBearingTracking.__table__.create(db.engine, checkfirst=True)
+    if db.session.get(CushionRouterBearingTracking, 1) is None:
+        # Start before recording the first new addition, keeping all previous logs.
+        last_log_id = db.session.query(func.max(CushionWorkflowLog.id)).scalar() or 0
+        db.session.add(CushionRouterBearingTracking(id=1, started_after_log_id=last_log_id))
+        try:
+            db.session.commit()
+        except IntegrityError:
+            # Another request may have saved the shared starting point first.
+            db.session.rollback()
+            if db.session.get(CushionRouterBearingTracking, 1) is None:
+                raise
 
 
 def ensure_cushion_workflow_log_batch_columns():
@@ -8577,33 +8601,40 @@ def cushion_spindle_reminder_checkpoint(total_after, quantity, interval=CUSHION_
     return cushion_reminder_checkpoint(total_after, quantity, interval)
 
 
-def cushion_shaped_lengths_total():
+def cushion_router_bearing_lengths_total():
     # Machine wear accumulates across workers, variants and production batches.
+    tracking = db.session.get(CushionRouterBearingTracking, 1)
     return int(
         db.session.query(func.coalesce(func.sum(CushionWorkflowLog.delta), 0))
         .filter(
             CushionWorkflowLog.action_type == "add",
             CushionWorkflowLog.stage_key == "shape_cushions",
             CushionWorkflowLog.delta > 0,
+            CushionWorkflowLog.id > tracking.started_after_log_id,
         )
         .scalar() or 0
     )
 
 
 def cushion_router_bearing_countdown():
-    total_shaped = cushion_shaped_lengths_total()
-    remaining = CUSHION_ROUTER_BEARING_REMINDER_INTERVAL - (
-        total_shaped % CUSHION_ROUTER_BEARING_REMINDER_INTERVAL
-    )
-    return {"remaining": remaining, "next_checkpoint": total_shaped + remaining}
+    total_shaped = cushion_router_bearing_lengths_total()
+    interval = CUSHION_ROUTER_BEARING_REMINDER_INTERVAL
+    cycle_count = total_shaped % interval
+    remaining = interval - cycle_count
+    return {
+        "count": cycle_count,
+        "interval": interval,
+        "remaining": remaining,
+        "next_checkpoint": total_shaped + remaining,
+    }
 
 
 def cushion_router_bearing_reminder_message(quantity):
     checkpoint = cushion_reminder_checkpoint(
-        cushion_shaped_lengths_total(), quantity, CUSHION_ROUTER_BEARING_REMINDER_INTERVAL
+        cushion_router_bearing_lengths_total(), quantity, CUSHION_ROUTER_BEARING_REMINDER_INTERVAL
     )
     if checkpoint:
-        return f"Change router bearings. {checkpoint:,} lengths shaped."
+        return f"Change router bearings. {checkpoint:,} lengths shaped since tracking started."
     return None
 
 

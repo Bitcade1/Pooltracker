@@ -30,8 +30,8 @@
 <section class="router-bearing-countdown" aria-label="Router bearing change countdown">
     <div>
         <h2>Router bearings</h2>
-        <p><strong id="router-bearing-lengths-remaining">{{ '{:,}'.format(router_bearing_countdown.remaining) }}</strong> {{ 'length' if router_bearing_countdown.remaining == 1 else 'lengths' }} until next change reminder</p>
+        <p><strong id="router-bearing-lengths-counted">{{ '{:,}'.format(router_bearing_countdown.count) }}</strong> of {{ '{:,}'.format(router_bearing_countdown.interval) }} lengths shaped</p>
     </div>
-    <p>Next reminder at {{ '{:,}'.format(router_bearing_countdown.next_checkpoint) }} lengths shaped</p>
+    <p><span id="router-bearing-lengths-remaining">{{ '{:,}'.format(router_bearing_countdown.remaining) }}</span> {{ 'length' if router_bearing_countdown.remaining == 1 else 'lengths' }} until next change reminder</p>
 </section>
 {% endif %}
