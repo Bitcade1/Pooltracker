@@ -705,6 +705,12 @@
         gap: 0.6rem;
     }
 
+    .pod-stock-title {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+    }
+
     .pod-stock-description {
         margin: 0.3rem 0 0;
         color: #52647a;
@@ -1207,10 +1213,12 @@
         <section class="panel pod-stock-panel" aria-labelledby="pod-stock-heading">
             <div class="pod-stock-heading">
                 <div>
-                    <h3 id="pod-stock-heading">Pod Stock</h3>
+                    <h3 id="pod-stock-heading" class="pod-stock-title">
+                        Pod Stock
+                        <span class="pod-stock-total" aria-label="{{ pod_stock_totals.values() | sum }} pods available in total"><strong>{{ pod_stock_totals.values() | sum }}</strong></span>
+                    </h3>
                     <p class="pod-stock-description">Completed pods ready for body builds</p>
                 </div>
-                <span class="pod-stock-total"><strong>{{ pod_stock_totals.values() | sum }}</strong> available in total</span>
             </div>
             <div class="stat-grid pod-stock-grid">
                 {% for key, label in [
