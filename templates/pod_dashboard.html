@@ -1090,6 +1090,23 @@
             </div>
         </section>
 
+        <section class="panel pod-stock-panel" aria-labelledby="pod-stock-heading">
+            <h3 id="pod-stock-heading">Pod Stock</h3>
+            <div class="stat-grid">
+                {% for key, label in [
+                    ('lite_6ft', '6ft League'),
+                    ('champion_6ft', '6ft Champ'),
+                    ('lite_7ft', '7ft League'),
+                    ('champion_7ft', '7ft Champ')
+                ] %}
+                    <div class="stat-card">
+                        <span class="stat-label">{{ label }}</span>
+                        <span class="stat-value">{{ pod_stock_totals[key] }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
     </div>
 </div>
 

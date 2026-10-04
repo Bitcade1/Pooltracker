@@ -13257,6 +13257,15 @@ def pod_dashboard_view():
     next_serial, default_size = _next_pod_serial_and_size()
     next_serial_display = f"{next_serial} - 6" if default_size == "6ft" else next_serial
 
+    available_pods = available_body_picker_pods(
+        CompletedPods.query.order_by(CompletedPods.id.asc()).all(),
+        CompletedTable.query.with_entities(
+            CompletedTable.id, CompletedTable.serial_number
+        ).all(),
+        load_hidden_body_picker_pod_ids(),
+    )
+    pod_stock_totals = count_pod_variants(available_pods)
+
     part_stock = {
         part["name"]: _latest_part_count(part["name"])
         for part in POD_PARTS_REQUIREMENTS
@@ -13448,6 +13457,7 @@ def pod_dashboard_view():
     return render_template(
         'pod_dashboard.html',
         stats=stats,
+        pod_stock_totals=pod_stock_totals,
         next_serial=next_serial_display,
         default_size=default_size,
         parts_data=parts_data,
