@@ -1263,6 +1263,71 @@ def ensure_monthly_build_list_tables():
     app.config['_monthly_build_list_tables_ready'] = True
 
 
+def monthly_build_model_type(model_name):
+    model = re.sub(r'[^a-z]+', ' ', (model_name or '').lower()).strip()
+    if model.startswith('signature '):
+        model = model[len('signature '):]
+    return {
+        'champion': TABLE_TYPE_CHAMPION,
+        'champ': TABLE_TYPE_CHAMPION,
+        'champion premium': TABLE_TYPE_CHAMPION,
+        'league': TABLE_TYPE_LITE,
+        'lite': TABLE_TYPE_LITE,
+        'champion lite': TABLE_TYPE_LITE,
+    }.get(model)
+
+
+def auto_tick_monthly_build_body(body, table_type, color_key):
+    """Allocate one new body to the earliest unfinished matching active order."""
+    body_size = serial_size_display_label(body.serial_number).lower()
+    items = (
+        MonthlyBuildItem.query
+        .join(MonthlyBuildDeadline)
+        .join(MonthlyBuildList)
+        .filter(MonthlyBuildList.archived == False)
+        .options(joinedload(MonthlyBuildItem.deadline).joinedload(MonthlyBuildDeadline.build_list))
+        .order_by(
+            MonthlyBuildDeadline.due_at.is_(None).asc(),
+            MonthlyBuildDeadline.due_at.asc(),
+            MonthlyBuildList.month_start.asc(),
+            MonthlyBuildList.id.asc(),
+            MonthlyBuildDeadline.position.asc(),
+            MonthlyBuildItem.position.asc(),
+            MonthlyBuildItem.id.asc(),
+        )
+        .all()
+    )
+    for item in items:
+        if monthly_build_model_type(item.model_name) != table_type:
+            continue
+        if re.sub(r'\s+', '', item.size).lower() != body_size:
+            continue
+        if packaging_stock_color_key(item.colour) != color_key:
+            continue
+        completed_units = {
+            unit_number for (unit_number,) in db.session.query(MonthlyBuildCompletion.unit_number)
+            .filter_by(item_id=item.id).all()
+        }
+        for unit_number in range(1, item.quantity + 1):
+            if unit_number in completed_units:
+                continue
+            try:
+                with db.session.begin_nested():
+                    completion = MonthlyBuildCompletion(
+                        item=item,
+                        unit_number=unit_number,
+                        completed_by=body.worker,
+                        completed_at=london_now(),
+                    )
+                    db.session.add(completion)
+                    db.session.flush()
+                return completion
+            except IntegrityError:
+                # A manual tick may have claimed this unit; try the next one.
+                continue
+    return None
+
+
 class BonusGoal(db.Model):
     __tablename__ = 'bonus_goal'
     __table_args__ = (
@@ -10394,6 +10459,7 @@ def bodies():
     if 'worker' not in session:
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
+    ensure_monthly_build_list_tables()
     today = london_now().date()
     
     # Retrieve issues and any pods not yet converted
@@ -10859,6 +10925,9 @@ def bodies():
             stock_entry.count,
             f"Completed body {serial_number}"
         )
+        monthly_build_completion = auto_tick_monthly_build_body(
+            new_table, actual_table_type, laminate_color_key
+        )
         db.session.commit()
         try:
             requests.post(
@@ -10878,6 +10947,24 @@ def bodies():
             )
         else:
             flash("Body entry added successfully and inventory updated!", "success")
+        if monthly_build_completion:
+            item = monthly_build_completion.item
+            deadline = item.deadline
+            section_label = (
+                deadline.due_at.strftime('%d %B at %H:%M')
+                if deadline.due_at else deadline.label
+            )
+            flash(
+                f"Automatically ticked off {item.model_name} / {item.size} / {item.colour} "
+                f"(#{monthly_build_completion.unit_number}) in {deadline.build_list.name} "
+                f"for {section_label}.",
+                "success",
+            )
+        else:
+            flash(
+                "No matching unticked body was found in an active monthly build list.",
+                "warning",
+            )
         session.pop("body_completion_form_values", None)
 
         return redirect(url_for('bodies'))
