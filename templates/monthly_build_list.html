@@ -33,7 +33,12 @@
         .import-options { display: grid; gap: 12px; }
         .format-example { margin-top: 12px; padding: 12px; border-radius: 8px; background: #eef5ff; color: #344054; font-size: .9rem; white-space: pre-line; }
         .deadline-panel { padding: 0; overflow: hidden; }
-        .deadline-header { background: #172033; color: #fff; padding: 16px 18px; display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+        .deadline-header { background: #172033; color: #fff; padding: 16px 50px 16px 18px; display: flex; justify-content: space-between; gap: 14px; align-items: center; position: relative; cursor: pointer; list-style: none; }
+        .deadline-header::-webkit-details-marker { display: none; }
+        .deadline-header::after { content: ""; position: absolute; right: 22px; top: 24px; width: 9px; height: 9px; border-right: 2px solid #dbe8ff; border-bottom: 2px solid #dbe8ff; transform: rotate(-45deg); }
+        .deadline-panel[open] > .deadline-header::after { transform: rotate(45deg); }
+        .deadline-header:hover { background: #25344d; }
+        .deadline-header:focus-visible { outline: 3px solid #78b7ff; outline-offset: -3px; }
         .deadline-title { font-size: 1.28rem; font-weight: 800; }
         .deadline-date { color: #dbe8ff; margin-top: 3px; }
         .deadline-progress { font-weight: 700; white-space: nowrap; }
@@ -213,8 +218,8 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                     {% set section.total = section.total + item.quantity %}
                     {% set section.completed = section.completed + (item.completions|length) %}
                 {% endfor %}
-                <section class="panel deadline-panel" data-deadline-id="{{ deadline.id }}">
-                    <div class="deadline-header">
+                <details class="panel deadline-panel" data-deadline-id="{{ deadline.id }}">
+                    <summary class="deadline-header">
                         <div>
                             <div class="deadline-title">{{ deadline.label }}</div>
                             {% if deadline.due_at %}
@@ -226,7 +231,7 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                         <div class="deadline-progress">
                             <span class="section-completed">{{ section.completed }}</span> / <span class="section-total">{{ section.total }}</span> done
                         </div>
-                    </div>
+                    </summary>
                     <div class="deadline-body">
                         {% if deadline.items %}
                             {% for item in deadline.items %}
@@ -343,7 +348,7 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                             </form>
                         {% endif %}
                     </div>
-                </section>
+                </details>
             {% else %}
                 <div class="panel empty-state">Add the first deadline or stock section, then add its body rows.</div>
             {% endfor %}
