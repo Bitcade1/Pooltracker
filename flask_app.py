@@ -14,6 +14,8 @@ import csv
 import json
 import uuid
 import html as html_lib
+import zipfile
+from xml.etree import ElementTree
 from math import ceil, floor
 from io import StringIO, BytesIO
 from packaging_planner import (
@@ -14697,13 +14699,70 @@ def monthly_build_list_redirect(build_list_id=None):
     return redirect(url_for('monthly_build_list'))
 
 
-BODY_LIST_IMPORT_EXTENSIONS = {'.txt', '.md', '.docx'}
+BODY_LIST_IMPORT_EXTENSIONS = {'.txt', '.md', '.docx', '.odt'}
 BODY_LIST_IMPORT_MAX_BYTES = 5 * 1024 * 1024
 BODY_LIST_MONTH_NUMBERS = {}
 for _month_number in range(1, 13):
     BODY_LIST_MONTH_NUMBERS[date(2000, _month_number, 1).strftime('%B').casefold()] = _month_number
     BODY_LIST_MONTH_NUMBERS[date(2000, _month_number, 1).strftime('%b').casefold()] = _month_number
 BODY_LIST_MONTH_NUMBERS['sept'] = 9
+
+
+def read_body_list_odt_text(file_bytes):
+    namespaces = {
+        'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
+        'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0',
+        'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
+    }
+    try:
+        with zipfile.ZipFile(BytesIO(file_bytes)) as document:
+            content_info = document.getinfo('content.xml')
+            if content_info.file_size > BODY_LIST_IMPORT_MAX_BYTES:
+                raise ValueError("The document text is too large. The maximum size is 5 MB.")
+            with document.open(content_info) as content_file:
+                content = content_file.read(BODY_LIST_IMPORT_MAX_BYTES + 1)
+            if len(content) > BODY_LIST_IMPORT_MAX_BYTES:
+                raise ValueError("The document text is too large. The maximum size is 5 MB.")
+        root = ElementTree.fromstring(content)
+    except (zipfile.BadZipFile, KeyError, RuntimeError, OSError, ElementTree.ParseError) as exc:
+        raise ValueError("The OpenDocument (.odt) document could not be read.") from exc
+
+    body = root.find('office:body/office:text', namespaces)
+    if body is None:
+        raise ValueError("The OpenDocument (.odt) document could not be read.")
+
+    text_prefix = '{' + namespaces['text'] + '}'
+    paragraph_tags = {text_prefix + 'p', text_prefix + 'h'}
+    ignored_tags = {text_prefix + 'note', '{' + namespaces['office'] + '}annotation'}
+    whitespace_tags = {
+        text_prefix + 's': ' ',
+        text_prefix + 'tab': '\t',
+        text_prefix + 'line-break': '\n',
+    }
+
+    def inline_text(element):
+        if element.tag in ignored_tags:
+            return ''
+        if element.tag in whitespace_tags:
+            return whitespace_tags[element.tag]
+        pieces = [element.text or '']
+        for child in element:
+            pieces.extend((inline_text(child), child.tail or ''))
+        return ''.join(pieces)
+
+    def document_lines(element):
+        if element.tag in ignored_tags:
+            return
+        if element.tag in paragraph_tags:
+            yield inline_text(element)
+        elif element.tag == '{' + namespaces['table'] + '}table-row':
+            cells = element.findall('table:table-cell', namespaces)
+            yield ' '.join(' '.join(document_lines(cell)) for cell in cells)
+        else:
+            for child in element:
+                yield from document_lines(child)
+
+    return '\n'.join(document_lines(body))
 
 
 def read_body_list_import_text(uploaded_file, pasted_text):
@@ -14715,13 +14774,16 @@ def read_body_list_import_text(uploaded_file, pasted_text):
 
     extension = os.path.splitext(uploaded_file.filename)[1].lower()
     if extension not in BODY_LIST_IMPORT_EXTENSIONS:
-        raise ValueError("Use a .txt, .md, or .docx document.")
+        raise ValueError("Use a .txt, .md, .docx, or .odt document.")
 
     file_bytes = uploaded_file.read(BODY_LIST_IMPORT_MAX_BYTES + 1)
     if len(file_bytes) > BODY_LIST_IMPORT_MAX_BYTES:
         raise ValueError("The document is too large. The maximum size is 5 MB.")
     if not file_bytes:
         raise ValueError("The uploaded document is empty.")
+
+    if extension == '.odt':
+        return read_body_list_odt_text(file_bytes)
 
     if extension == '.docx':
         try:
