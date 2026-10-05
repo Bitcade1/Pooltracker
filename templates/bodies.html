@@ -661,15 +661,19 @@
           document.body.classList.remove('shortage-modal-open');
       }
 
-      function confirmBodyShortageCompletion() {
-          const completionForm = document.getElementById('body-completion-form');
+      function confirmBodyPaperSheet() {
           const confirmationInput = document.getElementById('confirm_shortages');
+          if (!window.confirm('Have you ticked this off the paper sheet?')) {
+              if (confirmationInput) {
+                  confirmationInput.value = '';
+              }
+              return false;
+          }
+          if (!confirmationInput || confirmationInput.value !== 'yes') {
+              return true;
+          }
           const yesButton = document.getElementById('body-shortage-yes');
           const noButton = document.getElementById('body-shortage-no');
-          if (!completionForm || !confirmationInput) {
-              return;
-          }
-          confirmationInput.value = 'yes';
           if (yesButton) {
               yesButton.disabled = true;
               yesButton.textContent = 'Completing...';
@@ -677,9 +681,19 @@
           if (noButton) {
               noButton.disabled = true;
           }
+          return true;
+      }
+
+      function confirmBodyShortageCompletion() {
+          const completionForm = document.getElementById('body-completion-form');
+          const confirmationInput = document.getElementById('confirm_shortages');
+          if (!completionForm || !confirmationInput) {
+              return;
+          }
+          confirmationInput.value = 'yes';
           if (typeof completionForm.requestSubmit === 'function') {
               completionForm.requestSubmit();
-          } else {
+          } else if (completionForm.reportValidity() && confirmBodyPaperSheet()) {
               completionForm.submit();
           }
       }
@@ -848,7 +862,7 @@
     </div>
 
     <!-- Form to Add a New Completed Table -->
-    <form method="POST" action="{{ url_for('bodies') }}" id="body-completion-form">
+    <form method="POST" action="{{ url_for('bodies') }}" id="body-completion-form" onsubmit="return confirmBodyPaperSheet()">
       <input type="hidden" id="confirm_shortages" name="confirm_shortages" value="">
       <input
         type="hidden"
