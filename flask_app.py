@@ -14818,12 +14818,20 @@ def normalise_body_list_import_line(raw_line):
 
 
 def parse_body_list_import(import_text, month_start):
-    ready_pattern = re.compile(
-        r'^ready\s+for\s+'
-        r'(?:(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s+)?'
-        r'(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?'
-        r'([a-z]+)(?:\s+(\d{4}))?$',
-        re.IGNORECASE,
+    time_pattern = r'(?P<hour>\d{1,2})(?:[:.](?P<minute>\d{2}))?\s*(?P<meridiem>am|pm)?'
+    date_patterns = (
+        r'(?P<day>\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?'
+        r'(?P<month>[a-z]+)(?:\s+(?P<year>\d{4}))?',
+        r'(?P<month>[a-z]+)\s+(?P<day>\d{1,2})(?:st|nd|rd|th)?'
+        r'(?:\s+(?P<year>\d{4}))?',
+    )
+    ready_patterns = tuple(
+        re.compile(r'^ready\s+for\s+' + pattern + r'$', re.IGNORECASE)
+        for date_pattern in date_patterns
+        for pattern in (
+            rf'(?:{time_pattern}\s+)?{date_pattern}',
+            rf'{date_pattern}(?:\s+(?:at\s+)?{time_pattern})?',
+        )
     )
     item_patterns = (
         re.compile(r'^[-*\u2022]?\s*(6|7)\s*FT\s+(.+?)\s*-\s*(\d+)\s*$', re.IGNORECASE),
@@ -14840,9 +14848,16 @@ def parse_body_list_import(import_text, month_start):
         if not line:
             continue
 
-        ready_match = ready_pattern.match(line)
+        ready_match = None
+        for ready_pattern in ready_patterns:
+            ready_match = ready_pattern.match(line)
+            if ready_match:
+                break
         if ready_match:
-            hour_text, minute_text, meridiem, day_text, month_text, year_text = ready_match.groups()
+            hour_text, minute_text, meridiem, day_text, month_text, year_text = (
+                ready_match.group(name)
+                for name in ('hour', 'minute', 'meridiem', 'day', 'month', 'year')
+            )
             month_number = BODY_LIST_MONTH_NUMBERS.get(month_text.casefold())
             if not month_number:
                 errors.append(f"Unknown month in '{line}'.")

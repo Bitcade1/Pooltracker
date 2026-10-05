@@ -128,5 +128,64 @@ class BodyListOdtImportTests(unittest.TestCase):
         self.assertEqual(text, self.read_upload(output.getvalue(), 'list.docx'))
 
 
+class BodyListDeadlineImportTests(unittest.TestCase):
+    body_rows = 'Signature League\n6FT Black - 10\n7FT Black - 13\n6FT Rustic Black 4'
+
+    def test_reported_month_first_deadline_and_body_rows(self):
+        sections = parse_body_list_import(
+            'Ready for NOVEMBER 5th 5pm\n' + self.body_rows, date(2026, 10, 1)
+        )
+        self.assertEqual(datetime(2026, 11, 5, 17), sections[0]['due_at'])
+        self.assertEqual([
+            {'model_name': 'Signature League', 'size': '6FT', 'colour': 'Black', 'quantity': 10},
+            {'model_name': 'Signature League', 'size': '7FT', 'colour': 'Black', 'quantity': 13},
+            {'model_name': 'Signature League', 'size': '6FT', 'colour': 'Rustic Black', 'quantity': 4},
+        ], sections[0]['items'])
+
+    def test_deadline_order_and_time_variations(self):
+        headings = (
+            ('Ready for 5pm 5th of November', datetime(2026, 11, 5, 17)),
+            ('Ready for 5pm November 5th', datetime(2026, 11, 5, 17)),
+            ('Ready for 5th November 5pm', datetime(2026, 11, 5, 17)),
+            ('Ready for November 5th at 5:30 pm', datetime(2026, 11, 5, 17, 30)),
+            ('Ready for Nov 5 2027 17:30', datetime(2027, 11, 5, 17, 30)),
+            ('Ready for 5.30pm 5th of Nov 2027', datetime(2027, 11, 5, 17, 30)),
+            ('Ready for November 5th', datetime(2026, 11, 5, 17)),
+            ('Ready for 5th of November', datetime(2026, 11, 5, 17)),
+            ('Ready for November 5th 12am', datetime(2026, 11, 5)),
+            ('Ready for November 5th 12pm', datetime(2026, 11, 5, 12)),
+        )
+        for heading, expected_deadline in headings:
+            with self.subTest(heading=heading):
+                sections = parse_body_list_import(heading + '\n' + self.body_rows, date(2026, 10, 1))
+                self.assertEqual(expected_deadline, sections[0]['due_at'])
+
+    def test_invalid_deadlines_still_report_errors(self):
+        for heading, error in (
+            ('Ready for November 31st 5pm', 'Invalid deadline'),
+            ('Ready for November 5th 13pm', 'Invalid time'),
+            ('Ready for November 5th 5:60pm', 'Invalid deadline'),
+            ('Ready for Notamonth 5th 5pm', 'Unknown month'),
+        ):
+            with self.subTest(heading=heading):
+                with self.assertRaisesRegex(ValueError, error):
+                    parse_body_list_import(heading + '\n' + self.body_rows, date(2026, 10, 1))
+
+    def test_month_first_deadline_in_odt_upload(self):
+        content = odt_document(
+            '<text:h>Ready for NOVEMBER 5th 5pm</text:h>'
+            '<text:p>Signature League</text:p>'
+            '<text:p>6FT Black - 10</text:p>'
+            '<text:p>7FT Black - 13</text:p>'
+            '<text:p>6FT Rustic Black 4</text:p>'
+        )
+        text = read_body_list_import_text(
+            FileStorage(stream=BytesIO(content), filename='November.odt'), ''
+        )
+        sections = parse_body_list_import(text, date(2026, 10, 1))
+        self.assertEqual(datetime(2026, 11, 5, 17), sections[0]['due_at'])
+        self.assertEqual(27, sum(item['quantity'] for item in sections[0]['items']))
+
+
 if __name__ == '__main__':
     unittest.main()
