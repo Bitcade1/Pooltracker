@@ -2037,6 +2037,9 @@ def ensure_legacy_inventory_names_migrated():
 
             old_cost_key = f"parts_inventory__{slugify_key(old_name)}"
             new_cost_key = f"parts_inventory__{slugify_key(new_name)}"
+            # Punctuation-only renames already use the same saved cost record.
+            if old_cost_key == new_cost_key:
+                continue
             old_cost = StockItemCost.query.filter_by(item_key=old_cost_key).first()
             if old_cost:
                 new_cost = StockItemCost.query.filter_by(item_key=new_cost_key).first()
