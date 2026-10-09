@@ -58,6 +58,32 @@
         flex-wrap: wrap;
     }
 
+    .working-month-summary {
+        flex: 1 1 240px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        background: #eff6ff;
+        color: #1e3a8a;
+        text-align: center;
+    }
+
+    .working-month-summary strong {
+        display: block;
+        font-size: 1.25rem;
+    }
+
+    .working-month-summary span {
+        display: block;
+        margin-top: 4px;
+        font-weight: 700;
+    }
+
+    .working-month-summary small {
+        display: block;
+        margin-top: 4px;
+        color: #475569;
+    }
+
     .link-btn,
     .small-btn {
         display: inline-flex;
@@ -551,6 +577,11 @@
 <div class="cushion-page">
     <header class="page-head">
         <h1>Cushion Production</h1>
+        <div class="working-month-summary" aria-label="Working month progress">
+            <strong>{{ remaining_cushion_workdays }} working day{{ '' if remaining_cushion_workdays == 1 else 's' }} remaining</strong>
+            <span>{{ cushion_month_elapsed_percent }}% of working month elapsed</span>
+            <small>{{ bonus_month_label }}; bank holidays excluded; remaining includes today</small>
+        </div>
         <div class="head-actions">
             <a class="link-btn" href="{{ admin_url }}">Admin View</a>
             <a class="link-btn" href="{{ url_for('home') }}">Home</a>

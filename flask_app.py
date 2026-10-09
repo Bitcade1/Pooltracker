@@ -16283,6 +16283,22 @@ def counting_cushions():
         today.month,
         include_workers=["Katie"]
     )
+    bank_holidays_by_month = fetch_uk_bank_holidays()
+    cushion_bank_holidays = {
+        holiday_date
+        for month_holidays in bank_holidays_by_month.values()
+        for holiday_date in month_holidays
+    }
+    remaining_cushion_workdays = remaining_weekdays_in_month(
+        today,
+        excluded_dates=cushion_bank_holidays,
+    )
+    cushion_month_elapsed_percent = working_month_elapsed_percentage(
+        today.year,
+        today.month,
+        current_date=today,
+        excluded_dates=cushion_bank_holidays,
+    )
 
     return render_template(
         'counting_cushions.html',
@@ -16295,6 +16311,8 @@ def counting_cushions():
         previous_month_size_stats=cushion_completed_previous_month_stats(),
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        remaining_cushion_workdays=remaining_cushion_workdays,
+        cushion_month_elapsed_percent=cushion_month_elapsed_percent,
         extra_time_progress=cushion_extra_time_progress("Katie", today.year, today.month),
         compressor_context=cushion_compressor_context(worker_name),
         router_bearing_countdown=cushion_router_bearing_countdown(),
