@@ -1,0 +1,19 @@
+[Unit]
+Description=Verified Pool Tracker database backup to Google Drive
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Confirmed owner of the live SQLite database.
+User=root2
+Group=root2
+EnvironmentFile=/etc/pooltracker-backup.env
+ExecStart=/usr/bin/python3 /opt/pooltracker-backup/backup_database.py
+TimeoutStartSec=15min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

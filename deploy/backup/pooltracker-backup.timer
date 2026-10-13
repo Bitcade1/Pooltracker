@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly Pool Tracker database backups
+
+[Timer]
+# UTC is explicit so the interval stays hourly through UK daylight changes.
+OnCalendar=*-*-* *:00:00 UTC
+Persistent=true
+RandomizedDelaySec=60
+Unit=pooltracker-backup.service
+
+[Install]
+WantedBy=timers.target

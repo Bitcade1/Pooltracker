@@ -2,3 +2,10 @@ venv/
 *.pyc
 pool_table_tracker.db
 hidden_body_picker_pods.json
+backups/
+pool_table_tracker.db.backup-*
+*.db-wal
+*.db-shm
+rclone.conf
+pooltracker-backup.env
+.env.backup
