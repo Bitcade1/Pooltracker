@@ -33,16 +33,20 @@
         #save-status.success { color: #1b6b2f; }
         .queue-panel { border-color: #b9cde9; background: #f7faff; }
         .queue-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 14px 0; }
-        .queue-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: #e8f1ff; border-radius: 8px; padding: 14px; }
-        .queue-next form { margin: 0; }
+        .wood-queue-list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 18px 0; padding: 0; }
+        .wood-queue-card { --cut-accent: #005cc5; --cut-soft: #eef5ff; border: 1px solid #cbd5e1; border-left: 8px solid var(--cut-accent); border-radius: 10px; background: #fff; padding: 18px; text-align: center; }
+        .wood-queue-card[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
+        .wood-queue-card.is-current { background: var(--cut-soft); border-color: var(--cut-accent); box-shadow: 0 0 0 2px var(--cut-soft); }
+        .wood-queue-number { display: inline-block; min-width: 72px; padding: 6px 14px; border-radius: 999px; background: var(--cut-soft); color: var(--cut-accent); font-size: 1.05rem; font-weight: 800; }
+        .wood-queue-card.is-current .wood-queue-number { background: var(--cut-accent); color: #fff; }
+        .wood-queue-name { margin: 12px 0; font-size: clamp(2rem, 3.2vw, 3.5rem); font-weight: 800; color: #0b1c34; line-height: 1.05; letter-spacing: 0.01em; overflow-wrap: anywhere; }
+        .wood-queue-meta { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; font-size: 1.15rem; font-weight: 600; color: #334155; }
+        .wood-queue-key kbd { margin: 0 0 0 4px; padding: 5px 12px; font-weight: 800; border-color: var(--cut-accent); color: var(--cut-accent); }
+        .wood-queue-reason { margin: 12px 0 0; color: #475569; font-size: 1rem; line-height: 1.4; }
+        #queue-next-form { margin: 16px 0 0; }
+        #queue-log-next { background: var(--cut-accent); font-size: 1.2rem; font-weight: 700; border-radius: 10px; padding: 14px; }
+        #queue-log-next:hover { filter: brightness(0.88); }
         #queue-log-next:disabled { opacity: 0.6; cursor: wait; }
-        .queue-table { table-layout: fixed; min-width: 650px; background: #fff; }
-        .queue-table th, .queue-table td { text-align: left; vertical-align: top; }
-        .queue-table th:nth-child(1) { width: 7%; }
-        .queue-table th:nth-child(2) { width: 21%; }
-        .queue-table th:nth-child(3) { width: 27%; }
-        .queue-table th:nth-child(4) { width: 45%; }
-        .queue-table tbody tr:first-child { background: #e8f1ff; font-weight: bold; }
         .wood-log summary { cursor: pointer; font-size: 1.3em; font-weight: bold; }
         .log-table { table-layout: fixed; min-width: 560px; }
         .log-table th, .log-table td { text-align: left; }
@@ -86,24 +90,26 @@
                 <span id="queue-current-6">6ft: <strong>{{ cnc_queue.current.sets_6ft }}</strong> complete sets ({{ cnc_queue.current.percent_6ft }}%)</span>
                 <span id="queue-current-7">7ft: <strong>{{ cnc_queue.current.sets_7ft }}</strong> complete sets ({{ cnc_queue.current.percent_7ft }}%)</span>
             </div>
-            <div class="queue-next">
-                <strong id="queue-next-label">Next: {{ cnc_queue.cuts[0].label }} file - press {{ cnc_queue.cuts[0].key_code }}</strong>
-                <form class="stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
-                    <input type="hidden" id="queue-next-key" name="key_code" value="{{ cnc_queue.cuts[0].key_code }}">
-                    <button type="submit" id="queue-log-next">Log Next Cut</button>
-                </form>
-            </div>
             <p class="hint">Follow the order below. Log each file only after it has been cut. The queue updates automatically whenever stock changes.</p>
-            <div class="table-scroll">
-                <table class="queue-table">
-                    <thead><tr><th>Order</th><th>CNC File</th><th>Adds to Stock</th><th>Why This Cut</th></tr></thead>
-                    <tbody id="cnc-queue-body">
-                        {% for cut in cnc_queue.cuts %}
-                        <tr><td>{{ cut.position }}</td><td><kbd>{{ cut.key_code }}</kbd> {{ cut.label }}</td><td>{{ cut.adds }}</td><td>{{ cut.reason }}</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+            <ol class="wood-queue-list" id="cnc-queue-body" aria-label="Upcoming CNC cuts">
+                {% for cut in cnc_queue.cuts %}
+                <li class="wood-queue-card{% if loop.first %} is-current{% endif %}" data-size="{{ '6' if cut.key_code in ['1', '2'] else '7' }}">
+                    <span class="wood-queue-number">{{ 'Cut Next - 1' if loop.first else 'Cut ' ~ cut.position }}</span>
+                    <h3 class="wood-queue-name"{% if loop.first %} id="queue-next-label"{% endif %}>{{ cut.label }}</h3>
+                    <div class="wood-queue-meta">
+                        <span class="wood-queue-key">Press <kbd>{{ cut.key_code }}</kbd></span>
+                        <span class="wood-queue-adds">{{ cut.adds }}</span>
+                    </div>
+                    <p class="wood-queue-reason">{{ cut.reason }}</p>
+                    {% if loop.first %}
+                    <form id="queue-next-form" class="stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
+                        <input type="hidden" id="queue-next-key" name="key_code" value="{{ cut.key_code }}">
+                        <button type="submit" id="queue-log-next">Log Next Cut</button>
+                    </form>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ol>
             <p class="hint" id="queue-projected">After these 5 cuts: {{ cnc_queue.projected.sets_6ft }} complete 6ft sets and {{ cnc_queue.projected.sets_7ft }} complete 7ft sets. Batch sizes mean the mix may not be exactly 25% / 75% after every cut.</p>
         </section>
 
@@ -232,28 +238,20 @@
 
         function renderQueue(queue) {
             const next = queue.cuts[0];
-            document.getElementById('queue-next-label').textContent = `Next: ${next.label} file - press ${next.key_code}`;
             document.getElementById('queue-next-key').value = next.key_code;
             for (const size of ['6', '7']) {
                 document.getElementById('queue-current-' + size).textContent = `${size}ft: ${queue.current['sets_' + size + 'ft']} complete sets (${queue.current['percent_' + size + 'ft']}%)`;
             }
             document.getElementById('queue-projected').textContent = `After these 5 cuts: ${queue.projected.sets_6ft} complete 6ft sets and ${queue.projected.sets_7ft} complete 7ft sets. Batch sizes mean the mix may not be exactly 25% / 75% after every cut.`;
-            const queueBody = document.getElementById('cnc-queue-body');
-            queueBody.replaceChildren();
-            queue.cuts.forEach(cut => {
-                const row = document.createElement('tr');
-                [cut.position, cut.label, cut.adds, cut.reason].forEach((value, index) => {
-                    const cell = document.createElement('td');
-                    if (index === 1) {
-                        const key = document.createElement('kbd');
-                        key.textContent = cut.key_code;
-                        cell.append(key, ' ' + value);
-                    } else {
-                        cell.textContent = value;
-                    }
-                    row.appendChild(cell);
-                });
-                queueBody.appendChild(row);
+            const cards = document.querySelectorAll('#cnc-queue-body .wood-queue-card');
+            queue.cuts.forEach((cut, index) => {
+                const card = cards[index];
+                card.dataset.size = ['1', '2'].includes(cut.key_code) ? '6' : '7';
+                card.querySelector('.wood-queue-number').textContent = index === 0 ? 'Cut Next - 1' : `Cut ${cut.position}`;
+                card.querySelector('.wood-queue-name').textContent = cut.label;
+                card.querySelector('kbd').textContent = cut.key_code;
+                card.querySelector('.wood-queue-adds').textContent = cut.adds;
+                card.querySelector('.wood-queue-reason').textContent = cut.reason;
             });
         }
 
