@@ -48,7 +48,7 @@ class Cut36mmWoodTests(unittest.TestCase):
         for key, delta in [
             ('1', {'6_long': 8, '6_short': 3}),
             ('2', {'6_short': 16}),
-            ('3', {'7_long': 1, '7_short': 2}),
+            ('3', {'7_long': 8, '7_short': 2}),
             ('4', {'7_short': 16}),
         ]:
             with self.subTest(key=key):
@@ -65,7 +65,7 @@ class Cut36mmWoodTests(unittest.TestCase):
         for key in '7890':
             self.assertEqual(200, self.post(key_code=key).status_code)
         self.assertEqual(
-            {'6_long': 7, '6_short': 18, '7_long': 0, '7_short': 17},
+            {'6_long': 7, '6_short': 18, '7_long': 7, '7_short': 17},
             tracker.cut_36mm_wood_counts(),
         )
 
@@ -95,7 +95,7 @@ class Cut36mmWoodTests(unittest.TestCase):
         for data in [
             {'key_code': '5'}, {'key_code': 'bad', 'action': 'adjust', 'part_key': '7_long', 'amount': '5'},
             {'action': 'adjust', 'part_key': 'unknown', 'amount': '1'},
-            {'action': 'adjust', 'part_key': '7_long', 'amount': '-2'},
+            {'action': 'adjust', 'part_key': '7_long', 'amount': '-9'},
             {'action': 'adjust', 'part_key': '7_long', 'amount': '0'},
             {'action': 'set', 'part_key': '7_long', 'amount': '-1'},
             {'action': 'set', 'part_key': '7_long', 'amount': '1.5'},

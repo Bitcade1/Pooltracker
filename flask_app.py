@@ -810,7 +810,7 @@ CUT_36MM_WOOD_PART_NAMES = list(CUT_36MM_WOOD_PARTS.values())
 CUT_36MM_WOOD_FILES = {
     "1": {"label": "6ft Long", "yields": {"6_long": 8, "6_short": 3}},
     "2": {"label": "6ft Short", "yields": {"6_short": 16}},
-    "3": {"label": "7ft Long", "yields": {"7_long": 1, "7_short": 2}},
+    "3": {"label": "7ft Long", "yields": {"7_long": 8, "7_short": 2}},
     "4": {"label": "7ft Short", "yields": {"7_short": 16}},
 }
 CUT_36MM_WOOD_REMOVE_KEYS = dict(zip("7890", CUT_36MM_WOOD_PARTS))
