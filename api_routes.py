@@ -8,6 +8,7 @@ from functools import wraps
 # Corrected imports: Import from 'flask_app' which is your main application module
 # Ensure 'db' is your SQLAlchemy instance, and other models are correctly defined in flask_app
 from flask_app import db, CompletedTable, TopRail, CompletedPods, WoodCount, PrintedPartsCount, ProductionSchedule, MDFInventory, HardwarePart, TableStock
+from flask_app import CUT_36MM_WOOD_PART_NAMES, cut_36mm_wood_counts
 # Import datetime module itself to access datetime.time if needed for other parts (dt alias)
 import datetime as dt # dt alias is used in existing code
 
@@ -565,6 +566,7 @@ def inventory_summary():
             "plain_mdf_36": mdf_inventory_db.plain_mdf_36
         },
         "wooden_components_current": wooden_counts,
+        "cut_36mm_wood_current": cut_36mm_wood_counts(),
         "table_parts_current": table_parts_counts,
         "printed_parts_current": printed_parts_counts,
         "hardware_parts_current": hardware_counts,
@@ -702,6 +704,7 @@ def get_production_schedule_for_month(year, month):
 
 # --- Valid parts list for inventory tracking ---
 VALID_PARTS = [
+    *CUT_36MM_WOOD_PART_NAMES,
     "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
     "Small Ramp", "Cue Ball Separator", "Bushing",
     "6ft Cue Ball Separator", "6ft Large Ramp", 

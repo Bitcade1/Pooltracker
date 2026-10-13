@@ -140,6 +140,16 @@
         <!-- Collapsible Section for Wooden Parts -->
         <button class="collapsible" onclick="toggleCollapsible('collapsibleContentWood')">Wooden Parts</button>
         <div id="collapsibleContentWood" class="collapsible-content">
+            <h2>Cut 36mm Wood Stock</h2>
+            <table>
+                <thead><tr><th>Part</th><th>Current Stock</th></tr></thead>
+                <tbody>
+                    {% for key, name in cut_36mm_parts.items() %}
+                    <tr><td><strong>{{ name }}</strong></td><td>{{ cut_36mm_counts[key] }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p><a href="{{ url_for('counting_cut_36mm_wood') }}">Count Cut 36mm Wood</a></p>
             <h2>Total Cut</h2>
             <table>
                 <thead>

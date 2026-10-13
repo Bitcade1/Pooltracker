@@ -800,6 +800,20 @@ app.jinja_env.filters['slugify_key'] = slugify_key
 
 LAMINATE_COLOR_LABELS = ["Black", "Rustic Oak", "Grey Oak", "Stone", "Rustic Black"]
 LAMINATE_PART_NAMES = [f"Laminate - {label}" for label in LAMINATE_COLOR_LABELS]
+CUT_36MM_WOOD_PARTS = {
+    "6_long": "Cut 36mm Wood - 6ft Long",
+    "6_short": "Cut 36mm Wood - 6ft Short",
+    "7_long": "Cut 36mm Wood - 7ft Long",
+    "7_short": "Cut 36mm Wood - 7ft Short",
+}
+CUT_36MM_WOOD_PART_NAMES = list(CUT_36MM_WOOD_PARTS.values())
+CUT_36MM_WOOD_FILES = {
+    "1": {"label": "6ft Long", "yields": {"6_long": 8, "6_short": 3}},
+    "2": {"label": "6ft Short", "yields": {"6_short": 16}},
+    "3": {"label": "7ft Long", "yields": {"7_long": 1, "7_short": 2}},
+    "4": {"label": "7ft Short", "yields": {"7_short": 16}},
+}
+CUT_36MM_WOOD_REMOVE_KEYS = dict(zip("7890", CUT_36MM_WOOD_PARTS))
 LAMINATE_COLOR_KEY_TO_LABEL = {
     "black": "Black",
     "rustic_oak": "Rustic Oak",
@@ -1137,6 +1151,53 @@ def current_printed_part_inventory(part_name):
     if hardware_part:
         return hardware_part.name, hardware_part.initial_count or 0
     return part_name, 0
+
+
+def cut_36mm_wood_counts():
+    counts = {}
+    for part_key, part_name in CUT_36MM_WOOD_PARTS.items():
+        entry = (
+            PrintedPartsCount.query.filter_by(part_name=part_name)
+            .order_by(
+                PrintedPartsCount.date.desc(), PrintedPartsCount.time.desc(),
+                PrintedPartsCount.id.desc(),
+            ).first()
+        )
+        counts[part_key] = (entry.count or 0) if entry else 0
+    return counts
+
+
+def seed_cut_36mm_wood_parts():
+    """Add zero baselines for new parts without changing existing stock."""
+    recorded_at = london_now()
+    for part_name in CUT_36MM_WOOD_PART_NAMES:
+        if not PrintedPartsCount.query.filter_by(part_name=part_name).first():
+            db.session.add(new_printed_parts_snapshot(part_name, 0, recorded_at))
+
+
+def cut_36mm_wood_log():
+    history = db.session.query(
+        PrintedPartsCount.id,
+        PrintedPartsCount.part_name,
+        PrintedPartsCount.date,
+        PrintedPartsCount.time,
+        PrintedPartsCount.count.label("new_count"),
+        (PrintedPartsCount.count - func.coalesce(func.lag(PrintedPartsCount.count).over(
+            partition_by=PrintedPartsCount.part_name,
+            order_by=(PrintedPartsCount.date, PrintedPartsCount.time, PrintedPartsCount.id),
+        ), 0)).label("delta"),
+    ).filter(PrintedPartsCount.part_name.in_(CUT_36MM_WOOD_PART_NAMES)).subquery()
+    entries = (
+        db.session.query(history).filter(history.c.delta != 0)
+        .order_by(history.c.date.desc(), history.c.time.desc(), history.c.id.desc())
+        .limit(50).all()
+    )
+    return [{
+        "when": f"{entry.date:%d/%m/%Y} {entry.time:%H:%M:%S}",
+        "part": entry.part_name.replace("Cut 36mm Wood - ", ""),
+        "delta": entry.delta,
+        "new_count": entry.new_count,
+    } for entry in entries]
 
 
 class CompletedPods(db.Model):
@@ -3135,6 +3196,7 @@ def admin():
     all_parts_union = all_parts_query1.union(all_parts_query2, all_parts_query3, all_parts_query4).all()
     all_part_names = {name for (name,) in all_parts_union if name}
     all_part_names.update(LAMINATE_PART_NAMES)
+    all_part_names.update(CUT_36MM_WOOD_PART_NAMES)
     all_part_names.difference_update(LEGACY_FELT_PART_NAMES)
     all_part_names.difference_update(LEGACY_SEVEN_FOOT_GULLY_PARTS)
     all_part_names.add(FELT_PART_NAME)
@@ -5117,6 +5179,8 @@ def inventory():
         'inventory.html',
         inventory_counts=inventory_counts,
         wooden_counts=wooden_counts,
+        cut_36mm_counts=cut_36mm_wood_counts(),
+        cut_36mm_parts=CUT_36MM_WOOD_PARTS,
         parts_used_this_month=parts_used_this_month,
         parts_status=parts_status,
         table_parts_counts=table_parts_counts,
@@ -5207,6 +5271,7 @@ def build_stock_snapshot():
             part_names.add(part_name)
 
     part_names.update(core_parts)
+    part_names.update(CUT_36MM_WOOD_PART_NAMES)
     part_names.update(table_parts.keys())
     part_names.update(packaging_parts)
     part_names.update(hardware_defaults.keys())
@@ -5216,7 +5281,9 @@ def build_stock_snapshot():
         if not has_record and part_name in hardware_defaults:
             count = hardware_defaults[part_name]
 
-        if part_name in packaging_parts:
+        if part_name in CUT_36MM_WOOD_PART_NAMES:
+            display_category = "Wood Shop"
+        elif part_name in packaging_parts:
             display_category = "Packaging"
         elif part_name in table_parts:
             display_category = "Chinese Parts"
@@ -7694,6 +7761,96 @@ def manage_raw_data():
             for key in ("black", "rustic_oak", "grey_oak", "stone", "rustic_black")
         ]
     )
+
+@app.route('/counting_cut_36mm_wood', methods=['GET', 'POST'])
+def counting_cut_36mm_wood():
+    wants_json = request.accept_mimetypes.best == "application/json"
+
+    def result(message, status=200):
+        if wants_json:
+            return jsonify(
+                success=status == 200, message=message,
+                counts=cut_36mm_wood_counts(), log=cut_36mm_wood_log(),
+            ), status
+        flash(message, "success" if status == 200 else "error")
+        return redirect(url_for('counting_cut_36mm_wood'))
+
+    if 'worker' not in session:
+        if wants_json:
+            return jsonify(success=False, message="Please log in first."), 401
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        try:
+            # Serialize stock adjustments across CNC stations in SQLite.
+            db.session.execute(text("BEGIN IMMEDIATE"))
+            counts = cut_36mm_wood_counts()
+            key_code = request.form.get("key_code", "")
+            action = request.form.get("action", "")
+            if key_code in CUT_36MM_WOOD_FILES:
+                cnc_file = CUT_36MM_WOOD_FILES[key_code]
+                changes = cnc_file["yields"]
+                message = f"{cnc_file['label']} file cut: " + ", ".join(
+                    f"+{amount} {part.replace('_', 'ft ').title()}"
+                    for part, amount in changes.items()
+                )
+            elif key_code in CUT_36MM_WOOD_REMOVE_KEYS:
+                part_key = CUT_36MM_WOOD_REMOVE_KEYS[key_code]
+                changes = {part_key: -1}
+                message = f"Removed 1 {part_key.replace('_', 'ft ').title()} piece."
+            elif not key_code and action in ("adjust", "set"):
+                part_key = request.form.get("part_key", "")
+                if part_key not in CUT_36MM_WOOD_PARTS:
+                    raise ValueError("Please select a valid wood part.")
+                raw_amount = request.form.get("amount", "").strip()
+                if not re.fullmatch(r"[+-]?[0-9]+", raw_amount):
+                    raise ValueError("Please enter a whole number of pieces.")
+                amount = int(raw_amount)
+                if action == "set" and amount < 0:
+                    raise ValueError("Stock cannot be negative.")
+                if action == "adjust" and amount == 0:
+                    raise ValueError("Enter a positive amount to add or a negative amount to remove.")
+                changes = {part_key: amount - counts[part_key] if action == "set" else amount}
+                message = f"{part_key.replace('_', 'ft ').title()} stock: {counts[part_key] + changes[part_key]}."
+            else:
+                raise ValueError("Invalid wood counting action or shortcut.")
+
+            for part_key, amount in changes.items():
+                if counts[part_key] + amount < 0:
+                    raise ValueError(f"Not enough {part_key.replace('_', 'ft ').title()} pieces to remove.")
+
+            seed_cut_36mm_wood_parts()
+            recorded_at = london_now()
+            for part_key, amount in changes.items():
+                if amount:
+                    db.session.add(new_printed_parts_snapshot(
+                        CUT_36MM_WOOD_PARTS[part_key], counts[part_key] + amount, recorded_at,
+                    ))
+            db.session.commit()
+            return result(message)
+        except ValueError as exc:
+            db.session.rollback()
+            return result(str(exc), 400)
+        except OperationalError:
+            db.session.rollback()
+            return result("Stock is busy. Refresh the counts before trying again.", 503)
+
+    if wants_json:
+        response = jsonify(success=True, counts=cut_36mm_wood_counts(), log=cut_36mm_wood_log())
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    # Seed only on a page visit; polling stays read-only.
+    db.session.execute(text("BEGIN IMMEDIATE"))
+    seed_cut_36mm_wood_parts()
+    db.session.commit()
+    return render_template(
+        'counting_cut_36mm_wood.html', counts=cut_36mm_wood_counts(),
+        parts=CUT_36MM_WOOD_PARTS, cnc_files=CUT_36MM_WOOD_FILES,
+        remove_keys=CUT_36MM_WOOD_REMOVE_KEYS, wood_log=cut_36mm_wood_log(),
+    )
+
 
 @app.route('/counting_wood', methods=['GET', 'POST'])
 def counting_wood():

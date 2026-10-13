@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counting Cut 36mm Wood</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .wood-container { max-width: 1100px; text-align: left; }
+        .wood-container h1 { text-align: center; }
+        .panel { background: #fff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 18px; margin-top: 16px; }
+        .panel h2 { margin: 0 0 12px; }
+        .stock-grid, .quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        .stock-card { background: #f7f7fb; border: 1px solid #dfe3eb; border-radius: 10px; padding: 18px; text-align: center; }
+        .stock-card h2 { font-size: 1.1em; margin: 0 0 10px; }
+        .stock-count { display: block; font-size: 3em; font-weight: bold; color: #111; }
+        .stock-count.highlight { animation: highlight 1.5s ease; }
+        @keyframes highlight { from { background-color: #c6f7c6; } to { background-color: transparent; } }
+        .quick-grid { margin-top: 12px; }
+        .cut-button { background: #23853b; padding: 18px 12px; }
+        .cut-button:hover { background: #1b6b2f; }
+        .cut-button strong, .cut-button span { display: block; }
+        .cut-button span { margin-top: 10px; line-height: 1.5; font-size: 0.9em; }
+        .remove-button { background: #b52d3c; padding: 16px 10px; }
+        .remove-button:hover { background: #942332; }
+        kbd { display: inline-block; background: #fff; color: #222; border: 1px solid #aaa; border-radius: 5px; padding: 3px 8px; margin-right: 5px; font-family: inherit; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+        .form-row label { display: block; margin-bottom: 8px; }
+        .form-row input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 1em; }
+        .hint { color: #555; line-height: 1.5; }
+        #save-status { padding: 12px; margin: 16px 0; background: #f7f7fb; border: 1px solid #dfe3eb; border-radius: 8px; min-height: 1.5em; }
+        #save-status.error { color: #9a1c29; background: #fff0f0; border-color: #d79ca2; }
+        #save-status.success { color: #1b6b2f; }
+        .wood-log summary { cursor: pointer; font-size: 1.3em; font-weight: bold; }
+        .log-table { table-layout: fixed; min-width: 560px; }
+        .log-table th, .log-table td { text-align: left; }
+        .log-table th:nth-child(1) { width: 35%; }
+        .log-table th:nth-child(2) { width: 25%; }
+        .log-table th:nth-child(3), .log-table th:nth-child(4) { width: 20%; }
+        .log-table td:nth-child(3), .log-table td:nth-child(4) { text-align: right; }
+        .delta-add { color: #1b7f2a; font-weight: bold; }
+        .delta-remove { color: #b00020; font-weight: bold; }
+        .menu-links { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 24px; }
+        @media (max-width: 800px) { .stock-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 540px) { .form-row { grid-template-columns: 1fr; } .wood-container { padding: 14px; } }
+        @media (prefers-reduced-motion: reduce) { .stock-count.highlight { animation: none; } }
+    </style>
+</head>
+<body>
+    <main class="container wood-container">
+        <h1>Counting Cut 36mm Wood</h1>
+        <p class="hint">Log a completed CNC file to add all its pieces. Counts save immediately.</p>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <p class="flash {{ category }}">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+
+        <div class="stock-grid" aria-label="Current wood stock">
+            {% for key in parts %}
+            <section class="stock-card">
+                <h2>{{ key.replace('_', 'ft ')|title }}</h2>
+                <output class="stock-count" id="count-{{ key }}">{{ counts[key] }}</output>
+                <span>pieces in stock</span>
+            </section>
+            {% endfor %}
+        </div>
+        <p id="save-status" role="status" aria-live="polite">Ready. Press 1-4 to log a cut, or 7-0 to remove one piece.</p>
+
+        <section class="panel">
+            <h2>Log a CNC File Cut</h2>
+            <p class="hint">Press the number key or click the file button once for each completed cut.</p>
+            <form class="quick-grid stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
+                {% for key, file in cnc_files.items() %}
+                <button class="cut-button" type="submit" name="key_code" value="{{ key }}">
+                    <strong><kbd>{{ key }}</kbd> {{ file.label }} file</strong>
+                    <span>{% for part, amount in file.yields.items() %}+{{ amount }} {{ part.replace('_', 'ft ')|title }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span>
+                </button>
+                {% endfor %}
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Remove Individual Pieces</h2>
+            <p class="hint">Each key press or click removes one piece. Stock cannot go below zero.</p>
+            <form class="quick-grid stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
+                {% for key, part in remove_keys.items() %}
+                <button class="remove-button" type="submit" name="key_code" value="{{ key }}"><kbd>{{ key }}</kbd> {{ part.replace('_', 'ft ')|title }} -1</button>
+                {% endfor %}
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Manually Add or Remove Pieces</h2>
+            <p class="hint">Use a positive number to add pieces or a negative number to remove them. Keyboard shortcuts pause while you edit a field.</p>
+            <form class="form-row stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
+                <input type="hidden" name="action" value="adjust">
+                <div>
+                    <label for="adjust-part">Part</label>
+                    <select id="adjust-part" name="part_key">{% for key in parts %}<option value="{{ key }}">{{ key.replace('_', 'ft ')|title }}</option>{% endfor %}</select>
+                </div>
+                <div>
+                    <label for="adjust-amount">Pieces to add / remove</label>
+                    <input id="adjust-amount" name="amount" type="number" step="1" placeholder="e.g. 25 or -3" required>
+                </div>
+                <button type="submit">Apply Adjustment</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Set a Stock Count</h2>
+            <p class="hint">After a stock check, replace the count for one part with the actual number of pieces.</p>
+            <form class="form-row stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
+                <input type="hidden" name="action" value="set">
+                <div>
+                    <label for="set-part">Part</label>
+                    <select id="set-part" name="part_key">{% for key in parts %}<option value="{{ key }}">{{ key.replace('_', 'ft ')|title }}</option>{% endfor %}</select>
+                </div>
+                <div>
+                    <label for="set-amount">Actual stock count</label>
+                    <input id="set-amount" name="amount" type="number" min="0" step="1" placeholder="e.g. 100" required>
+                </div>
+                <button type="submit">Set Count</button>
+            </form>
+        </section>
+
+        <details class="panel wood-log">
+            <summary>Stock Change Log</summary>
+            <p class="hint">Most recent 50 piece count changes.</p>
+            <div class="table-scroll">
+                <table class="log-table">
+                    <thead><tr><th>When</th><th>Part</th><th>Change</th><th>New Stock</th></tr></thead>
+                    <tbody id="wood-log-body">
+                        {% for entry in wood_log %}
+                        <tr><td>{{ entry.when }}</td><td>{{ entry.part }}</td><td class="{{ 'delta-add' if entry.delta > 0 else 'delta-remove' }}">{{ '+' if entry.delta > 0 else '' }}{{ entry.delta }}</td><td>{{ entry.new_count }}</td></tr>
+                        {% else %}
+                        <tr><td colspan="4">No changes logged yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
+        <nav class="menu-links" aria-label="Back links">
+            <a class="menu-button" href="{{ url_for('home') }}">Back to Main Menu</a>
+            <a class="menu-button" href="{{ url_for('inventory') }}">Back to Inventory</a>
+        </nav>
+    </main>
+    <script>
+        const countingUrl = {{ url_for('counting_cut_36mm_wood')|tojson }};
+        const shortcutKeys = {{ (cnc_files.keys()|list + remove_keys.keys()|list)|tojson }};
+        const statusElement = document.getElementById('save-status');
+        let requestQueue = Promise.resolve();
+        let pendingRequests = 0;
+
+        function showStatus(message, kind = '') {
+            statusElement.textContent = message;
+            statusElement.className = kind;
+        }
+
+        function renderStock(data) {
+            Object.entries(data.counts).forEach(([key, count]) => {
+                const output = document.getElementById('count-' + key);
+                if (output.textContent !== String(count)) {
+                    output.textContent = count;
+                    output.classList.remove('highlight');
+                    void output.offsetWidth;
+                    output.classList.add('highlight');
+                }
+            });
+            const logBody = document.getElementById('wood-log-body');
+            logBody.replaceChildren();
+            data.log.forEach(entry => {
+                const row = document.createElement('tr');
+                [entry.when, entry.part, (entry.delta > 0 ? '+' : '') + entry.delta, entry.new_count].forEach((value, index) => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value;
+                    if (index === 2) cell.className = entry.delta > 0 ? 'delta-add' : 'delta-remove';
+                    row.appendChild(cell);
+                });
+                logBody.appendChild(row);
+            });
+            if (!data.log.length) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 4;
+                cell.textContent = 'No changes logged yet.';
+                row.appendChild(cell);
+                logBody.appendChild(row);
+            }
+        }
+
+        function queueRequest(body = null) {
+            pendingRequests += 1;
+            if (body) showStatus('Saving...');
+            requestQueue = requestQueue.then(async () => {
+                try {
+                    const response = await fetch(countingUrl, {
+                        method: body ? 'POST' : 'GET',
+                        headers: { 'Accept': 'application/json' },
+                        body,
+                        cache: 'no-store',
+                        signal: AbortSignal.timeout(15000),
+                    });
+                    const data = await response.json();
+                    if (data.counts) renderStock(data);
+                    if (!response.ok || !data.success) {
+                        showStatus(data.message || 'Unable to save the count.', 'error');
+                    } else if (body) {
+                        showStatus(data.message, 'success');
+                    }
+                } catch (error) {
+                    showStatus(body ? 'Could not confirm the save. Refresh the counts before repeating the action.' : 'Could not refresh counts. Check your connection.', 'error');
+                } finally {
+                    pendingRequests -= 1;
+                }
+            });
+        }
+
+        document.querySelectorAll('.stock-form').forEach(form => {
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                queueRequest(new URLSearchParams(new FormData(form, event.submitter)));
+            });
+        });
+        document.addEventListener('keydown', event => {
+            if (event.repeat || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+            if (event.target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+            if (!shortcutKeys.includes(event.key)) return;
+            event.preventDefault();
+            queueRequest(new URLSearchParams({ key_code: event.key }));
+        });
+        setInterval(() => {
+            if (!pendingRequests && !document.hidden) queueRequest();
+        }, 10000);
+    </script>
+</body>
+</html>
