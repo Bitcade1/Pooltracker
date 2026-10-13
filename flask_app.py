@@ -814,6 +814,7 @@ CUT_36MM_WOOD_FILES = {
     "4": {"label": "7ft Short", "yields": {"7_short": 16}},
 }
 CUT_36MM_WOOD_REMOVE_KEYS = dict(zip("7890", CUT_36MM_WOOD_PARTS))
+CUT_36MM_WOOD_QUEUE_LENGTH = 5
 LAMINATE_COLOR_KEY_TO_LABEL = {
     "black": "Black",
     "rustic_oak": "Rustic Oak",
@@ -1165,6 +1166,64 @@ def cut_36mm_wood_counts():
         )
         counts[part_key] = (entry.count or 0) if entry else 0
     return counts
+
+
+def cut_36mm_wood_stock_summary(counts):
+    sets_6ft = min(counts["6_long"], counts["6_short"]) // 2
+    sets_7ft = min(counts["7_long"], counts["7_short"]) // 2
+    total = sets_6ft + sets_7ft
+    return {
+        "sets_6ft": sets_6ft,
+        "sets_7ft": sets_7ft,
+        "percent_6ft": round(100 * sets_6ft / total, 1) if total else 0,
+        "percent_7ft": round(100 * sets_7ft / total, 1) if total else 0,
+    }
+
+
+def build_cut_36mm_wood_queue(counts):
+    """Plan five cuts towards a 1:3 mix of usable 6ft and 7ft sets."""
+    projected = {key: max(0, counts.get(key, 0)) for key in CUT_36MM_WOOD_PARTS}
+    current_stock = cut_36mm_wood_stock_summary(projected)
+    queue = []
+    for position in range(1, CUT_36MM_WOOD_QUEUE_LENGTH + 1):
+        # Keep odd pieces in the comparison so a nearly complete set counts
+        # towards its size's target. Equal coverage gives priority to 7ft.
+        available_6ft = min(projected["6_long"], projected["6_short"])
+        available_7ft = min(projected["7_long"], projected["7_short"])
+        size = "6" if 3 * available_6ft < available_7ft else "7"
+        long_count = projected[f"{size}_long"]
+        short_count = projected[f"{size}_short"]
+        length = "long" if long_count <= short_count else "short"
+        key_code = {("6", "long"): "1", ("6", "short"): "2",
+                    ("7", "long"): "3", ("7", "short"): "4"}[(size, length)]
+        cnc_file = CUT_36MM_WOOD_FILES[key_code]
+        size_reason = (
+            "7ft priority; stock is at the target balance"
+            if 3 * available_6ft == available_7ft
+            else f"{size}ft sets are below their target share"
+        )
+        piece_reason = (
+            "long and short stock is level"
+            if long_count == short_count
+            else f"{length} pieces are lower in stock"
+        )
+        for part_key, amount in cnc_file["yields"].items():
+            projected[part_key] += amount
+        queue.append({
+            "position": position,
+            "key_code": key_code,
+            "label": cnc_file["label"],
+            "adds": ", ".join(
+                f"+{amount} {part_key.replace('_', 'ft ').title()}"
+                for part_key, amount in cnc_file["yields"].items()
+            ),
+            "reason": f"{size_reason}; {piece_reason}.",
+        })
+    return {
+        "cuts": queue,
+        "current": current_stock,
+        "projected": cut_36mm_wood_stock_summary(projected),
+    }
 
 
 def seed_cut_36mm_wood_parts():
@@ -7768,9 +7827,11 @@ def counting_cut_36mm_wood():
 
     def result(message, status=200):
         if wants_json:
+            counts = cut_36mm_wood_counts()
             return jsonify(
                 success=status == 200, message=message,
-                counts=cut_36mm_wood_counts(), log=cut_36mm_wood_log(),
+                counts=counts, log=cut_36mm_wood_log(),
+                cnc_queue=build_cut_36mm_wood_queue(counts),
             ), status
         flash(message, "success" if status == 200 else "error")
         return redirect(url_for('counting_cut_36mm_wood'))
@@ -7837,7 +7898,11 @@ def counting_cut_36mm_wood():
             return result("Stock is busy. Refresh the counts before trying again.", 503)
 
     if wants_json:
-        response = jsonify(success=True, counts=cut_36mm_wood_counts(), log=cut_36mm_wood_log())
+        counts = cut_36mm_wood_counts()
+        response = jsonify(
+            success=True, counts=counts, log=cut_36mm_wood_log(),
+            cnc_queue=build_cut_36mm_wood_queue(counts),
+        )
         response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -7845,10 +7910,12 @@ def counting_cut_36mm_wood():
     db.session.execute(text("BEGIN IMMEDIATE"))
     seed_cut_36mm_wood_parts()
     db.session.commit()
+    counts = cut_36mm_wood_counts()
     return render_template(
-        'counting_cut_36mm_wood.html', counts=cut_36mm_wood_counts(),
+        'counting_cut_36mm_wood.html', counts=counts,
         parts=CUT_36MM_WOOD_PARTS, cnc_files=CUT_36MM_WOOD_FILES,
         remove_keys=CUT_36MM_WOOD_REMOVE_KEYS, wood_log=cut_36mm_wood_log(),
+        cnc_queue=build_cut_36mm_wood_queue(counts),
     )
 
 

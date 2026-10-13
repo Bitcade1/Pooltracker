@@ -154,6 +154,76 @@ class Cut36mmWoodTests(unittest.TestCase):
         self.assertEqual(tracker.cut_36mm_wood_counts(), summary.json['cut_36mm_wood_current'])
         self.assertTrue(set(tracker.CUT_36MM_WOOD_PART_NAMES).issubset(VALID_PARTS))
 
+    def test_queue_is_below_totals_and_updates_after_counts_change(self):
+        page = self.client.get('/counting_cut_36mm_wood')
+        self.assertLess(page.data.index(b'id="count-7_short"'), page.data.index(b'id="queue-heading"'))
+        self.assertIn(b'Automatic CNC Queue - Next 5 Cuts', page.data)
+        initial = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        self.assertEqual('3', initial.json['cnc_queue']['cuts'][0]['key_code'])
+        cut = self.post(key_code='3')
+        self.assertEqual('1', cut.json['cnc_queue']['cuts'][0]['key_code'])
+        adjusted = self.post(action='adjust', part_key='6_long', amount='20')
+        self.assertEqual('2', adjusted.json['cnc_queue']['cuts'][0]['key_code'])
+        removed = self.post(key_code='9')
+        self.assertEqual(7, removed.json['counts']['7_long'])
+        self.assertEqual(5, len(removed.json['cnc_queue']['cuts']))
+        refresh = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        self.assertEqual(removed.json['cnc_queue'], refresh.json['cnc_queue'])
+        self.assertEqual(0, tracker.CncQueueItem.query.count())
+
+
+class Cut36mmWoodQueueTests(unittest.TestCase):
+    @staticmethod
+    def counts(long6=0, short6=0, long7=0, short7=0):
+        return {'6_long': long6, '6_short': short6, '7_long': long7, '7_short': short7}
+
+    def test_empty_stock_starts_with_7ft_and_plans_five_cuts(self):
+        counts = self.counts()
+        plan = tracker.build_cut_36mm_wood_queue(counts)
+        self.assertEqual(['3', '1', '4', '3', '2'], [cut['key_code'] for cut in plan['cuts']])
+        self.assertEqual(4, plan['projected']['sets_6ft'])
+        self.assertEqual(8, plan['projected']['sets_7ft'])
+        self.assertEqual(self.counts(), counts)
+
+    def test_complete_sets_require_two_of_both_pieces(self):
+        summary = tracker.cut_36mm_wood_stock_summary(self.counts(21, 2, 6, 7))
+        self.assertEqual({'sets_6ft': 1, 'sets_7ft': 3, 'percent_6ft': 25.0, 'percent_7ft': 75.0}, summary)
+
+    def test_target_balance_prefers_7ft(self):
+        plan = tracker.build_cut_36mm_wood_queue(self.counts(8, 8, 24, 24))
+        self.assertEqual('3', plan['cuts'][0]['key_code'])
+
+    def test_size_below_target_is_replenished(self):
+        for counts, expected in [
+            (self.counts(80, 80, 8, 8), '3'),
+            (self.counts(8, 8, 80, 80), '1'),
+        ]:
+            with self.subTest(counts=counts):
+                self.assertEqual(expected, tracker.build_cut_36mm_wood_queue(counts)['cuts'][0]['key_code'])
+
+    def test_unmatched_pieces_trigger_the_file_for_missing_pieces(self):
+        for counts, expected in [
+            (self.counts(80, 80, 80, 0), '4'),
+            (self.counts(80, 80, 0, 80), '3'),
+            (self.counts(80, 0, 80, 80), '2'),
+            (self.counts(0, 80, 80, 80), '1'),
+        ]:
+            with self.subTest(counts=counts):
+                self.assertEqual(expected, tracker.build_cut_36mm_wood_queue(counts)['cuts'][0]['key_code'])
+
+    def test_following_queue_converges_to_target_and_balances_lengths(self):
+        for initial in [self.counts(), self.counts(200, 200, 0, 0), self.counts(0, 0, 600, 600)]:
+            counts = dict(initial)
+            for _ in range(300):
+                next_cut = tracker.build_cut_36mm_wood_queue(counts)['cuts'][0]
+                for part, amount in tracker.CUT_36MM_WOOD_FILES[next_cut['key_code']]['yields'].items():
+                    counts[part] += amount
+            summary = tracker.cut_36mm_wood_stock_summary(counts)
+            with self.subTest(initial=initial):
+                self.assertLess(abs(summary['percent_6ft'] - 25), 1)
+                self.assertLessEqual(abs(counts['6_long'] - counts['6_short']), 16)
+                self.assertLessEqual(abs(counts['7_long'] - counts['7_short']), 16)
+
 
 if __name__ == '__main__':
     unittest.main()

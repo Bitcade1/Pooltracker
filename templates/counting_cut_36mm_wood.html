@@ -31,6 +31,18 @@
         #save-status { padding: 12px; margin: 16px 0; background: #f7f7fb; border: 1px solid #dfe3eb; border-radius: 8px; min-height: 1.5em; }
         #save-status.error { color: #9a1c29; background: #fff0f0; border-color: #d79ca2; }
         #save-status.success { color: #1b6b2f; }
+        .queue-panel { border-color: #b9cde9; background: #f7faff; }
+        .queue-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 14px 0; }
+        .queue-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: #e8f1ff; border-radius: 8px; padding: 14px; }
+        .queue-next form { margin: 0; }
+        #queue-log-next:disabled { opacity: 0.6; cursor: wait; }
+        .queue-table { table-layout: fixed; min-width: 650px; background: #fff; }
+        .queue-table th, .queue-table td { text-align: left; vertical-align: top; }
+        .queue-table th:nth-child(1) { width: 7%; }
+        .queue-table th:nth-child(2) { width: 21%; }
+        .queue-table th:nth-child(3) { width: 27%; }
+        .queue-table th:nth-child(4) { width: 45%; }
+        .queue-table tbody tr:first-child { background: #e8f1ff; font-weight: bold; }
         .wood-log summary { cursor: pointer; font-size: 1.3em; font-weight: bold; }
         .log-table { table-layout: fixed; min-width: 560px; }
         .log-table th, .log-table td { text-align: left; }
@@ -66,6 +78,34 @@
             {% endfor %}
         </div>
         <p id="save-status" role="status" aria-live="polite">Ready. Press 1-4 to log a cut, or 7-0 to remove one piece.</p>
+
+        <section class="panel queue-panel" aria-labelledby="queue-heading">
+            <h2 id="queue-heading">Automatic CNC Queue - Next 5 Cuts</h2>
+            <p class="hint">Target: <strong>25% 6ft / 75% 7ft complete sets</strong>. Each set needs 2 long and 2 short pieces. The queue replenishes the size below its target share and balances its long and short stock, with 7ft first when stock is balanced.</p>
+            <div class="queue-summary" aria-label="Complete sets in stock">
+                <span id="queue-current-6">6ft: <strong>{{ cnc_queue.current.sets_6ft }}</strong> complete sets ({{ cnc_queue.current.percent_6ft }}%)</span>
+                <span id="queue-current-7">7ft: <strong>{{ cnc_queue.current.sets_7ft }}</strong> complete sets ({{ cnc_queue.current.percent_7ft }}%)</span>
+            </div>
+            <div class="queue-next">
+                <strong id="queue-next-label">Next: {{ cnc_queue.cuts[0].label }} file - press {{ cnc_queue.cuts[0].key_code }}</strong>
+                <form class="stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
+                    <input type="hidden" id="queue-next-key" name="key_code" value="{{ cnc_queue.cuts[0].key_code }}">
+                    <button type="submit" id="queue-log-next">Log Next Cut</button>
+                </form>
+            </div>
+            <p class="hint">Follow the order below. Log each file only after it has been cut. The queue updates automatically whenever stock changes.</p>
+            <div class="table-scroll">
+                <table class="queue-table">
+                    <thead><tr><th>Order</th><th>CNC File</th><th>Adds to Stock</th><th>Why This Cut</th></tr></thead>
+                    <tbody id="cnc-queue-body">
+                        {% for cut in cnc_queue.cuts %}
+                        <tr><td>{{ cut.position }}</td><td><kbd>{{ cut.key_code }}</kbd> {{ cut.label }}</td><td>{{ cut.adds }}</td><td>{{ cut.reason }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="hint" id="queue-projected">After these 5 cuts: {{ cnc_queue.projected.sets_6ft }} complete 6ft sets and {{ cnc_queue.projected.sets_7ft }} complete 7ft sets. Batch sizes mean the mix may not be exactly 25% / 75% after every cut.</p>
+        </section>
 
         <section class="panel">
             <h2>Log a CNC File Cut</h2>
@@ -167,6 +207,7 @@
                     output.classList.add('highlight');
                 }
             });
+            renderQueue(data.cnc_queue);
             const logBody = document.getElementById('wood-log-body');
             logBody.replaceChildren();
             data.log.forEach(entry => {
@@ -189,9 +230,39 @@
             }
         }
 
+        function renderQueue(queue) {
+            const next = queue.cuts[0];
+            document.getElementById('queue-next-label').textContent = `Next: ${next.label} file - press ${next.key_code}`;
+            document.getElementById('queue-next-key').value = next.key_code;
+            for (const size of ['6', '7']) {
+                document.getElementById('queue-current-' + size).textContent = `${size}ft: ${queue.current['sets_' + size + 'ft']} complete sets (${queue.current['percent_' + size + 'ft']}%)`;
+            }
+            document.getElementById('queue-projected').textContent = `After these 5 cuts: ${queue.projected.sets_6ft} complete 6ft sets and ${queue.projected.sets_7ft} complete 7ft sets. Batch sizes mean the mix may not be exactly 25% / 75% after every cut.`;
+            const queueBody = document.getElementById('cnc-queue-body');
+            queueBody.replaceChildren();
+            queue.cuts.forEach(cut => {
+                const row = document.createElement('tr');
+                [cut.position, cut.label, cut.adds, cut.reason].forEach((value, index) => {
+                    const cell = document.createElement('td');
+                    if (index === 1) {
+                        const key = document.createElement('kbd');
+                        key.textContent = cut.key_code;
+                        cell.append(key, ' ' + value);
+                    } else {
+                        cell.textContent = value;
+                    }
+                    row.appendChild(cell);
+                });
+                queueBody.appendChild(row);
+            });
+        }
+
         function queueRequest(body = null) {
             pendingRequests += 1;
-            if (body) showStatus('Saving...');
+            if (body) {
+                showStatus('Saving...');
+                document.getElementById('queue-log-next').disabled = true;
+            }
             requestQueue = requestQueue.then(async () => {
                 try {
                     const response = await fetch(countingUrl, {
@@ -212,6 +283,7 @@
                     showStatus(body ? 'Could not confirm the save. Refresh the counts before repeating the action.' : 'Could not refresh counts. Check your connection.', 'error');
                 } finally {
                     pendingRequests -= 1;
+                    if (!pendingRequests) document.getElementById('queue-log-next').disabled = false;
                 }
             });
         }
