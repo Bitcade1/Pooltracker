@@ -35,7 +35,7 @@ sudo install -d -o root2 -g root2 -m 700 /var/lib/pooltracker-backups
 sudo install -d -o root2 -g root2 -m 700 /var/lib/pooltracker-backups/snapshots
 sudo install -m 600 deploy/backup/pooltracker-backup.env.example /etc/pooltracker-backup.env
 sudo install -m 644 deploy/backup/pooltracker-backup.service /etc/systemd/system/pooltracker-backup.service
-sudo install -m 644 deploy/backup/pooltracker-backup.timer /etc/systemd/system/pooltracker-backup.timer
+sudo install -m 644 deploy/backup/pooltracker-backupmd/system/pooltracker-backup.timer
 ```
 
 Check the account has access to the live database and its SQLite sidecar files:
@@ -82,25 +82,13 @@ Protect the saved configuration:
 sudo chmod 600 /var/lib/pooltracker-backups/rclone.conf
 ```
 
-Confirm the job's account can read the saved connection:
-
-```bash
-sudo stat -c '%U:%G %a' /var/lib/pooltracker-backups/rclone.conf
-sudo -u root2 rclone --config /var/lib/pooltracker-backups/rclone.conf listremotes
-```
-
-The configuration should be owned by `root2:root2`, have mode `600`, and list
-`gdrive:`. If authentication was performed as root, check the ownership before
-running the job as `root2`. `listremotes` displays connection names rather than
-credentials.
-
 ## 3. Test a real upload before enabling the timer
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl start pooltracker-backup.service
-sudo systemctl status pooltracker-backup.service --no-pager -l
-sudo journalctl -u pooltracker-backup.service -n 30 --no-pager -l
+sudo systemctl status pooltracker-backup.service --no-pager
+sudo journalctl -u pooltracker-backup.service -n 30 --no-pager
 ```
 
 A successful oneshot service may show `inactive (dead)` afterwards. Look for
