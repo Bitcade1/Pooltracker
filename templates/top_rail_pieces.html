@@ -91,6 +91,7 @@
             color: #111;
         }
         #toprail-save-status { padding: 14px; background: #f7f7fb; border: 1px solid #dfe3eb; border-radius: 8px; }
+        #toprail-save-status:empty { display: none; }
         #toprail-save-status.error { background: #fff0f0; color: #9a1c29; border-color: #d79ca2; }
         #toprail-save-status.success { color: #1b6b2f; }
 
@@ -149,16 +150,17 @@
             {% endif %}
         {% endwith %}
 
-        <p id="toprail-save-status" role="status" aria-live="polite">Ready to log pieces.</p>
+        <p id="toprail-save-status" role="status" aria-live="polite"></p>
         <form action="{{ url_for('top_rail_pieces') }}" method="post">
             <div class="grid-container">
                 {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
+                {% set color_labels = {'Rustic Oak': 'Rustic O', 'Rustic Black': 'Rustic B'} %}
                 {% set sizes = ['6ft', '7ft'] %}
                 {% set lengths = ['Short', 'Long'] %}
 
                 {% for color in colors %}
                 <fieldset>
-                    <legend>{{ color }}</legend>
+                    <legend>{{ color_labels.get(color, color) }}</legend>
                     {% for size in sizes %}
                         {% for length in lengths %}
                             {% set part_name = size ~ ' ' ~ length %}
@@ -186,26 +188,26 @@
             <strong>6ft:</strong><br>
             <code>A</code> Black Short
             <code>B</code> Black Long
-            <code>C</code> Rustic Oak Short
-            <code>D</code> Rustic Oak Long
+            <code>C</code> Rustic O Short
+            <code>D</code> Rustic O Long
             <code>E</code> Grey Oak Short
             <code>F</code> Grey Oak Long
             <code>G</code> Stone Short
             <code>H</code> Stone Long
-            <code>I</code> Rustic Black Short
-            <code>J</code> Rustic Black Long
+            <code>I</code> Rustic B Short
+            <code>J</code> Rustic B Long
             <br><br>
             <strong>7ft:</strong><br>
             <code>K</code> Black Short
             <code>L</code> Black Long
-            <code>M</code> Rustic Oak Short
-            <code>N</code> Rustic Oak Long
+            <code>M</code> Rustic O Short
+            <code>N</code> Rustic O Long
             <code>O</code> Grey Oak Short
             <code>P</code> Grey Oak Long
             <code>Q</code> Stone Short
             <code>R</code> Stone Long
-            <code>S</code> Rustic Black Short
-            <code>T</code> Rustic Black Long
+            <code>S</code> Rustic B Short
+            <code>T</code> Rustic B Long
         </div>
     </div>
 
