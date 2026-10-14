@@ -171,6 +171,84 @@ class Cut36mmWoodTests(unittest.TestCase):
         self.assertEqual(removed.json['cnc_queue'], refresh.json['cnc_queue'])
         self.assertEqual(0, tracker.CncQueueItem.query.count())
 
+    def test_top_rail_shortcuts_consume_correct_wood_for_every_colour(self):
+        for part_key in tracker.CUT_36MM_WOOD_PARTS:
+            self.post(action='set', part_key=part_key, amount='10')
+        expected = {part_key: 10 for part_key in tracker.CUT_36MM_WOOD_PARTS}
+        for index, shortcut in enumerate('abcdefghijklmnopqrst'):
+            with self.subTest(shortcut=shortcut):
+                wood_key = ('6' if index < 10 else '7') + ('_short' if index % 2 == 0 else '_long')
+                response = self.client.post('/top_rail_pieces', data={'key_code': shortcut})
+                self.assertEqual(200, response.status_code)
+                self.assertEqual(wood_key, response.json['wood_part_key'])
+                self.assertEqual(1, response.json['deducted_wood'])
+                self.assertEqual(1, response.json['count'])
+                expected[wood_key] -= 1
+                self.assertEqual(expected, tracker.cut_36mm_wood_counts())
+        self.assertEqual(20, tracker.TopRailPieceCount.query.count())
+        self.assertEqual(20, tracker.TopRailPieceCountLog.query.filter_by(action_type='quick_add').count())
+
+    def test_missing_wood_does_not_log_finished_piece_or_consume_laminate(self):
+        tracker.db.session.add(tracker.LaminatePieceCount(part_key='grey_oak_7_long', count=5))
+        tracker.db.session.commit()
+        response = self.client.post('/top_rail_pieces', data={'key_code': 'p'})
+        self.assertEqual(400, response.status_code)
+        self.assertIn('Not enough 7ft Long', response.json['message'])
+        self.assertEqual(0, tracker.TopRailPieceCount.query.count())
+        self.assertEqual(0, tracker.TopRailPieceCountLog.query.count())
+        self.assertEqual(5, tracker.LaminatePieceCount.query.first().count)
+
+    def test_manual_top_rail_increases_deduct_combined_amount_once(self):
+        self.post(action='set', part_key='7_long', amount='20')
+        self.post(action='set', part_key='6_short', amount='15')
+        tracker.db.session.add(tracker.TopRailPieceCount(part_key='grey_oak_7_long', count=4))
+        tracker.db.session.commit()
+        form = {'piece_grey_oak_7_long': '7', 'piece_rustic_black_7_long': '2', 'piece_stone_6_short': '4'}
+        response = self.client.post('/top_rail_pieces', data=form)
+        self.assertEqual(303, response.status_code)
+        self.assertEqual({'6_long': 0, '6_short': 11, '7_long': 15, '7_short': 0}, tracker.cut_36mm_wood_counts())
+        self.client.post('/top_rail_pieces', data=form)
+        self.assertEqual(15, tracker.cut_36mm_wood_counts()['7_long'])
+        self.client.post('/top_rail_pieces', data={'piece_grey_oak_7_long': '3'})
+        self.assertEqual(15, tracker.cut_36mm_wood_counts()['7_long'])
+
+    def test_manual_shortage_rejects_whole_submission(self):
+        self.post(action='set', part_key='6_long', amount='20')
+        self.post(action='set', part_key='7_long', amount='2')
+        response = self.client.post('/top_rail_pieces', data={
+            'piece_black_6_long': '5', 'piece_black_7_long': '2', 'piece_stone_7_long': '1',
+        })
+        self.assertEqual(303, response.status_code)
+        self.assertEqual(20, tracker.cut_36mm_wood_counts()['6_long'])
+        self.assertEqual(2, tracker.cut_36mm_wood_counts()['7_long'])
+        self.assertEqual(0, tracker.TopRailPieceCount.query.count())
+        self.assertEqual(0, tracker.TopRailPieceCountLog.query.count())
+
+    def test_finished_piece_updates_wood_log_queue_and_existing_laminate_deduction(self):
+        for part_key, amount in [('6_long', 2), ('6_short', 2), ('7_long', 6), ('7_short', 6)]:
+            self.post(action='set', part_key=part_key, amount=str(amount))
+        tracker.db.session.add(tracker.LaminatePieceCount(part_key='rustic_black_6_short', count=5))
+        tracker.db.session.commit()
+        before = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        self.assertEqual('3', before.json['cnc_queue']['cuts'][0]['key_code'])
+        response = self.client.post('/top_rail_pieces', data={'key_code': 'i'})
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, response.json['deducted_laminate'])
+        self.assertEqual(4, tracker.LaminatePieceCount.query.first().count)
+        dashboard = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        self.assertEqual(1, dashboard.json['counts']['6_short'])
+        self.assertEqual('6ft Short', dashboard.json['log'][0]['part'])
+        self.assertEqual(-1, dashboard.json['log'][0]['delta'])
+        self.assertEqual('2', dashboard.json['cnc_queue']['cuts'][0]['key_code'])
+
+    def test_invalid_top_rail_actions_do_not_consume_wood(self):
+        self.post(key_code='3')
+        for form in [{'key_code': 'z'}, {'piece_black_7_long': '-1'}, {'piece_black_7_long': '1.5'}]:
+            with self.subTest(form=form):
+                self.client.post('/top_rail_pieces', data=form)
+                self.assertEqual(8, tracker.cut_36mm_wood_counts()['7_long'])
+                self.assertEqual(0, tracker.TopRailPieceCount.query.count())
+
 
 class Cut36mmWoodQueueTests(unittest.TestCase):
     @staticmethod

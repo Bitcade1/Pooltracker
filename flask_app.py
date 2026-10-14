@@ -1168,6 +1168,30 @@ def cut_36mm_wood_counts():
     return counts
 
 
+def consume_cut_36mm_wood_for_top_rail_pieces(additions):
+    """Deduct matching blanks for new finished pieces in the caller's transaction."""
+    required = defaultdict(int)
+    for part_key, amount in additions.items():
+        if amount > 0:
+            _, size, length = part_key.rsplit('_', 2)
+            required[f"{size}_{length}"] += amount
+    counts = cut_36mm_wood_counts()
+    for wood_key, amount in required.items():
+        if counts[wood_key] < amount:
+            size, length = wood_key.split('_')
+            label = f"{size}ft {length.title()}"
+            raise ValueError(
+                f"Not enough {label} cut 36mm wood: need {amount}, have {counts[wood_key]}. "
+                "Update the cut 36mm wood stock before logging these pieces."
+            )
+    recorded_at = london_now()
+    for wood_key, amount in required.items():
+        db.session.add(new_printed_parts_snapshot(
+            CUT_36MM_WOOD_PARTS[wood_key], counts[wood_key] - amount, recorded_at,
+        ))
+    return dict(required)
+
+
 def cut_36mm_wood_stock_summary(counts):
     sets_6ft = min(counts["6_long"], counts["6_short"]) // 2
     sets_7ft = min(counts["7_long"], counts["7_short"]) // 2
@@ -18608,105 +18632,87 @@ def top_rail_pieces():
     if request.method == 'POST':
         worker_name = session.get('worker', 'Unknown')
         key_code = request.form.get('key_code')
-        if key_code and key_code in key_map:
-            part_key = key_map[key_code]
+        is_shortcut = 'key_code' in request.form
+        try:
+            # Use the same SQLite write lock as the CNC counting page, so
+            # finished-piece logging and CNC additions cannot lose updates.
+            db.session.execute(text("BEGIN IMMEDIATE"))
+            if is_shortcut:
+                if key_code not in key_map:
+                    raise ValueError("Invalid top rail piece shortcut.")
+                part_key = key_map[key_code]
+                consume_cut_36mm_wood_for_top_rail_pieces({part_key: 1})
+                part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+                old_count = part.count if part else 0
+                if not part:
+                    part = TopRailPieceCount(part_key=part_key, count=0)
+                    db.session.add(part)
+                part.count = old_count + 1
+                record_top_rail_piece_count_log(
+                    part_key, "quick_add", worker_name, old_count, part.count,
+                    "Top rail piece quick add; consumed 1 cut 36mm wood piece",
+                )
 
-            # Increment top rail count
-            part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
-            if not part:
-                old_count = 0
-                part = TopRailPieceCount(part_key=part_key, count=0)
-                db.session.add(part)
-            else:
-                old_count = part.count
-            part.count = old_count + 1
-            record_top_rail_piece_count_log(
-                part_key,
-                "quick_add",
-                worker_name,
-                old_count,
-                part.count,
-                "Top rail piece quick add"
-            )
-
-            # NEW: Add laminate deduction logic
-            # Parse the part_key to determine the corresponding laminate piece
-            parts = part_key.split('_')
-            if len(parts) >= 3:
-                if len(parts) == 4:  # rustic_black case
-                    color = f"{parts[0]}_{parts[1]}"
-                else:
-                    color = parts[0]
-                size = parts[-2]  # Second to last part
-                length = parts[-1]  # Last part
-                
-                # Map to laminate piece key
-                laminate_key = f"{color}_{size}_{length}"
-                
-                # Determine deduction amount based on size and length
-                if size == '7' and length == 'short':
-                    deduction = 1
-                elif size == '7' and length == 'long':
-                    deduction = 1.0
-                elif size == '6':
-                    deduction = 1
-                else:
-                    deduction = 0
-                
-                # Find and deduct from laminate if deduction is needed
+                # Preserve the existing server-side laminate deduction.
+                laminate_part = LaminatePieceCount.query.filter_by(part_key=part_key).first()
                 deducted_laminate = 0
-                laminate_response_key = None
-                
-                if deduction > 0:
-                    laminate_part = LaminatePieceCount.query.filter_by(part_key=laminate_key).first()
-                    if laminate_part and laminate_part.count >= deduction:
-                        laminate_part.count -= deduction
-                        deducted_laminate = deduction
-                        laminate_response_key = laminate_key
+                if laminate_part and laminate_part.count >= 1:
+                    laminate_part.count -= 1
+                    deducted_laminate = 1
+                _, size, length = part_key.rsplit('_', 2)
+                wood_key = f"{size}_{length}"
+                new_count = part.count
+                db.session.commit()
+                response_data = {
+                    "success": True,
+                    "message": f"Logged 1 {part_key}; used 1 {size}ft {length} cut 36mm wood piece.",
+                    "part_key": part_key,
+                    "count": new_count,
+                    "wood_part_key": wood_key,
+                    "deducted_wood": 1,
+                }
+                if deducted_laminate:
+                    response_data.update(deducted_laminate=1, laminate_key=part_key)
+                return jsonify(response_data), 200
 
-            db.session.commit()
-
-            response_data = {
-                "success": True,
-                "message": f"Logged 1 top rail ({part_key})",
-                "part_key": part_key
-            }
-            
-            # Add laminate deduction info to response if applicable
-            if deducted_laminate > 0:
-                response_data["deducted_laminate"] = deducted_laminate
-                response_data["laminate_key"] = laminate_response_key
-                response_data["message"] += f", deducted {deducted_laminate} laminate piece"
-
-            return jsonify(response_data), 200
-
-        # Handle manual form submissions
-        for key in [f"{color}_{size}_{length}" for color in ['black', 'rustic_oak', 'grey_oak', 'stone','rustic_black'] for size in ['6', '7'] for length in ['short', 'long']]:
-            input_value = request.form.get(f"piece_{key}")
-            if input_value is not None:
+            # Validate all manual changes before consuming any blanks. Only
+            # increases represent new pieces; stock corrections do not return wood.
+            updates = []
+            additions = {}
+            for part_key in key_map.values():
+                input_value = request.form.get(f"piece_{part_key}")
+                if input_value is None:
+                    continue
                 try:
                     count = int(input_value)
-                    part = TopRailPieceCount.query.filter_by(part_key=key).first()
-                    if not part:
-                        old_count = 0
-                        part = TopRailPieceCount(part_key=key, count=0)
-                        db.session.add(part)
-                    else:
-                        old_count = part.count
-                    part.count = count
-                    record_top_rail_piece_count_log(
-                        key,
-                        "manual_set",
-                        worker_name,
-                        old_count,
-                        part.count,
-                        "Manual top rail piece count update"
-                    )
                 except ValueError:
-                    flash(f"Invalid number for {key}", "error")
-
-        db.session.commit()
-        flash("Top rail piece counts updated successfully.", "success")
+                    raise ValueError(f"Enter a whole number for {part_key}.")
+                if count < 0:
+                    raise ValueError(f"Stock cannot be negative for {part_key}.")
+                part = TopRailPieceCount.query.filter_by(part_key=part_key).first()
+                old_count = part.count if part else 0
+                additions[part_key] = max(0, count - old_count)
+                updates.append((part_key, part, old_count, count))
+            if not updates:
+                raise ValueError("Please enter top rail piece counts to update.")
+            consume_cut_36mm_wood_for_top_rail_pieces(additions)
+            for part_key, part, old_count, count in updates:
+                if not part:
+                    part = TopRailPieceCount(part_key=part_key, count=0)
+                    db.session.add(part)
+                part.count = count
+                record_top_rail_piece_count_log(
+                    part_key, "manual_set", worker_name, old_count, count,
+                    "Manual top rail piece count update; new pieces consume cut 36mm wood",
+                )
+            db.session.commit()
+            flash("Top rail piece counts updated; matching cut 36mm wood deducted for new pieces.", "success")
+        except (ValueError, OperationalError) as exc:
+            db.session.rollback()
+            message = str(exc) if isinstance(exc, ValueError) else "Stock is busy. Please try again."
+            if is_shortcut:
+                return jsonify(success=False, message=message), 400 if isinstance(exc, ValueError) else 503
+            flash(message, "error")
         return redirect(url_for('top_rail_pieces'))
 
     # Display counts

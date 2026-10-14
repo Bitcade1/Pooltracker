@@ -90,6 +90,9 @@
             font-weight: bold;
             color: #111;
         }
+        #toprail-save-status { padding: 14px; background: #f7f7fb; border: 1px solid #dfe3eb; border-radius: 8px; }
+        #toprail-save-status.error { background: #fff0f0; color: #9a1c29; border-color: #d79ca2; }
+        #toprail-save-status.success { color: #1b6b2f; }
 
         /* Highlight animation */
         input.highlight {
@@ -146,6 +149,8 @@
             {% endif %}
         {% endwith %}
 
+        <p>New pieces use the matching size and length from <a href="{{ url_for('counting_cut_36mm_wood') }}">Cut 36mm Wood Stock</a>.</p>
+        <p id="toprail-save-status" role="status" aria-live="polite">Ready to log pieces.</p>
         <form action="{{ url_for('top_rail_pieces') }}" method="post">
             <div class="grid-container">
                 {% set colors = ['Black', 'Rustic Oak', 'Grey Oak', 'Stone', 'Rustic Black'] %}
@@ -206,21 +211,32 @@
     </div>
 
     <script>
+    let topRailRequests = Promise.resolve();
     document.addEventListener('keydown', function(event) {
+        if (event.repeat || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
+        if (event.target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
         const validKeys = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t'];
         const key = event.key.toLowerCase();
         if (validKeys.includes(key)) {
-            fetch("/top_rail_pieces", {
-                method: "POST",
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ key_code: key })
-            }).then(response => response.json())
-            .then(data => {
-                if (data.success && data.part_key) {
+            event.preventDefault();
+            const status = document.getElementById('toprail-save-status');
+            status.textContent = 'Saving...';
+            status.className = '';
+            topRailRequests = topRailRequests.then(async () => {
+                try {
+                    const response = await fetch({{ url_for('top_rail_pieces')|tojson }}, {
+                        method: "POST",
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({ key_code: key })
+                    });
+                    const data = await response.json();
+                    status.textContent = data.message || 'Unable to log this piece.';
+                    status.className = response.ok && data.success ? 'success' : 'error';
+                    if (!response.ok || !data.success || !data.part_key) return;
                     const inputId = 'piece_' + data.part_key;
                     const inputField = document.getElementById(inputId);
                     if (inputField) {
-                        inputField.value = parseInt(inputField.value || 0) + 1;
+                        inputField.value = data.count;
 
                         // Add highlight and remove after animation
                         inputField.classList.add('highlight');
@@ -229,24 +245,10 @@
                         }, { once: true });
                     }
 
-                    // Handle laminate deduction if applicable
-                    if (data.deducted_laminate && data.laminate_key) {
-                        // Try to find laminate field by checking if we're on a page that might have it
-                        // or make a separate call to update laminate counts
-                        fetch("/update_laminate_count", {
-                            method: "POST",
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                laminate_key: data.laminate_key, 
-                                amount: -parseFloat(data.deducted_laminate) 
-                            })
-                        }).catch(error => {
-                            console.log("Laminate update not available on this page");
-                        });
-                    }
+                } catch (error) {
+                    status.textContent = 'Could not confirm the save. Refresh the page before logging this piece again.';
+                    status.className = 'error';
                 }
-            }).catch(error => {
-                console.error("Error updating count:", error);
             });
         }
     });
