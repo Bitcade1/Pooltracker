@@ -1204,8 +1204,9 @@ def cut_36mm_wood_stock_summary(counts):
     }
 
 
-def build_cut_36mm_wood_queue(counts):
-    """Plan five cuts towards a 1:3 mix of usable 6ft and 7ft sets."""
+def build_cut_36mm_wood_queue(counts, focus="default"):
+    """Plan five cuts for the usual size mix, or balanced 6ft stock only."""
+    focus = "6ft" if focus == "6ft" else "default"
     projected = {key: max(0, counts.get(key, 0)) for key in CUT_36MM_WOOD_PARTS}
     current_stock = cut_36mm_wood_stock_summary(projected)
     queue = []
@@ -1214,14 +1215,14 @@ def build_cut_36mm_wood_queue(counts):
         # towards its size's target. Equal coverage gives priority to 7ft.
         available_6ft = min(projected["6_long"], projected["6_short"])
         available_7ft = min(projected["7_long"], projected["7_short"])
-        size = "6" if 3 * available_6ft < available_7ft else "7"
+        size = "6" if focus == "6ft" or 3 * available_6ft < available_7ft else "7"
         long_count = projected[f"{size}_long"]
         short_count = projected[f"{size}_short"]
         length = "long" if long_count <= short_count else "short"
         key_code = {("6", "long"): "1", ("6", "short"): "2",
                     ("7", "long"): "3", ("7", "short"): "4"}[(size, length)]
         cnc_file = CUT_36MM_WOOD_FILES[key_code]
-        size_reason = (
+        size_reason = "6ft focus is on" if focus == "6ft" else (
             "7ft priority; stock is at the target balance"
             if 3 * available_6ft == available_7ft
             else f"{size}ft sets are below their target share"
@@ -1244,6 +1245,12 @@ def build_cut_36mm_wood_queue(counts):
             "reason": f"{size_reason}; {piece_reason}.",
         })
     return {
+        "focus": focus,
+        "description": (
+            "6ft focus: only 6ft files are queued, balancing long and short stock. Each set needs 2 long and 2 short pieces."
+            if focus == "6ft" else
+            "Target: 25% 6ft / 75% 7ft complete sets. Each set needs 2 long and 2 short pieces. The queue replenishes the size below its target share and balances its long and short stock, with 7ft first when stock is balanced."
+        ),
         "cuts": queue,
         "current": current_stock,
         "projected": cut_36mm_wood_stock_summary(projected),
@@ -7848,6 +7855,7 @@ def manage_raw_data():
 @app.route('/counting_cut_36mm_wood', methods=['GET', 'POST'])
 def counting_cut_36mm_wood():
     wants_json = request.accept_mimetypes.best == "application/json"
+    focus = session.get("cut_36mm_queue_focus", "default")
 
     def result(message, status=200):
         if wants_json:
@@ -7855,7 +7863,7 @@ def counting_cut_36mm_wood():
             return jsonify(
                 success=status == 200, message=message,
                 counts=counts, log=cut_36mm_wood_log(),
-                cnc_queue=build_cut_36mm_wood_queue(counts),
+                cnc_queue=build_cut_36mm_wood_queue(counts, focus),
             ), status
         flash(message, "success" if status == 200 else "error")
         return redirect(url_for('counting_cut_36mm_wood'))
@@ -7867,6 +7875,13 @@ def counting_cut_36mm_wood():
         return redirect(url_for('login'))
 
     if request.method == 'POST':
+        if request.form.get("action") == "set_focus":
+            requested_focus = request.form.get("focus", "default")
+            if requested_focus not in ("default", "6ft"):
+                return result("Please select a valid queue focus.", 400)
+            focus = requested_focus
+            session["cut_36mm_queue_focus"] = focus
+            return result("6ft focus enabled." if focus == "6ft" else "Default 25% 6ft / 75% 7ft queue restored.")
         try:
             # Serialize stock adjustments across CNC stations in SQLite.
             db.session.execute(text("BEGIN IMMEDIATE"))
@@ -7925,7 +7940,7 @@ def counting_cut_36mm_wood():
         counts = cut_36mm_wood_counts()
         response = jsonify(
             success=True, counts=counts, log=cut_36mm_wood_log(),
-            cnc_queue=build_cut_36mm_wood_queue(counts),
+            cnc_queue=build_cut_36mm_wood_queue(counts, focus),
         )
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -7939,7 +7954,7 @@ def counting_cut_36mm_wood():
         'counting_cut_36mm_wood.html', counts=counts,
         parts=CUT_36MM_WOOD_PARTS, cnc_files=CUT_36MM_WOOD_FILES,
         remove_keys=CUT_36MM_WOOD_REMOVE_KEYS, wood_log=cut_36mm_wood_log(),
-        cnc_queue=build_cut_36mm_wood_queue(counts),
+        cnc_queue=build_cut_36mm_wood_queue(counts, focus),
     )
 
 

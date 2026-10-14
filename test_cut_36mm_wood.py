@@ -249,6 +249,34 @@ class Cut36mmWoodTests(unittest.TestCase):
                 self.assertEqual(8, tracker.cut_36mm_wood_counts()['7_long'])
                 self.assertEqual(0, tracker.TopRailPieceCount.query.count())
 
+    def test_6ft_focus_persists_and_does_not_change_inventory(self):
+        self.post(key_code='3')
+        before = tracker.cut_36mm_wood_counts()
+        history_count = tracker.PrintedPartsCount.query.count()
+        response = self.post(action='set_focus', focus='6ft')
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('6ft', response.json['cnc_queue']['focus'])
+        self.assertTrue(all(cut['key_code'] in ('1', '2') for cut in response.json['cnc_queue']['cuts']))
+        page = self.client.get('/counting_cut_36mm_wood')
+        self.assertIn(b'role="switch" checked', page.data)
+        refresh = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        self.assertEqual('6ft', refresh.json['cnc_queue']['focus'])
+        self.assertEqual(before, tracker.cut_36mm_wood_counts())
+        self.assertEqual(history_count, tracker.PrintedPartsCount.query.count())
+        cut = self.post(key_code='1')
+        self.assertEqual('6ft', cut.json['cnc_queue']['focus'])
+        restored = self.post(action='set_focus')
+        self.assertEqual('default', restored.json['cnc_queue']['focus'])
+        self.assertEqual(tracker.build_cut_36mm_wood_queue(restored.json['counts']), restored.json['cnc_queue'])
+
+    def test_focus_invalid_values_rejected_and_no_javascript_form_works(self):
+        self.assertEqual(400, self.post(action='set_focus', focus='other').status_code)
+        response = self.client.post('/counting_cut_36mm_wood', data={'action': 'set_focus', 'focus': '6ft'}, follow_redirects=True)
+        self.assertEqual(200, response.status_code)
+        self.assertIn(b'role="switch" checked', response.data)
+        self.assertEqual(4, tracker.PrintedPartsCount.query.count())
+        self.assertEqual([], tracker.cut_36mm_wood_log())
+
 
 class Cut36mmWoodQueueTests(unittest.TestCase):
     @staticmethod
@@ -270,6 +298,20 @@ class Cut36mmWoodQueueTests(unittest.TestCase):
     def test_target_balance_prefers_7ft(self):
         plan = tracker.build_cut_36mm_wood_queue(self.counts(8, 8, 24, 24))
         self.assertEqual('3', plan['cuts'][0]['key_code'])
+
+    def test_6ft_focus_only_replenishes_6ft_even_when_7ft_is_empty(self):
+        plan = tracker.build_cut_36mm_wood_queue(self.counts(100, 100, 0, 0), focus='6ft')
+        self.assertEqual('6ft', plan['focus'])
+        self.assertEqual(5, len(plan['cuts']))
+        self.assertTrue(all(cut['key_code'] in ('1', '2') for cut in plan['cuts']))
+        self.assertEqual(0, plan['projected']['sets_7ft'])
+
+    def test_6ft_focus_balances_long_and_short_stock(self):
+        for counts, expected in [(self.counts(), '1'), (self.counts(40, 0), '2'), (self.counts(0, 40), '1')]:
+            with self.subTest(counts=counts):
+                plan = tracker.build_cut_36mm_wood_queue(counts, focus='6ft')
+                self.assertEqual(expected, plan['cuts'][0]['key_code'])
+                self.assertTrue(all('6ft focus is on' in cut['reason'] for cut in plan['cuts']))
 
     def test_size_below_target_is_replenished(self):
         for counts, expected in [

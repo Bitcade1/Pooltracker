@@ -33,6 +33,13 @@
         #save-status.success { color: #1b6b2f; }
         .queue-panel { border-color: #b9cde9; background: #f7faff; }
         .queue-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 14px 0; }
+        #queue-focus-form { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; background: #fff; border: 1px solid #dfe3eb; border-radius: 10px; padding: 14px; margin: 14px 0; }
+        .focus-switch { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; font-size: 1.1rem; }
+        #queue-focus-6ft { appearance: none; position: relative; width: 50px; height: 28px; flex: 0 0 50px; margin: 0; border: 2px solid #64748b; border-radius: 999px; background: #e2e8f0; cursor: pointer; }
+        #queue-focus-6ft::before { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+        #queue-focus-6ft:checked { background: #0f7b6c; border-color: #0f7b6c; }
+        #queue-focus-6ft:checked::before { transform: translateX(22px); }
+        #queue-focus-6ft:focus-visible { outline: 3px solid #005cc5; outline-offset: 3px; }
         .wood-queue-list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 18px 0; padding: 0; }
         .wood-queue-card { --cut-accent: #005cc5; --cut-soft: #eef5ff; border: 1px solid #cbd5e1; border-left: 8px solid var(--cut-accent); border-radius: 10px; background: #fff; padding: 18px; text-align: center; }
         .wood-queue-card[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
@@ -85,7 +92,15 @@
 
         <section class="panel queue-panel" aria-labelledby="queue-heading">
             <h2 id="queue-heading">Automatic CNC Queue - Next 5 Cuts</h2>
-            <p class="hint">Target: <strong>25% 6ft / 75% 7ft complete sets</strong>. Each set needs 2 long and 2 short pieces. The queue replenishes the size below its target share and balances its long and short stock, with 7ft first when stock is balanced.</p>
+            <form id="queue-focus-form" class="stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
+                <input type="hidden" name="action" value="set_focus">
+                <label class="focus-switch" for="queue-focus-6ft">
+                    <input id="queue-focus-6ft" name="focus" value="6ft" type="checkbox" role="switch"{% if cnc_queue.focus == '6ft' %} checked{% endif %}>
+                    Focus on 6ft
+                </label>
+                <button type="submit" id="queue-focus-apply">Apply Focus</button>
+            </form>
+            <p class="hint" id="queue-focus-description">{{ cnc_queue.description }}</p>
             <div class="queue-summary" aria-label="Complete sets in stock">
                 <span id="queue-current-6">6ft: <strong>{{ cnc_queue.current.sets_6ft }}</strong> complete sets ({{ cnc_queue.current.percent_6ft }}%)</span>
                 <span id="queue-current-7">7ft: <strong>{{ cnc_queue.current.sets_7ft }}</strong> complete sets ({{ cnc_queue.current.percent_7ft }}%)</span>
@@ -110,7 +125,7 @@
                 </li>
                 {% endfor %}
             </ol>
-            <p class="hint" id="queue-projected">After these 5 cuts: {{ cnc_queue.projected.sets_6ft }} complete 6ft sets and {{ cnc_queue.projected.sets_7ft }} complete 7ft sets. Batch sizes mean the mix may not be exactly 25% / 75% after every cut.</p>
+            <p class="hint" id="queue-projected">After these 5 cuts: {{ cnc_queue.projected.sets_6ft }} complete 6ft sets and {{ cnc_queue.projected.sets_7ft }} complete 7ft sets. {% if cnc_queue.focus == '6ft' %}6ft focus is on; queued cuts add only 6ft pieces.{% else %}Batch sizes mean the mix may not be exactly 25% / 75% after every cut.{% endif %}</p>
         </section>
 
         <section class="panel">
@@ -238,11 +253,14 @@
 
         function renderQueue(queue) {
             const next = queue.cuts[0];
+            document.getElementById('queue-focus-6ft').checked = queue.focus === '6ft';
+            document.getElementById('queue-focus-description').textContent = queue.description;
             document.getElementById('queue-next-key').value = next.key_code;
             for (const size of ['6', '7']) {
                 document.getElementById('queue-current-' + size).textContent = `${size}ft: ${queue.current['sets_' + size + 'ft']} complete sets (${queue.current['percent_' + size + 'ft']}%)`;
             }
-            document.getElementById('queue-projected').textContent = `After these 5 cuts: ${queue.projected.sets_6ft} complete 6ft sets and ${queue.projected.sets_7ft} complete 7ft sets. Batch sizes mean the mix may not be exactly 25% / 75% after every cut.`;
+            const focusNote = queue.focus === '6ft' ? '6ft focus is on; queued cuts add only 6ft pieces.' : 'Batch sizes mean the mix may not be exactly 25% / 75% after every cut.';
+            document.getElementById('queue-projected').textContent = `After these 5 cuts: ${queue.projected.sets_6ft} complete 6ft sets and ${queue.projected.sets_7ft} complete 7ft sets. ${focusNote}`;
             const cards = document.querySelectorAll('#cnc-queue-body .wood-queue-card');
             queue.cuts.forEach((cut, index) => {
                 const card = cards[index];
@@ -292,9 +310,13 @@
                 queueRequest(new URLSearchParams(new FormData(form, event.submitter)));
             });
         });
+        document.getElementById('queue-focus-apply').hidden = true;
+        document.getElementById('queue-focus-6ft').addEventListener('change', () => {
+            document.getElementById('queue-focus-form').requestSubmit();
+        });
         document.addEventListener('keydown', event => {
             if (event.repeat || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
-            if (event.target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+            if (event.target.closest('input:not([type="checkbox"]), select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
             if (!shortcutKeys.includes(event.key)) return;
             event.preventDefault();
             queueRequest(new URLSearchParams({ key_code: event.key }));
