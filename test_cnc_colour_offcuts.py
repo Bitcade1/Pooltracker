@@ -23,6 +23,7 @@ class CncColourOffcutTests(unittest.TestCase):
     def setUp(self):
         self.context = self.app.app_context()
         self.context.push()
+        self.app.config.pop('_cnc_existing_colour_offcuts_checked', None)
         tracker.db.create_all()
         self.client = self.app.test_client()
         with self.client.session_transaction() as login_session:
@@ -74,7 +75,7 @@ class CncColourOffcutTests(unittest.TestCase):
         self.assertEqual(2, tracker.CncJob.query.count())
 
     def test_name_matching_handles_case_spacing_and_colour_plural(self):
-        for name in ['7FT CHAMP - COLOURS SIDES', '6ft Champ - Colour Sides', ' 6ft  Champ - Colours Sides ', '7 ft Champ - Colour Sides']:
+        for name in ['7ft Champ - Colour Sides', '7FT CHAMP - COLOURS SIDES', '6ft Champ - Colour Sides', ' 6ft  Champ - Colours Sides ', '7 ft Champ - Colour Sides']:
             with self.subTest(name=name):
                 self.assertTrue(tracker.cnc_needs_colour_offcut(name))
         for name in ['7ft Lite - Colour Sides', '7ft Champ - Black Sides', 'colour off cut', 'Colour Sides', '7ft Champ - Colour Bases']:
@@ -183,6 +184,55 @@ class CncColourOffcutTests(unittest.TestCase):
         response = self.client.get('/cnc_dashboard')
         self.assertIn(b'id="completed-today-count">0.25<', response.data)
         self.assertIn(b'id="completed-month-count">0.25<', response.data)
+
+    def test_existing_singular_colour_sides_gets_missing_offcut_on_dashboard_open(self):
+        sides = self.job('7ft Champ - Colour Sides')
+        tracker.db.session.add(tracker.CncQueueItem(job_id=sides.id, machine_number=1, position=1, status=tracker.CNC_STATUS_QUEUED))
+        tracker.db.session.commit()
+        self.assertEqual([sides.name], self.names())
+        self.assertEqual(200, self.client.get('/cnc_dashboard').status_code)
+        self.assertEqual([sides.name, 'colour off cut'], self.names())
+        for _ in range(3):
+            self.client.get('/cnc_dashboard')
+            self.client.get('/cnc_queue_manager')
+        self.assertEqual(2, tracker.CncQueueItem.query.count())
+        # Repeat the startup audit as another app worker would.
+        self.app.config.pop('_cnc_existing_colour_offcuts_checked', None)
+        self.client.get('/cnc_dashboard')
+        self.assertEqual(2, tracker.CncQueueItem.query.count())
+
+    def test_existing_queues_reuse_spare_offcuts_and_keep_other_pairs_intact(self):
+        first = self.job('7ft Champ - Colour Sides')
+        second = self.job('6ft Champ - Colour Sides')
+        offcut = self.job('Colour Off Cut')
+        other = self.job('Unrelated file')
+        for position, job in enumerate([first, other, second, offcut, offcut], start=1):
+            tracker.db.session.add(tracker.CncQueueItem(job_id=job.id, machine_number=2, position=position, status=tracker.CNC_STATUS_QUEUED))
+        tracker.db.session.commit()
+        original_items = self.queued(2)
+        second_companion = original_items[3].id
+        spare = original_items[4].id
+        self.assertEqual(200, self.client.get('/cnc_queue_manager').status_code)
+        repaired = self.queued(2)
+        self.assertEqual([first.name, offcut.name, other.name, second.name, offcut.name], self.names(2))
+        self.assertEqual(spare, repaired[1].id)
+        self.assertEqual(second_companion, repaired[4].id)
+        self.assertEqual(5, tracker.CncQueueItem.query.count())
+        self.assertEqual([1, 2, 3, 4, 5], [item.position for item in repaired])
+
+    def test_repair_covers_multiple_machines_and_ignores_completed_sides(self):
+        sides = self.job('7ft Champ - Colour Sides')
+        for machine in [1, 3]:
+            tracker.db.session.add(tracker.CncQueueItem(job_id=sides.id, machine_number=machine, position=1, status=tracker.CNC_STATUS_QUEUED))
+        tracker.db.session.add(tracker.CncQueueItem(job_id=sides.id, machine_number=4, position=1, status=tracker.CNC_STATUS_COMPLETED))
+        tracker.db.session.commit()
+        self.client.get('/cnc_dashboard')
+        self.assertEqual([sides.name, 'colour off cut'], self.names(1))
+        self.assertEqual([sides.name, 'colour off cut'], self.names(3))
+        self.assertEqual([], self.names(4))
+        self.assertEqual(5, tracker.CncQueueItem.query.count())
+        self.assertEqual(0, tracker.WoodCount.query.count())
+        self.assertEqual(0, tracker.cnc_completed_quantity_total())
 
     def test_logged_out_user_cannot_add_jobs(self):
         sides = self.job('7ft Champ - Colours Sides')

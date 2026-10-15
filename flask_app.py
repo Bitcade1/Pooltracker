@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory, jsonify, current_app
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, OperationalError
 from datetime import datetime, timedelta, date, time, timezone
@@ -2561,6 +2561,60 @@ def _cnc_new_queue_items(jobs, machine_number, start_position=0):
     ) for index, job in enumerate(expanded, start=1)]
     db.session.add_all(items)
     return items
+
+
+def _cnc_repair_existing_colour_offcuts():
+    """Reconcile older queues once per app process, before the first CNC view."""
+    if current_app.config.get('_cnc_existing_colour_offcuts_checked'):
+        return
+    try:
+        # Another worker may be opening the dashboard at the same time. Read
+        # the queue only after acquiring the write lock to avoid double inserts.
+        db.session.execute(text('BEGIN IMMEDIATE'))
+        queued = (
+            CncQueueItem.query.options(joinedload(CncQueueItem.job))
+            .filter_by(status=CNC_STATUS_QUEUED)
+            .order_by(CncQueueItem.machine_number, CncQueueItem.position, CncQueueItem.id)
+            .all()
+        )
+        for machine in CNC_MACHINE_NUMBERS:
+            items = [item for item in queued if item.machine_number == machine]
+            sides = [item for item in items if cnc_needs_colour_offcut(item.job.name)]
+            if not sides:
+                continue
+            companions = {}
+            reserved = set()
+            # Keep all existing adjacent pairs intact before assigning spare
+            # offcuts to sides jobs whose companions are missing.
+            for parent, following in zip(items, items[1:]):
+                if cnc_needs_colour_offcut(parent.job.name) and cnc_is_colour_offcut(following.job.name):
+                    companions[parent.id] = following
+                    reserved.add(following.id)
+            spare_offcuts = iter(
+                item for item in items
+                if cnc_is_colour_offcut(item.job.name) and item.id not in reserved
+            )
+            for parent in sides:
+                if parent.id not in companions:
+                    companion = next(spare_offcuts, None)
+                    if companion is None:
+                        companion = _cnc_new_queue_items([_cnc_colour_offcut_job()], machine)[0]
+                    companions[parent.id] = companion
+            used_offcut_ids = {item.id for item in companions.values() if item.id is not None}
+            ordered = []
+            for item in items:
+                if item.id in used_offcut_ids:
+                    continue
+                ordered.append(item)
+                if item.id in companions:
+                    ordered.append(companions[item.id])
+            for position, item in enumerate(ordered, start=1):
+                item.position = position
+        db.session.commit()
+        current_app.config['_cnc_existing_colour_offcuts_checked'] = True
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def _cnc_queue_count(machine_number):
@@ -14328,6 +14382,7 @@ def cnc_queue_manager():
         return redirect(url_for('login'))
 
     ensure_cnc_tables()
+    _cnc_repair_existing_colour_offcuts()
 
     jobs = (
         CncJob.query
@@ -14374,6 +14429,7 @@ def cnc_dashboard():
         return redirect(url_for('login'))
 
     ensure_cnc_tables()
+    _cnc_repair_existing_colour_offcuts()
     queues = _cnc_queue_snapshot()
     current_time = london_now()
     today = current_time.date()
