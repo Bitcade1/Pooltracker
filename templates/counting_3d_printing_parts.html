@@ -22,6 +22,10 @@
 
         .actions-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
         .quick-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .quick-add-settings { border-top: 1px solid #e7e7ee; padding-top: 16px; }
+        .quick-add-settings input { width: 150px; max-width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; box-sizing: border-box; }
+        .quick-add-help { margin: 0; color: #555; font-size: 0.9em; }
+        .quick-buttons [hidden] { display: none; }
         .btn { padding: 12px 14px; border-radius: 8px; border: none; cursor: pointer; }
         .btn-primary { background-color: #007bff; color: #fff; }
         .btn-primary:hover { background-color: #0056b3; }
@@ -54,6 +58,7 @@
         const counts = {{ parts_counts|tojson }};
         const statusMap = {{ parts_status|tojson }};
         const initialSelection = {{ selected_part|tojson }};
+        const quickAddAmounts = {{ quick_add_amounts|tojson }};
 
         function updateUrlSelected(selectedPart) {
             try {
@@ -87,6 +92,13 @@
             } else {
                 statusDisplay.classList.add("status-good");
             }
+
+            const savedAmount = quickAddAmounts[selectedPart];
+            const savedButton = document.getElementById("saved-quick-add");
+            savedButton.hidden = savedAmount === undefined;
+            savedButton.textContent = savedAmount === undefined ? "" : `Add +${savedAmount} (saved)`;
+            document.getElementById("saved_quick_amount").value = savedAmount === undefined ? "" : savedAmount;
+            document.getElementById("quick-add-part-name").textContent = selectedPart;
         }
 
         function toggleSection(sectionId, buttonId) {
@@ -170,7 +182,18 @@
                         <button type="submit" class="btn btn-success" name="quick_amount" value="1">Add +1</button>
                         <button type="submit" class="btn btn-success" name="quick_amount" value="5">Add +5</button>
                         <button type="submit" class="btn btn-success" name="quick_amount" value="10">Add +10</button>
+                        <button type="submit" class="btn btn-success" id="saved-quick-add" name="use_saved_amount" value="1" {% if selected_part not in quick_add_amounts %}hidden{% endif %}>Add +{{ quick_add_amounts.get(selected_part, '') }} (saved)</button>
                     </div>
+                </form>
+                <form method="POST" action="{{ url_for('counting_3d_printing_parts') }}" class="quick-add-settings">
+                    <input type="hidden" name="action" value="save_quick_add">
+                    <input type="hidden" name="part" class="selected-part-field" value="{{ selected_part }}">
+                    <label for="saved_quick_amount">Quick-add amount for <span id="quick-add-part-name">{{ selected_part }}</span>:</label>
+                    <div class="actions-row">
+                        <input type="number" name="saved_quick_amount" id="saved_quick_amount" min="1" max="2147483647" step="1" value="{{ quick_add_amounts.get(selected_part, '') }}" placeholder="e.g. 24" aria-describedby="quick-add-help" required>
+                        <button type="submit" class="btn btn-primary">Save Quick Add</button>
+                    </div>
+                    <p class="quick-add-help" id="quick-add-help">Saved separately for each part and shared across devices. Saving does not add stock.</p>
                 </form>
             </div>
 

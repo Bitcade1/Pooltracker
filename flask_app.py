@@ -1104,6 +1104,13 @@ class PrintedPartsCount(db.Model):
     time = db.Column(db.Time, nullable=False)
 
 
+class PrintedPartQuickAdd(db.Model):
+    """Shared, persistent quick-add amounts for the manufactured parts page."""
+    part_name = db.Column(db.String(50), primary_key=True)
+    amount = db.Column(db.Integer, nullable=False)
+    __table_args__ = (db.CheckConstraint('amount > 0'),)
+
+
 class GullyConversionLog(db.Model):
     __tablename__ = 'gully_conversion_log'
 
@@ -16216,6 +16223,8 @@ def counting_3d_printing_parts():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
+    PrintedPartQuickAdd.__table__.create(db.engine, checkfirst=True)
+
     parts = [
         "Large Ramp", "Paddle", *LAMINATE_PART_NAMES, "Spring Mount", "Spring Holder",
         "Small Ramp", "Cue Ball Separator", "Bushing",
@@ -16234,6 +16243,8 @@ def counting_3d_printing_parts():
         return latest_entry.count if latest_entry else 0
 
     selected_part = request.form.get('part') or request.args.get('selected') or (parts[0] if parts else None)
+    if selected_part not in parts:
+        selected_part = parts[0]
 
     if request.method == 'POST':
         part = request.form.get('part') or selected_part
@@ -16243,9 +16254,35 @@ def counting_3d_printing_parts():
             flash("Invalid part selected.", "error")
             return redirect(url_for('counting_3d_printing_parts'))
 
+        if action == 'save_quick_add':
+            try:
+                saved_amount = int(request.form.get('saved_quick_amount', ''))
+                if not 1 <= saved_amount <= 2147483647:
+                    raise ValueError
+            except ValueError:
+                flash("Quick-add amount must be a whole number between 1 and 2147483647.", "error")
+                return redirect(url_for('counting_3d_printing_parts', selected=part))
+
+            preset = db.session.get(PrintedPartQuickAdd, part)
+            if preset is None:
+                preset = PrintedPartQuickAdd(part_name=part, amount=saved_amount)
+                db.session.add(preset)
+            else:
+                preset.amount = saved_amount
+            db.session.commit()
+            flash(f"Quick add for {part} saved as +{saved_amount}. Stock unchanged.", "success")
+            return redirect(url_for('counting_3d_printing_parts', selected=part))
+
         try:
             if action == 'quick_add':
-                amount_str = request.form.get('quick_amount', '1')
+                if request.form.get('use_saved_amount') == '1':
+                    preset = db.session.get(PrintedPartQuickAdd, part)
+                    if preset is None:
+                        flash("Save a quick-add amount for this part first.", "error")
+                        return redirect(url_for('counting_3d_printing_parts', selected=part))
+                    amount_str = str(preset.amount)
+                else:
+                    amount_str = request.form.get('quick_amount', '1')
             elif action == 'reject':
                 amount_str = request.form.get('reject_amount', '1')
             elif action == 'bulk':
@@ -16259,6 +16296,10 @@ def counting_3d_printing_parts():
             amount = int(amount_str)
         except ValueError:
             flash("Amount must be a number.", "error")
+            return redirect(url_for('counting_3d_printing_parts', selected=part))
+
+        if action == 'quick_add' and not 1 <= amount <= 2147483647:
+            flash("Quick-add amount must be a whole number between 1 and 2147483647.", "error")
             return redirect(url_for('counting_3d_printing_parts', selected=part))
 
         current_count = latest_count(part)
@@ -16404,7 +16445,11 @@ def counting_3d_printing_parts():
         parts_log=parts_log,
         printed_parts=printed_parts,
         carpet_felt_parts=carpet_felt_parts,
-        laminate_parts=laminate_parts
+        laminate_parts=laminate_parts,
+        quick_add_amounts={
+            preset.part_name: preset.amount
+            for preset in PrintedPartQuickAdd.query.filter(PrintedPartQuickAdd.part_name.in_(parts)).all()
+        },
     )
 
 
