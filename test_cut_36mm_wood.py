@@ -277,6 +277,35 @@ class Cut36mmWoodTests(unittest.TestCase):
         self.assertEqual(4, tracker.PrintedPartsCount.query.count())
         self.assertEqual([], tracker.cut_36mm_wood_log())
 
+    def test_focus_survives_a_new_login_session_with_only_preference_cookie(self):
+        for focus in ('6ft', 'default'):
+            with self.subTest(focus=focus):
+                response = self.post(action='set_focus', focus=focus)
+                self.assertEqual(200, response.status_code)
+                preference = self.client.get_cookie('cut_36mm_queue_focus')
+                self.assertEqual(focus, preference.value)
+                self.assertEqual(365 * 24 * 60 * 60, preference.max_age)
+                self.assertTrue(preference.http_only)
+                fresh_client = self.app.test_client()
+                fresh_client.set_cookie('cut_36mm_queue_focus', preference.value)
+                with fresh_client.session_transaction() as login_session:
+                    login_session['worker'] = 'CNC Operator'
+                refresh = fresh_client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+                self.assertEqual(focus, refresh.json['cnc_queue']['focus'])
+                self.assertEqual(0, tracker.PrintedPartsCount.query.count())
+                with self.client.session_transaction() as login_session:
+                    self.assertFalse(login_session.permanent)
+
+    def test_invalid_focus_does_not_overwrite_saved_preference(self):
+        self.post(action='set_focus', focus='6ft')
+        response = self.post(action='set_focus', focus='bad')
+        self.assertEqual(400, response.status_code)
+        self.assertEqual('6ft', self.client.get_cookie('cut_36mm_queue_focus').value)
+        self.assertEqual('6ft', response.json['cnc_queue']['focus'])
+        self.client.set_cookie('cut_36mm_queue_focus', 'bad')
+        refresh = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        self.assertEqual('default', refresh.json['cnc_queue']['focus'])
+
 
 class Cut36mmWoodQueueTests(unittest.TestCase):
     @staticmethod

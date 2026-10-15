@@ -7954,7 +7954,10 @@ def manage_raw_data():
 @app.route('/counting_cut_36mm_wood', methods=['GET', 'POST'])
 def counting_cut_36mm_wood():
     wants_json = request.accept_mimetypes.best == "application/json"
-    focus = session.get("cut_36mm_queue_focus", "default")
+    focus_cookie = "cut_36mm_queue_focus"
+    focus = request.cookies.get(focus_cookie, session.get(focus_cookie, "default"))
+    if focus not in ("default", "6ft"):
+        focus = "default"
 
     def result(message, status=200):
         if wants_json:
@@ -7980,7 +7983,16 @@ def counting_cut_36mm_wood():
                 return result("Please select a valid queue focus.", 400)
             focus = requested_focus
             session["cut_36mm_queue_focus"] = focus
-            return result("6ft focus enabled." if focus == "6ft" else "Default 25% 6ft / 75% 7ft queue restored.")
+            response = make_response(result(
+                "6ft focus enabled." if focus == "6ft" else "Default 25% 6ft / 75% 7ft queue restored."
+            ))
+            # Remember this station's preference without extending its login session.
+            response.set_cookie(
+                focus_cookie, focus, max_age=365 * 24 * 60 * 60,
+                httponly=True, samesite="Lax",
+                secure=current_app.config.get("SESSION_COOKIE_SECURE", False),
+            )
+            return response
         try:
             # Serialize stock adjustments across CNC stations in SQLite.
             db.session.execute(text("BEGIN IMMEDIATE"))

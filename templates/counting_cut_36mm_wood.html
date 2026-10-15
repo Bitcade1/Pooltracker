@@ -41,7 +41,7 @@
         #queue-focus-6ft:checked::before { transform: translateX(22px); }
         #queue-focus-6ft:focus-visible { outline: 3px solid #005cc5; outline-offset: 3px; }
         .wood-queue-list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 18px 0; padding: 0; }
-        .wood-queue-card { --cut-accent: #005cc5; --cut-soft: #eef5ff; border: 1px solid #cbd5e1; border-left: 8px solid var(--cut-accent); border-radius: 10px; background: #fff; padding: 18px; text-align: center; }
+        .wood-queue-card { --cut-accent: #005cc5; --cut-soft: #eef5ff; position: relative; border: 1px solid #cbd5e1; border-left: 8px solid var(--cut-accent); border-radius: 10px; background: #fff; padding: 18px; text-align: center; }
         .wood-queue-card[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
         .wood-queue-card.is-current { background: var(--cut-soft); border-color: var(--cut-accent); box-shadow: 0 0 0 2px var(--cut-soft); }
         .wood-queue-number { display: inline-block; min-width: 72px; padding: 6px 14px; border-radius: 999px; background: var(--cut-soft); color: var(--cut-accent); font-size: 1.05rem; font-weight: 800; }
@@ -54,6 +54,16 @@
         #queue-log-next { background: var(--cut-accent); font-size: 1.2rem; font-weight: 700; border-radius: 10px; padding: 14px; }
         #queue-log-next:hover { filter: brightness(0.88); }
         #queue-log-next:disabled { opacity: 0.6; cursor: wait; }
+        #queue-save-status { margin: 14px 0; padding: 14px; border: 1px solid #b9cde9; border-radius: 8px; background: #eef5ff; font-weight: 700; }
+        #queue-save-status.success { color: #14532d; border-color: #65a87c; background: #dcfce7; }
+        #queue-save-status.error { color: #9a1c29; border-color: #d79ca2; background: #fff0f0; }
+        .queue-completion:not([hidden]) { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 18px; border-radius: 8px; color: #14532d; background: #dcfce7; pointer-events: none; animation: cut-logged 0.3s ease-out; }
+        .queue-completion svg { width: 64px; height: 64px; flex-shrink: 0; }
+        .queue-completion strong { font-size: clamp(1.7rem, 3vw, 2.5rem); }
+        .queue-completion span { font-size: 1.2rem; font-weight: 700; }
+        .wood-queue-card.is-next-up { animation: next-cut 0.3s ease-out; }
+        @keyframes cut-logged { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes next-cut { from { opacity: 0.35; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         .wood-log summary { cursor: pointer; font-size: 1.3em; font-weight: bold; }
         .log-table { table-layout: fixed; min-width: 560px; }
         .log-table th, .log-table td { text-align: left; }
@@ -66,7 +76,7 @@
         .menu-links { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 24px; }
         @media (max-width: 800px) { .stock-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (max-width: 540px) { .form-row { grid-template-columns: 1fr; } .wood-container { padding: 14px; } }
-        @media (prefers-reduced-motion: reduce) { .stock-count.highlight { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .stock-count.highlight, .queue-completion:not([hidden]), .wood-queue-card.is-next-up { animation: none; } }
     </style>
 </head>
 <body>
@@ -100,15 +110,24 @@
                 </label>
                 <button type="submit" id="queue-focus-apply">Apply Focus</button>
             </form>
+            <p class="hint">Your focus preference is saved on this browser.</p>
             <p class="hint" id="queue-focus-description">{{ cnc_queue.description }}</p>
             <div class="queue-summary" aria-label="Complete sets in stock">
                 <span id="queue-current-6">6ft: <strong>{{ cnc_queue.current.sets_6ft }}</strong> complete sets ({{ cnc_queue.current.percent_6ft }}%)</span>
                 <span id="queue-current-7">7ft: <strong>{{ cnc_queue.current.sets_7ft }}</strong> complete sets ({{ cnc_queue.current.percent_7ft }}%)</span>
             </div>
             <p class="hint">Follow the order below. Log each file only after it has been cut. The queue updates automatically whenever stock changes.</p>
+            <p id="queue-save-status" role="status" aria-live="polite" hidden></p>
             <ol class="wood-queue-list" id="cnc-queue-body" aria-label="Upcoming CNC cuts">
                 {% for cut in cnc_queue.cuts %}
                 <li class="wood-queue-card{% if loop.first %} is-current{% endif %}" data-size="{{ '6' if cut.key_code in ['1', '2'] else '7' }}">
+                    {% if loop.first %}
+                    <div id="queue-completion" class="queue-completion" aria-hidden="true" hidden>
+                        <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="29" stroke="currentColor" stroke-width="4"/><path d="m18 33 9 9 20-21" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <strong>Cut logged</strong>
+                        <span id="queue-completed-file"></span>
+                    </div>
+                    {% endif %}
                     <span class="wood-queue-number">{{ 'Cut Next - 1' if loop.first else 'Cut ' ~ cut.position }}</span>
                     <h3 class="wood-queue-name"{% if loop.first %} id="queue-next-label"{% endif %}>{{ cut.label }}</h3>
                     <div class="wood-queue-meta">
@@ -209,7 +228,10 @@
     <script>
         const countingUrl = {{ url_for('counting_cut_36mm_wood')|tojson }};
         const shortcutKeys = {{ (cnc_files.keys()|list + remove_keys.keys()|list)|tojson }};
+        const cncFiles = {{ cnc_files|tojson }};
         const statusElement = document.getElementById('save-status');
+        const queueStatus = document.getElementById('queue-save-status');
+        const nextButton = document.getElementById('queue-log-next');
         let requestQueue = Promise.resolve();
         let pendingRequests = 0;
 
@@ -218,7 +240,28 @@
             statusElement.className = kind;
         }
 
-        function renderStock(data) {
+        function showQueueStatus(message, kind = '') {
+            queueStatus.hidden = false;
+            queueStatus.textContent = message;
+            queueStatus.className = kind;
+        }
+
+        async function confirmCut(keyCode, data) {
+            const overlay = document.getElementById('queue-completion');
+            const card = overlay.closest('.wood-queue-card');
+            card.classList.remove('is-next-up');
+            document.getElementById('queue-completed-file').textContent = cncFiles[keyCode].label;
+            showQueueStatus('Cut logged: ' + data.message, 'success');
+            nextButton.textContent = 'Logged';
+            overlay.hidden = false;
+            // Keep the saved file visible even when the next recommendation is identical.
+            await new Promise(resolve => setTimeout(resolve, 1100));
+            renderQueue(data.cnc_queue);
+            overlay.hidden = true;
+            card.classList.add('is-next-up');
+        }
+
+        function renderStock(data, updateQueue = true) {
             Object.entries(data.counts).forEach(([key, count]) => {
                 const output = document.getElementById('count-' + key);
                 if (output.textContent !== String(count)) {
@@ -228,7 +271,7 @@
                     output.classList.add('highlight');
                 }
             });
-            renderQueue(data.cnc_queue);
+            if (updateQueue) renderQueue(data.cnc_queue);
             const logBody = document.getElementById('wood-log-body');
             logBody.replaceChildren();
             data.log.forEach(entry => {
@@ -277,10 +320,16 @@
             pendingRequests += 1;
             if (body) {
                 showStatus('Saving...');
-                document.getElementById('queue-log-next').disabled = true;
+                nextButton.disabled = true;
             }
             requestQueue = requestQueue.then(async () => {
+                const cutKey = body && body.get('key_code');
+                const isCut = Object.hasOwn(cncFiles, cutKey);
                 try {
+                    if (isCut) {
+                        nextButton.textContent = 'Saving...';
+                        showQueueStatus('Saving ' + cncFiles[cutKey].label + ' cut...');
+                    }
                     const response = await fetch(countingUrl, {
                         method: body ? 'POST' : 'GET',
                         headers: { 'Accept': 'application/json' },
@@ -289,17 +338,24 @@
                         signal: AbortSignal.timeout(15000),
                     });
                     const data = await response.json();
-                    if (data.counts) renderStock(data);
+                    const savedCut = response.ok && data.success && isCut;
+                    if (data.counts) renderStock(data, !savedCut);
                     if (!response.ok || !data.success) {
                         showStatus(data.message || 'Unable to save the count.', 'error');
+                        showQueueStatus(data.message || 'Unable to save the count.', 'error');
                     } else if (body) {
                         showStatus(data.message, 'success');
+                        if (savedCut) await confirmCut(cutKey, data);
+                        else showQueueStatus(data.message, 'success');
                     }
                 } catch (error) {
-                    showStatus(body ? 'Could not confirm the save. Refresh the counts before repeating the action.' : 'Could not refresh counts. Check your connection.', 'error');
+                    const message = body ? 'Could not confirm the save. Refresh the counts before repeating the action.' : 'Could not refresh counts. Check your connection.';
+                    showStatus(message, 'error');
+                    showQueueStatus(message, 'error');
                 } finally {
                     pendingRequests -= 1;
-                    if (!pendingRequests) document.getElementById('queue-log-next').disabled = false;
+                    nextButton.textContent = 'Log Next Cut';
+                    if (!pendingRequests) nextButton.disabled = false;
                 }
             });
         }
