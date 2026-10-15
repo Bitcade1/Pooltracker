@@ -1563,12 +1563,20 @@ def cushion_extra_time_progress(worker_name, year, month):
     }
 
 
+def cnc_is_colour_offcut(job_name):
+    compact = re.sub(r"[^a-z0-9]+", "", (job_name or "").lower())
+    return compact in {"colouroffcut", "colouroffcuts", "coloroffcut", "coloroffcuts"}
+
+
+@app.template_filter('cnc_job_quantity')
 def cnc_effective_completed_quantity(job_name, quantity):
     try:
         completed_quantity = int(quantity or 1)
     except (TypeError, ValueError):
         completed_quantity = 1
     completed_quantity = max(completed_quantity, 1)
+    if cnc_is_colour_offcut(job_name):
+        return completed_quantity * 0.25
     if "egger" in (job_name or "").lower():
         completed_quantity *= 2
     return completed_quantity
@@ -1601,10 +1609,11 @@ def cnc_completed_quantity_total(year=None, month=None, day=None):
         .filter(*filters)
         .all()
     )
-    return sum(
+    total = sum(
         cnc_effective_completed_quantity(job_name, quantity)
         for job_name, quantity in completed_rows
     )
+    return int(total) if total == int(total) else total
 
 
 def cnc_monthly_cut_file_history():
@@ -1791,7 +1800,9 @@ def previous_bonus_goal_month(year, month):
 
 def make_bonus_goal_progress_row(area, worker_name, current_count, target_count, year, month, next_bonus=False):
     target_count = int(target_count or 0)
-    current_count = int(current_count or 0)
+    current_count = float(current_count or 0) if area == "cnc" else int(current_count or 0)
+    if area == "cnc" and current_count.is_integer():
+        current_count = int(current_count)
     percentage = round((current_count / target_count) * 100) if target_count else 0
     remaining = max(target_count - current_count, 0)
     period_label = bonus_goal_month_label(year, month)
@@ -2520,6 +2531,38 @@ def _cnc_queue_snapshot():
     return queues
 
 
+def cnc_needs_colour_offcut(job_name):
+    normalized = re.sub(r"[^a-z0-9]+", " ", (job_name or "").lower()).strip()
+    return bool(re.fullmatch(r"[67]\s*ft champ(?:ion)? colou?rs? sides", normalized))
+
+
+def _cnc_colour_offcut_job():
+    candidates = CncJob.query.filter(CncJob.name.ilike('%off%')).order_by(CncJob.id.asc()).all()
+    for job in candidates:
+        if cnc_is_colour_offcut(job.name):
+            return job
+    job = CncJob(name="colour off cut", quantity=1)
+    db.session.add(job)
+    db.session.flush()
+    return job
+
+
+def _cnc_new_queue_items(jobs, machine_number, start_position=0):
+    """Add companions directly after sides jobs, reusing explicitly copied offcuts."""
+    expanded = []
+    for index, job in enumerate(jobs):
+        expanded.append(job)
+        has_next_offcut = index + 1 < len(jobs) and cnc_is_colour_offcut(jobs[index + 1].name)
+        if cnc_needs_colour_offcut(job.name) and not has_next_offcut:
+            expanded.append(_cnc_colour_offcut_job())
+    items = [CncQueueItem(
+        job_id=job.id, machine_number=machine_number,
+        position=start_position + index, status=CNC_STATUS_QUEUED,
+    ) for index, job in enumerate(expanded, start=1)]
+    db.session.add_all(items)
+    return items
+
+
 def _cnc_queue_count(machine_number):
     return (
         db.session.query(func.count(CncQueueItem.id))
@@ -2749,6 +2792,8 @@ def _build_cnc_wood_count_change(job):
 
 
 def _record_cnc_job_wood_count(job):
+    if job and cnc_is_colour_offcut(job.name):
+        return {"logged": False, "message": "Colour offcut completed; quarter-job credit recorded."}
     change = _build_cnc_wood_count_change(job)
     if not change:
         return {
@@ -14345,7 +14390,7 @@ def cnc_dashboard():
     completed_month_count = cnc_completed_quantity_total(year=today.year, month=today.month)
     elapsed_workdays = cnc_elapsed_workdays(current_time)
     daily_avg_sheets = completed_month_count / elapsed_workdays if elapsed_workdays else 0
-    daily_avg_sheets_display = f"{daily_avg_sheets:.1f}".rstrip("0").rstrip(".")
+    daily_avg_sheets_display = f"{daily_avg_sheets:.2f}".rstrip("0").rstrip(".")
     completed_today = (
         CncQueueItem.query
         .options(joinedload(CncQueueItem.job))
@@ -14553,16 +14598,10 @@ def api_cnc_queue_add():
         .scalar() or 0
     ) + 1
 
-    queue_item = CncQueueItem(
-        job_id=job.id,
-        machine_number=machine_number,
-        position=next_position,
-        status=CNC_STATUS_QUEUED
-    )
-    db.session.add(queue_item)
+    new_items = _cnc_new_queue_items([job], machine_number, next_position - 1)
     db.session.commit()
 
-    return jsonify({"success": True, "queue_item_id": queue_item.id}), 200
+    return jsonify({"success": True, "queue_item_id": new_items[0].id, "created_items": len(new_items)}), 200
 
 
 @app.route('/api/cnc/queue/move', methods=['POST'])
@@ -14694,8 +14733,9 @@ def api_cnc_bulk_copy_queue_items():
 
     selected_items = (
         CncQueueItem.query
+        .options(joinedload(CncQueueItem.job))
         .filter(CncQueueItem.id.in_(item_ids), CncQueueItem.status == CNC_STATUS_QUEUED)
-        .order_by(CncQueueItem.id.asc())
+        .order_by(CncQueueItem.machine_number.asc(), CncQueueItem.position.asc(), CncQueueItem.id.asc())
         .all()
     )
     if not selected_items:
@@ -14708,15 +14748,8 @@ def api_cnc_bulk_copy_queue_items():
             .filter_by(machine_number=machine_number, status=CNC_STATUS_QUEUED)
             .scalar() or 0
         )
-        for selected_item in selected_items:
-            next_position += 1
-            db.session.add(CncQueueItem(
-                job_id=selected_item.job_id,
-                machine_number=machine_number,
-                position=next_position,
-                status=CNC_STATUS_QUEUED
-            ))
-            created_count += 1
+        new_items = _cnc_new_queue_items([item.job for item in selected_items], machine_number, next_position)
+        created_count += len(new_items)
 
     db.session.commit()
     return jsonify({"success": True, "created_items": created_count}), 200
@@ -14765,20 +14798,27 @@ def api_cnc_bulk_duplicate_same_queue_items():
             .all()
         )
         reordered_items = []
-        for machine_item in machine_items:
+        index = 0
+        while index < len(machine_items):
+            machine_item = machine_items[index]
             reordered_items.append(machine_item)
+            index += 1
             if machine_item.id not in selected_ids:
                 continue
+            jobs = [machine_item.job]
+            # Retain the original pair together and duplicate the pair once,
+            # even when both the sides row and its offcut row were selected.
+            if (cnc_needs_colour_offcut(machine_item.job.name)
+                    and index < len(machine_items)
+                    and cnc_is_colour_offcut(machine_items[index].job.name)):
+                companion = machine_items[index]
+                reordered_items.append(companion)
+                jobs.append(companion.job)
+                index += 1
             for _ in range(copies):
-                duplicate_item = CncQueueItem(
-                    job_id=machine_item.job_id,
-                    machine_number=machine_number,
-                    position=0,
-                    status=CNC_STATUS_QUEUED
-                )
-                db.session.add(duplicate_item)
-                reordered_items.append(duplicate_item)
-                created_count += 1
+                new_items = _cnc_new_queue_items(jobs, machine_number)
+                reordered_items.extend(new_items)
+                created_count += len(new_items)
 
         for position, queue_item in enumerate(reordered_items, start=1):
             queue_item.position = position

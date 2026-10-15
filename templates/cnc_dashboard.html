@@ -837,6 +837,10 @@
                                 <div class="changeover-badge">New job</div>
                             {% endif %}
                             <div class="name">{{ item.job.name }}</div>
+                            {% set job_credit = item.job.name|cnc_job_quantity(item.job.quantity) %}
+                            {% if job_credit < 1 %}
+                                <div class="meta">{{ job_credit }} of a job</div>
+                            {% endif %}
                             {% if item.job.notes %}
                                 <div class="notes">{{ item.job.notes }}</div>
                             {% endif %}
@@ -867,7 +871,7 @@
                 <div class="completed-row">
                     <div>{{ item.completed_at|london_time('%H:%M') }}</div>
                     <div>CNC {{ item.machine_number }}</div>
-                    <div>{{ item.job.name }} (Qty {{ item.job.quantity }})</div>
+                    <div>{{ item.job.name }} (Qty {{ item.job.quantity }}{% set job_credit = item.job.name|cnc_job_quantity(item.job.quantity) %}{% if job_credit < 1 %}; {{ job_credit }} of a job{% endif %})</div>
                     <div>{{ item.completed_by or '-' }}</div>
                     <div>
                         <button
