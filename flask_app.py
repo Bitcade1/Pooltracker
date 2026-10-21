@@ -14306,6 +14306,16 @@ def body_dashboard_view():
         for month_holidays in bank_holidays_by_month.values()
         for holiday_date in month_holidays
     }
+    elapsed_body_workdays = sum(
+        1
+        for day in range(1, today.day + 1)
+        if date(today.year, today.month, day).weekday() < 5
+        and date(today.year, today.month, day) not in body_bank_holidays
+    )
+    completed_bodies_to_date = sum(body.date <= today for body in current_month_bodies)
+    stats["monthly_daily_average"] = (
+        completed_bodies_to_date / elapsed_body_workdays if elapsed_body_workdays else 0
+    )
     remaining_body_workdays = remaining_weekdays_in_month(
         today,
         excluded_dates=body_bank_holidays,

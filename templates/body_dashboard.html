@@ -1120,6 +1120,9 @@
         <div class="stat-card stat-today">
             <span class="stat-label">Today</span>
             <span class="stat-value">{{ stats.daily }}</span>
+            <span class="stat-note" title="Completed bodies this month divided by working days so far, including today; weekends and UK bank holidays excluded">
+                AVG/day (this month): {{ "%.2f"|format(stats.monthly_daily_average) }}
+            </span>
         </div>
         <div class="stat-card stat-week">
             <span class="stat-label">This Week</span>
