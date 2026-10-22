@@ -203,6 +203,35 @@ class RegeneratePackagingTests(unittest.TestCase):
         self.assertFalse(result["manual_layout_preserved"])
         self.assertEqual(0, result["summary"]["carried_top_rails"])
 
+    def test_single_colour_body_pallets_are_numbered_before_mixed_pallets(self):
+        items = [
+            {**self.items[0], "id": "black", "colour": "Black", "quantity": 7},
+            {**self.items[0], "id": "stone", "colour": "Stone", "quantity": 10},
+        ]
+        result = regenerate_packaging(items)
+        body_pallets = [
+            pallet for pallet in result["pallets"]
+            if pallet["pallet_type"] == "body"
+        ]
+        self.assertEqual([
+            [("Black", 5)],
+            [("Stone", 5)],
+            [("Stone", 2)],
+            [("Black", 2), ("Stone", 3)],
+        ], [
+            [(line["colour"], line["quantity"]) for line in pallet["lines"]]
+            for pallet in body_pallets
+        ])
+        self.assertEqual(
+            list(range(1, len(result["pallets"]) + 1)),
+            [pallet["pallet_number"] for pallet in result["pallets"]],
+        )
+        self.assertEqual(17, result["summary"]["total_bodies"])
+        self.assertNotIn(
+            "body_mismatch",
+            {warning["code"] for warning in result["warnings"]},
+        )
+
     def test_league_and_lite_models_use_lite_body_stock(self):
         self.assertTrue(model_uses_lite_body("League"))
         self.assertTrue(model_uses_lite_body("Lite"))

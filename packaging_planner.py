@@ -820,6 +820,14 @@ def generate_packaging(items, config=None):
         _refresh_pallet_labels(pallet, config)
         pallets.append(pallet)
         next_number += 1
+    # Number single-colour body pallets before mixed-colour body pallets.
+    pallets.sort(key=lambda pallet: len({
+        _clean_text(line.get("colour")).casefold()
+        for line in pallet["lines"]
+        if line.get("component_type") == "body"
+    }) > 1)
+    for number, pallet in enumerate(pallets, start=1):
+        pallet["pallet_number"] = number
     body_pallets = list(pallets)
 
     for size in ("7ft", "6ft", "Unknown"):
