@@ -7977,12 +7977,6 @@ def counting_cut_36mm_wood():
         flash(message, "success" if status == 200 else "error")
         return redirect(url_for('counting_cut_36mm_wood'))
 
-    if 'worker' not in session:
-        if wants_json:
-            return jsonify(success=False, message="Please log in first."), 401
-        flash("Please log in first.", "error")
-        return redirect(url_for('login'))
-
     if request.method == 'POST':
         if request.form.get("action") == "set_focus":
             requested_focus = request.form.get("focus", "default")
@@ -7993,7 +7987,7 @@ def counting_cut_36mm_wood():
             response = make_response(result(
                 "6ft focus enabled." if focus == "6ft" else "Default 25% 6ft / 75% 7ft queue restored."
             ))
-            # Remember this station's preference without extending its login session.
+            # Remember this station's queue preference for future visits.
             response.set_cookie(
                 focus_cookie, focus, max_age=365 * 24 * 60 * 60,
                 httponly=True, samesite="Lax",

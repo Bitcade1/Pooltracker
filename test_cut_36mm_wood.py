@@ -137,12 +137,39 @@ class Cut36mmWoodTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(18, tracker.cut_36mm_wood_counts()['6_long'])
 
-    def test_logged_out_requests_cannot_change_stock(self):
+    def test_logged_out_page_polling_and_stock_updates_work(self):
         with self.client.session_transaction() as login_session:
             login_session.clear()
-        self.assertEqual(401, self.post(key_code='1').status_code)
-        self.assertEqual(302, self.client.get('/counting_cut_36mm_wood').status_code)
-        self.assertEqual(0, tracker.PrintedPartsCount.query.count())
+        page = self.client.get('/counting_cut_36mm_wood')
+        self.assertEqual(200, page.status_code)
+        self.assertNotIn(b'type="password"', page.data)
+        response = self.post(key_code='1')
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(8, response.json['counts']['6_long'])
+        self.assertTrue(response.json['log'])
+        refresh = self.client.get(
+            '/counting_cut_36mm_wood', headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(200, refresh.status_code)
+        self.assertEqual(response.json['counts'], refresh.json['counts'])
+        with self.client.session_transaction() as login_session:
+            self.assertNotIn('worker', login_session)
+
+    def test_logged_out_forms_and_queue_focus_work_without_unlocking_other_pages(self):
+        with self.client.session_transaction() as login_session:
+            login_session.clear()
+        response = self.client.post('/counting_cut_36mm_wood', data={
+            'action': 'set', 'part_key': '6_long', 'amount': '12',
+        }, follow_redirects=True)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(12, tracker.cut_36mm_wood_counts()['6_long'])
+        response = self.post(action='set_focus', focus='6ft')
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('6ft', response.json['cnc_queue']['focus'])
+        self.assertEqual('6ft', self.client.get_cookie('cut_36mm_queue_focus').value)
+        self.assertEqual(302, self.client.get('/counting_wood').status_code)
+        with self.client.session_transaction() as login_session:
+            self.assertNotIn('worker', login_session)
 
     def test_inventory_and_api_expose_new_parts(self):
         self.post(key_code='1')
