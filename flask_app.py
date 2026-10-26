@@ -1272,8 +1272,9 @@ def seed_cut_36mm_wood_parts():
             db.session.add(new_printed_parts_snapshot(part_name, 0, recorded_at))
 
 
-def cut_36mm_wood_log():
-    history = db.session.query(
+def cut_36mm_wood_history():
+    """Calculate changes before filtering dates so period baselines stay correct."""
+    return db.session.query(
         PrintedPartsCount.id,
         PrintedPartsCount.part_name,
         PrintedPartsCount.date,
@@ -1284,6 +1285,45 @@ def cut_36mm_wood_log():
             order_by=(PrintedPartsCount.date, PrintedPartsCount.time, PrintedPartsCount.id),
         ), 0)).label("delta"),
     ).filter(PrintedPartsCount.part_name.in_(CUT_36MM_WOOD_PART_NAMES)).subquery()
+
+
+def cut_36mm_wood_stats():
+    today = london_now().date()
+    periods = (
+        ("daily", "Daily stats", today, f"Today - {today:%d %b %Y}"),
+        ("weekly", "Weekly stats", today - timedelta(days=today.weekday()), "This week - Monday to today"),
+        ("monthly", "Monthly stats", today.replace(day=1), f"This month - {today:%B %Y}"),
+    )
+    history = cut_36mm_wood_history()
+    movements = db.session.query(
+        history.c.date, history.c.part_name,
+        func.sum(db.case((history.c.delta > 0, history.c.delta), else_=0)).label("added"),
+        func.sum(db.case((history.c.delta < 0, -history.c.delta), else_=0)).label("removed"),
+    ).filter(
+        history.c.date >= min(period[2] for period in periods),
+        history.c.date <= today,
+    ).group_by(history.c.date, history.c.part_name).all()
+    stats = []
+    names_to_keys = {name: part_key for part_key, name in CUT_36MM_WOOD_PARTS.items()}
+    for key, title, start, label in periods:
+        parts = {part_key: {"added": 0, "removed": 0} for part_key in CUT_36MM_WOOD_PARTS}
+        for movement in movements:
+            if movement.date >= start:
+                part = parts[names_to_keys[movement.part_name]]
+                part["added"] += movement.added
+                part["removed"] += movement.removed
+        stats.append({
+            "key": key, "title": title, "label": label,
+            "start": start.isoformat(), "end": today.isoformat(),
+            "added": sum(part["added"] for part in parts.values()),
+            "removed": sum(part["removed"] for part in parts.values()),
+            "parts": parts,
+        })
+    return stats
+
+
+def cut_36mm_wood_log():
+    history = cut_36mm_wood_history()
     entries = (
         db.session.query(history).filter(history.c.delta != 0)
         .order_by(history.c.date.desc(), history.c.time.desc(), history.c.id.desc())
@@ -7973,6 +8013,7 @@ def counting_cut_36mm_wood():
                 success=status == 200, message=message,
                 counts=counts, log=cut_36mm_wood_log(),
                 cnc_queue=build_cut_36mm_wood_queue(counts, focus),
+                stats=cut_36mm_wood_stats(),
             ), status
         flash(message, "success" if status == 200 else "error")
         return redirect(url_for('counting_cut_36mm_wood'))
@@ -8053,6 +8094,7 @@ def counting_cut_36mm_wood():
         response = jsonify(
             success=True, counts=counts, log=cut_36mm_wood_log(),
             cnc_queue=build_cut_36mm_wood_queue(counts, focus),
+            stats=cut_36mm_wood_stats(),
         )
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -8067,6 +8109,7 @@ def counting_cut_36mm_wood():
         parts=CUT_36MM_WOOD_PARTS, cnc_files=CUT_36MM_WOOD_FILES,
         remove_keys=CUT_36MM_WOOD_REMOVE_KEYS, wood_log=cut_36mm_wood_log(),
         cnc_queue=build_cut_36mm_wood_queue(counts, focus),
+        stats=cut_36mm_wood_stats(),
     )
 
 

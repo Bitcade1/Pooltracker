@@ -197,6 +197,59 @@ class Cut36mmWoodTests(unittest.TestCase):
         self.assertEqual(removed.json['cnc_queue'], refresh.json['cnc_queue'])
         self.assertEqual(0, tracker.CncQueueItem.query.count())
 
+    def test_stats_are_zero_without_movements_and_render_on_page(self):
+        response = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        self.assertEqual(['daily', 'weekly', 'monthly'], [period['key'] for period in response.json['stats']])
+        for period in response.json['stats']:
+            self.assertEqual(0, period['added'])
+            self.assertEqual(0, period['removed'])
+            self.assertEqual(set(tracker.CUT_36MM_WOOD_PARTS), set(period['parts']))
+        page = self.client.get('/counting_cut_36mm_wood')
+        for title in (b'Daily stats', b'Weekly stats', b'Monthly stats'):
+            self.assertIn(title, page.data)
+
+    def test_stats_track_cuts_corrections_and_removals_with_equal_timestamps(self):
+        recorded_at = datetime(2026, 10, 26, 12, 30)
+        with patch.object(tracker, 'london_now', return_value=recorded_at):
+            self.post(key_code='1')
+            self.post(key_code='1')
+            self.post(key_code='7')
+            self.post(action='adjust', part_key='6_long', amount='5')
+            response = self.post(action='set', part_key='6_long', amount='10')
+            for period in response.json['stats']:
+                self.assertEqual(27, period['added'])
+                self.assertEqual(11, period['removed'])
+                self.assertEqual({'added': 21, 'removed': 11}, period['parts']['6_long'])
+                self.assertEqual({'added': 6, 'removed': 0}, period['parts']['6_short'])
+            rejected = self.post(action='adjust', part_key='6_long', amount='-100')
+            self.assertEqual(400, rejected.status_code)
+            self.assertEqual(response.json['stats'], rejected.json['stats'])
+
+    def test_stats_use_calendar_periods_and_previous_period_baselines(self):
+        for recorded_at, form in [
+            (datetime(2026, 9, 27, 23, 59), {'action': 'set', 'part_key': '6_long', 'amount': '500'}),
+            (datetime(2026, 9, 28, 0, 0), {'action': 'adjust', 'part_key': '6_long', 'amount': '1'}),
+            (datetime(2026, 9, 30, 23, 59), {'action': 'adjust', 'part_key': '6_long', 'amount': '2'}),
+            (datetime(2026, 10, 1, 0, 0), {'action': 'adjust', 'part_key': '6_long', 'amount': '3'}),
+            (datetime(2026, 10, 2, 0, 0), {'action': 'adjust', 'part_key': '6_long', 'amount': '4'}),
+        ]:
+            with patch.object(tracker, 'london_now', return_value=recorded_at):
+                self.assertEqual(200, self.post(**form).status_code)
+        with patch.object(tracker, 'london_now', return_value=datetime(2026, 10, 1, 12)):
+            response = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
+        daily, weekly, monthly = response.json['stats']
+        self.assertEqual([3, 6, 3], [period['added'] for period in (daily, weekly, monthly)])
+        self.assertEqual('2026-09-28', weekly['start'])
+        self.assertEqual('2026-10-01', monthly['start'])
+        self.assertEqual('Today - 01 Oct 2026', daily['label'])
+
+    def test_stats_include_movements_beyond_the_visible_log(self):
+        with patch.object(tracker, 'london_now', return_value=datetime(2026, 10, 26, 12)):
+            for _ in range(51):
+                response = self.post(key_code='2')
+            self.assertEqual(50, len(response.json['log']))
+            self.assertEqual(51 * 16, response.json['stats'][0]['added'])
+
     def test_top_rail_shortcuts_consume_correct_wood_for_every_colour(self):
         for part_key in tracker.CUT_36MM_WOOD_PARTS:
             self.post(action='set', part_key=part_key, amount='10')

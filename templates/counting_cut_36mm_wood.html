@@ -10,8 +10,8 @@
         .panel { background: #fff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 18px; margin-top: 16px; }
         .panel h2 { margin: 0 0 12px; }
         .stock-grid, .quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-        .stock-card, .wood-queue-card { --cut-accent: #005cc5; --cut-soft: #eef5ff; }
-        .stock-card[data-size="6"], .wood-queue-card[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
+        .stock-card, .wood-queue-card, .stats-part { --cut-accent: #005cc5; --cut-soft: #eef5ff; }
+        .stock-card[data-size="6"], .wood-queue-card[data-size="6"], .stats-part[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
         .stock-card { background: var(--cut-soft); border: 1px solid var(--cut-accent); border-left-width: 8px; border-radius: 10px; padding: 14px; text-align: center; }
         .stock-card h2 { font-size: 1.2rem; font-weight: 800; color: #0b1c34; margin: 0 0 6px; }
         .stock-card > span { color: #334155; font-weight: 600; }
@@ -34,6 +34,20 @@
         #save-status.error { color: #9a1c29; background: #fff0f0; border-color: #d79ca2; }
         #save-status.success { color: #1b6b2f; }
         .queue-panel { border-color: #b9cde9; background: #f7faff; }
+        .queue-stats-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; margin-top: 16px; }
+        .queue-stats-layout > .queue-panel { margin-top: 0; min-width: 0; }
+        .stats-sidebar { display: grid; gap: 16px; min-width: 0; }
+        .stats-panel { margin-top: 0; min-width: 0; }
+        .stats-period { color: #475569; font-size: 0.95rem; margin: 0 0 16px; }
+        .stats-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .stats-total { background: #f7f7fb; border-radius: 8px; padding: 12px; color: #334155; }
+        .stats-total strong { display: block; font-size: clamp(2rem, 3vw, 3rem); line-height: 1.1; color: #0b1c34; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+        .stats-total span { display: block; margin-top: 6px; font-size: 0.95rem; }
+        .stats-table { width: 100%; min-width: 0; table-layout: fixed; }
+        .stats-table th, .stats-table td { padding: 10px 8px; text-align: right; white-space: normal; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+        .stats-table th:first-child { width: 42%; text-align: left; }
+        .stats-part { background: var(--cut-soft); }
+        .stats-part th { color: var(--cut-accent); }
         #queue-focus-form { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; background: #fff; border: 1px solid #dfe3eb; border-radius: 10px; padding: 14px; margin: 14px 0; }
         .focus-switch { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; font-size: 1.1rem; }
         #queue-focus-6ft { appearance: none; position: relative; width: 50px; height: 28px; flex: 0 0 50px; margin: 0; border: 2px solid #64748b; border-radius: 999px; background: #e2e8f0; cursor: pointer; }
@@ -74,6 +88,7 @@
         .delta-add { color: #1b7f2a; font-weight: bold; }
         .delta-remove { color: #b00020; font-weight: bold; }
         .menu-links { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 24px; }
+        @media (max-width: 900px) { .queue-stats-layout { grid-template-columns: 1fr; } }
         @media (max-width: 800px) { .stock-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (max-width: 540px) { .form-row { grid-template-columns: 1fr; } .wood-container { padding: 14px; } }
         @media (prefers-reduced-motion: reduce) { .stock-count.highlight, .queue-completion:not([hidden]), .wood-queue-card.is-next-up { animation: none; } }
@@ -98,6 +113,7 @@
         </div>
         <p id="save-status" role="status" aria-live="polite" hidden></p>
 
+        <div class="queue-stats-layout">
         <section class="panel queue-panel" aria-label="Upcoming CNC cuts">
             <form id="queue-focus-form" class="stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
                 <input type="hidden" name="action" value="set_focus">
@@ -136,6 +152,32 @@
             </ol>
             <p class="hint" id="queue-projected">After these 5 cuts: {{ cnc_queue.projected.sets_6ft }} complete 6ft sets and {{ cnc_queue.projected.sets_7ft }} complete 7ft sets. {% if cnc_queue.focus == '6ft' %}6ft focus is on; queued cuts add only 6ft pieces.{% else %}Batch sizes mean the mix may not be exactly 25% / 75% after every cut.{% endif %}</p>
         </section>
+        <aside class="stats-sidebar" aria-label="Wood stock statistics">
+            {% for period in stats %}
+            <section class="panel stats-panel" aria-labelledby="stats-{{ period.key }}-heading">
+                <h2 id="stats-{{ period.key }}-heading">{{ period.title }}</h2>
+                <p class="stats-period" id="stats-{{ period.key }}-period">{{ period.label }}</p>
+                <div class="stats-totals">
+                    <div class="stats-total"><strong id="stats-{{ period.key }}-added">{{ period.added }}</strong><span>Pieces added</span></div>
+                    <div class="stats-total"><strong id="stats-{{ period.key }}-removed">{{ period.removed }}</strong><span>Used / removed</span></div>
+                </div>
+                <table class="stats-table" aria-labelledby="stats-{{ period.key }}-heading">
+                    <thead><tr><th scope="col">Part</th><th scope="col">Added</th><th scope="col">Used / removed</th></tr></thead>
+                    <tbody>
+                        {% for part_key, totals in period.parts.items() %}
+                        <tr class="stats-part" data-size="{{ part_key.split('_')[0] }}">
+                            <th scope="row">{{ part_key.replace('_', 'ft ')|title }}</th>
+                            <td id="stats-{{ period.key }}-{{ part_key }}-added">{{ totals.added }}</td>
+                            <td id="stats-{{ period.key }}-{{ part_key }}-removed">{{ totals.removed }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+            {% endfor %}
+            <p class="hint">London time. Additions include CNC cuts and manual stock increases; removals include pieces used and stock corrections.</p>
+        </aside>
+        </div>
 
         <section class="panel">
             <h2>Log a CNC File Cut</h2>
@@ -263,6 +305,7 @@
                 }
             });
             if (updateQueue) renderQueue(data.cnc_queue);
+            renderStats(data.stats);
             const logBody = document.getElementById('wood-log-body');
             logBody.replaceChildren();
             data.log.forEach(entry => {
@@ -283,6 +326,19 @@
                 row.appendChild(cell);
                 logBody.appendChild(row);
             }
+        }
+
+        function renderStats(stats) {
+            stats.forEach(period => {
+                const prefix = 'stats-' + period.key + '-';
+                document.getElementById(prefix + 'period').textContent = period.label;
+                for (const metric of ['added', 'removed']) {
+                    document.getElementById(prefix + metric).textContent = period[metric];
+                    Object.entries(period.parts).forEach(([part, totals]) => {
+                        document.getElementById(prefix + part + '-' + metric).textContent = totals[metric];
+                    });
+                }
+            });
         }
 
         function renderQueue(queue) {
