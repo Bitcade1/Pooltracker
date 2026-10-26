@@ -183,8 +183,7 @@ class Cut36mmWoodTests(unittest.TestCase):
 
     def test_queue_is_below_totals_and_updates_after_counts_change(self):
         page = self.client.get('/counting_cut_36mm_wood')
-        self.assertLess(page.data.index(b'id="count-7_short"'), page.data.index(b'id="queue-heading"'))
-        self.assertIn(b'Automatic CNC Queue - Next 5 Cuts', page.data)
+        self.assertLess(page.data.index(b'id="count-7_short"'), page.data.index(b'id="cnc-queue-body"'))
         initial = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
         self.assertEqual('3', initial.json['cnc_queue']['cuts'][0]['key_code'])
         cut = self.post(key_code='3')

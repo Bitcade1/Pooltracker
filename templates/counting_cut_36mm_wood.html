@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         .wood-container { text-align: left; }
-        .wood-container h1 { text-align: center; }
         .panel { background: #fff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 18px; margin-top: 16px; }
         .panel h2 { margin: 0 0 12px; }
         .stock-grid, .quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
@@ -32,7 +31,6 @@
         #save-status.error { color: #9a1c29; background: #fff0f0; border-color: #d79ca2; }
         #save-status.success { color: #1b6b2f; }
         .queue-panel { border-color: #b9cde9; background: #f7faff; }
-        .queue-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 14px 0; }
         #queue-focus-form { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; background: #fff; border: 1px solid #dfe3eb; border-radius: 10px; padding: 14px; margin: 14px 0; }
         .focus-switch { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; font-size: 1.1rem; }
         #queue-focus-6ft { appearance: none; position: relative; width: 50px; height: 28px; flex: 0 0 50px; margin: 0; border: 2px solid #64748b; border-radius: 999px; background: #e2e8f0; cursor: pointer; }
@@ -81,7 +79,6 @@
 </head>
 <body>
     <main class="container wood-container">
-        <h1>Counting Cut 36mm Wood</h1>
         <p class="hint">Log a completed CNC file to add all its pieces. Counts save immediately.</p>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
@@ -100,8 +97,7 @@
         </div>
         <p id="save-status" role="status" aria-live="polite">Ready. Press 1-4 to log a cut, or 7-0 to remove one piece.</p>
 
-        <section class="panel queue-panel" aria-labelledby="queue-heading">
-            <h2 id="queue-heading">Automatic CNC Queue - Next 5 Cuts</h2>
+        <section class="panel queue-panel" aria-label="Upcoming CNC cuts">
             <form id="queue-focus-form" class="stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
                 <input type="hidden" name="action" value="set_focus">
                 <label class="focus-switch" for="queue-focus-6ft">
@@ -110,13 +106,6 @@
                 </label>
                 <button type="submit" id="queue-focus-apply">Apply Focus</button>
             </form>
-            <p class="hint">Your focus preference is saved on this browser.</p>
-            <p class="hint" id="queue-focus-description">{{ cnc_queue.description }}</p>
-            <div class="queue-summary" aria-label="Complete sets in stock">
-                <span id="queue-current-6">6ft: <strong>{{ cnc_queue.current.sets_6ft }}</strong> complete sets ({{ cnc_queue.current.percent_6ft }}%)</span>
-                <span id="queue-current-7">7ft: <strong>{{ cnc_queue.current.sets_7ft }}</strong> complete sets ({{ cnc_queue.current.percent_7ft }}%)</span>
-            </div>
-            <p class="hint">Follow the order below. Log each file only after it has been cut. The queue updates automatically whenever stock changes.</p>
             <p id="queue-save-status" role="status" aria-live="polite" hidden></p>
             <ol class="wood-queue-list" id="cnc-queue-body" aria-label="Upcoming CNC cuts">
                 {% for cut in cnc_queue.cuts %}
@@ -297,11 +286,7 @@
         function renderQueue(queue) {
             const next = queue.cuts[0];
             document.getElementById('queue-focus-6ft').checked = queue.focus === '6ft';
-            document.getElementById('queue-focus-description').textContent = queue.description;
             document.getElementById('queue-next-key').value = next.key_code;
-            for (const size of ['6', '7']) {
-                document.getElementById('queue-current-' + size).textContent = `${size}ft: ${queue.current['sets_' + size + 'ft']} complete sets (${queue.current['percent_' + size + 'ft']}%)`;
-            }
             const focusNote = queue.focus === '6ft' ? '6ft focus is on; queued cuts add only 6ft pieces.' : 'Batch sizes mean the mix may not be exactly 25% / 75% after every cut.';
             document.getElementById('queue-projected').textContent = `After these 5 cuts: ${queue.projected.sets_6ft} complete 6ft sets and ${queue.projected.sets_7ft} complete 7ft sets. ${focusNote}`;
             const cards = document.querySelectorAll('#cnc-queue-body .wood-queue-card');
