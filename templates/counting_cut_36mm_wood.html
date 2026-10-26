@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Counting Cut 36mm Wood</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v=page_revision) }}">
     <style>
         .wood-container { text-align: left; }
         .panel { background: #fff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 18px; margin-top: 16px; }
@@ -270,6 +270,7 @@
     </main>
     <script>
         const countingUrl = {{ url_for('counting_cut_36mm_wood')|tojson }};
+        const pageRevision = {{ page_revision|tojson }};
         const shortcutKeys = {{ (cnc_files.keys()|list + remove_keys.keys()|list)|tojson }};
         const cncFiles = {{ cnc_files|tojson }};
         const statusElement = document.getElementById('save-status');
@@ -277,6 +278,17 @@
         const nextButton = document.getElementById('queue-log-next');
         let requestQueue = Promise.resolve();
         let pendingRequests = 0;
+        let pageUpdateAvailable = false;
+        const savedManualEntries = new Map();
+
+        function reloadUpdatedPageWhenIdle() {
+            if (!pageUpdateAvailable || pendingRequests || document.hidden) return;
+            if (document.activeElement.closest('input:not([type="checkbox"]), select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+            if ([...document.querySelectorAll('.form-row input[type="number"]')].some(input =>
+                input.value !== '' && savedManualEntries.get(input.form) !== new URLSearchParams(new FormData(input.form)).toString()
+            )) return;
+            window.location.reload();
+        }
 
         function showStatus(message, kind = '') {
             statusElement.hidden = false;
@@ -395,12 +407,20 @@
                         signal: AbortSignal.timeout(15000),
                     });
                     const data = await response.json();
+                    if (response.ok && response.headers.get('X-Pool-Tracker') === 'ready' && data.page_revision && data.page_revision !== pageRevision) {
+                        pageUpdateAvailable = true;
+                        if (!body) return;
+                    }
                     const savedCut = response.ok && data.success && isCut;
                     if (data.counts) renderStock(data, !savedCut);
                     if (!response.ok || !data.success) {
                         showStatus(data.message || 'Unable to save the count.', 'error');
                         showQueueStatus(data.message || 'Unable to save the count.', 'error');
                     } else if (body) {
+                        if (['adjust', 'set'].includes(body.get('action'))) {
+                            const form = document.getElementById(body.get('action') + '-amount').form;
+                            savedManualEntries.set(form, body.toString());
+                        }
                         showStatus(data.message, 'success');
                         if (savedCut) await confirmCut(cutKey, data);
                         else showQueueStatus(data.message, 'success');
@@ -413,6 +433,7 @@
                     pendingRequests -= 1;
                     nextButton.textContent = 'Log Next Cut';
                     if (!pendingRequests) nextButton.disabled = false;
+                    reloadUpdatedPageWhenIdle();
                 }
             });
         }
@@ -437,6 +458,9 @@
         setInterval(() => {
             if (!pendingRequests && !document.hidden) queueRequest();
         }, 10000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !pendingRequests) queueRequest();
+        });
     </script>
 </body>
 </html>

@@ -14,6 +14,7 @@ import csv
 import json
 import uuid
 import html as html_lib
+import hashlib
 import zipfile
 from xml.etree import ElementTree
 from math import ceil, floor
@@ -1159,6 +1160,15 @@ def current_printed_part_inventory(part_name):
     if hardware_part:
         return hardware_part.name, hardware_part.initial_count or 0
     return part_name, 0
+
+
+def cut_36mm_wood_page_revision():
+    """Let open CNC screens detect deployed template and stylesheet changes."""
+    digest = hashlib.sha256()
+    for relative_path in ("templates/counting_cut_36mm_wood.html", "static/styles.css"):
+        with open(os.path.join(basedir, relative_path), "rb") as source:
+            digest.update(source.read())
+    return digest.hexdigest()
 
 
 def cut_36mm_wood_counts():
@@ -8014,6 +8024,7 @@ def counting_cut_36mm_wood():
                 counts=counts, log=cut_36mm_wood_log(),
                 cnc_queue=build_cut_36mm_wood_queue(counts, focus),
                 stats=cut_36mm_wood_stats(),
+                page_revision=cut_36mm_wood_page_revision(),
             ), status
         flash(message, "success" if status == 200 else "error")
         return redirect(url_for('counting_cut_36mm_wood'))
@@ -8095,6 +8106,7 @@ def counting_cut_36mm_wood():
             success=True, counts=counts, log=cut_36mm_wood_log(),
             cnc_queue=build_cut_36mm_wood_queue(counts, focus),
             stats=cut_36mm_wood_stats(),
+            page_revision=cut_36mm_wood_page_revision(),
         )
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -8110,6 +8122,7 @@ def counting_cut_36mm_wood():
         remove_keys=CUT_36MM_WOOD_REMOVE_KEYS, wood_log=cut_36mm_wood_log(),
         cnc_queue=build_cut_36mm_wood_queue(counts, focus),
         stats=cut_36mm_wood_stats(),
+        page_revision=cut_36mm_wood_page_revision(),
     )
 
 

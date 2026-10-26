@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -196,6 +197,40 @@ class Cut36mmWoodTests(unittest.TestCase):
         refresh = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
         self.assertEqual(removed.json['cnc_queue'], refresh.json['cnc_queue'])
         self.assertEqual(0, tracker.CncQueueItem.query.count())
+
+    def test_page_revision_changes_with_template_and_stylesheet_contents(self):
+        with tempfile.TemporaryDirectory() as folder:
+            os.makedirs(os.path.join(folder, 'templates'))
+            os.makedirs(os.path.join(folder, 'static'))
+            template = os.path.join(folder, 'templates', 'counting_cut_36mm_wood.html')
+            stylesheet = os.path.join(folder, 'static', 'styles.css')
+            with open(template, 'w') as source:
+                source.write('original layout')
+            with open(stylesheet, 'w') as source:
+                source.write('original styles')
+            with patch.object(tracker, 'basedir', folder):
+                original = tracker.cut_36mm_wood_page_revision()
+                self.assertEqual(original, tracker.cut_36mm_wood_page_revision())
+                with open(template, 'w') as source:
+                    source.write('updated layout')
+                updated_template = tracker.cut_36mm_wood_page_revision()
+                self.assertNotEqual(original, updated_template)
+                with open(stylesheet, 'w') as source:
+                    source.write('updated styles')
+                self.assertNotEqual(updated_template, tracker.cut_36mm_wood_page_revision())
+
+    def test_page_and_live_responses_share_revision_and_bypass_stale_cache(self):
+        with patch.object(tracker, 'cut_36mm_wood_page_revision', return_value='test-revision'):
+            page = self.client.get('/counting_cut_36mm_wood')
+            self.assertIn(b'styles.css?v=test-revision', page.data)
+            self.assertIn(b'const pageRevision = "test-revision";', page.data)
+            self.assertIn('no-store', page.headers['Cache-Control'])
+            for response in (
+                self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'}),
+                self.post(key_code='1'),
+            ):
+                self.assertEqual('test-revision', response.json['page_revision'])
+                self.assertEqual('ready', response.headers['X-Pool-Tracker'])
 
     def test_stats_are_zero_without_movements_and_render_on_page(self):
         response = self.client.get('/counting_cut_36mm_wood', headers={'Accept': 'application/json'})
