@@ -79,7 +79,6 @@
 </head>
 <body>
     <main class="container wood-container">
-        <p class="hint">Log a completed CNC file to add all its pieces. Counts save immediately.</p>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
                 <p class="flash {{ category }}">{{ message }}</p>
@@ -95,7 +94,7 @@
             </section>
             {% endfor %}
         </div>
-        <p id="save-status" role="status" aria-live="polite">Ready. Press 1-4 to log a cut, or 7-0 to remove one piece.</p>
+        <p id="save-status" role="status" aria-live="polite" hidden></p>
 
         <section class="panel queue-panel" aria-label="Upcoming CNC cuts">
             <form id="queue-focus-form" class="stock-form" method="POST" action="{{ url_for('counting_cut_36mm_wood') }}">
@@ -225,6 +224,7 @@
         let pendingRequests = 0;
 
         function showStatus(message, kind = '') {
+            statusElement.hidden = false;
             statusElement.textContent = message;
             statusElement.className = kind;
         }
