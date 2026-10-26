@@ -10,9 +10,12 @@
         .panel { background: #fff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 18px; margin-top: 16px; }
         .panel h2 { margin: 0 0 12px; }
         .stock-grid, .quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-        .stock-card { background: #f7f7fb; border: 1px solid #dfe3eb; border-radius: 10px; padding: 18px; text-align: center; }
-        .stock-card h2 { font-size: 1.1em; margin: 0 0 10px; }
-        .stock-count { display: block; font-size: 3em; font-weight: bold; color: #111; }
+        .stock-card, .wood-queue-card { --cut-accent: #005cc5; --cut-soft: #eef5ff; }
+        .stock-card[data-size="6"], .wood-queue-card[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
+        .stock-card { background: var(--cut-soft); border: 1px solid var(--cut-accent); border-left-width: 8px; border-radius: 10px; padding: 14px; text-align: center; }
+        .stock-card h2 { font-size: 1.2rem; font-weight: 800; color: #0b1c34; margin: 0 0 6px; }
+        .stock-card > span { color: #334155; font-weight: 600; }
+        .stock-count { display: block; font-size: clamp(3.5rem, 5vw, 5rem); line-height: 1.05; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--cut-accent); margin-bottom: 6px; overflow-wrap: anywhere; }
         .stock-count.highlight { animation: highlight 1.5s ease; }
         @keyframes highlight { from { background-color: #c6f7c6; } to { background-color: transparent; } }
         .quick-grid { margin-top: 12px; }
@@ -39,8 +42,7 @@
         #queue-focus-6ft:checked::before { transform: translateX(22px); }
         #queue-focus-6ft:focus-visible { outline: 3px solid #005cc5; outline-offset: 3px; }
         .wood-queue-list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 18px 0; padding: 0; }
-        .wood-queue-card { --cut-accent: #005cc5; --cut-soft: #eef5ff; position: relative; border: 1px solid #cbd5e1; border-left: 8px solid var(--cut-accent); border-radius: 10px; background: #fff; padding: 18px; text-align: center; }
-        .wood-queue-card[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
+        .wood-queue-card { position: relative; border: 1px solid #cbd5e1; border-left: 8px solid var(--cut-accent); border-radius: 10px; background: #fff; padding: 18px; text-align: center; }
         .wood-queue-card.is-current { background: var(--cut-soft); border-color: var(--cut-accent); box-shadow: 0 0 0 2px var(--cut-soft); }
         .wood-queue-number { display: inline-block; min-width: 72px; padding: 6px 14px; border-radius: 999px; background: var(--cut-soft); color: var(--cut-accent); font-size: 1.05rem; font-weight: 800; }
         .wood-queue-card.is-current .wood-queue-number { background: var(--cut-accent); color: #fff; }
@@ -87,7 +89,7 @@
 
         <div class="stock-grid" aria-label="Current wood stock">
             {% for key in parts %}
-            <section class="stock-card">
+            <section class="stock-card" data-size="{{ key.split('_')[0] }}">
                 <h2>{{ key.replace('_', 'ft ')|title }}</h2>
                 <output class="stock-count" id="count-{{ key }}">{{ counts[key] }}</output>
                 <span>pieces in stock</span>
