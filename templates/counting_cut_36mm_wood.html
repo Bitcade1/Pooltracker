@@ -10,8 +10,12 @@
         .panel { background: #fff; border: 1px solid #e7e7ee; border-radius: 10px; padding: 18px; margin-top: 16px; }
         .panel h2 { margin: 0 0 12px; }
         .stock-grid, .quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-        .stock-card, .wood-queue-card, .stats-part { --cut-accent: #005cc5; --cut-soft: #eef5ff; }
-        .stock-card[data-size="6"], .wood-queue-card[data-size="6"], .stats-part[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
+        .stock-size, .stock-card, .wood-queue-card, .stats-part { --cut-accent: #005cc5; --cut-soft: #eef5ff; }
+        .stock-size[data-size="6"], .stock-card[data-size="6"], .wood-queue-card[data-size="6"], .stats-part[data-size="6"] { --cut-accent: #0f7b6c; --cut-soft: #ecfffb; }
+        .stock-size { grid-column: span 2; min-width: 0; }
+        .stock-size-parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .rail-capacity { margin-top: 8px; padding: 10px; border: 1px solid var(--cut-accent); border-radius: 10px; background: var(--cut-soft); color: var(--cut-accent); text-align: center; font-weight: 700; }
+        .rail-capacity strong { font-size: 1.5rem; font-variant-numeric: tabular-nums; margin-left: 6px; }
         .stock-card { background: var(--cut-soft); border: 1px solid var(--cut-accent); border-left-width: 8px; border-radius: 10px; padding: 14px; text-align: center; }
         .stock-card h2 { font-size: 1.2rem; font-weight: 800; color: #0b1c34; margin: 0 0 6px; }
         .stock-card > span { color: #334155; font-weight: 600; }
@@ -103,12 +107,19 @@
         {% endwith %}
 
         <div class="stock-grid" aria-label="Current wood stock">
-            {% for key in parts %}
-            <section class="stock-card" data-size="{{ key.split('_')[0] }}">
-                <h2>{{ key.replace('_', 'ft ')|title }}</h2>
-                <output class="stock-count" id="count-{{ key }}">{{ counts[key] }}</output>
-                <span>pieces in stock</span>
-            </section>
+            {% for size in ['6', '7'] %}
+            <div class="stock-size" data-size="{{ size }}">
+                <div class="stock-size-parts">
+                    {% for key in parts if key.split('_')[0] == size %}
+                    <section class="stock-card" data-size="{{ size }}">
+                        <h2>{{ key.replace('_', 'ft ')|title }}</h2>
+                        <output class="stock-count" id="count-{{ key }}">{{ counts[key] }}</output>
+                        <span>pieces in stock</span>
+                    </section>
+                    {% endfor %}
+                </div>
+                <div class="rail-capacity">Complete {{ size }}ft top rails: <strong id="rail-capacity-{{ size }}">{{ cnc_queue.current['sets_' ~ size ~ 'ft'] }}</strong></div>
+            </div>
             {% endfor %}
         </div>
         <p id="save-status" role="status" aria-live="polite" hidden></p>
@@ -304,6 +315,9 @@
                     output.classList.add('highlight');
                 }
             });
+            for (const size of ['6', '7']) {
+                document.getElementById('rail-capacity-' + size).textContent = data.cnc_queue.current['sets_' + size + 'ft'];
+            }
             if (updateQueue) renderQueue(data.cnc_queue);
             renderStats(data.stats);
             const logBody = document.getElementById('wood-log-body');
