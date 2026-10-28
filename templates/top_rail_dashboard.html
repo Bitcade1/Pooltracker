@@ -388,13 +388,16 @@
         text-shadow: 0 3px 14px rgba(0, 0, 0, 0.55);
     }
 
-    .goal-celebration-card img {
+    #goalCelebrationImage {
         width: min(96vw, 1400px);
         height: min(72vh, 900px);
         border-radius: 16px;
         object-fit: contain;
         box-shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
     }
+
+    .giphy-attribution { margin-top: 12px; }
+    .giphy-attribution img { width: 200px; height: auto; }
 
     .warning-banner {
         background: #ffebee;
@@ -610,7 +613,8 @@
         <div class="goal-celebration-card">
             <h2 id="goalCelebrationTitle">Target Hit</h2>
             <p id="goalCelebrationText">Top rail goal completed.</p>
-            <img id="goalCelebrationImage" src="https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif" alt="Schwarzenegger celebration GIF">
+            <img id="goalCelebrationImage" alt="Random Terminator celebration GIF">
+            <a id="goalCelebrationAttribution" class="giphy-attribution" href="https://giphy.com/" target="_blank" rel="noopener noreferrer" hidden><img src="{{ url_for('static', filename='giphy-powered-by.png') }}" alt="Powered By GIPHY"></a>
         </div>
     </div>
 
@@ -742,14 +746,23 @@
     const celebrationTitle = document.getElementById("goalCelebrationTitle");
     const celebrationText = document.getElementById("goalCelebrationText");
     const celebrationImage = document.getElementById("goalCelebrationImage");
+    const celebrationAttribution = document.getElementById("goalCelebrationAttribution");
+    const celebrationConfigUrl = {{ url_for('top_rail_celebration_config')|tojson }};
+    const lastGiphyIdKey = "top-rail-last-giphy-id";
+    let lastGiphyId = "";
+    let celebrationSequence = 0;
+    let celebrationTimer = null;
     const lastCelebrationGifKey = "top-rail-last-celebration-gif";
     const celebrationGifs = [
-        "https://media1.tenor.com/m/pQCgYKbf6cwAAAAC/schwarzenegger.gif",
-        "https://media1.tenor.com/m/4gwgdvPrIxUAAAAC/just-flexing-arnold-schwarzenegger.gif",
-        "https://media1.tenor.com/m/gNVtdIjW3mQAAAAC/terminator-smiling.gif",
-        "https://media1.tenor.com/m/QoT40TO0_FEAAAAC/bodybuilder-bodybuilding.gif",
-        "https://media1.tenor.com/m/viod1pQpctkAAAAC/arnold-schwarzenegger-stare.gif"
+        "https://media1.tenor.com/m/DacuQaDO6tMAAAAC/smile-terminator.gif",
+        "https://media1.tenor.com/m/rTfKvfyoVSAAAAAC/terminator-thumbsup.gif",
+        "https://media1.tenor.com/m/awk8kZEgztcAAAAC/ill-be-back-terminator.gif",
+        "https://media1.tenor.com/m/9Inc5QGyQoIAAAAC/terminator-star-glasses.gif",
+        "https://media1.tenor.com/m/UO7JAFOUkJwAAAAC/terminator-arnold-schwarzenegger.gif",
+        "https://media1.tenor.com/m/aqj1pH1RuFIAAAAC/who-me-terminator-skynet.gif",
+        "https://media1.tenor.com/m/-4BgMeWWxeoAAAAC/terminator-endoskeleton.gif"
     ];
+    let lastCelebrationGif = "";
 
     function readShownCelebrations() {
         try {
@@ -772,16 +785,17 @@
     }
 
     function randomCelebrationGif() {
-        let lastGif = "";
+        let lastGif = lastCelebrationGif;
         try {
-            lastGif = localStorage.getItem(lastCelebrationGifKey) || "";
+            lastGif = localStorage.getItem(lastCelebrationGifKey) || lastGif;
         } catch (error) {
-            lastGif = "";
+            // Keep avoiding repeats when browser storage is unavailable.
         }
 
         const gifPool = celebrationGifs.filter((gif) => gif !== lastGif);
         const availableGifs = gifPool.length ? gifPool : celebrationGifs;
         const selectedGif = availableGifs[Math.floor(Math.random() * availableGifs.length)];
+        lastCelebrationGif = selectedGif;
 
         try {
             localStorage.setItem(lastCelebrationGifKey, selectedGif);
@@ -792,7 +806,55 @@
         return selectedGif;
     }
 
-    function showCelebration(title, message, imageUrl) {
+    async function freshCelebrationGif() {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 6000);
+        try {
+            const configResponse = await fetch(celebrationConfigUrl, { cache: "no-store", signal: controller.signal });
+            if (!configResponse.ok) throw new Error("GIF configuration unavailable");
+            const config = await configResponse.json();
+            if (!config.api_key) throw new Error("GIPHY is not configured");
+            try {
+                lastGiphyId = localStorage.getItem(lastGiphyIdKey) || lastGiphyId;
+            } catch (error) {
+                // Remember the last ID in memory if storage is unavailable.
+            }
+            const endpoint = new URL("https://api.giphy.com/v1/gifs/random");
+            endpoint.search = new URLSearchParams({ api_key: config.api_key, tag: "terminator", rating: "pg-13" });
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                const response = await fetch(endpoint, { cache: "no-store", signal: controller.signal });
+                if (!response.ok) throw new Error("GIPHY unavailable");
+                const result = await response.json();
+                const gif = result.data;
+                if (!gif || !gif.id || !gif.images) throw new Error("No GIF returned");
+                if (gif.id === lastGiphyId) continue;
+                const image = [gif.images.downsized, gif.images.fixed_height, gif.images.original].find(value => value && value.url);
+                const imageUrl = new URL(image.url);
+                if (imageUrl.protocol !== "https:" || !imageUrl.hostname.endsWith(".giphy.com")) throw new Error("Invalid GIF URL");
+                return { url: image.url, id: gif.id };
+            }
+        } catch (error) {
+            // Keep the celebration working during outages or API rate limits.
+        } finally {
+            window.clearTimeout(timeout);
+        }
+        return { url: randomCelebrationGif() };
+    }
+
+    function loadCelebrationImage(url) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            const timeout = window.setTimeout(() => {
+                image.src = "";
+                reject(new Error("GIF loading timed out"));
+            }, 6000);
+            image.onload = () => { window.clearTimeout(timeout); resolve(); };
+            image.onerror = () => { window.clearTimeout(timeout); reject(new Error("GIF loading failed")); };
+            image.src = url;
+        });
+    }
+
+    async function showCelebration(title, message) {
         if (!celebrationOverlay) {
             return;
         }
@@ -803,14 +865,33 @@
         if (celebrationText) {
             celebrationText.textContent = message;
         }
-        if (celebrationImage) {
-            celebrationImage.src = imageUrl;
-        }
-
+        const sequence = ++celebrationSequence;
+        window.clearTimeout(celebrationTimer);
+        celebrationImage.hidden = true;
+        celebrationAttribution.hidden = true;
         document.body.classList.add("goal-celebration-active");
         celebrationOverlay.classList.add("is-visible");
 
-        window.setTimeout(function () {
+        let gif = await freshCelebrationGif();
+        try {
+            await loadCelebrationImage(gif.url);
+        } catch (error) {
+            gif = { url: randomCelebrationGif() };
+        }
+        if (sequence !== celebrationSequence) return;
+        celebrationImage.src = gif.url;
+        celebrationImage.hidden = false;
+        celebrationAttribution.hidden = !gif.id;
+        if (gif.id) {
+            lastGiphyId = gif.id;
+            try {
+                localStorage.setItem(lastGiphyIdKey, gif.id);
+            } catch (error) {
+                // Avoid repeats in memory when storage is unavailable.
+            }
+        }
+
+        celebrationTimer = window.setTimeout(function () {
             celebrationOverlay.classList.remove("is-visible");
             document.body.classList.remove("goal-celebration-active");
         }, 30000);
@@ -826,8 +907,7 @@
             "Target Hit",
             goals.length === 1
                 ? `${names} completed their top rail goal.`
-                : `${names} completed their top rail goals.`,
-            randomCelebrationGif()
+                : `${names} completed their top rail goals.`
         );
         return true;
     }
@@ -858,8 +938,7 @@
 
         showCelebration(
             `${milestone} Top Rails`,
-            `${milestone} top rails completed this month.`,
-            randomCelebrationGif()
+            `${milestone} top rails completed this month.`
         );
         return true;
     }

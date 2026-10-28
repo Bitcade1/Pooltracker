@@ -9,3 +9,4 @@ pool_table_tracker.db.backup-*
 rclone.conf
 pooltracker-backup.env
 .env.backup
+/giphy_settings.py

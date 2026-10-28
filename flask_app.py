@@ -36,6 +36,8 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+app.config.from_pyfile(os.path.join(basedir, 'giphy_settings.py'), silent=True)
+app.config['GIPHY_API_KEY'] = os.environ.get('GIPHY_API_KEY', app.config.get('GIPHY_API_KEY', ''))
 STOCK_SNAPSHOT_INDEX_FILE = os.path.join(basedir, "stock_costs_snapshots.json")
 STOCK_SNAPSHOT_DELETED_WEEKS_FILE = os.path.join(basedir, "stock_costs_deleted_snapshot_weeks.json")
 STOCK_SNAPSHOT_DIR = os.path.join(basedir, "stock_costs_snapshots")
@@ -13490,6 +13492,14 @@ def add_year_on_year_change(stats):
     stats["year_change_label"] = label
     stats["year_change_class"] = change_class
     return stats
+
+
+@app.route('/top_rail_dashboard/celebration_config')
+def top_rail_celebration_config():
+    # GIPHY requires browser-side API calls. Keep configuration out of Git and HTML.
+    response = jsonify(api_key=current_app.config.get('GIPHY_API_KEY', ''))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @app.route('/top_rail_dashboard')
