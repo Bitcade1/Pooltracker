@@ -630,7 +630,7 @@ def build_requirements(items, config):
             "quantity": quantity,
             "po_number": "",
             "description": "Extra top rails sent early",
-            "notes": "To be deducted from a later delivery",
+            "notes": "Available to deduct from a later delivery when selected",
             "source_file": "",
             "origin_type": "top_rail_extra",
         })

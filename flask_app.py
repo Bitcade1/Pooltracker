@@ -4127,31 +4127,6 @@ def packaging_rail_balance_payload(balance):
     ]
 
 
-def packaging_auto_rail_carryovers(items):
-    """Apply as much outstanding rail credit as the new delivery can absorb."""
-    outstanding = packaging_top_rail_balance()
-    if not outstanding:
-        return []
-    base_config = normalise_packaging_config({})
-    requirements = build_packaging_requirements(
-        normalise_packaging_items(items), base_config
-    )
-    available = defaultdict(int)
-    for line in requirements["top_rails"]:
-        available[(line.get("size"), line.get("colour"))] += line.get("quantity", 0)
-    carryovers = []
-    for (size, colour), owed_quantity in sorted(outstanding.items()):
-        quantity = min(owed_quantity, available[(size, colour)])
-        if quantity:
-            carryovers.append({
-                "id": f"rail-carryover-{uuid.uuid4().hex[:12]}",
-                "size": size,
-                "colour": colour,
-                "quantity": quantity,
-            })
-    return carryovers
-
-
 def validate_packaging_rail_carryovers(config, current_job_id=None):
     outstanding = packaging_top_rail_balance(exclude_job_id=current_job_id)
     requested = defaultdict(int)
@@ -4177,7 +4152,7 @@ def validate_packaging_rail_adjustments_locked(job, config):
     for key in ("top_rail_extras", "top_rail_carryovers"):
         if config.get(key, []) != existing.get(key, []):
             raise ValueError(
-                "Extra top rails and next-delivery deductions cannot be changed "
+                "Extra top rails and delivery deductions cannot be changed "
                 "after stock has been processed."
             )
 
@@ -4564,9 +4539,7 @@ def invoice_packaging():
         extraction_warnings = upload_warnings + extraction_warnings
         now = london_now().replace(tzinfo=None)
         default_title = f"Packaging plan - {now.strftime('%d %b %Y %H:%M')}"
-        initial_config = normalise_packaging_config({
-            "top_rail_carryovers": packaging_auto_rail_carryovers(items),
-        })
+        initial_config = normalise_packaging_config({})
         job = InvoicePackagingJob(
             title=(request.form.get("title") or default_title).strip()[:160],
             created_by=session["worker"],
@@ -4859,7 +4832,7 @@ def remove_invoice_packaging_from_stock(job_id):
             < dispatch_requirements["top_rail_carryover_requested"]
         ):
             raise ValueError(
-                "The next-delivery top-rail deduction is greater than the matching "
+                "The delivery top-rail deduction is greater than the matching "
                 "rails on this delivery. Update the deduction before processing stock."
             )
         stock_rows = {}
