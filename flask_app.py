@@ -14104,38 +14104,31 @@ def body_dashboard_view():
         goal for goal in combined_bonus_progress
         if normalize_bonus_worker_name(goal.get("worker")) != "james"
     ]
-    current_body_goals = [
+    monthly_body_goals = [
         goal for goal in bonus_goal_progress("bodies", today.year, today.month)
-        if normalize_bonus_worker_name(goal.get("worker")) not in {"tomf", "james"}
+        if normalize_bonus_worker_name(goal.get("worker")) != "tomf"
     ]
+    current_body_goals = [
+        goal for goal in monthly_body_goals
+        if normalize_bonus_worker_name(goal.get("worker")) != "james"
+    ]
+    # The monthly team goal uses the same production total as the month card.
+    # Individual deficits, carryover and next-month bonuses stay on worker cards.
     combined_body_goal_target = sum(
         int(goal.get("target", 0) or 0)
-        for goal in combined_bonus_progress
+        for goal in monthly_body_goals
     )
-    combined_body_goal_remaining = sum(
-        int(goal.get("remaining", 0) or 0)
-        for goal in combined_bonus_progress
-    )
-    combined_body_goal_periods = {
-        (int(goal.get("period_year")), int(goal.get("period_month")))
-        for goal in combined_bonus_progress
-        if goal.get("period_year") and goal.get("period_month")
-    }
+    combined_body_goal_remaining = max(combined_body_goal_target - stats["monthly"], 0)
     combined_body_goal = None
     if combined_body_goal_target:
         combined_body_goal = {
             "target": combined_body_goal_target,
             "remaining": combined_body_goal_remaining,
             "target_hit": combined_body_goal_remaining <= 0,
+            "period_year": today.year,
+            "period_month": today.month,
+            "period_label": bonus_goal_month_label(today.year, today.month),
         }
-        if len(combined_body_goal_periods) == 1:
-            goal_year, goal_month = next(iter(combined_body_goal_periods))
-            combined_body_goal["period_year"] = goal_year
-            combined_body_goal["period_month"] = goal_month
-            combined_body_goal["period_label"] = bonus_goal_month_label(
-                goal_year,
-                goal_month,
-            )
     body_goal_celebrations = []
     seen_body_goal_celebration_keys = set()
     for goal in current_body_goals:
