@@ -149,6 +149,30 @@
         grid-column: 1 / -1;
     }
 
+    .credit-form {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .credit-form p {
+        flex-basis: 100%;
+        margin: 0;
+    }
+
+    .credit-selection {
+        width: 72px;
+        text-align: center;
+    }
+
+    .credit-selection input {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+    }
+
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -405,6 +429,12 @@
         </div>
     </header>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <p class="flash {{ category }}" role="status">{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+
     <section class="history-panel">
         <div class="panel-header">
             <div>
@@ -650,10 +680,31 @@
         </summary>
         <div class="panel-body">
             {% if completed_sets %}
+                {% if filters.worker %}
+                    <form class="credit-form" id="cushion-credit-form" method="POST" action="{{ reassign_url }}">
+                        <input type="hidden" name="credit_token" value="{{ credit_token }}">
+                        <p>Select the completed sets below to change their credit from <strong>{{ filters.worker }}</strong>. Stock totals stay the same; the correction is recorded in the action log.</p>
+                        <label class="field">
+                            Assign credit to
+                            <select name="target_worker" required>
+                                <option value="">Choose a worker</option>
+                                {% for worker in credit_workers %}
+                                    {% if worker.name != filters.worker %}
+                                        <option value="{{ worker.name }}">{{ worker.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <button class="small-btn" type="submit">Reassign selected sets</button>
+                    </form>
+                {% else %}
+                    <p>To correct a worker's credit, filter to that worker first, then select the completed sets to reassign.</p>
+                {% endif %}
                 <div class="table-wrap">
                     <table class="data-table compact-table">
                         <thead>
                             <tr>
+                                {% if filters.worker %}<th class="credit-selection">Select</th>{% endif %}
                                 <th>Completed</th>
                                 <th>Size</th>
                                 <th>Worker</th>
@@ -664,6 +715,12 @@
                         <tbody>
                             {% for completed in completed_sets %}
                                 <tr>
+                                    {% if filters.worker %}
+                                        <td class="credit-selection">
+                                            <input type="checkbox" name="completed_ids" value="{{ completed.id }}" form="cushion-credit-form"
+                                                   aria-label="Select {{ completed.size_label }} set completed {{ completed.completed_at.strftime('%d/%m/%Y %H:%M:%S') }}, record {{ completed.id }}">
+                                        </td>
+                                    {% endif %}
                                     <td class="timing-cell">{{ completed.completed_at.strftime('%d/%m/%Y %H:%M:%S') }}</td>
                                     <td class="number-cell">{{ completed.size_label }}</td>
                                     <td>{{ completed.worker }}</td>

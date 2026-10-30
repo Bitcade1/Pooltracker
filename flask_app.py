@@ -17287,6 +17287,7 @@ def cushion_history():
 
     ensure_cushion_workflow_tables()
     ensure_cushion_consumables()
+    credit_token = session.setdefault('cushion_credit_token', uuid.uuid4().hex)
 
     filters = cushion_history_filter_state(request.args)
     log_query = cushion_history_log_query(filters)
@@ -17344,9 +17345,77 @@ def cushion_history():
             "next_url": next_url,
         },
         export_url=url_for('cushion_history_export_csv', **query_args),
+        reassign_url=url_for('reassign_cushion_completions', **query_args),
+        credit_token=credit_token,
+        credit_workers=Worker.query.order_by(Worker.name.asc()).all(),
         admin_url=url_for('cushion_production_admin'),
         counting_url=url_for('counting_cushions')
     )
+
+
+@app.route('/cushion_history/reassign', methods=['POST'])
+def reassign_cushion_completions():
+    if 'worker' not in session:
+        flash("Please log in first.", "error")
+        return redirect(url_for('login'))
+
+    query_args = cushion_history_clean_query_args(request.args.to_dict(flat=True))
+    return_url = url_for('cushion_history', **query_args)
+    if not session.get('cushion_credit_token') or request.form.get('credit_token') != session['cushion_credit_token']:
+        flash("Reload Cushion History before reassigning completed sets.", "error")
+        return redirect(return_url)
+
+    ensure_cushion_workflow_tables()
+    filters = cushion_history_filter_state(request.args)
+    try:
+        if not filters['worker']:
+            raise ValueError("Filter to the current worker before reassigning completed sets.")
+        raw_ids = request.form.getlist('completed_ids')
+        if not raw_ids:
+            raise ValueError("Select the completed sets to reassign.")
+        try:
+            completed_ids = {int(value) for value in raw_ids}
+        except (TypeError, ValueError):
+            raise ValueError("The selected sets were invalid. Reload Cushion History and try again.")
+
+        target_worker = (request.form.get('target_worker') or '').strip()
+        if not target_worker or not Worker.query.filter_by(name=target_worker).first():
+            raise ValueError("Choose an existing worker to receive the completed sets.")
+        if target_worker == filters['worker']:
+            raise ValueError("Choose a different worker to receive the completed sets.")
+
+        # Only reassign explicit IDs that still match the worker and date filters.
+        completed_sets = cushion_history_completed_query(filters).filter(
+            CushionCompletedSet.id.in_(completed_ids)
+        ).all()
+        if len(completed_sets) != len(completed_ids):
+            raise ValueError("Some selected sets no longer match these filters. Reload Cushion History and try again.")
+
+        for completed in completed_sets:
+            previous_worker = completed.worker
+            completed.worker = target_worker
+            # Preserve the original bundling and stock logs. This zero-delta log
+            # records the credit correction without creating more production.
+            db.session.add(CushionWorkflowLog(
+                action_type='reassign', stage_key='bundle',
+                stage_label=CUSHION_STAGE_BY_KEY['bundle']['label'],
+                size_label=completed.size_label, shape_no=0, end_type='',
+                worker=session['worker'], delta=0,
+                count_after=completed.stock_count_after,
+                note=f"Completion #{completed.id}: credit changed from {previous_worker} to {target_worker}",
+            ))
+        db.session.commit()
+        flash(
+            f"Reassigned {len(completed_sets)} completed set(s) from {filters['worker']} to {target_worker}. Stock totals are unchanged.",
+            "success",
+        )
+    except ValueError as error:
+        db.session.rollback()
+        flash(str(error), "error")
+    except Exception:
+        db.session.rollback()
+        raise
+    return redirect(return_url)
 
 
 @app.route('/cushion_history/export.csv')
