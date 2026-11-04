@@ -642,6 +642,32 @@
       </div>
     </div>
     
+    <section class="quick-add-panel" id="pod-extra-time" aria-labelledby="pod-extra-time-heading">
+      <h2 id="pod-extra-time-heading">Nick - Extra Job Time</h2>
+      <p>{{ extra_time_month_label }}: {{ extra_time_progress.completed_hours|format_number }} / {{ extra_time_progress.target_hours|format_number }} hours completed.
+        {% if extra_time_progress.target_hit %}Goal reached.{% else %}{{ extra_time_progress.remaining_minutes }} minutes remaining.{% endif %}
+      </p>
+      <form method="POST" action="{{ url_for('pods') }}" class="quick-add-form">
+        <input type="hidden" name="action" value="add_pod_extra_minutes">
+        <label for="pod-extra-minutes">Add extra job minutes completed</label>
+        <input type="number" id="pod-extra-minutes" name="extra_minutes" min="1" step="1" required inputmode="numeric">
+        <button type="submit" class="quick-add-button">Add Minutes</button>
+      </form>
+      <details>
+        <summary>Extra Time Log (latest 20 this month)</summary>
+        <table>
+          <thead><tr><th>When</th><th>Minutes</th><th>Added By</th></tr></thead>
+          <tbody>
+            {% for entry in extra_time_logs %}
+              <tr><td>{{ entry.recorded_at.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ entry.minutes }}</td><td>{{ entry.added_by }}</td></tr>
+            {% else %}
+              <tr><td colspan="3">No extra job time recorded this month.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </details>
+    </section>
+
     <!-- Form to Add a New Completed Pod -->
     <form method="POST" action="{{ url_for('pods') }}" id="pod-completion-form">
       <label for="start_time">Start Time:</label>

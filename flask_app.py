@@ -1592,7 +1592,7 @@ def ensure_bonus_goal_tables():
     CushionExtraTimeLog.__table__.create(db.engine, checkfirst=True)
 
 
-def cushion_extra_time_progress(worker_name, year, month):
+def cushion_extra_time_progress(worker_name, year, month, default_target_minutes=0):
     ensure_bonus_goal_tables()
     goal = CushionExtraTimeGoal.query.filter_by(
         worker_name=worker_name,
@@ -1608,7 +1608,7 @@ def cushion_extra_time_progress(worker_name, year, month):
         )
         .scalar() or 0
     )
-    target_minutes = int(goal.target_minutes or 0) if goal else 0
+    target_minutes = int(goal.target_minutes or 0) if goal else int(default_target_minutes)
     percentage = round((completed_minutes / target_minutes) * 100, 1) if target_minutes else 0
     return {
         'completed_minutes': completed_minutes,
@@ -6801,6 +6801,26 @@ def pods():
         return redirect(url_for('pods'))
     
     if request.method == 'POST':
+        if request.form.get('action') == 'add_pod_extra_minutes':
+            try:
+                minutes = int(request.form.get('extra_minutes', 0) or 0)
+                if minutes <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                flash("Enter the extra job time as a positive whole number of minutes.", "error")
+                return redirect(url_for('pods', _anchor='pod-extra-time'))
+
+            ensure_bonus_goal_tables()
+            db.session.add(CushionExtraTimeLog(
+                worker_name="Nick",
+                minutes=minutes,
+                added_by=session['worker'],
+                recorded_at=london_now(),
+            ))
+            db.session.commit()
+            flash(f"Added {minutes} extra job minutes for Nick.", "success")
+            return redirect(url_for('pods', _anchor='pod-extra-time'))
+
         if request.form.get('action') == 'quick_add_pod_part':
             part_name = (request.form.get('part_name') or '').strip()
             quick_part = next(
@@ -7474,6 +7494,15 @@ def pods():
         }
         for part in PODS_QUICK_ADD_PARTS
     ]
+    extra_time_today = london_now().date()
+    extra_time_progress = cushion_extra_time_progress(
+        "Nick", extra_time_today.year, extra_time_today.month, default_target_minutes=450,
+    )
+    extra_time_logs = CushionExtraTimeLog.query.filter(
+        CushionExtraTimeLog.worker_name == "Nick",
+        extract('year', CushionExtraTimeLog.recorded_at) == extra_time_today.year,
+        extract('month', CushionExtraTimeLog.recorded_at) == extra_time_today.month,
+    ).order_by(CushionExtraTimeLog.recorded_at.desc(), CushionExtraTimeLog.id.desc()).limit(20).all()
     
     return render_template(
         'pods.html',
@@ -7510,7 +7539,10 @@ def pods():
         pod_type_worker_rows=pod_type_worker_rows,
         available_pod_total=len(available_pods),
         available_pod_variant_totals=available_pod_variant_totals,
-        pod_quick_add_parts=pod_quick_add_parts
+        pod_quick_add_parts=pod_quick_add_parts,
+        extra_time_progress=extra_time_progress,
+        extra_time_logs=extra_time_logs,
+        extra_time_month_label=bonus_goal_month_label(extra_time_today.year, extra_time_today.month),
     )
 
 @app.route('/admin/raw_data', methods=['GET', 'POST'])
@@ -13995,6 +14027,18 @@ def pod_dashboard_view():
             goal["needed_per_day"] = f"{needed_per_day:.2f}"
         goal["remaining_workdays"] = round(goal_workdays, 2)
 
+    extra_time_progress = cushion_extra_time_progress(
+        "Nick", today.year, today.month, default_target_minutes=450,
+    )
+    if extra_time_progress["remaining_minutes"] <= 0:
+        extra_time_progress["needed_minutes_per_day"] = 0
+    elif remaining_pod_pace_workdays <= 0:
+        extra_time_progress["needed_minutes_per_day"] = "N/A"
+    else:
+        extra_time_progress["needed_minutes_per_day"] = ceil(
+            extra_time_progress["remaining_minutes"] / remaining_pod_pace_workdays
+        )
+
     return render_template(
         'pod_dashboard.html',
         stats=stats,
@@ -14012,6 +14056,7 @@ def pod_dashboard_view():
         pod_month_elapsed_percent=pod_month_elapsed_percent,
         bonus_progress=bonus_progress,
         bonus_month_label=bonus_goal_month_label(today.year, today.month),
+        extra_time_progress=extra_time_progress,
     )
 
 
