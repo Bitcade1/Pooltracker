@@ -14030,15 +14030,6 @@ def pod_dashboard_view():
     extra_time_progress = cushion_extra_time_progress(
         "Nick", today.year, today.month, default_target_minutes=450,
     )
-    if extra_time_progress["remaining_minutes"] <= 0:
-        extra_time_progress["needed_minutes_per_day"] = 0
-    elif remaining_pod_pace_workdays <= 0:
-        extra_time_progress["needed_minutes_per_day"] = "N/A"
-    else:
-        extra_time_progress["needed_minutes_per_day"] = ceil(
-            extra_time_progress["remaining_minutes"] / remaining_pod_pace_workdays
-        )
-
     return render_template(
         'pod_dashboard.html',
         stats=stats,
