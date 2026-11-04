@@ -13740,7 +13740,8 @@ def top_rail_dashboard_view():
 
 @app.route('/pod_dashboard')
 def pod_dashboard_view():
-    today = date.today()
+    current_time = london_now()
+    today = current_time.date()
     start_of_week = today - timedelta(days=today.weekday())
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
@@ -13949,6 +13950,19 @@ def pod_dashboard_view():
         for month_holidays in bank_holidays_by_month.values()
         for holiday_date in month_holidays
     }
+    elapsed_pod_workdays = sum(
+        1
+        for day in range(1, today.day + 1)
+        if date(today.year, today.month, day).weekday() < 5
+        and date(today.year, today.month, day) not in pod_bank_holidays
+    )
+    completed_pods_to_date = CompletedPods.query.filter(
+        CompletedPods.date >= start_of_month,
+        CompletedPods.date <= today,
+    ).count()
+    stats["monthly_daily_average"] = (
+        completed_pods_to_date / elapsed_pod_workdays if elapsed_pod_workdays else 0
+    )
     remaining_pod_workdays = remaining_weekdays_in_month(
         today,
         excluded_dates=pod_bank_holidays,
@@ -13960,6 +13974,26 @@ def pod_dashboard_view():
         excluded_dates=pod_bank_holidays,
     )
     bonus_progress = dashboard_bonus_progress("pods", today.year, today.month)
+    remaining_pod_pace_workdays = remaining_shift_work_hours(
+        current_time,
+        excluded_dates=pod_bank_holidays,
+    ) / 7.5
+    for goal in bonus_progress:
+        goal_workdays = remaining_pod_pace_workdays
+        if goal.get("next_bonus"):
+            goal_workdays = weekdays_in_month(
+                goal["period_year"],
+                goal["period_month"],
+                excluded_dates=pod_bank_holidays,
+            )
+        if goal["remaining"] <= 0:
+            goal["needed_per_day"] = "0.00"
+        elif goal_workdays <= 0:
+            goal["needed_per_day"] = "N/A"
+        else:
+            needed_per_day = ceil(goal["remaining"] / goal_workdays * 100) / 100
+            goal["needed_per_day"] = f"{needed_per_day:.2f}"
+        goal["remaining_workdays"] = round(goal_workdays, 2)
 
     return render_template(
         'pod_dashboard.html',
