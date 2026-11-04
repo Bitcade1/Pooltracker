@@ -13959,6 +13959,7 @@ def pod_dashboard_view():
         current_date=today,
         excluded_dates=pod_bank_holidays,
     )
+    bonus_progress = dashboard_bonus_progress("pods", today.year, today.month)
 
     return render_template(
         'pod_dashboard.html',
@@ -13975,6 +13976,8 @@ def pod_dashboard_view():
         remaining_pod_workdays=remaining_pod_workdays,
         pod_workdays_period=bonus_goal_month_label(today.year, today.month),
         pod_month_elapsed_percent=pod_month_elapsed_percent,
+        bonus_progress=bonus_progress,
+        bonus_month_label=bonus_goal_month_label(today.year, today.month),
     )
 
 
