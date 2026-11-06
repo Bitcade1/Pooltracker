@@ -14191,6 +14191,9 @@ def body_dashboard_view():
         int(goal.get("target", 0) or 0)
         for goal in monthly_body_goals
     )
+    # November's team target is separate from the individual bonus targets.
+    if (today.year, today.month) == (2026, 11):
+        combined_body_goal_target = 120
     combined_body_goal_remaining = max(combined_body_goal_target - stats["monthly"], 0)
     combined_body_goal = None
     if combined_body_goal_target:
