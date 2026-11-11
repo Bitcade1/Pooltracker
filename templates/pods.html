@@ -688,7 +688,7 @@
         <label for="table_type_selector">Table Type:</label>
         <select id="table_type_selector" name="table_type">
           <option value="Champion" {% if form_table_type == 'Champion' %}selected{% endif %}>Champion</option>
-          <option value="Lite" {% if form_table_type == 'Lite' %}selected{% endif %}>Lite</option>
+          <option value="Lite" {% if form_table_type == 'Lite' %}selected{% endif %}>League</option>
         </select>
       </div>
       
@@ -766,7 +766,7 @@
             <th>Date</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Pods</th>
             <th>Champion</th>
-            <th>Lite</th>
+            <th>League</th>
             <th>Serial Numbers</th>
           </tr>
         </thead>
@@ -844,10 +844,10 @@
             <th>Month</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Pods</th>
             <th>Champion</th>
-            <th>Lite</th>
+            <th>League</th>
             <th>Avg Time per Pod</th>
             <th>Avg Time (Champion)</th>
-            <th>Avg Time (Lite)</th>
+            <th>Avg Time (League)</th>
           </tr>
         </thead>
         <tbody>
@@ -902,7 +902,7 @@
           <tr>
             <th>Worker</th>
             <th>Champion</th>
-            <th>Lite</th>
+            <th>League</th>
             <th>Total</th>
           </tr>
         </thead>

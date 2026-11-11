@@ -805,8 +805,8 @@
         <thead>
           <tr>
             <th>Worker</th>
-            <th>Champion Premium</th>
-            <th>Champion Lite</th>
+            <th>Champion</th>
+            <th>League</th>
             <th>Total</th>
           </tr>
         </thead>
@@ -893,11 +893,11 @@
       <div class="color-field">
         <label for="table_type">Table Type:</label>
         <select id="table_type" name="table_type">
-          <option value="Champion" {% if form_table_type == 'Champion' %}selected{% endif %}>Champion Premium</option>
-          <option value="Lite" {% if form_table_type == 'Lite' %}selected{% endif %}>Champion Lite</option>
+          <option value="Champion" {% if form_table_type == 'Champion' %}selected{% endif %}>Champion</option>
+          <option value="Lite" {% if form_table_type == 'Lite' %}selected{% endif %}>League</option>
         </select>
       </div>
-      <div class="size-indicator">Auto-selected from pod serial (`-L` = Lite), but you can override for older pods.</div>
+      <div class="size-indicator">Auto-selected from pod serial (`-L` = League), but you can override for older pods.</div>
       
       <!-- Color Selector -->
       <div class="color-field">
@@ -1022,7 +1022,7 @@
             <th>Date</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
             <th>Champion</th>
-            <th>Lite</th>
+            <th>League</th>
             <th>Serial Numbers</th>
           </tr>
         </thead>
@@ -1068,7 +1068,7 @@
             <th>Week</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
             <th>Champion</th>
-            <th>Lite</th>
+            <th>League</th>
           </tr>
         </thead>
         <tbody>
@@ -1112,9 +1112,9 @@
             <th>Month</th>
             <th><span class="selected-worker-label">{{ selected_worker }}</span> Tables</th>
             <th>Champion</th>
-            <th>Lite</th>
+            <th>League</th>
             <th>Avg Time (Champion)</th>
-            <th>Avg Time (Lite)</th>
+            <th>Avg Time (League)</th>
           </tr>
         </thead>
         <tbody>
