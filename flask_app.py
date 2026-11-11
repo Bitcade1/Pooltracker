@@ -63,7 +63,7 @@ def abs_filter(value):
     except (TypeError, ValueError):
         return 0
 
-# Make sure the format_number filter is registered correctly
+# Make sure the formt_number filter is registered correctly
 @app.template_filter('format_number')
 def format_number_filter(value):
     """Format a number with commas as thousands separators."""
