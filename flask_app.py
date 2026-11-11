@@ -4041,6 +4041,7 @@ class GeneratedInvoice(db.Model):
     seller_details = db.Column(db.Text, nullable=False, default="")
     customer_details = db.Column(db.Text, nullable=False, default="")
     notes = db.Column(db.Text, nullable=False, default="")
+    presentation_json = db.Column(db.Text, nullable=False, default="{}")
     saved_at = db.Column(db.DateTime, nullable=True)
     saved_by = db.Column(db.String(50), nullable=True)
 
@@ -4081,6 +4082,14 @@ def invoice_sheet_lines(order, source, previous_lines=None):
 def ensure_invoice_generator_tables():
     InvoiceItemPrice.__table__.create(db.engine, checkfirst=True)
     GeneratedInvoice.__table__.create(db.engine, checkfirst=True)
+    columns = {row[1] for row in db.session.execute(text("PRAGMA table_info(generated_invoice)"))}
+    if "presentation_json" not in columns:
+        db.session.rollback()
+        db.session.execute(text("BEGIN IMMEDIATE"))
+        columns = {row[1] for row in db.session.execute(text("PRAGMA table_info(generated_invoice)"))}
+        if "presentation_json" not in columns:
+            db.session.execute(text("ALTER TABLE generated_invoice ADD COLUMN presentation_json TEXT NOT NULL DEFAULT '{}'"))
+        db.session.commit()
     InvoiceSheetSyncState.__table__.create(db.engine, checkfirst=True)
     state = db.session.get(InvoiceSheetSyncState, 1)
     if state:
@@ -4211,7 +4220,8 @@ def sync_invoice_sheet():
 
 def invoice_record_version(invoice):
     values = [invoice.lines_json, invoice.reference, invoice.collection_date,
-              invoice.seller_details, invoice.customer_details, invoice.notes, str(invoice.saved_at)]
+              invoice.seller_details, invoice.customer_details, invoice.notes,
+              invoice.presentation_json, str(invoice.saved_at)]
     return hashlib.sha256(json.dumps(values).encode("utf-8")).hexdigest()
 
 
@@ -4244,6 +4254,63 @@ def invoice_money(pence):
     return f"GBP {pence // 100:,}.{pence % 100:02d}"
 
 
+@app.template_filter("invoice_gbp")
+def invoice_gbp(pence):
+    if pence is None:
+        return "Not priced"
+    return f"\u00a3{pence // 100:,}.{pence % 100:02d}"
+
+
+@app.template_filter("invoice_reference_label")
+def invoice_reference_label(reference):
+    return re.sub(r"^(?:invoice|inv)[\s#:-]*(?=\d)", "", reference, flags=re.I)
+
+
+INVOICE_SELLER_DETAILS = "BitCade\nHouse 3, Bitcade\nBristol BS351RF\nJack.england@bitcade.co.uk\n+447515881355"
+INVOICE_CUSTOMER_DETAILS = "Home Leisure Direct Worldwide Ltd\nOffice 13 Europa House, 18 Wadsworth Road\nPerivale UB67JD\naccounts@homeleisuredirect.com"
+INVOICE_DEFAULT_MESSAGE = "Thanks for your business."
+
+
+def invoice_presentation(invoice):
+    saved = json.loads(invoice.presentation_json or "{}")
+    today = (invoice.saved_at or london_now()).date().isoformat()
+    # Legacy saved invoices have no tax settings; preserve their original totals.
+    defaults = {"invoice_date": today, "due_date": "", "vat_basis_points": 0 if invoice.saved_at else 2000}
+    try:
+        defaults["due_date"] = source_order_date({"collection_date": invoice.collection_date, "month": invoice.month},
+                                                invoice_order_source())[0]
+    except (ValueError, IndexError):
+        pass
+    settings = defaults | saved
+    for key, default in (("seller_details", INVOICE_SELLER_DETAILS), ("customer_details", INVOICE_CUSTOMER_DETAILS),
+                         ("notes", INVOICE_DEFAULT_MESSAGE)):
+        settings[key] = getattr(invoice, key) if saved else (getattr(invoice, key) or default)
+    return settings
+
+
+def parse_invoice_presentation(form, invoice):
+    settings = invoice_presentation(invoice)
+    result = {}
+    for key in ("invoice_date", "due_date"):
+        value = form.get(key, settings[key]).strip()
+        if key == "invoice_date" and not value:
+            raise ValueError("Enter the invoice date.")
+        if value:
+            try:
+                value = date.fromisoformat(value).isoformat()
+            except ValueError as exc:
+                raise ValueError("Enter a valid invoice date and payment due date.") from exc
+        result[key] = value
+    rate = form.get("vat_rate", invoice_cost_input(settings["vat_basis_points"]))
+    if not re.fullmatch(r"[0-9]{1,3}(?:\.[0-9]{1,2})?", rate.strip()):
+        raise ValueError("Enter a VAT percentage between 0 and 100, with at most two decimal places.")
+    basis_points = parse_invoice_unit_cost(rate)
+    if basis_points is None or basis_points > 10000:
+        raise ValueError("VAT must be between 0 and 100 percent.")
+    result["vat_basis_points"] = basis_points
+    return result
+
+
 def generated_invoice_payload(invoice, prices):
     lines = json.loads(invoice.lines_json)
     # A saved invoice owns its price snapshot. Defaults only fill unsaved drafts.
@@ -4260,11 +4327,16 @@ def generated_invoice_payload(invoice, prices):
                 missing += 1
             else:
                 subtotal += line["total_pence"]
+    presentation = invoice_presentation(invoice)
+    vat_pence = (subtotal * presentation["vat_basis_points"] + 5000) // 10000
     return {
         "record": invoice, "lines": lines,
         "quantity": sum(line["quantity"] for line in lines),
         "missing_prices": missing, "total_pence": subtotal,
         "version": invoice_record_version(invoice),
+        "presentation": presentation, "vat_pence": vat_pence, "grand_total_pence": subtotal + vat_pence,
+        "invoice_date_label": date.fromisoformat(presentation["invoice_date"]).strftime("%d %b %Y").lstrip("0"),
+        "due_date_label": date.fromisoformat(presentation["due_date"]).strftime("%d %b %Y").upper().lstrip("0") if presentation["due_date"] else "",
     }
 
 
@@ -4344,11 +4416,13 @@ def invoice_generator():
                     raise ValueError("Enter an invoice reference (up to 80 characters) and collection date (up to 40 characters).")
                 details = {key: request.form.get(key, "").strip()
                            for key in ("seller_details", "customer_details", "notes")}
+                presentation = parse_invoice_presentation(request.form, invoice)
                 if any(len(value) > 4000 for value in details.values()):
                     raise ValueError("Keep each address or notes field within 4,000 characters.")
                 invoice.lines_json = json.dumps(lines)
                 invoice.reference = reference
                 invoice.collection_date = collection_date
+                invoice.presentation_json = json.dumps(presentation)
                 for key, value in details.items():
                     setattr(invoice, key, value)
                 invoice.saved_at = london_now()

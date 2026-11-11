@@ -18,7 +18,7 @@
     .invoice-generator th, .invoice-generator td { border-bottom: 1px solid #e4e7ed; padding: 10px; vertical-align: middle; text-align: left; }
     .invoice-generator th { background: #f7f7fb; color: #394658; }
     .invoice-generator .number { text-align: right; font-variant-numeric: tabular-nums; }
-    .invoice-generator input[type="text"], .invoice-generator input[type="number"], .invoice-generator textarea {
+    .invoice-generator input[type="text"], .invoice-generator input[type="number"], .invoice-generator input[type="date"], .invoice-generator textarea {
         width: 100%; border: 1px solid #b8c1cf; border-radius: 5px; padding: 10px; font: inherit; text-align: left;
     }
     .invoice-generator input[type="number"] { text-align: right; min-width: 100px; }
@@ -117,7 +117,7 @@
                {% if selected and selected.record.id == invoice.record.id %}aria-current="page"{% endif %}>
                 <strong>{{ invoice.record.collection_date }} - {{ invoice.record.reference }}</strong>
                 <span>{{ invoice.quantity }} tables | {{ invoice.record.month }} | Column {{ invoice.record.source_column }}</span>
-                <span class="muted">{% if invoice.record.saved_at %}Saved{% else %}Draft{% endif %}{% if invoice.missing_prices %} - {{ invoice.missing_prices }} unpriced product{% if invoice.missing_prices != 1 %}s{% endif %}{% else %} - {{ invoice.total_pence|invoice_money }}{% endif %}</span>
+                <span class="muted">{% if invoice.record.saved_at %}Saved{% else %}Draft{% endif %}{% if invoice.missing_prices %} - {{ invoice.missing_prices }} unpriced product{% if invoice.missing_prices != 1 %}s{% endif %}{% else %} - {{ invoice.grand_total_pence|invoice_money }}{% endif %}</span>
                 {% if invoice.record.id|string in sync_data.pending %}<span class="warning">Sheet changes to review</span>{% endif %}
                 {% if invoice.record.id in sync_data.missing %}<span class="muted">No longer in the sheet</span>{% endif %}
             </a>
@@ -172,17 +172,28 @@
                         <input type="text" name="collection_date" maxlength="40" required value="{{ submitted.get('collection_date', '') if editing else record.collection_date }}">
                     </label>
                     <label>From / seller details
-                        <textarea name="seller_details" maxlength="4000" placeholder="Company name and address">{{ submitted.get('seller_details', '') if editing else record.seller_details }}</textarea>
+                        <textarea name="seller_details" maxlength="4000" placeholder="Company name and address">{{ submitted.get('seller_details', '') if editing else selected.presentation.seller_details }}</textarea>
                     </label>
                     <label>Bill to
-                        <textarea name="customer_details" maxlength="4000" placeholder="Customer name and address">{{ submitted.get('customer_details', '') if editing else record.customer_details }}</textarea>
+                        <textarea name="customer_details" maxlength="4000" placeholder="Customer name and address">{{ submitted.get('customer_details', '') if editing else selected.presentation.customer_details }}</textarea>
+                    </label>
+                </div>
+                <div class="fields">
+                    <label>Invoice date
+                        <input type="date" name="invoice_date" required value="{{ submitted.get('invoice_date', '') if editing else selected.presentation.invoice_date }}">
+                    </label>
+                    <label>Payment due date
+                        <input type="date" name="due_date" value="{{ submitted.get('due_date', '') if editing else selected.presentation.due_date }}">
+                    </label>
+                    <label>VAT rate (%)
+                        <input type="number" id="vat-rate" name="vat_rate" min="0" max="100" step="0.01" required value="{{ submitted.get('vat_rate', '') if editing else selected.presentation.vat_basis_points|invoice_cost_input }}">
                     </label>
                 </div>
                 <label class="checkbox"><input type="checkbox" id="show-zero"> Show zero-quantity products</label>
                 <div class="table-scroll">
                     <table class="lines-table">
                         <colgroup><col style="width: 43%"><col style="width: 12%"><col style="width: 23%"><col style="width: 22%"></colgroup>
-                        <thead><tr><th>Product / SKU</th><th class="number">Qty</th><th class="number">Unit cost (GBP)</th><th class="number">Line total</th></tr></thead>
+                        <thead><tr><th>Product / SKU</th><th class="number">Qty</th><th class="number">Unit cost ex VAT (GBP)</th><th class="number">Line total ex VAT</th></tr></thead>
                         <tbody>
                         {% for line in selected.lines %}
                         <tr data-quantity="{{ line.quantity }}" {% if not line.quantity %}class="zero-row" hidden{% endif %}>
@@ -199,11 +210,13 @@
                 </div>
                 <div class="totals">
                     <div>Total quantity<strong>{{ selected.quantity }} tables</strong></div>
-                    <div>Invoice total (GBP)<strong id="invoice-total">{{ selected.total_pence|invoice_money }}</strong></div>
+                    <div>Subtotal (ex VAT)<strong id="invoice-subtotal">{{ selected.total_pence|invoice_money }}</strong></div>
+                    <div>VAT<strong id="invoice-vat">{{ selected.vat_pence|invoice_money }}</strong></div>
+                    <div>Invoice total (GBP)<strong id="invoice-total">{{ selected.grand_total_pence|invoice_money }}</strong></div>
                 </div>
                 <p id="pricing-status" role="status" class="muted"></p>
-                <label>Notes / payment details
-                    <textarea name="notes" maxlength="4000">{{ submitted.get('notes', '') if editing else record.notes }}</textarea>
+                <label>Message / payment details
+                    <textarea name="notes" maxlength="4000">{{ submitted.get('notes', '') if editing else selected.presentation.notes }}</textarea>
                 </label>
                 <div class="actions">
                     <button type="submit">Save invoice</button>
@@ -240,7 +253,14 @@
             if (quantity && pence === null) missing += 1;
             else total += lineTotal || 0;
         });
-        document.getElementById('invoice-total').textContent = missing ? `${money(total)} (partial)` : money(total);
+        const vatText = document.getElementById('vat-rate').value.trim();
+        const validVat = /^[0-9]{1,3}(\.[0-9]{1,2})?$/.test(vatText) && Number(vatText) <= 100;
+        const [vatWhole, vatFraction = ''] = vatText.split('.');
+        const vatBasisPoints = validVat ? Number(vatWhole) * 100 + Number(vatFraction.padEnd(2, '0')) : 0;
+        const vat = Math.floor((total * vatBasisPoints + 5000) / 10000);
+        document.getElementById('invoice-subtotal').textContent = money(total);
+        document.getElementById('invoice-vat').textContent = validVat ? money(vat) : 'Enter a valid VAT rate';
+        document.getElementById('invoice-total').textContent = !validVat ? 'Enter a valid VAT rate' : missing ? `${money(total + vat)} (partial)` : money(total + vat);
         document.getElementById('pricing-status').textContent = missing
             ? `${missing} ordered product(s) still need a unit cost. You can save a draft; printing is available once all ordered products are priced.`
             : 'All ordered products are priced. Save the invoice to keep these costs.';
