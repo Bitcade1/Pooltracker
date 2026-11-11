@@ -29,6 +29,11 @@
         </p>
         {% if sync_state.last_error %}<div class="notice warning" role="status">{{ sync_state.last_error }}</div>
         {% elif sync_stale %}<div class="notice warning" role="status">No successful sync in the last 15 minutes. Existing invoices and prices are still available.</div>{% endif %}
+        {% if source.get('sync_warnings') %}
+        <details class="sync-notices"><summary>{{ source.sync_warnings|length }} sheet notice(s)</summary>
+            <ul>{% for warning in source.sync_warnings %}<li>{{ warning.message }}</li>{% endfor %}</ul>
+        </details>
+        {% endif %}
         </div>
         <form method="post" class="sheet-action" action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
             <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">

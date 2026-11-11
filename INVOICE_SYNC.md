@@ -10,6 +10,15 @@ notes until someone reviews a sheet change. The page offers Apply sheet changes
 or Keep saved invoice. Applying a change preserves each SKU's saved price;
 new SKUs remain unpriced until entered. Removed columns do not delete invoices.
 
+If a dated column has item quantities but a blank table-count heading, the count
+is calculated from those quantities. New future columns with quantities but no
+date, or a date with no items/count yet, are deferred instead of blocking other
+orders. Expand **sheet notices** in the sync panel to see calculated counts and
+deferred columns. These notices clear when the missing sheet details are filled.
+An existing imported column that loses its date still stops sync, as do invalid
+quantities, duplicate identities and malformed nonblank headings. The read-only
+import never fills in or changes cells in Google Sheets.
+
 Use Delete on an Upcoming invoices card to remove a completed invoice from the
 active list. Deleted invoices retain their saved contents and sync identity,
 so the sheet does not recreate them. Restore them from the collapsed Deleted

@@ -12,10 +12,11 @@ import threading
 import time
 import uuid
 
-from flask import abort, current_app, flash, make_response, redirect, render_template, request, session, url_for
+from flask import abort, current_app, flash, jsonify, make_response, redirect, render_template, request, session, url_for
 import requests
 from sqlalchemy import text
 from sqlalchemy.orm import defer
+from invoice_email_ai import EmailAIError, api_key as email_ai_key, improve_email, validate_draft
 
 CONFIG_PATH = "/etc/pooltracker-invoice-email/config.json"
 SCOPES = ["User.Read", "Mail.Send"]
@@ -147,6 +148,24 @@ def private_store(config):
         finally:
             if os.name == "posix":
                 fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def limit_email_ai_requests(config, worker):
+    """Bound paid API requests across web workers without storing any draft text."""
+    now = time.time()
+    worker_key = hashlib.sha256(str(worker).encode("utf-8")).hexdigest()
+    with private_store(config) as directory:
+        path = directory / "ai-request-times.json"
+        try:
+            previous = json.loads(path.read_text(encoding="utf-8"))
+            recent = [entry for entry in previous if isinstance(entry, dict) and isinstance(entry.get("at"), (int, float))
+                      and 0 <= now - entry["at"] < 60]
+        except (FileNotFoundError, ValueError, TypeError):
+            recent = []
+        if len(recent) >= 30 or sum(entry.get("worker") == worker_key for entry in recent) >= 10:
+            raise EmailAIError("Please wait a minute before requesting another AI improvement.", 429)
+        recent.append({"at": now, "worker": worker_key})
+        _private_write(path, json.dumps(recent))
 
 
 class BoundedHttpClient(requests.Session):
@@ -541,6 +560,43 @@ def register_invoice_email(app, db, helpers):
         session["invoice_email_send_tokens"] = (session.get("invoice_email_send_tokens", []) + [send_token])[-12:]
         return render_template("invoice_email.html", invoice=payload, values=values, config_ready=bool(config), connected=connected,
                                mailbox=config["mailbox"] if config else "jack.england@bitcade.co.uk", notice=notice, error=error,
+                               ai_configured=bool(config and email_ai_key(config)),
                                send_token=send_token, history=history), response_code
+
+    @app.route("/invoice_generator/<int:invoice_id>/email/improve", methods=["POST"])
+    def improve_invoice_email(invoice_id):
+        def reply(data, status=200):
+            response = jsonify(data)
+            response.status_code = status
+            response.headers["Cache-Control"] = "no-store"
+            if status == 429:
+                response.headers["Retry-After"] = "60"
+            return response
+
+        if "worker" not in session:
+            return reply({"error": "Sign in to the tracker again before improving this email."}, 401)
+        expected = session.get("invoice_generator_csrf", "")
+        supplied = request.headers.get("X-CSRF-Token", "")
+        if not expected or not secrets.compare_digest(expected.encode("utf-8"), supplied.encode("utf-8")):
+            return reply({"error": "This page has expired. Reload it before using AI improvement."}, 400)
+        try:
+            data = request.get_json(silent=True)
+            subject, body = validate_draft(data)
+            payload = ready(invoice_id)
+            if data.get("invoice_version") != payload["version"]:
+                return reply({"error": "The saved invoice changed. Reload and review the invoice before improving this email."}, 409)
+            config = load_config()
+            if not email_ai_key(config):
+                raise EmailAIError("AI improvement needs its one-time server setup. Your original message is unchanged.", 503)
+            limit_email_ai_requests(config, session["worker"])
+            # No send request, PDF generation, saved invoice update or mailbox access occurs here.
+            suggestion = improve_email(subject, body, config)
+            return reply({"suggestion": suggestion})
+        except EmailAIError as exc:
+            return reply({"error": str(exc)}, exc.status)
+        except InvoiceEmailError as exc:
+            return reply({"error": str(exc)}, 400)
+        except OSError:
+            return reply({"error": "The AI server settings could not be read. Your original message is unchanged."}, 503)
 
     return InvoiceEmailAttempt

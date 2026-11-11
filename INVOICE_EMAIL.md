@@ -92,6 +92,53 @@ Recipient/message edits are not saved as drafts; send history records submitted
 messages. The recipient defaults to the email address in this invoice's Bill To
 details and remains editable.
 
+## Optional: Improve with AI
+
+**Improve with AI** suggests a clearer subject and message in friendly,
+professional British English. The original stays in the editor while a separate
+suggestion is shown. Choose **Use this wording** or **Keep my original**; after
+applying, **Undo AI changes** restores the previous text until you edit it again.
+Check names, amounts, dates and commitments before sending. AI never sends mail,
+changes the invoice/PDF, or saves a new email-history record. If you edit while
+AI is working, its older suggestion is discarded instead of replacing your work.
+
+This needs an OpenAI API key with model access and sufficient API credits/usage
+limits. Use the [OpenAI API dashboard](https://platform.openai.com/api-keys) to
+create a key. Keep it private and enter it only at the Droplet's hidden prompt.
+After deploying this source update, run:
+
+```bash
+cd /var/www/pooltabletracker.com
+sudo venv/bin/python deploy/invoice-email/configure_ai.py
+```
+
+Use your actual virtual-environment interpreter if it is named differently.
+The helper adds `openai_api_key` and a default `openai_model` of `gpt-4.1-mini`
+to the existing private email configuration. It preserves the Microsoft client
+secret, session key, mailbox connection and file ownership. Reload the email
+page after configuration. No Microsoft sign-in or installer rerun is needed.
+Rerunning the helper privately replaces the OpenAI key. An existing
+`OPENAI_API_KEY` environment variable takes precedence; the model can also be
+overridden with `POOLTRACKER_EMAIL_AI_MODEL` in the web service environment.
+
+Only the subject and message you submit are sent to OpenAI; this includes any
+personal details you typed into that text. Recipients, CC, PDF attachments,
+Microsoft credentials and invoice database records are excluded. Requests use
+the Responses API with `store: false`; this is not a promise of zero provider
+retention. The tracker does not log or persist AI drafts/suggestions. Normal
+email history still records the final message when you choose Send invoice.
+API usage is charged to the OpenAI API account. No live API request is made by
+the setup helper. Allow outbound HTTPS to `api.openai.com`.
+
+Requests have bounded timeouts and are not automatically retried. A small
+private timestamp file limits each worker to 10 requests per minute and the
+server to 30 per minute. Errors, refusals and incomplete responses leave the
+original draft intact. If the button is disabled, check the private API key
+configuration; if it reports a usage limit, check API credits and limits.
+
+References: [official OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create),
+[Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
+
 ## Private files and maintenance
 
 - `/etc/pooltracker-invoice-email/config.json`: tenant/client IDs, client secret,

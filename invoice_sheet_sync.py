@@ -88,15 +88,20 @@ def parse_order_values(values, source):
             group = label
     if not products:
         raise InvoiceSyncError("No product rows were found. No invoices were changed.")
-    invoices, identities = [], set()
+    invoices, identities, warnings = [], set(), []
+    known_columns = {order["source_column"] for order in source["invoices"]}
     month = ""
     for col in range(2, max(map(len, values), default=0)):
         month = cell(header - 1, col) or month
         label = cell(header, col)
+        column = column_letter(col + 1)
         quantities_present = any(cell(row, col) not in ("", "0", "0.0") for row in product_rows.values())
         if not label:
             if quantities_present:
-                raise InvoiceSyncError(f"Column {column_letter(col + 1)} has quantities but no collection date.")
+                if column in known_columns:
+                    raise InvoiceSyncError(f"Column {column} has quantities but no collection date.")
+                warnings.append({"column": column, "kind": "incomplete_order",
+                                 "message": f"Column {column} has quantities but no delivery date yet. It will be imported when its date is added."})
             continue
         if month not in calendar.month_name:
             raise InvoiceSyncError(f"Column {column_letter(col + 1)} needs a full month heading.")
@@ -106,12 +111,23 @@ def parse_order_values(values, source):
             if not re.fullmatch(r"\d+(?:\.0+)?", quantity) or len(quantity) > 10:
                 raise InvoiceSyncError(f"Quantity at {column_letter(col + 1)}{row + 1} must be a non-negative whole number.")
             quantities[sku] = int(quantity.split(".")[0])
-        heading = re.fullmatch(r"(\d+)\s+Tables?", cell(header + 1, col), re.I)
-        if not heading:
+        heading_text = cell(header + 1, col)
+        heading = re.fullmatch(r"(\d+)\s+Tables?", heading_text, re.I)
+        if heading:
+            expected_quantity = int(heading[1])
+        elif not heading_text:
+            if not any(quantities.values()) and column not in known_columns:
+                warnings.append({"column": column, "kind": "incomplete_order",
+                                 "message": f"Column {column} has a date but no table count or ordered items yet. It has not been imported."})
+                continue
+            expected_quantity = sum(quantities.values())
+            warnings.append({"column": column, "kind": "inferred_table_count",
+                             "message": f"Column {column}: the table-count heading is blank, so {expected_quantity} tables were calculated from its item rows."})
+        else:
             raise InvoiceSyncError(f"Column {column_letter(col + 1)} needs a table-count heading, for example 35 Tables.")
         order = {
             "source_column": column_letter(col + 1), "collection_date": label, "month": month,
-            "reference": cell(header + 2, col) or "TBC", "expected_quantity": int(heading[1]),
+            "reference": cell(header + 2, col) or "TBC", "expected_quantity": expected_quantity,
             "quantities": quantities,
         }
         if order_id_row is not None:
@@ -127,7 +143,7 @@ def parse_order_values(values, source):
         invoices.append(order)
     if not invoices:
         raise InvoiceSyncError("No dated order columns were found. Existing invoices were kept.")
-    return dict(source, products=products, invoices=invoices,
+    return dict(source, products=products, invoices=invoices, sync_warnings=warnings,
                 imported_on=datetime.now(timezone.utc).date().isoformat())
 
 

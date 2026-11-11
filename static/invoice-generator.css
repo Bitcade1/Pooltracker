@@ -33,6 +33,9 @@ body { display: block; background: radial-gradient(ellipse at 85% 0, #e5edff 0, 
 .invoice-generator .sync-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 18px 22px; }
 .invoice-generator .sync-panel h2 { font-size: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .invoice-generator #sync-status { margin: 0; }
+.invoice-generator .sync-notices { margin-top: 12px; color: #687b96; }
+.invoice-generator .sync-notices summary { font-size: 13px; }
+.invoice-generator .sync-notices li { padding: 4px 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .invoice-generator .sync-panel form, .invoice-generator .sync-panel .actions { margin: 0; }
 .invoice-generator .status-pill { display: inline-block; border-radius: 20px; padding: 4px 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .invoice-generator .status-ready { background: #eaf8f0; color: #268154; }

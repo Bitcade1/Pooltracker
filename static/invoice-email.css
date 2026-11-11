@@ -31,6 +31,15 @@
 .email-page .email-history-entry > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .email-page a { color: #285bd7; }
 .email-page .notice { overflow-wrap: anywhere; }
+.email-page .ai-tools { border-top: 1px solid #e5ecf7; padding-top: 16px; }
+.email-page .ai-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.email-page .ai-tools p { margin: 10px 0 0; font-size: 13px; }
+.email-page #ai-status:empty { display: none; }
+.email-page #ai-status { color: #315a99; }
+.email-page .ai-suggestion { min-width: 0; padding: 20px; border: 1px solid #c6d6f8; background: #f5f8ff; border-radius: 12px; }
+.email-page .ai-suggestion h3 { margin: 0 0 10px; color: #2a4779; font-size: 17px; }
+.email-page .ai-suggestion strong, .email-page .ai-suggestion pre { overflow-wrap: anywhere; }
+.email-page .ai-suggestion pre { font: inherit; white-space: pre-wrap; line-height: 1.7; margin: 15px 0 20px; color: #304969; }
 @media (max-width: 850px) {
     .email-page .email-layout { grid-template-columns: 1fr; gap: 0; }
     .email-page .email-sidebar { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }

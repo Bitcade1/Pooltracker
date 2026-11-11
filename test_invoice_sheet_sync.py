@@ -65,6 +65,54 @@ class SheetParserTests(unittest.TestCase):
         result = parse_order_values(self.values, self.source)
         self.assertEqual("id:order-11", source_order_identity(result["invoices"][11], result))
 
+    def future_column(self, column, date="", quantity="", heading=""):
+        for row in self.values:
+            row.extend([""] * max(0, column + 1 - len(row)))
+        self.values[1][column] = "January"
+        self.values[2][column] = date
+        self.values[3][column] = heading
+        self.values[5][column] = quantity
+
+    def test_missing_count_is_calculated_and_undated_future_orders_do_not_block_sync(self):
+        self.future_column(14, date="22/01/27", quantity="40")
+        self.future_column(15, quantity="45")
+        self.future_column(16, quantity="40")
+        result = parse_order_values(self.values, self.source)
+        self.assertEqual(13, len(result["invoices"]))
+        order = result["invoices"][-1]
+        self.assertEqual(("O", "22/01", 40), (order["source_column"], order["collection_date"], order["expected_quantity"]))
+        self.assertEqual("date:2027-01-22", source_order_identity(order, result))
+        self.assertEqual(["O", "P", "Q"], [warning["column"] for warning in result["sync_warnings"]])
+        self.values[3][14] = "40 Tables"
+        self.values[2][15] = "29/01/27"
+        second = parse_order_values(self.values, result)
+        self.assertEqual(14, len(second["invoices"]))
+        self.assertEqual(source_order_identity(order, result), source_order_identity(second["invoices"][-2], second))
+
+    def test_existing_order_with_missing_date_still_blocks_sync_and_bad_quantities_are_rejected(self):
+        self.values[2][2] = ""
+        with self.assertRaisesRegex(InvoiceSyncError, "no collection date"):
+            parse_order_values(self.values, self.source)
+        self.values = source_values(self.source)
+        self.future_column(14, date="22/01/27", quantity="-40")
+        with self.assertRaisesRegex(InvoiceSyncError, "whole number"):
+            parse_order_values(self.values, self.source)
+        self.values[5][14] = "40"
+        self.values[3][14] = "40 Tabels"
+        with self.assertRaisesRegex(InvoiceSyncError, "table-count heading"):
+            parse_order_values(self.values, self.source)
+
+    def test_empty_future_dated_column_is_deferred_and_warnings_clear_when_completed(self):
+        self.future_column(14, date="22/01/27")
+        first = parse_order_values(self.values, self.source)
+        self.assertEqual(12, len(first["invoices"]))
+        self.assertEqual("incomplete_order", first["sync_warnings"][0]["kind"])
+        self.values[5][14] = "40"
+        self.values[3][14] = "40 Tables"
+        second = parse_order_values(self.values, first)
+        self.assertEqual(13, len(second["invoices"]))
+        self.assertEqual([], second["sync_warnings"])
+
     @patch("google.oauth2.service_account.Credentials.from_service_account_file")
     @patch("google.auth.transport.requests.AuthorizedSession")
     def test_read_only_client_uses_metadata_bounds_and_read_only_scope(self, session_type, credentials_type):
@@ -92,6 +140,34 @@ class InvoiceSyncTests(unittest.TestCase):
 
     def incoming(self):
         return copy.deepcopy(tracker.invoice_order_seed_source())
+
+    def test_incomplete_future_columns_allow_sync_but_saved_changes_still_require_review(self):
+        self.save_invoice("100.00", {"notes": "Keep this saved message"})
+        saved_lines, saved_notes = self.invoice.lines_json, self.invoice.notes
+        source = self.incoming()
+        values = source_values(source)
+        for row in values:
+            row.extend([""] * max(0, 16 - len(row)))
+        values[1][14] = "January"
+        values[2][14] = "22/01/27"
+        values[5][14] = "40"
+        values[5][15] = "45"
+        # M is already saved; a changed quantity must become a review request.
+        values[5][12] = str(int(values[5][12]) + 1)
+        incoming = parse_order_values(values, source)
+        result = tracker.apply_invoice_sheet_source(incoming)
+        self.assertEqual(1, result["created"])
+        self.assertEqual(1, result["review"])
+        self.assertEqual(13, tracker.GeneratedInvoice.query.count())
+        self.assertEqual(saved_lines, self.invoice.lines_json)
+        self.assertEqual(saved_notes, self.invoice.notes)
+        state = tracker.db.session.get(tracker.InvoiceSheetSyncState, 1)
+        data = json.loads(state.data_json)
+        self.assertIn(str(self.invoice.id), data["pending"])
+        self.assertEqual("", state.last_error)
+        self.assertIn(b"sheet notice(s)", self.client.get("/invoice_generator").data)
+        self.assertEqual(0, tracker.apply_invoice_sheet_source(incoming)["created"])
+        self.assertEqual(13, tracker.GeneratedInvoice.query.count())
 
     def change_order(self, source):
         order = next(order for order in source["invoices"] if order["collection_date"] == "04/12")

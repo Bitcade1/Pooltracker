@@ -18,7 +18,7 @@
         <section class="panel email-composer">
             <div class="section-heading"><h2>Your message</h2><span class="status-pill {{ 'status-ready' if connected else 'status-draft' }}">{{ 'Microsoft 365 connected' if connected else 'Mailbox setup needed' }}</span></div>
             <p class="muted">Review the recipient and message. Your saved invoice is attached as a PDF.</p>
-            <form method="post" id="email-form">
+            <form method="post" id="email-form" data-improve-url="{{ url_for('improve_invoice_email', invoice_id=invoice.record.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
                 <input type="hidden" name="invoice_version" value="{{ invoice.version }}">
                 <input type="hidden" name="send_token" value="{{ send_token }}">
@@ -27,6 +27,17 @@
                 <label>CC <span class="muted">(optional, separate addresses with commas)</span><input type="email" name="cc" value="{{ values.cc }}" multiple maxlength="2550"></label>
                 <label>Subject<input name="subject" value="{{ values.subject }}" maxlength="180" required></label>
                 <label>Message<textarea name="body" rows="13" maxlength="10000" required>{{ values.body }}</textarea></label>
+                <div class="ai-tools">
+                    <div class="ai-actions"><button type="button" class="secondary" id="improve-email" {% if not ai_configured %}disabled{% endif %}>Improve with AI</button><button type="button" class="secondary" id="undo-ai" hidden>Undo AI changes</button></div>
+                    <p class="muted" id="ai-explanation">{% if ai_configured %}Sends your subject and message to OpenAI for a suggestion. Review the wording before using it.{% else %}AI improvement needs a one-time connection by your administrator.{% endif %}</p>
+                    <p class="muted" id="ai-status" role="status" aria-live="polite"></p>
+                </div>
+                <section class="ai-suggestion" id="ai-suggestion" aria-labelledby="ai-suggestion-title" hidden>
+                    <h3 id="ai-suggestion-title" tabindex="-1">Suggested wording</h3>
+                    <p class="muted">Your original draft is unchanged. Check names, dates, amounts and commitments before applying this suggestion.</p>
+                    <strong id="ai-suggested-subject"></strong><pre id="ai-suggested-body"></pre>
+                    <div class="ai-actions"><button type="button" id="apply-ai">Use this wording</button><button type="button" class="secondary" id="discard-ai">Keep my original</button></div>
+                </section>
                 <div class="attachment"><span class="pdf-icon" aria-hidden="true">PDF</span><div><strong>{{ invoice.record.reference }}.pdf</strong><span class="muted">Logo, addresses, items, delivery and VAT</span></div>
                     {% if config_ready %}<a target="_blank" rel="noopener" href="{{ url_for('invoice_email_pdf', invoice_id=invoice.record.id) }}">View PDF</a>{% else %}<a target="_blank" rel="noopener" href="{{ url_for('print_generated_invoice', invoice_id=invoice.record.id) }}">Preview invoice</a>{% endif %}
                 </div>
@@ -62,21 +73,5 @@
         </article>{% endfor %}
     </details>
 </main>
-<script>
-(() => {
-    const form = document.getElementById('email-form');
-    let dirty = false;
-    form.addEventListener('input', () => { dirty = true; });
-    form.addEventListener('submit', () => {
-        dirty = false;
-        const button = document.getElementById('send-invoice');
-        button.disabled = true;
-        button.textContent = 'Sending...';
-        document.getElementById('send-status').textContent = 'Creating the PDF and submitting your email to Microsoft 365...';
-    });
-    window.addEventListener('beforeunload', event => {
-        if (dirty) { event.preventDefault(); event.returnValue = ''; }
-    });
-})();
-</script>
+<script src="{{ url_for('static', filename='invoice-email.js') }}" defer></script>
 {% endblock %}
