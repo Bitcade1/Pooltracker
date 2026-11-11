@@ -26,6 +26,8 @@
         td { border-bottom: 1px solid #ededed; padding: 13px 0 23px; vertical-align: top; }
         .item-description { padding-right: 20px; line-height: 1.45; }
         .item-quantity { color: #89909a; font-size: 9.5pt; margin-top: 5px; line-height: 1.4; }
+        .delivery-charge { display: flex; justify-content: space-between; gap: 20px; padding: 16px 0 22px; border-bottom: 1px solid #ededed; }
+        .delivery-quantity { color: #89909a; font-size: 9.5pt; margin-top: 5px; }
         .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .closing-cell { border: 0; padding: 0; }
         .tax-row { display: flex; justify-content: space-between; padding: 13px 0 18px; border-bottom: 1px solid #777; }
@@ -60,6 +62,7 @@
             <div class="invoice-heading">
                 <h1>Invoice #{{ invoice.record.reference|invoice_reference_label }}</h1>
                 <div>{{ invoice.invoice_date_label }}</div>
+                <div style="margin-top: 7px; color: #777; font-size: 9pt">Delivery Date {{ invoice.delivery_date }}</div>
             </div>
         </header>
         <section class="addresses">
@@ -85,6 +88,10 @@
                 </tr>
             {% endfor %}
                 <tr><td colspan="2" class="closing-cell">
+                    <div class="delivery-charge">
+                        <div>Delivery (Per trip)<div class="delivery-quantity">{{ invoice.delivery_trips }} units x {{ invoice.delivery_unit_pence|invoice_gbp }}/unit</div></div>
+                        <span class="number">{{ invoice.delivery_pence|invoice_gbp }}</span>
+                    </div>
                     <div class="tax-row"><span>VAT ({{ '%g'|format(invoice.presentation.vat_basis_points / 100) }}%)</span><span class="number">{{ invoice.vat_pence|invoice_gbp }}</span></div>
                     <section class="payment-summary">
                         <p class="total">{{ invoice.grand_total_pence|invoice_gbp }}</p>

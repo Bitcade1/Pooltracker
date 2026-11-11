@@ -4343,6 +4343,8 @@ def invoice_reference_label(reference):
 INVOICE_SELLER_DETAILS = "BitCade\nHouse 3, Bitcade\nBristol BS351RF\nJack.england@bitcade.co.uk\n+447515881355"
 INVOICE_CUSTOMER_DETAILS = "Home Leisure Direct Worldwide Ltd\nOffice 13 Europa House, 18 Wadsworth Road\nPerivale UB67JD\naccounts@homeleisuredirect.com"
 INVOICE_DEFAULT_MESSAGE = "Thanks for your business."
+INVOICE_DELIVERY_TRIPS = 3
+INVOICE_DELIVERY_UNIT_PENCE = 21000
 
 
 def invoice_presentation(invoice):
@@ -4402,13 +4404,23 @@ def generated_invoice_payload(invoice, prices):
             else:
                 subtotal += line["total_pence"]
     presentation = invoice_presentation(invoice)
-    vat_pence = (subtotal * presentation["vat_basis_points"] + 5000) // 10000
+    delivery_pence = INVOICE_DELIVERY_TRIPS * INVOICE_DELIVERY_UNIT_PENCE
+    taxable_subtotal = subtotal + delivery_pence
+    vat_pence = (taxable_subtotal * presentation["vat_basis_points"] + 5000) // 10000
+    try:
+        delivery_date = date.fromisoformat(source_order_date(
+            {"collection_date": invoice.collection_date, "month": invoice.month}, invoice_order_source())[0]).strftime("%d/%m/%y")
+    except (ValueError, IndexError):
+        delivery_date = invoice.collection_date
     return {
         "record": invoice, "lines": lines,
         "quantity": sum(line["quantity"] for line in lines),
         "missing_prices": missing, "total_pence": subtotal,
         "version": invoice_record_version(invoice),
-        "presentation": presentation, "vat_pence": vat_pence, "grand_total_pence": subtotal + vat_pence,
+        "presentation": presentation, "vat_pence": vat_pence, "grand_total_pence": taxable_subtotal + vat_pence,
+        "delivery_trips": INVOICE_DELIVERY_TRIPS, "delivery_unit_pence": INVOICE_DELIVERY_UNIT_PENCE,
+        "delivery_pence": delivery_pence, "taxable_subtotal_pence": taxable_subtotal,
+        "delivery_date": delivery_date, "delivery_label": f"Delivery Date {delivery_date} - {invoice.reference}",
         "invoice_date_label": date.fromisoformat(presentation["invoice_date"]).strftime("%d %b %Y").lstrip("0"),
         "due_date_label": date.fromisoformat(presentation["due_date"]).strftime("%d %b %Y").upper().lstrip("0") if presentation["due_date"] else "",
     }
@@ -4450,7 +4462,7 @@ def invoice_generator():
                     data["missing"] = [item for item in data["missing"] if item != invoice_id]
                     if selected_id == invoice_id:
                         selected_id = None
-                    flash("Invoice deleted from Order columns. Sheet sync will not bring it back. You can restore it under Deleted invoices.", "success")
+                    flash("Invoice deleted from Upcoming invoices. Sheet sync will not bring it back. You can restore it under Deleted invoices.", "success")
                 else:
                     if str(invoice_id) not in deleted:
                         abort(404)

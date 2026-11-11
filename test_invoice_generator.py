@@ -99,7 +99,7 @@ class InvoiceGeneratorTests(unittest.TestCase):
         self.assertEqual(12, tracker.GeneratedInvoice.query.count())
         response = self.client.get(f"/invoice_generator/{self.invoice.id}/print")
         self.assertEqual(200, response.status_code)
-        self.assertIn("\u00a33.50", response.get_data(as_text=True))
+        self.assertIn("\u00a3633.50", response.get_data(as_text=True))
         self.assertEqual(4, response.data.count(b'class="item-quantity"'))
 
     def test_blank_cost_is_unpriced_and_explicit_zero_is_valid(self):
@@ -153,17 +153,17 @@ class InvoiceGeneratorTests(unittest.TestCase):
     def test_presentation_dates_vat_and_addresses_save_and_survive_reopening(self):
         self.assertEqual(303, self.save_invoice("100.10", overrides={"vat_rate": "20", "due_date": "2026-11-13"}).status_code)
         payload = tracker.generated_invoice_payload(self.invoice, {})
-        self.assertEqual(70070, payload["vat_pence"])
-        self.assertEqual(420420, payload["grand_total_pence"])
+        self.assertEqual(82670, payload["vat_pence"])
+        self.assertEqual(496020, payload["grand_total_pence"])
         self.assertEqual("13 NOV 2026", payload["due_date_label"])
         self.assertEqual("5 Nov 2026", payload["invoice_date_label"])
         self.assertEqual(2000, json.loads(self.invoice.presentation_json)["vat_basis_points"])
         printed = self.client.get(f"/invoice_generator/{self.invoice_id}/print").get_data(as_text=True)
-        for text in ("Invoice #400", "BILL TO", "FROM", "VAT (20%)", "\u00a34,204.20", "invoice-bitcade-logo.png"):
+        for text in ("Invoice #400", "BILL TO", "FROM", "VAT (20%)", "\u00a34,960.20", "invoice-bitcade-logo.png"):
             self.assertIn(text, printed)
 
     def test_reference_invoice_391_amounts_calculate_exactly(self):
-        items = [(20, 72800), (15, 52500), (5, 52500), (10, 72800), (1, 32000), (3, 32000), (24, 150), (3, 21000)]
+        items = [(20, 72800), (15, 52500), (5, 52500), (10, 72800), (1, 32000), (3, 32000), (24, 150)]
         self.invoice.lines_json = json.dumps([
             {"sku": str(index), "description": "Reference item", "quantity": quantity, "unit_cost_pence": cost}
             for index, (quantity, cost) in enumerate(items)
@@ -171,16 +171,17 @@ class InvoiceGeneratorTests(unittest.TestCase):
         self.invoice.saved_at = tracker.london_now()
         self.invoice.presentation_json = json.dumps({"invoice_date": "2026-11-05", "due_date": "2026-11-13", "vat_basis_points": 2000})
         payload = tracker.generated_invoice_payload(self.invoice, {})
-        self.assertEqual(3428600, payload["total_pence"])
+        self.assertEqual(3365600, payload["total_pence"])
+        self.assertEqual(3428600, payload["taxable_subtotal_pence"])
         self.assertEqual(685720, payload["vat_pence"])
         self.assertEqual(4114320, payload["grand_total_pence"])
 
-    def test_legacy_saved_invoice_totals_are_preserved(self):
+    def test_legacy_saved_item_prices_and_vat_are_preserved_with_delivery_added(self):
         self.save_invoice("0.03")
         self.invoice.presentation_json = "{}"
         payload = tracker.generated_invoice_payload(self.invoice, {})
         self.assertEqual(0, payload["vat_pence"])
-        self.assertEqual(payload["total_pence"], payload["grand_total_pence"])
+        self.assertEqual(payload["total_pence"] + 63000, payload["grand_total_pence"])
 
     def test_invalid_dates_and_vat_do_not_modify_a_saved_invoice(self):
         self.save_invoice("10.00")
@@ -194,8 +195,33 @@ class InvoiceGeneratorTests(unittest.TestCase):
         self.assertEqual(303, self.save_invoice("0.05", overrides={"vat_rate": "6"}).status_code)
         payload = tracker.generated_invoice_payload(self.invoice, {})
         self.assertEqual(175, payload["total_pence"])
-        self.assertEqual(11, payload["vat_pence"])
-        self.assertEqual(186, payload["grand_total_pence"])
+        self.assertEqual(3791, payload["vat_pence"])
+        self.assertEqual(66966, payload["grand_total_pence"])
+
+    def test_delivery_is_three_trips_at_210_and_uses_the_invoice_vat_rate(self):
+        self.save_invoice("100.00", overrides={"vat_rate": "20"})
+        payload = tracker.generated_invoice_payload(self.invoice, {})
+        self.assertEqual(35, payload["quantity"])
+        self.assertEqual(3, payload["delivery_trips"])
+        self.assertEqual(21000, payload["delivery_unit_pence"])
+        self.assertEqual(63000, payload["delivery_pence"])
+        self.assertEqual(413000, payload["taxable_subtotal_pence"])
+        self.assertEqual(82600, payload["vat_pence"])
+        self.assertEqual(495600, payload["grand_total_pence"])
+        printed = self.client.get(f"/invoice_generator/{self.invoice_id}/print").get_data(as_text=True)
+        self.assertLess(printed.index("Delivery (Per trip)"), printed.index("VAT (20%)"))
+        self.assertEqual(1, printed.count("Delivery (Per trip)"))
+        self.client.get("/invoice_generator")
+        self.assertEqual(495600, tracker.generated_invoice_payload(self.invoice, {})["grand_total_pence"])
+
+    def test_delivery_label_has_a_full_date_and_the_invoice_reference(self):
+        invoice = tracker.GeneratedInvoice.query.filter_by(source_column="K").one()
+        payload = tracker.generated_invoice_payload(invoice, {})
+        self.assertEqual("Delivery Date 13/11/26 - INV-391", payload["delivery_label"])
+        response = self.client.get(f"/invoice_generator?invoice={invoice.id}")
+        self.assertIn(b"Upcoming invoices", response.data)
+        self.assertIn(b"Delivery Date 13/11/26 - INV-391", response.data)
+        self.assertNotIn(b"Order columns", response.data)
 
     def test_saving_invoice_shares_ordered_prices_with_other_drafts(self):
         self.assertEqual(303, self.save_invoice("123.45").status_code)

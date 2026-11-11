@@ -10,7 +10,7 @@ notes until someone reviews a sheet change. The page offers Apply sheet changes
 or Keep saved invoice. Applying a change preserves each SKU's saved price;
 new SKUs remain unpriced until entered. Removed columns do not delete invoices.
 
-Use Delete on an Order columns card to remove a completed invoice from the
+Use Delete on an Upcoming invoices card to remove a completed invoice from the
 active list. Deleted invoices retain their saved contents and sync identity,
 so the sheet does not recreate them. Restore them from the collapsed Deleted
 invoices section if needed. Restoring checks the latest imported quantities;
@@ -25,6 +25,12 @@ Allocation happens once under the SQLite write lock. Subsequent syncs, moved
 columns, deletion and restoration do not renumber invoices or reuse numbers.
 An order inserted later receives the next unused number; existing invoices
 keep their numbers. The Google Sheet itself remains read-only.
+
+Each invoice includes Delivery (Per trip): three lorries at GBP 210 per trip,
+GBP 630 before VAT. This fixed service charge is displayed after the products
+and before VAT, and is included once in the taxable subtotal and grand total.
+It does not change table quantities, SKU prices, or inventory counts. Delivery
+labels include the year, for example Delivery Date 13/11/26 - INV-391.
 
 ## 1. Google connection
 

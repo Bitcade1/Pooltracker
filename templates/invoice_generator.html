@@ -1,73 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Invoice Generator{% endblock %}
 {% block content %}
-<style>
-    body { display: block; background: #eef2f7; color: #172336; }
-    .site-header, .site-footer { padding: 12px 24px; text-align: center; }
-    .invoice-generator { max-width: 1450px; margin: 0 auto; text-align: left; }
-    .invoice-generator * { box-sizing: border-box; }
-    .invoice-generator h1, .invoice-generator h2, .invoice-generator p { text-align: left; }
-    .invoice-generator h1 { margin-bottom: 6px; }
-    .invoice-generator h2 { margin: 0 0 12px; font-size: 1.25rem; }
-    .invoice-generator .muted { color: #596579; font-size: .92rem; }
-    .invoice-generator .panel { background: #fff; border: 1px solid #dfe3eb; border-radius: 10px; padding: 18px; margin: 16px 0; }
-    .invoice-generator .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-items: start; }
-    .invoice-generator .layout > .panel { margin-top: 0; }
-    .invoice-generator .table-scroll { overflow-x: auto; }
-    .invoice-generator table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 10px 0; }
-    .invoice-generator th, .invoice-generator td { border-bottom: 1px solid #e4e7ed; padding: 10px; vertical-align: middle; text-align: left; }
-    .invoice-generator th { background: #f7f7fb; color: #394658; }
-    .invoice-generator .number { text-align: right; font-variant-numeric: tabular-nums; }
-    .invoice-generator input[type="text"], .invoice-generator input[type="number"], .invoice-generator input[type="date"], .invoice-generator textarea {
-        width: 100%; border: 1px solid #b8c1cf; border-radius: 5px; padding: 10px; font: inherit; text-align: left;
-    }
-    .invoice-generator input[type="number"] { text-align: right; min-width: 100px; }
-    .invoice-generator textarea { min-height: 90px; resize: vertical; }
-    .invoice-generator .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
-    .invoice-generator label { display: block; font-size: .94rem; }
-    .invoice-generator label > input, .invoice-generator label > textarea { display: block; margin-top: 5px; font-weight: normal; }
-    .invoice-generator .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
-    .invoice-generator .button { display: inline-block; background: #007bff; color: #fff; padding: 12px 16px; border: 0; border-radius: 5px; text-decoration: none; font: inherit; }
-    .invoice-generator .secondary { background: #edf2f8; color: #254364; }
-    .invoice-generator button:disabled { opacity: .55; cursor: not-allowed; }
-    .invoice-generator .notice { border-radius: 6px; padding: 12px; margin: 12px 0; background: #edf4ff; }
-    .invoice-generator .notice.error, .invoice-generator .warning { background: #fff3d7; color: #714d00; }
-    .invoice-generator .notice.success { background: #e9f7ec; color: #205a2a; }
-    .invoice-generator .invoice-link { display: block; padding: 12px; margin: 8px 0; border: 1px solid #dfe3eb; border-radius: 7px; color: #24344a; text-decoration: none; }
-    .invoice-generator .invoice-link.active { border-color: #007bff; background: #edf4ff; box-shadow: inset 3px 0 #007bff; }
-    .invoice-generator .invoice-link span { display: block; margin-top: 4px; }
-    .invoice-generator .invoice-card { border: 1px solid #dfe3eb; border-radius: 7px; margin: 8px 0; overflow: hidden; }
-    .invoice-generator .invoice-card.active { border-color: #007bff; }
-    .invoice-generator .invoice-card .invoice-link { border: 0; border-radius: 0; margin: 0; }
-    .invoice-generator .invoice-card form { margin: 0; padding: 0 12px 10px; gap: 0; }
-    .invoice-generator .delete-invoice { background: #fff; color: #a32929; border: 1px solid #e4bbbb; padding: 6px 10px; font-size: .85rem; }
-    .invoice-generator .deleted-invoice { border-bottom: 1px solid #e4e7ed; padding: 12px 0; }
-    .invoice-generator .deleted-invoice form { margin-top: 8px; }
-    .invoice-generator .sku { display: block; color: #596579; font-size: .8rem; overflow-wrap: anywhere; margin-top: 4px; }
-    .invoice-generator .totals { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; background: #f7f7fb; padding: 16px; border-radius: 7px; margin: 12px 0; }
-    .invoice-generator .totals strong { font-size: 1.2rem; display: block; margin-top: 5px; }
-    .invoice-generator .checkbox { display: flex; gap: 8px; align-items: center; font-weight: normal; margin: 14px 0; }
-    .invoice-generator summary { cursor: pointer; font-weight: bold; }
-    .invoice-generator .zero-row[hidden] { display: none; }
-    .invoice-generator [hidden] { display: none !important; }
-    .invoice-generator .prices-table { min-width: 600px; }
-    .invoice-generator .lines-table { min-width: 620px; }
-    @media (max-width: 1000px) {
-        .invoice-generator .layout { grid-template-columns: 1fr; }
-        .invoice-generator .invoice-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; max-height: 300px; overflow-y: auto; }
-        .invoice-generator .invoice-link, .invoice-generator .invoice-card { margin: 0; }
-    }
-    @media (max-width: 600px) { .invoice-generator .fields { grid-template-columns: 1fr; } }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='invoice-generator.css') }}">
 <main class="invoice-generator">
-    <h1>Invoice Generator</h1>
-    <p class="muted">One order column, one invoice. Set your unit costs, select a collection, and save the invoice.</p>
+    <header class="billing-hero">
+        <div><span class="eyebrow">BITCADE / BILLING &amp; DELIVERY</span><h1>Invoice Generator</h1>
+            <p>Your next delivery, all in order. Review prices, save your invoice and print when ready.</p></div>
+        <div class="hero-logo"><img src="{{ url_for('static', filename='invoice-bitcade-logo.png') }}" alt="BitCade" width="74" height="65"></div>
+    </header>
+    <div class="overview-grid">
+        <div class="overview-card"><span class="stat-caption">Upcoming invoices</span><strong>{{ invoices|length }}</strong><span class="muted">Ready to review and prepare</span></div>
+        <div class="overview-card"><span class="stat-caption">Tables on the schedule</span><strong>{{ invoices|sum(attribute='quantity') }}</strong><span class="muted">Across your active invoices</span></div>
+        <div class="overview-card delivery-overview"><span class="stat-caption">Delivery per invoice</span><strong>&pound;630<span>.00</span></strong><span class="muted">3 lorries &times; &pound;210, before VAT</span></div>
+    </div>
     {% for category, message in get_flashed_messages(with_categories=true) %}
     <div class="notice {{ category }}" role="status">{{ message }}</div>
     {% endfor %}
 
-    <section class="panel" aria-label="Google Sheets sync">
-        <h2>Google Sheets sync</h2>
+    <section class="panel sync-panel" aria-label="Google Sheets sync">
+        <div><h2>Google Sheets sync <span class="status-pill {% if sync_state.last_success_at and not sync_stale and not sync_state.last_error %}status-ready{% else %}status-draft{% endif %}">{% if sync_state.last_success_at and not sync_stale and not sync_state.last_error %}Up to date{% else %}Awaiting sync{% endif %}</span></h2>
         <p class="muted" id="sync-status">
             {% if sync_state.last_success_at %}
                 Last synced {{ sync_state.last_success_at|london_time('%d/%m/%Y %H:%M') }} (UK time).
@@ -78,16 +29,16 @@
         </p>
         {% if sync_state.last_error %}<div class="notice warning" role="status">{{ sync_state.last_error }}</div>
         {% elif sync_stale %}<div class="notice warning" role="status">No successful sync in the last 15 minutes. Existing invoices and prices are still available.</div>{% endif %}
+        </div>
         <form method="post" class="sheet-action" action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
             <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
             <input type="hidden" name="action" value="sync_now">
-            <div class="actions"><button type="submit" {% if not sync_configured %}disabled{% endif %}>Sync now</button>
-                <span class="muted">New orders and draft quantities sync from the sheet. Changes to saved invoices require review.</span></div>
+            <div class="actions"><button type="submit" class="sync-button" {% if not sync_configured %}disabled{% endif %}>Sync now</button></div>
         </form>
     </section>
 
     <details class="panel" id="price-list" {% if submitted and submitted.get('action') == 'save_prices' %}open{% endif %}>
-        <summary>Saved unit costs by product (GBP)</summary>
+        <summary>Product price list <span class="summary-hint">Your saved unit costs &middot; GBP</span></summary>
         <p class="muted">These prices fill unsaved invoices automatically. Saving a priced invoice also remembers its ordered items' costs here by SKU. Saved invoices keep their own prices. Leave a price blank if it is not known yet; enter 0.00 for a free item.</p>
         <form method="post" action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
             <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
@@ -114,22 +65,23 @@
     </details>
 
     <div class="layout">
-        <aside class="panel">
-            <h2>Order columns</h2>
-            <p class="muted">{{ invoices|length }} invoices from the Orders tab.</p>
+        <aside class="panel upcoming-panel">
+            <div class="section-heading"><h2>Upcoming invoices</h2><span class="count-badge">{{ invoices|length }}</span></div>
+            <p class="muted">Choose a delivery to prepare its invoice.</p>
             <div class="invoice-list">
             {% for invoice in invoices %}
             <div class="invoice-card {% if selected and selected.record.id == invoice.record.id %}active{% endif %}">
             <a class="invoice-link {% if selected and selected.record.id == invoice.record.id %}active{% endif %}"
                href="{{ url_for('invoice_generator', invoice=invoice.record.id) }}"
                {% if selected and selected.record.id == invoice.record.id %}aria-current="page"{% endif %}>
-                <strong>{{ invoice.record.collection_date }} - {{ invoice.record.reference }}</strong>
-                <span>{{ invoice.quantity }} tables | {{ invoice.record.month }} | Column {{ invoice.record.source_column }}</span>
-                <span class="muted">{% if invoice.record.saved_at %}Saved{% else %}Draft{% endif %}{% if invoice.missing_prices %} - {{ invoice.missing_prices }} unpriced product{% if invoice.missing_prices != 1 %}s{% endif %}{% else %} - {{ invoice.grand_total_pence|invoice_money }}{% endif %}</span>
+                <strong class="delivery-title">{{ invoice.delivery_label }}</strong>
+                <span class="card-detail">{{ invoice.quantity }} tables <span class="card-separator">/</span> {{ invoice.record.month }}</span>
+                <span class="card-bottom"><span class="status-pill {% if invoice.record.saved_at %}status-ready{% else %}status-draft{% endif %}">{% if invoice.record.saved_at %}Saved{% else %}Draft{% endif %}</span>
+                    <span class="card-amount">{% if invoice.missing_prices %}{{ invoice.missing_prices }} unpriced{% else %}{{ invoice.grand_total_pence|invoice_gbp }}{% endif %}</span></span>
                 {% if invoice.record.id|string in sync_data.pending %}<span class="warning">Sheet changes to review</span>{% endif %}
                 {% if invoice.record.id in sync_data.missing %}<span class="muted">No longer in the sheet</span>{% endif %}
             </a>
-            <form method="post" class="invoice-management" data-deleting="true" data-invoice-label="{{ invoice.record.collection_date }} - {{ invoice.record.reference }}"
+            <form method="post" class="invoice-management" data-deleting="true" data-invoice-label="{{ invoice.delivery_label }}"
                   action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
                 <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
                 <input type="hidden" name="action" value="delete_invoice">
@@ -163,9 +115,10 @@
         {% if selected %}
         {% set record = selected.record %}
         {% set editing = submitted and submitted.get('action') == 'save_invoice' %}
-        <section class="panel">
-            <h2>Collection {{ record.collection_date }} - {{ selected.quantity }} tables</h2>
-            <p class="muted">Orders column {{ record.source_column }} | {% if record.saved_at %}Saved {{ record.saved_at.strftime('%d/%m/%Y %H:%M') }} by {{ record.saved_by }}{% else %}Draft - not saved yet{% endif %}</p>
+        <section class="panel invoice-editor">
+            <span class="eyebrow editor-eyebrow">INVOICE DETAILS</span>
+            <h2 class="editor-title">{{ selected.delivery_label }}</h2>
+            <p class="muted editor-meta">{{ selected.quantity }} tables &middot; {% if record.saved_at %}Saved {{ record.saved_at.strftime('%d/%m/%Y %H:%M') }} by {{ record.saved_by }}{% else %}Draft - ready for your prices{% endif %}</p>
             {% if record.id in sync_data.missing %}
             <div class="notice warning">This order is no longer in the sheet. The invoice and its saved prices have been kept.</div>
             {% endif %}
@@ -203,7 +156,7 @@
                         <input type="text" name="reference" maxlength="80" required value="{{ submitted.get('reference', '') if editing else record.reference }}">
                         <span class="muted">Automatically numbered from INV-391 for 13/11/2026. You can edit the reference.</span>
                     </label>
-                    <label>Collection date
+                    <label>Delivery date
                         <input type="text" name="collection_date" maxlength="40" required value="{{ submitted.get('collection_date', '') if editing else record.collection_date }}">
                     </label>
                     <label>From / seller details
@@ -237,17 +190,24 @@
                             <td><input class="unit-cost" type="number" step="0.01" min="0" max="99999999.99" name="cost_{{ line.sku }}"
                                 aria-label="Unit cost for {{ line.description }}" placeholder="Not set"
                                 value="{{ submitted.get('cost_' + line.sku, '') if editing else line.unit_cost_pence|invoice_cost_input }}"></td>
-                            <td class="number line-total">{% if line.quantity %}{{ line.total_pence|invoice_money }}{% else %}GBP 0.00{% endif %}</td>
+                            <td class="number line-total">{% if line.quantity %}{{ line.total_pence|invoice_gbp }}{% else %}&pound;0.00{% endif %}</td>
                         </tr>
                         {% endfor %}
+                        <tr class="delivery-row">
+                            <td><strong>Delivery (Per trip)</strong><span class="sku">3 lorries &middot; fixed delivery charge</span></td>
+                            <td class="number">{{ selected.delivery_trips }}</td>
+                            <td class="number">{{ selected.delivery_unit_pence|invoice_gbp }}</td>
+                            <td class="number">{{ selected.delivery_pence|invoice_gbp }}</td>
+                        </tr>
                         </tbody>
                     </table>
                 </div>
                 <div class="totals">
-                    <div>Total quantity<strong>{{ selected.quantity }} tables</strong></div>
-                    <div>Subtotal (ex VAT)<strong id="invoice-subtotal">{{ selected.total_pence|invoice_money }}</strong></div>
-                    <div>VAT<strong id="invoice-vat">{{ selected.vat_pence|invoice_money }}</strong></div>
-                    <div>Invoice total (GBP)<strong id="invoice-total">{{ selected.grand_total_pence|invoice_money }}</strong></div>
+                    <div>Items<strong id="invoice-items-total">{{ selected.total_pence|invoice_gbp }}</strong></div>
+                    <div>Delivery<strong>{{ selected.delivery_pence|invoice_gbp }}</strong></div>
+                    <div>Subtotal (ex VAT)<strong id="invoice-subtotal">{{ selected.taxable_subtotal_pence|invoice_gbp }}</strong></div>
+                    <div>VAT<strong id="invoice-vat">{{ selected.vat_pence|invoice_gbp }}</strong></div>
+                    <div class="grand-total">Invoice total<strong id="invoice-total">{{ selected.grand_total_pence|invoice_gbp }}</strong></div>
                 </div>
                 <p id="pricing-status" role="status" class="muted"></p>
                 <label>Message / payment details
@@ -268,11 +228,20 @@
 <script>
 (() => {
     const form = document.getElementById('invoice-form');
+    const list = document.querySelector('.invoice-list');
+    const activeCard = document.querySelector('.invoice-card.active');
+    if (list && activeCard) {
+        const listRect = list.getBoundingClientRect();
+        const cardRect = activeCard.getBoundingClientRect();
+        if (cardRect.top < listRect.top || cardRect.bottom > listRect.bottom) {
+            list.scrollTop += cardRect.top - listRect.top - 8;
+        }
+    }
     let invoiceDirty = {{ 'true' if submitted and submitted.get('action') == 'save_invoice' else 'false' }};
     let priceDirty = {{ 'true' if submitted and submitted.get('action') == 'save_prices' else 'false' }};
     document.querySelectorAll('.invoice-management').forEach(managementForm => managementForm.addEventListener('submit', event => {
         const deleting = managementForm.dataset.deleting === 'true';
-        let message = deleting ? `Delete invoice ${managementForm.dataset.invoiceLabel} from Order columns? It will stay deleted after syncing. You can restore it under Deleted invoices.` : '';
+        let message = deleting ? `Delete invoice ${managementForm.dataset.invoiceLabel} from Upcoming invoices? It will stay deleted after syncing. You can restore it under Deleted invoices.` : '';
         if (invoiceDirty || priceDirty) message += '\nUnsaved edits on this page will be discarded.';
         if (message && !window.confirm(message)) {
             event.preventDefault();
@@ -285,7 +254,7 @@
     showZero.addEventListener('change', () => {
         form.querySelectorAll('.zero-row').forEach(row => row.hidden = !showZero.checked);
     });
-    const money = pence => `GBP ${new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(pence / 100)}`;
+    const money = pence => new Intl.NumberFormat('en-GB', {style: 'currency', currency: 'GBP'}).format(pence / 100);
     function updateTotals() {
         let total = 0;
         let missing = 0;
@@ -304,10 +273,12 @@
         const validVat = /^[0-9]{1,3}(\.[0-9]{1,2})?$/.test(vatText) && Number(vatText) <= 100;
         const [vatWhole, vatFraction = ''] = vatText.split('.');
         const vatBasisPoints = validVat ? Number(vatWhole) * 100 + Number(vatFraction.padEnd(2, '0')) : 0;
-        const vat = Math.floor((total * vatBasisPoints + 5000) / 10000);
-        document.getElementById('invoice-subtotal').textContent = money(total);
+        const subtotal = total + {{ selected.delivery_pence if selected else 0 }};
+        const vat = Math.floor((subtotal * vatBasisPoints + 5000) / 10000);
+        document.getElementById('invoice-items-total').textContent = money(total);
+        document.getElementById('invoice-subtotal').textContent = money(subtotal);
         document.getElementById('invoice-vat').textContent = validVat ? money(vat) : 'Enter a valid VAT rate';
-        document.getElementById('invoice-total').textContent = !validVat ? 'Enter a valid VAT rate' : missing ? `${money(total + vat)} (partial)` : money(total + vat);
+        document.getElementById('invoice-total').textContent = !validVat ? 'Enter a valid VAT rate' : missing ? `${money(subtotal + vat)} (partial)` : money(subtotal + vat);
         document.getElementById('pricing-status').textContent = missing
             ? `${missing} ordered product(s) still need a unit cost. You can save a draft; printing is available once all ordered products are priced.`
             : 'All ordered products are priced. Save the invoice to keep these costs.';
