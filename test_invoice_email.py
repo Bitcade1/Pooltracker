@@ -226,6 +226,7 @@ class InvoiceEmailTests(unittest.TestCase):
         self.assertFalse((self.store / "tokens.json").exists())
 
     def test_oauth_success_disconnect_and_strong_session_required(self):
+        (self.store / "last-sign-in-error.json").write_text('{"message":"Previous failed sign-in"}')
         flow_id = "b" * 48
         (self.store / ("flow-" + flow_id + ".json")).write_text(json.dumps({"flow": {"state": "state"}, "created": time.time()}))
         with self.client.session_transaction() as cookie:
@@ -240,6 +241,7 @@ class InvoiceEmailTests(unittest.TestCase):
         with patch("invoice_email.microsoft_client", return_value=(client, cache)), patch("invoice_email.requests.get", return_value=profile):
             self.assertEqual(302, self.client.get("/invoice_email/callback?code=code&state=state").status_code)
         self.assertTrue(mail.connection_status(self.config))
+        self.assertFalse((self.store / "last-sign-in-error.json").exists())
         self.assertEqual("private-cache-content", (self.store / "tokens.json").read_text())
         with self.client.session_transaction() as cookie:
             self.assertNotIn("secret-token", str(dict(cookie)))
@@ -249,6 +251,105 @@ class InvoiceEmailTests(unittest.TestCase):
         self.app.secret_key = "your_secret_key"
         with self.assertRaises(mail.InvoiceEmailError):
             mail.load_config()
+
+    def callback_flow(self, age=0):
+        flow_id = "c" * 48
+        path = self.store / ("flow-" + flow_id + ".json")
+        path.write_text(json.dumps({"flow": {"state": "expected-state", "code_verifier": "private-verifier"}, "created": time.time() - age}))
+        with self.client.session_transaction() as cookie:
+            cookie["invoice_email_flow"] = flow_id
+            cookie["invoice_email_return"] = self.invoice_id
+        return path
+
+    def test_callback_reports_actual_microsoft_error_and_never_discloses_credentials(self):
+        for code, expected in ((7000215, "secret VALUE"), (7000222, "secret has expired"), (65001, "consent is missing")):
+            with self.subTest(code=code):
+                path = self.callback_flow()
+                client = Mock()
+                client.acquire_token_by_auth_code_flow.return_value = {
+                    "error": "invalid_client", "error_codes": [code],
+                    "error_description": f"AADSTS{code}: private-client-secret private-verifier <script>bad</script>",
+                    "correlation_id": "11111111-1111-1111-1111-111111111111",
+                    "access_token_other": "private-access-token",
+                }
+                with patch("invoice_email.microsoft_client", return_value=(client, Mock())), self.assertLogs(self.app.logger, level="WARNING") as logs:
+                    response = self.client.get("/invoice_email/callback?code=private-auth-code&state=expected-state", follow_redirects=True)
+                html = response.get_data(as_text=True)
+                self.assertIn("AADSTS" + str(code), html)
+                self.assertIn(expected, html)
+                diagnostic_text = (self.store / "last-sign-in-error.json").read_text()
+                diagnostic = json.loads(diagnostic_text)
+                self.assertEqual("token_exchange", diagnostic["stage"])
+                self.assertEqual([str(code)], diagnostic["microsoft_error_codes"])
+                self.assertEqual("11111111-1111-1111-1111-111111111111", diagnostic["correlation_id"])
+                for private in ("private-client-secret", "private-verifier", "private-access-token", "private-auth-code", "<script>bad</script>"):
+                    self.assertNotIn(private, html + diagnostic_text + "".join(logs.output))
+                self.assertFalse(path.exists())
+                self.assertFalse((self.store / "tokens.json").exists())
+
+    def test_callback_invalid_state_is_explained_and_existing_connection_is_preserved(self):
+        self.connect()
+        original_cache = (self.store / "tokens.json").read_text()
+        path = self.callback_flow()
+        client = Mock()
+        client.acquire_token_by_auth_code_flow.side_effect = ValueError("private response and secret")
+        with patch("invoice_email.microsoft_client", return_value=(client, Mock())), self.assertLogs(self.app.logger, level="WARNING"):
+            response = self.client.get("/invoice_email/callback?code=private-code&state=wrong", follow_redirects=True)
+        self.assertIn(b"could not be verified", response.data)
+        self.assertNotIn(b"private response", response.data)
+        self.assertEqual(original_cache, (self.store / "tokens.json").read_text())
+        self.assertFalse(path.exists())
+
+    def test_callback_missing_and_expired_sessions_have_specific_messages(self):
+        with self.assertLogs(self.app.logger, level="WARNING"):
+            self.assertEqual(302, self.client.get("/invoice_email/callback?code=code").status_code)
+        diagnostic = json.loads((self.store / "last-sign-in-error.json").read_text())
+        self.assertEqual("browser_session", diagnostic["stage"])
+        self.assertIn("same browser", diagnostic["message"])
+        self.callback_flow(age=601)
+        with self.assertLogs(self.app.logger, level="WARNING"):
+            response = self.client.get("/invoice_email/callback?code=code&state=expected-state", follow_redirects=True)
+        self.assertIn(b"longer than 10 minutes", response.data)
+        self.callback_flow().unlink()
+        with self.assertLogs(self.app.logger, level="WARNING"):
+            response = self.client.get("/invoice_email/callback?code=code&state=expected-state", follow_redirects=True)
+        self.assertIn(b"expired or has already been used", response.data)
+
+    def test_callback_profile_permission_failure_identifies_user_read(self):
+        self.callback_flow()
+        client = Mock()
+        client.acquire_token_by_auth_code_flow.return_value = {"access_token": "private-access-token"}
+        with patch("invoice_email.microsoft_client", return_value=(client, Mock())), \
+                patch("invoice_email.requests.get", return_value=Mock(status_code=403)), self.assertLogs(self.app.logger, level="WARNING"):
+            response = self.client.get("/invoice_email/callback?code=code&state=expected-state", follow_redirects=True)
+        self.assertIn(b"mailbox identity check was refused (HTTP 403)", response.data)
+        self.assertIn(b"User.Read", response.data)
+        diagnostic = json.loads((self.store / "last-sign-in-error.json").read_text())
+        self.assertEqual("mailbox_profile", diagnostic["stage"])
+        self.assertFalse((self.store / "tokens.json").exists())
+
+    def test_callback_network_and_file_failures_do_not_expose_raw_exceptions(self):
+        self.callback_flow()
+        client = Mock()
+        client.acquire_token_by_auth_code_flow.side_effect = requests.Timeout("private-secret-in-url")
+        with patch("invoice_email.microsoft_client", return_value=(client, Mock())), self.assertLogs(self.app.logger, level="WARNING"):
+            response = self.client.get("/invoice_email/callback?code=code&state=expected-state", follow_redirects=True)
+        self.assertIn(b"HTTPS request to Microsoft", response.data)
+        self.assertNotIn(b"private-secret-in-url", response.data)
+        self.callback_flow()
+        with patch("invoice_email.private_store", side_effect=PermissionError("private-server-path")), self.assertLogs(self.app.logger, level="WARNING"):
+            response = self.client.get("/invoice_email/callback?code=code&state=expected-state", follow_redirects=True)
+        self.assertIn(b"directory ownership", response.data)
+        self.assertNotIn(b"private-server-path", response.data)
+
+    def test_unknown_error_diagnostics_allow_only_codes_and_safe_correlation_ids(self):
+        for result in ({"error": "<script>private-secret</script>", "error_codes": [99999, "private-secret", {}],
+                        "error_description": "private-secret", "correlation_id": "private-secret"},
+                       {"error": {}, "error_codes": None}, None):
+            error = mail.microsoft_sign_in_error(result)
+            self.assertNotIn("private-secret", str(error))
+            self.assertIsNone(error.correlation_id)
+        self.assertEqual(["99999"], mail.microsoft_sign_in_error({"error_codes": [99999]}).codes)
 
     def test_pdf_uses_real_template_logo_custom_items_delivery_and_vat(self):
         executable = Path("C:/Program Files/Google/Chrome/Application/chrome.exe")

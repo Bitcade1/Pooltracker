@@ -1,7 +1,7 @@
 """Microsoft 365 invoice mail. Credentials and OAuth tokens stay on the server."""
 import base64
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -25,6 +25,71 @@ _lock = threading.RLock()
 
 class InvoiceEmailError(Exception):
     pass
+
+
+class InvoiceSignInError(InvoiceEmailError):
+    """A safe, actionable sign-in message; never include Microsoft's raw response."""
+    def __init__(self, message, codes=(), correlation_id=None):
+        self.codes = list(codes)
+        self.correlation_id = correlation_id
+        super().__init__(message)
+
+
+def microsoft_sign_in_error(result):
+    """Extract only allowlisted error names, numeric codes and a correlation UUID."""
+    result = result if isinstance(result, dict) else {}
+    error_codes = result.get("error_codes", [])
+    error_codes = error_codes if isinstance(error_codes, (list, tuple)) else []
+    codes = {str(code) for code in error_codes
+             if isinstance(code, (str, int)) and re.fullmatch(r"[0-9]{4,10}", str(code))}
+    description = result.get("error_description", "")
+    if isinstance(description, str):
+        codes.update(re.findall(r"\bAADSTS([0-9]{4,10})\b", description[:16000]))
+    codes = sorted(codes)[:5]
+    hints = {
+        "7000215": "Microsoft rejected the client secret. Update client_secret in the server's private email configuration with the secret VALUE, not its Secret ID.",
+        "7000222": "The Microsoft client secret has expired. Create a new secret in Entra and update client_secret in the server's private email configuration.",
+        "7000218": "Microsoft did not receive the required client secret. Check the Web app registration and the server's private email configuration.",
+        "700016": "Microsoft could not find this app in the selected tenant. Check the tenant ID and application (client) ID on the server.",
+        "65001": "Microsoft consent is missing. In the app registration, check delegated Mail.Send and User.Read and have your administrator grant consent.",
+        "65004": "The Microsoft permission request was declined. Connect again and approve the requested permissions, or ask your administrator to approve them.",
+        "90094": "Microsoft requires administrator consent. Ask your Microsoft 365 administrator to approve delegated Mail.Send and User.Read for this app.",
+        "54005": "This Microsoft sign-in response has already been used. Return to the email page and start a new connection.",
+        "53003": "Your Microsoft organization blocked this sign-in under its access policy. Ask your administrator to check the Entra sign-in log.",
+    }
+    message = next((hints[code] for code in codes if code in hints), None)
+    if not message:
+        error = result.get("error")
+        message = {
+            "invalid_client": "Microsoft rejected the app credentials. Check the client secret VALUE and the tenant/client IDs in the server's private email configuration.",
+            "invalid_grant": "The Microsoft sign-in response expired or could not be redeemed. Start a new connection; if it repeats, check the Entra sign-in log.",
+            "access_denied": "Microsoft did not approve the connection. Check consent and your organization's sign-in policy in Entra.",
+            "invalid_scope": "Microsoft rejected the requested permissions. Check delegated Mail.Send and User.Read in the app registration.",
+            "temporarily_unavailable": "Microsoft sign-in is temporarily unavailable. Start a new connection in a few minutes.",
+            "server_error": "Microsoft sign-in is temporarily unavailable. Start a new connection in a few minutes.",
+        }.get(error if isinstance(error, str) else "", "Microsoft did not return a mailbox access token. Check the app's Entra sign-in log and start a new connection.")
+    if codes:
+        message += " (" + ", ".join("AADSTS" + code for code in codes) + ")"
+    correlation_id = result.get("correlation_id")
+    if not isinstance(correlation_id, str) or not re.fullmatch(r"[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}", correlation_id):
+        correlation_id = None
+    return InvoiceSignInError(message, codes, correlation_id)
+
+
+def record_sign_in_failure(config, stage, error):
+    """Keep a shareable diagnostic without authorization codes, tokens or secrets."""
+    diagnostic = {"time_utc": datetime.now(timezone.utc).isoformat(), "stage": stage,
+                  "message": str(error), "microsoft_error_codes": getattr(error, "codes", []),
+                  "correlation_id": getattr(error, "correlation_id", None)}
+    # Log only our static stage and numeric error codes. Never log exception/response bodies.
+    current_app.logger.warning("Invoice Microsoft sign-in failed: stage=%s microsoft_codes=%s", stage,
+                               ",".join(diagnostic["microsoft_error_codes"]) or "none")
+    if config:
+        try:
+            with private_store(config) as directory:
+                _private_write(directory / "last-sign-in-error.json", json.dumps(diagnostic, indent=2))
+        except OSError:
+            pass
 
 
 def session_secret():
@@ -281,37 +346,64 @@ def register_invoice_email(app, db, helpers):
         if (login := authenticated()):
             return login
         invoice_id = session.pop("invoice_email_return", None)
+        config = None
+        stage = "configuration"
         try:
             config = load_config()
+            stage = "browser_session"
             flow_id = session.pop("invoice_email_flow", "")
             if not re.fullmatch(r"[a-f0-9]{48}", flow_id):
-                raise ValueError()
+                raise InvoiceSignInError("The Microsoft sign-in session is missing. Open https://pooltabletracker.com, sign in to the tracker, and start Connect Microsoft 365 again in the same browser.")
+            stage = "sign_in_request"
             with private_store(config) as directory:
                 path = directory / ("flow-" + flow_id + ".json")
-                stored = json.loads(path.read_text(encoding="utf-8"))
+                try:
+                    stored = json.loads(path.read_text(encoding="utf-8"))
+                except FileNotFoundError:
+                    raise InvoiceSignInError("This Microsoft sign-in request expired or has already been used. Return to the email page and start a new connection.") from None
                 path.unlink()
                 if not 0 <= time.time() - stored["created"] <= 600:
-                    raise ValueError()
+                    raise InvoiceSignInError("Microsoft sign-in took longer than 10 minutes. Start a new connection and finish the sign-in within 10 minutes.")
+                stage = "microsoft_app"
                 client, cache = microsoft_client(config, directory, fresh=True)
+                stage = "token_exchange"
                 result = client.acquire_token_by_auth_code_flow(stored["flow"], request.args.to_dict())
-                if "access_token" not in result:
-                    raise ValueError()
+                if not isinstance(result, dict) or not result.get("access_token"):
+                    raise microsoft_sign_in_error(result)
+                stage = "mailbox_profile"
                 response = requests.get("https://graph.microsoft.com/v1.0/me?$select=id,mail,userPrincipalName",
                                         headers={"Authorization": "Bearer " + result["access_token"]}, timeout=(10, 30))
+                if response.status_code in (401, 403):
+                    raise InvoiceSignInError(f"Microsoft sign-in succeeded, but the mailbox identity check was refused (HTTP {response.status_code}). Check delegated User.Read and consent for this app, then reconnect.")
                 response.raise_for_status()
                 profile = response.json()
+                stage = "mailbox_identity"
                 if config["mailbox"].lower() not in {(profile.get("mail") or "").lower(), (profile.get("userPrincipalName") or "").lower()}:
                     raise InvoiceEmailError("Sign in with the configured invoice mailbox: " + config["mailbox"])
+                stage = "mailbox_account"
                 accounts = client.get_accounts()
                 if len(accounts) != 1:
-                    raise ValueError()
+                    raise InvoiceSignInError("Microsoft sign-in succeeded, but no single reusable mailbox account was returned. Start a new connection and select the configured invoice mailbox.")
+                stage = "save_connection"
                 _private_write(directory / "tokens.json", cache.serialize())
                 _private_write(directory / "account.json", json.dumps({"mailbox": config["mailbox"], "home_account_id": accounts[0]["home_account_id"]}))
+                (directory / "last-sign-in-error.json").unlink(missing_ok=True)
             flash("Microsoft 365 is connected. Review the email, then select Send invoice.", "success")
         except InvoiceEmailError as exc:
+            record_sign_in_failure(config, stage, exc)
             flash(str(exc), "error")
-        except (ValueError, KeyError, OSError, requests.RequestException):
-            flash("Microsoft sign-in was not completed. Try connecting again; your administrator may need to approve Mail.Send.", "error")
+        except (ValueError, KeyError, OSError, requests.RequestException) as exc:
+            if isinstance(exc, OSError) and not isinstance(exc, requests.RequestException):
+                message = "The server could not read or save the private Microsoft connection files. Check the email configuration/token directory ownership for the web service user."
+            elif isinstance(exc, requests.RequestException):
+                message = "The server could not complete its HTTPS request to Microsoft. Start a new connection; if it repeats, check outbound HTTPS access and Microsoft service status."
+            elif stage == "token_exchange":
+                message = "The Microsoft sign-in response could not be verified. Start a fresh connection in one browser tab; do not reuse a previous sign-in link."
+            else:
+                message = "Microsoft connection data could not be read or verified. Check the server's email configuration and start a new connection."
+            error = InvoiceSignInError(message)
+            record_sign_in_failure(config, stage, error)
+            flash(str(error), "error")
         return redirect(url_for("email_generated_invoice", invoice_id=invoice_id) if invoice_id else url_for("invoice_generator"))
 
     @app.route("/invoice_email/disconnect", methods=["POST"])

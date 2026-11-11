@@ -111,6 +111,46 @@ private configuration and restart the web service. **Disconnect mailbox** remove
 the local tokens; revoke the app's consent in Entra as well if retiring it.
 Record retention follows your existing database/backup policy.
 
+## Troubleshoot a connection that returns to the tracker
+
+The callback now reports the stage that failed rather than guessing that
+`Mail.Send` consent is missing. If you still see the old message, deploy the
+updated `invoice_email.py` and restart the web service first. Start a fresh
+**Connect Microsoft 365** attempt in one browser tab at
+`https://pooltabletracker.com` and complete it within 10 minutes.
+
+The page displays safe Microsoft error codes when returned. A private diagnostic
+also records the latest callback failure. After trying to connect again, read it
+on the Droplet with:
+
+```bash
+sudo cat /var/lib/pooltracker-invoice-email/last-sign-in-error.json
+```
+
+This specific diagnostic is safe to share: it contains a UTC time, failed stage,
+our explanatory message, numeric Microsoft error codes and a correlation ID. It
+does not contain tokens, authorization codes, PKCE verifiers, client secrets or
+Microsoft's raw error response. It is removed after a successful connection. Do
+not share `config.json`, `tokens.json`, or `flow-*.json`.
+
+- `AADSTS7000215` / `invalid_client`: check the client secret **Value**, not the
+  Secret ID, in `/etc/pooltracker-invoice-email/config.json`.
+- `AADSTS7000222`: replace the expired secret Value.
+- `AADSTS65001` / `AADSTS90094`: check delegated `Mail.Send` and `User.Read`, and
+  grant the required administrator consent in the matching app registration.
+- A mailbox identity check refused with HTTP 401/403: check delegated `User.Read`
+  and consent; this is distinct from permission to send mail.
+- A missing, expired, or unverifiable sign-in request: start a new connection at
+  the exact HTTPS domain above, use one browser tab, and check that all web
+  workers use the same persistent Flask session key.
+- Private file errors: check that the web service user can read the configuration
+  and write `/var/lib/pooltracker-invoice-email/` (keep the private permissions).
+
+For Microsoft error meanings, see the
+[Microsoft error reference](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes).
+An empty Entra log does not establish which stage failed; use the tracker's
+diagnostic to distinguish a server/session failure from Microsoft's rejection.
+
 PDF creation has a 2 MB attachment limit and needs Chromium's Linux dependencies.
 The installer checks this as the app user. On a restricted systemd unit, ensure
 it can read the browser directory, write its token directory and start Chromium.
