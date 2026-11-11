@@ -4364,6 +4364,14 @@ def invoice_presentation(invoice):
     return settings
 
 
+def invoice_custom_form_rows(form):
+    fields = [form.getlist(key) for key in ("custom_description", "custom_quantity", "custom_cost")]
+    return [{"description": fields[0][index] if index < len(fields[0]) else "",
+             "quantity": fields[1][index] if index < len(fields[1]) else "",
+             "cost": fields[2][index] if index < len(fields[2]) else ""}
+            for index in range(min(50, max(map(len, fields))))]
+
+
 def parse_invoice_presentation(form, invoice):
     settings = invoice_presentation(invoice)
     result = {}
@@ -4384,6 +4392,22 @@ def parse_invoice_presentation(form, invoice):
     if basis_points is None or basis_points > 10000:
         raise ValueError("VAT must be between 0 and 100 percent.")
     result["vat_basis_points"] = basis_points
+    custom_items = settings.get("custom_items", [])
+    if form.get("custom_items_present") == "1":
+        lengths = [len(form.getlist(key)) for key in ("custom_description", "custom_quantity", "custom_cost")]
+        if len(set(lengths)) != 1 or max(lengths) > 50:
+            raise ValueError("Add up to 50 custom items, each with a description, quantity and unit cost field.")
+        custom_items = []
+        for row in invoice_custom_form_rows(form):
+            description = row["description"].strip()
+            quantity = row["quantity"].strip()
+            if not description or len(description) > 500:
+                raise ValueError("Give every custom item a description of up to 500 characters.")
+            if not re.fullmatch(r"[0-9]{1,5}", quantity) or not 1 <= int(quantity) <= 10000:
+                raise ValueError("Custom item quantities must be whole numbers between 1 and 10,000.")
+            custom_items.append({"description": description, "quantity": int(quantity),
+                                 "unit_cost_pence": parse_invoice_unit_cost(row["cost"])})
+    result["custom_items"] = custom_items
     return result
 
 
@@ -4404,8 +4428,17 @@ def generated_invoice_payload(invoice, prices):
             else:
                 subtotal += line["total_pence"]
     presentation = invoice_presentation(invoice)
+    custom_items = []
+    custom_pence = 0
+    for item in presentation.get("custom_items", []):
+        amount = None if item["unit_cost_pence"] is None else item["quantity"] * item["unit_cost_pence"]
+        custom_items.append(dict(item, total_pence=amount))
+        if amount is None:
+            missing += 1
+        else:
+            custom_pence += amount
     delivery_pence = INVOICE_DELIVERY_TRIPS * INVOICE_DELIVERY_UNIT_PENCE
-    taxable_subtotal = subtotal + delivery_pence
+    taxable_subtotal = subtotal + custom_pence + delivery_pence
     vat_pence = (taxable_subtotal * presentation["vat_basis_points"] + 5000) // 10000
     try:
         delivery_date = date.fromisoformat(source_order_date(
@@ -4420,6 +4453,7 @@ def generated_invoice_payload(invoice, prices):
         "presentation": presentation, "vat_pence": vat_pence, "grand_total_pence": taxable_subtotal + vat_pence,
         "delivery_trips": INVOICE_DELIVERY_TRIPS, "delivery_unit_pence": INVOICE_DELIVERY_UNIT_PENCE,
         "delivery_pence": delivery_pence, "taxable_subtotal_pence": taxable_subtotal,
+        "custom_items": custom_items, "custom_pence": custom_pence, "items_subtotal_pence": subtotal + custom_pence,
         "delivery_date": delivery_date, "delivery_label": f"Delivery Date {delivery_date} - {invoice.reference}",
         "invoice_date_label": date.fromisoformat(presentation["invoice_date"]).strftime("%d %b %Y").lstrip("0"),
         "due_date_label": date.fromisoformat(presentation["due_date"]).strftime("%d %b %Y").upper().lstrip("0") if presentation["due_date"] else "",
@@ -4595,10 +4629,17 @@ def render_invoice_generator(source, selected_id, submitted=None):
             new_quantity = change["order"]["quantities"].get(sku, 0)
             if old_quantity or new_quantity:
                 comparison.append(dict(description=description, old_quantity=old_quantity, new_quantity=new_quantity))
+    selected_payload = generated_invoice_payload(selected, prices) if selected else None
+    custom_rows = []
+    if selected_payload:
+        if submitted and submitted.get("custom_items_present") == "1":
+            custom_rows = invoice_custom_form_rows(submitted)
+        else:
+            custom_rows = [dict(item, cost=invoice_cost_input(item["unit_cost_pence"])) for item in selected_payload["custom_items"]]
     return render_template(
         "invoice_generator.html", source=source, prices=prices,
         invoices=[generated_invoice_payload(invoice, prices) for invoice in invoices],
-        selected=generated_invoice_payload(selected, prices) if selected else None,
+        selected=selected_payload, custom_rows=custom_rows,
         submitted=submitted,
         sync_state=state, sync_data=sync_data,
         deleted_invoices=deleted_invoices,

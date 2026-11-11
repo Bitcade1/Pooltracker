@@ -32,6 +32,13 @@ and before VAT, and is included once in the taxable subtotal and grand total.
 It does not change table quantities, SKU prices, or inventory counts. Delivery
 labels include the year, for example Delivery Date 13/11/26 - INV-391.
 
+Custom invoice items can be added with a description, whole-number quantity,
+and unit cost. They are stored with that invoice, use its VAT rate and appear
+before delivery in the printed invoice. They survive sheet sync, change review,
+deletion and restoration. They do not affect table quantities, inventory or the
+shared SKU price list. A blank custom price can be saved as an unpriced draft;
+all item prices must be complete before printing.
+
 ## 1. Google connection
 
 The account is `admin-305@pooltracker-backup.iam.gserviceaccount.com`.

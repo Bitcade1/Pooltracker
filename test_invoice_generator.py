@@ -250,6 +250,70 @@ class InvoiceGeneratorTests(unittest.TestCase):
         self.save_invoice("0.00")
         self.assertEqual(0, tracker.db.session.get(tracker.InvoiceItemPrice, self.products[0]["sku"]).unit_cost_pence)
 
+    def custom_fields(self, descriptions=None, quantities=None, costs=None):
+        return {"custom_items_present": "1", "custom_description": descriptions or [],
+                "custom_quantity": quantities or [], "custom_cost": costs or []}
+
+    def test_custom_items_save_print_and_calculate_vat_without_changing_table_quantity(self):
+        fields = self.custom_fields(["Latch", "Replacement top rail"], ["24", "1"], ["1.50", "320.00"])
+        fields["vat_rate"] = "20"
+        self.assertEqual(303, self.save_invoice("100.00", overrides=fields).status_code)
+        payload = tracker.generated_invoice_payload(self.invoice, {})
+        self.assertEqual(35, payload["quantity"])
+        self.assertEqual(35600, payload["custom_pence"])
+        self.assertEqual(385600, payload["items_subtotal_pence"])
+        self.assertEqual(448600, payload["taxable_subtotal_pence"])
+        self.assertEqual(89720, payload["vat_pence"])
+        self.assertEqual(538320, payload["grand_total_pence"])
+        self.assertEqual(4, tracker.InvoiceItemPrice.query.count())
+        response = self.client.get(f"/invoice_generator/{self.invoice_id}/print")
+        text = response.get_data(as_text=True)
+        self.assertEqual(2, text.count('class="custom-print-row"'))
+        self.assertLess(text.index("Latch"), text.index("Delivery (Per trip)"))
+        self.assertIn("\u00a35,383.20", text)
+        tracker.db.session.remove()
+        invoice = tracker.db.session.get(tracker.GeneratedInvoice, self.invoice_id)
+        self.assertEqual("Replacement top rail", json.loads(invoice.presentation_json)["custom_items"][1]["description"])
+        page = self.client.get(f"/invoice_generator?invoice={self.invoice_id}").get_data(as_text=True)
+        self.assertIn('value="Replacement top rail"', page)
+        self.assertIn('value="320.00"', page)
+
+    def test_custom_items_can_be_removed_and_blank_prices_block_printing(self):
+        fields = self.custom_fields(["Spare latch"], ["2"], [""])
+        self.assertEqual(303, self.save_invoice("100.00", overrides=fields).status_code)
+        self.assertEqual(1, tracker.generated_invoice_payload(self.invoice, {})["missing_prices"])
+        self.assertEqual(302, self.client.get(f"/invoice_generator/{self.invoice_id}/print").status_code)
+        self.assertEqual(303, self.save_invoice("100.00", overrides=self.custom_fields()).status_code)
+        self.assertEqual([], tracker.generated_invoice_payload(self.invoice, {})["custom_items"])
+        self.assertEqual(200, self.client.get(f"/invoice_generator/{self.invoice_id}/print").status_code)
+
+    def test_invalid_custom_items_are_atomic_and_retain_submitted_fields(self):
+        self.save_invoice("10.00")
+        original = (self.invoice.presentation_json, self.invoice.lines_json)
+        cases = [self.custom_fields([""], ["1"], ["1.00"]),
+                 self.custom_fields(["Spare rail"], ["1.5"], ["1.00"]),
+                 self.custom_fields(["Spare rail"], ["0"], ["1.00"]),
+                 self.custom_fields(["Spare rail"], ["10001"], ["1.00"]),
+                 self.custom_fields(["Spare rail"], ["1"], ["-1.00"]),
+                 self.custom_fields(["Spare rail"], ["1"], ["NaN"]),
+                 self.custom_fields(["Spare rail"], [], ["1.00"]),
+                 self.custom_fields(["Spare rail"] * 51, ["1"] * 51, ["1.00"] * 51)]
+        for fields in cases:
+            response = self.save_invoice("20.00", overrides=fields)
+            self.assertEqual(400, response.status_code)
+            self.assertEqual(original, (self.invoice.presentation_json, self.invoice.lines_json))
+            self.assertEqual({1000}, {price.unit_cost_pence for price in tracker.InvoiceItemPrice.query.all()})
+        self.assertIn(b'Spare rail', response.data)
+
+    def test_custom_description_is_escaped_and_zero_price_is_valid(self):
+        fields = self.custom_fields(['<script>alert("custom")</script>'], ["1"], ["0.00"])
+        self.assertEqual(303, self.save_invoice("10.00", overrides=fields).status_code)
+        response = self.client.get(f"/invoice_generator/{self.invoice_id}/print")
+        self.assertEqual(200, response.status_code)
+        self.assertIn(b'&lt;script&gt;', response.data)
+        self.assertNotIn(b'<script>alert(', response.data)
+        self.assertEqual(0, tracker.generated_invoice_payload(self.invoice, {})["custom_pence"])
+
 
 if __name__ == "__main__":
     unittest.main()

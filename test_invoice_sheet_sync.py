@@ -393,6 +393,22 @@ class InvoiceSyncTests(unittest.TestCase):
         self.assertEqual("INV-393", self.invoice.reference)
         self.assertEqual(original, (self.invoice.lines_json, self.invoice.saved_at, self.invoice.presentation_json))
 
+    def test_custom_items_survive_sync_review_delete_and_restore(self):
+        self.save_invoice("10.00", overrides={"custom_items_present": "1", "custom_description": ["Extra top rail"],
+                                             "custom_quantity": ["2"], "custom_cost": ["320.00"]})
+        presentation = self.invoice.presentation_json
+        source = self.incoming()
+        self.change_order(source)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual(presentation, self.invoice.presentation_json)
+        self.assertEqual(303, self.review("apply").status_code)
+        self.assertEqual(presentation, self.invoice.presentation_json)
+        self.delete_invoice()
+        tracker.apply_invoice_sheet_source(source)
+        self.restore_invoice()
+        self.assertEqual(presentation, self.invoice.presentation_json)
+        self.assertEqual(64000, tracker.generated_invoice_payload(self.invoice, {})["custom_pence"])
+
 
 class SyncCommandTests(unittest.TestCase):
     def test_missing_database_does_not_create_an_empty_database(self):

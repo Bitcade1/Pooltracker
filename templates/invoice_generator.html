@@ -151,6 +151,7 @@
                 <input type="hidden" name="action" value="save_invoice">
                 <input type="hidden" name="invoice_id" value="{{ record.id }}">
                 <input type="hidden" name="invoice_version" value="{{ selected.version }}">
+                <input type="hidden" name="custom_items_present" value="1">
                 <div class="fields">
                     <label>Invoice reference
                         <input type="text" name="reference" maxlength="80" required value="{{ submitted.get('reference', '') if editing else record.reference }}">
@@ -193,7 +194,44 @@
                             <td class="number line-total">{% if line.quantity %}{{ line.total_pence|invoice_gbp }}{% else %}&pound;0.00{% endif %}</td>
                         </tr>
                         {% endfor %}
-                        <tr class="delivery-row">
+                        </tbody>
+                    </table>
+                </div>
+                <section class="custom-items-section" aria-label="Custom invoice items">
+                    <div class="section-heading"><h3>Custom items</h3><button type="button" class="secondary" id="add-custom-item">+ Add item</button></div>
+                    <p class="muted">Add extras, parts or services for this invoice. Custom items are kept when the sheet syncs.</p>
+                    <p class="muted" id="custom-items-empty" {% if custom_rows %}hidden{% endif %}>No custom items yet.</p>
+                    <div class="table-scroll" id="custom-items-table-wrap" {% if not custom_rows %}hidden{% endif %}>
+                        <table class="custom-items-table">
+                            <colgroup><col style="width:37%"><col style="width:12%"><col style="width:20%"><col style="width:21%"><col style="width:10%"></colgroup>
+                            <thead><tr><th>Description</th><th class="number">Qty</th><th class="number">Unit cost ex VAT (GBP)</th><th class="number">Line total ex VAT</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                            <tbody id="custom-items-body">
+                            {% for item in custom_rows %}
+                                <tr class="custom-item-row">
+                                    <td><input type="text" name="custom_description" aria-label="Custom item description" maxlength="500" required value="{{ item.description }}" placeholder="e.g. Replacement top rail"></td>
+                                    <td><input type="number" class="custom-quantity" name="custom_quantity" aria-label="Custom item quantity" min="1" max="10000" step="1" required value="{{ item.quantity }}"></td>
+                                    <td><input type="number" class="custom-cost" name="custom_cost" aria-label="Custom item unit cost" min="0" max="99999999.99" step="0.01" value="{{ item.cost }}" placeholder="Not set"></td>
+                                    <td class="number custom-line-total">Not priced</td>
+                                    <td><button type="button" class="remove-custom-item" aria-label="Remove custom item">Remove</button></td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <template id="custom-item-template">
+                        <tr class="custom-item-row">
+                            <td><input type="text" name="custom_description" aria-label="Custom item description" maxlength="500" required placeholder="e.g. Replacement top rail"></td>
+                            <td><input type="number" class="custom-quantity" name="custom_quantity" aria-label="Custom item quantity" min="1" max="10000" step="1" required value="1"></td>
+                            <td><input type="number" class="custom-cost" name="custom_cost" aria-label="Custom item unit cost" min="0" max="99999999.99" step="0.01" placeholder="Not set"></td>
+                            <td class="number custom-line-total">Not priced</td>
+                            <td><button type="button" class="remove-custom-item" aria-label="Remove custom item">Remove</button></td>
+                        </tr>
+                    </template>
+                </section>
+                <div class="table-scroll">
+                    <table class="delivery-table">
+                        <colgroup><col style="width:43%"><col style="width:12%"><col style="width:23%"><col style="width:22%"></colgroup>
+                        <tbody><tr class="delivery-row">
                             <td><strong>Delivery (Per trip)</strong><span class="sku">3 lorries &middot; fixed delivery charge</span></td>
                             <td class="number">{{ selected.delivery_trips }}</td>
                             <td class="number">{{ selected.delivery_unit_pence|invoice_gbp }}</td>
@@ -203,7 +241,7 @@
                     </table>
                 </div>
                 <div class="totals">
-                    <div>Items<strong id="invoice-items-total">{{ selected.total_pence|invoice_gbp }}</strong></div>
+                    <div>Items<strong id="invoice-items-total">{{ selected.items_subtotal_pence|invoice_gbp }}</strong></div>
                     <div>Delivery<strong>{{ selected.delivery_pence|invoice_gbp }}</strong></div>
                     <div>Subtotal (ex VAT)<strong id="invoice-subtotal">{{ selected.taxable_subtotal_pence|invoice_gbp }}</strong></div>
                     <div>VAT<strong id="invoice-vat">{{ selected.vat_pence|invoice_gbp }}</strong></div>
@@ -269,6 +307,22 @@
             if (quantity && pence === null) missing += 1;
             else total += lineTotal || 0;
         });
+        form.querySelectorAll('.custom-item-row').forEach(row => {
+            const quantityText = row.querySelector('.custom-quantity').value.trim();
+            const quantity = /^[0-9]{1,5}$/.test(quantityText) ? Number(quantityText) : 0;
+            const value = row.querySelector('.custom-cost').value.trim();
+            const validCost = /^[0-9]{1,8}(\.[0-9]{1,2})?$/.test(value);
+            const [whole, fraction = ''] = value.split('.');
+            const pence = validCost ? Number(whole) * 100 + Number(fraction.padEnd(2, '0')) : null;
+            if (quantity < 1 || quantity > 10000 || pence === null) {
+                row.querySelector('.custom-line-total').textContent = 'Not priced';
+                missing += 1;
+            } else {
+                const amount = quantity * pence;
+                row.querySelector('.custom-line-total').textContent = money(amount);
+                total += amount;
+            }
+        });
         const vatText = document.getElementById('vat-rate').value.trim();
         const validVat = /^[0-9]{1,3}(\.[0-9]{1,2})?$/.test(vatText) && Number(vatText) <= 100;
         const [vatWhole, vatFraction = ''] = vatText.split('.');
@@ -280,16 +334,41 @@
         document.getElementById('invoice-vat').textContent = validVat ? money(vat) : 'Enter a valid VAT rate';
         document.getElementById('invoice-total').textContent = !validVat ? 'Enter a valid VAT rate' : missing ? `${money(subtotal + vat)} (partial)` : money(subtotal + vat);
         document.getElementById('pricing-status').textContent = missing
-            ? `${missing} ordered product(s) still need a unit cost. You can save a draft; printing is available once all ordered products are priced.`
-            : 'All ordered products are priced. Save the invoice to keep these costs.';
+            ? `${missing} item(s) still need a valid quantity or unit cost. You can save an unpriced draft; complete all item costs before printing.`
+            : 'All items are priced. Save the invoice to keep these costs.';
     }
-    form.addEventListener('input', event => {
-        if (event.target === showZero) return;
+    function markInvoiceDirty() {
         invoiceDirty = true;
         document.getElementById('save-status').textContent = 'Unsaved changes';
         const printLink = document.getElementById('print-link');
         if (printLink) printLink.hidden = true;
         updateTotals();
+    }
+    form.addEventListener('input', event => {
+        if (event.target !== showZero) markInvoiceDirty();
+    });
+    const customBody = document.getElementById('custom-items-body');
+    const addCustom = document.getElementById('add-custom-item');
+    function updateCustomVisibility() {
+        const count = customBody.querySelectorAll('.custom-item-row').length;
+        document.getElementById('custom-items-empty').hidden = count > 0;
+        document.getElementById('custom-items-table-wrap').hidden = count === 0;
+        addCustom.disabled = count >= 50;
+    }
+    addCustom.addEventListener('click', () => {
+        if (customBody.querySelectorAll('.custom-item-row').length >= 50) return;
+        const row = document.getElementById('custom-item-template').content.cloneNode(true);
+        customBody.appendChild(row);
+        updateCustomVisibility();
+        markInvoiceDirty();
+        customBody.lastElementChild.querySelector('input').focus();
+    });
+    customBody.addEventListener('click', event => {
+        const removeButton = event.target.closest('.remove-custom-item');
+        if (!removeButton) return;
+        removeButton.closest('.custom-item-row').remove();
+        updateCustomVisibility();
+        markInvoiceDirty();
     });
     // Price-list changes also need saving before navigating to another invoice.
     const priceForm = document.querySelector('#price-list form');
@@ -320,6 +399,7 @@
         event.preventDefault();
         event.returnValue = '';
     });
+    updateCustomVisibility();
     updateTotals();
 })();
 </script>
