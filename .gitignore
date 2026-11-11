@@ -12,3 +12,5 @@ pooltracker-backup.env
 /giphy_settings.py
 /google-service-account.json
 /pooltracker-invoice-sync.env
+/invoice-email-config.json
+/invoice-email-private/

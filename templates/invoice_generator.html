@@ -255,6 +255,7 @@
                     <button type="submit">Save invoice</button>
                     {% if record.saved_at and not selected.missing_prices and not editing and not sheet_change %}
                     <a class="button secondary" id="print-link" target="_blank" rel="noopener" href="{{ url_for('print_generated_invoice', invoice_id=record.id) }}">Print / Save PDF</a>
+                    <a class="button secondary" id="email-link" href="{{ url_for('email_generated_invoice', invoice_id=record.id) }}">Email invoice</a>
                     {% endif %}
                     <span id="save-status" class="muted" role="status">{% if not record.saved_at %}Save to keep these prices and details.{% endif %}</span>
                 </div>
@@ -342,6 +343,8 @@
         document.getElementById('save-status').textContent = 'Unsaved changes';
         const printLink = document.getElementById('print-link');
         if (printLink) printLink.hidden = true;
+        const emailLink = document.getElementById('email-link');
+        if (emailLink) emailLink.hidden = true;
         updateTotals();
     }
     form.addEventListener('input', event => {

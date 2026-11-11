@@ -20,6 +20,7 @@ from xml.etree import ElementTree
 from math import ceil, floor
 from io import StringIO, BytesIO
 from invoice_sheet_sync import InvoiceSyncError, fetch_invoice_source, source_order_identity, source_order_date
+from invoice_email import register_invoice_email, session_secret as invoice_email_session_secret
 from packaging_planner import (
     ITEM_TYPE_LABELS,
     SUPPORTED_EXTENSIONS,
@@ -34,7 +35,11 @@ from packaging_planner import (
 )
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'
+_invoice_email_session_key = invoice_email_session_secret()
+app.secret_key = os.environ.get('POOLTRACKER_SECRET_KEY') or _invoice_email_session_key or 'your_secret_key'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+if _invoice_email_session_key:
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config.from_pyfile(os.path.join(basedir, 'giphy_settings.py'), silent=True)
@@ -4667,6 +4672,15 @@ def print_generated_invoice(invoice_id):
         flash("Save the invoice with a unit cost for every ordered product before printing.", "error")
         return redirect(url_for("invoice_generator", invoice=invoice_id))
     return render_template("generated_invoice_print.html", invoice=payload)
+
+
+InvoiceEmailAttempt = register_invoice_email(app, db, {
+    "ensure": ensure_invoice_generator_tables,
+    "active": active_generated_invoice,
+    "payload": generated_invoice_payload,
+    "state_model": InvoiceSheetSyncState,
+    "money": invoice_gbp,
+})
 
 
 class InvoicePackagingJob(db.Model):

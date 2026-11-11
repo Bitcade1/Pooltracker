@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Email {{ invoice.record.reference }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='invoice-generator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='invoice-email.css') }}">
+<main class="invoice-generator email-page">
+    <a class="back-link" href="{{ url_for('invoice_generator', invoice=invoice.record.id) }}">&larr; Back to invoice</a>
+    <header class="billing-hero">
+        <div><span class="eyebrow">BITCADE / INVOICE EMAIL</span><h1>Ready to send.</h1>
+        <p>{{ invoice.delivery_label }}</p></div>
+        <div class="hero-logo"><img src="{{ url_for('static', filename='invoice-bitcade-logo.png') }}" alt="BitCade" width="74" height="65"></div>
+    </header>
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="notice {{ category }}" role="status">{{ message }}</div>
+    {% endfor %}
+    {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+    <div class="email-layout">
+        <section class="panel email-composer">
+            <div class="section-heading"><h2>Your message</h2><span class="status-pill {{ 'status-ready' if connected else 'status-draft' }}">{{ 'Microsoft 365 connected' if connected else 'Mailbox setup needed' }}</span></div>
+            <p class="muted">Review the recipient and message. Your saved invoice is attached as a PDF.</p>
+            <form method="post" id="email-form">
+                <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                <input type="hidden" name="invoice_version" value="{{ invoice.version }}">
+                <input type="hidden" name="send_token" value="{{ send_token }}">
+                <label>From<input type="email" value="{{ mailbox }}" readonly aria-label="Sender mailbox"></label>
+                <label>To<input type="email" name="recipient" value="{{ values.recipient }}" maxlength="254" required autocomplete="email"></label>
+                <label>CC <span class="muted">(optional, separate addresses with commas)</span><input type="email" name="cc" value="{{ values.cc }}" multiple maxlength="2550"></label>
+                <label>Subject<input name="subject" value="{{ values.subject }}" maxlength="180" required></label>
+                <label>Message<textarea name="body" rows="13" maxlength="10000" required>{{ values.body }}</textarea></label>
+                <div class="attachment"><span class="pdf-icon" aria-hidden="true">PDF</span><div><strong>{{ invoice.record.reference }}.pdf</strong><span class="muted">Logo, addresses, items, delivery and VAT</span></div>
+                    {% if config_ready %}<a target="_blank" rel="noopener" href="{{ url_for('invoice_email_pdf', invoice_id=invoice.record.id) }}">View PDF</a>{% else %}<a target="_blank" rel="noopener" href="{{ url_for('print_generated_invoice', invoice_id=invoice.record.id) }}">Preview invoice</a>{% endif %}
+                </div>
+                {% if history %}<label class="resend-option"><input type="checkbox" name="send_another" value="1"> Send another copy (check Sent Items first if a previous send is unconfirmed)</label>{% endif %}
+                <div class="actions"><button type="submit" id="send-invoice" {% if not connected %}disabled{% endif %}>Send invoice</button><span id="send-status" class="muted" role="status">A copy is saved in your mailbox's Sent Items.</span></div>
+            </form>
+        </section>
+        <aside class="email-sidebar">
+            <section class="panel email-summary">
+                <span class="eyebrow">ATTACHED INVOICE</span><h2>{{ invoice.record.reference }}</h2>
+                <p class="muted">Delivery Date {{ invoice.delivery_date }}</p>
+                <dl><div><dt>Items</dt><dd>{{ invoice.items_subtotal_pence|invoice_gbp }}</dd></div>
+                    <div><dt>Delivery &middot; 3 lorries</dt><dd>{{ invoice.delivery_pence|invoice_gbp }}</dd></div>
+                    <div><dt>VAT</dt><dd>{{ invoice.vat_pence|invoice_gbp }}</dd></div>
+                    <div class="email-total"><dt>Total</dt><dd>{{ invoice.grand_total_pence|invoice_gbp }}</dd></div></dl>
+                <p class="muted">The attachment uses this saved invoice. Save changes on the invoice page before emailing.</p>
+            </section>
+            <section class="panel mailbox-panel"><h2>Sending mailbox</h2><p class="mailbox-address">{{ mailbox }}</p>
+                {% if notice %}<p class="notice warning">{{ notice }}</p>{% endif %}
+                {% if connected %}<p class="muted">Connected to Microsoft 365.</p>{% elif config_ready %}<p class="muted">Sign in once with this Microsoft 365 mailbox to enable sending.</p>{% else %}<p class="muted">Your administrator needs to complete the one-time Microsoft 365 connection.</p>{% endif %}
+                {% if config_ready %}<form method="post" action="{{ url_for('connect_invoice_email') }}"><input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}"><input type="hidden" name="invoice_id" value="{{ invoice.record.id }}"><button type="submit" class="secondary">{{ 'Reconnect Microsoft 365' if connected else 'Connect Microsoft 365' }}</button></form>{% endif %}
+                {% if connected %}<form method="post" action="{{ url_for('disconnect_invoice_email') }}"><input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}"><input type="hidden" name="invoice_id" value="{{ invoice.record.id }}"><button type="submit" class="disconnect-mailbox">Disconnect mailbox</button></form>{% endif %}
+            </section>
+        </aside>
+    </div>
+    <details class="panel email-history"><summary>Email history <span class="summary-hint">{{ history|length }} recent requests</span></summary>
+        {% if not history %}<p class="muted">No emails have been sent for this invoice yet.</p>{% endif %}
+        {% for attempt in history %}<article class="email-history-entry">
+            <div><strong>{{ attempt.subject }}</strong><span class="status-pill {{ 'status-ready' if attempt.status == 'accepted' else 'status-draft' }}">{{ {'accepted': 'Accepted for sending', 'failed': 'Not sent', 'unknown': 'Check Sent Items', 'pending': 'Sending started - check Sent Items'}.get(attempt.status, attempt.status) }}</span></div>
+            <p class="muted">{{ attempt.created_at.strftime('%d/%m/%Y %H:%M') }} UTC &middot; To {{ attempt.recipient }} &middot; {{ attempt.worker }}</p>
+            <p>{{ attempt.detail }}</p>
+            {% if attempt.pdf_sha256 %}<a target="_blank" rel="noopener" href="{{ url_for('invoice_email_snapshot', invoice_id=invoice.record.id, attempt_id=attempt.id) }}">View attached PDF from this request</a>{% endif %}
+        </article>{% endfor %}
+    </details>
+</main>
+<script>
+(() => {
+    const form = document.getElementById('email-form');
+    let dirty = false;
+    form.addEventListener('input', () => { dirty = true; });
+    form.addEventListener('submit', () => {
+        dirty = false;
+        const button = document.getElementById('send-invoice');
+        button.disabled = true;
+        button.textContent = 'Sending...';
+        document.getElementById('send-status').textContent = 'Creating the PDF and submitting your email to Microsoft 365...';
+    });
+    window.addEventListener('beforeunload', event => {
+        if (dirty) { event.preventDefault(); event.returnValue = ''; }
+    });
+})();
+</script>
+{% endblock %}

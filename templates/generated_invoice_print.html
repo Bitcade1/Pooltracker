@@ -58,7 +58,7 @@
     </div>
     <main class="invoice-paper">
         <header class="invoice-header">
-            <img class="invoice-logo" src="{{ url_for('static', filename='invoice-bitcade-logo.png') }}" alt="BitCade" width="105" height="93">
+            <img class="invoice-logo" src="{{ invoice_logo_uri or url_for('static', filename='invoice-bitcade-logo.png') }}" alt="BitCade" width="105" height="93">
             <div class="invoice-heading">
                 <h1>Invoice #{{ invoice.record.reference|invoice_reference_label }}</h1>
                 <div>{{ invoice.invoice_date_label }}</div>
