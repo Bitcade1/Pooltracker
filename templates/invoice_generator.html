@@ -179,7 +179,7 @@
                         <tr><td>{{ line.description }}</td><td class="number">{{ line.old_quantity }}</td><td class="number">{{ line.new_quantity }}</td></tr>
                     {% endfor %}</tbody>
                 </table></div>
-                <p>Apply the sheet's quantities, date and reference, or keep this invoice as saved. Your unit costs, addresses and notes are preserved. New products will need pricing.</p>
+                <p>Review and apply the sheet changes, or keep this invoice as saved. Allocated invoice references, unit costs, addresses and notes are preserved. New products will need pricing.</p>
                 <form method="post" class="sheet-action" action="{{ url_for('invoice_generator', invoice=record.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
                     <input type="hidden" name="action" value="review_sheet_change">
@@ -201,6 +201,7 @@
                 <div class="fields">
                     <label>Invoice reference
                         <input type="text" name="reference" maxlength="80" required value="{{ submitted.get('reference', '') if editing else record.reference }}">
+                        <span class="muted">Automatically numbered from INV-391 for 13/11/2026. You can edit the reference.</span>
                     </label>
                     <label>Collection date
                         <input type="text" name="collection_date" maxlength="40" required value="{{ submitted.get('collection_date', '') if editing else record.collection_date }}">

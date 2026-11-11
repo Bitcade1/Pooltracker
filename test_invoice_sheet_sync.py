@@ -318,6 +318,81 @@ class InvoiceSyncTests(unittest.TestCase):
         self.assertEqual(400, self.delete_invoice(version=version).status_code)
         self.assertEqual({}, json.loads(tracker.db.session.get(tracker.InvoiceSheetSyncState, 1).data_json).get("deleted", {}))
 
+    def test_automatic_references_start_at_391_for_13_november(self):
+        expected = {"K": "INV-391", "L": "INV-392", "M": "INV-393", "N": "INV-394"}
+        for column, reference in expected.items():
+            self.assertEqual(reference, tracker.GeneratedInvoice.query.filter_by(source_column=column).one().reference)
+        self.assertEqual("TBC", tracker.GeneratedInvoice.query.filter_by(source_column="J").one().reference)
+        self.assertEqual("INV-380", tracker.GeneratedInvoice.query.filter_by(source_column="C").one().reference)
+
+    def test_sheet_sync_and_review_keep_the_allocated_reference(self):
+        self.save_invoice("10.00", overrides={"reference": "INV-393"})
+        source = self.incoming()
+        self.change_order(source)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual("INV-393", self.invoice.reference)
+        self.assertEqual(303, self.review("apply").status_code)
+        self.assertEqual("INV-393", self.invoice.reference)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual("INV-393", self.invoice.reference)
+
+    def test_moving_columns_does_not_change_allocated_references(self):
+        references = {invoice.id: invoice.reference for invoice in tracker.GeneratedInvoice.query.all()}
+        source = self.incoming()
+        for order, column in zip(source["invoices"], [order["source_column"] for order in source["invoices"]][::-1]):
+            order["source_column"] = column
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual(references, {invoice.id: invoice.reference for invoice in tracker.GeneratedInvoice.query.all()})
+
+    def test_deleted_references_are_reserved_for_future_orders(self):
+        first = tracker.GeneratedInvoice.query.filter_by(source_column="K").one()
+        self.delete_invoice(first)
+        source = self.incoming()
+        order = copy.deepcopy(source["invoices"][-1])
+        order.update(source_column="O", month="January", collection_date="08/01")
+        source["invoices"].append(order)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual("INV-395", tracker.GeneratedInvoice.query.filter_by(source_column="O").one().reference)
+        self.restore_invoice(first.id)
+        self.assertEqual("INV-391", first.reference)
+
+    def test_inserted_collection_gets_next_number_without_renumbering(self):
+        source = self.incoming()
+        order = copy.deepcopy(source["invoices"][-1])
+        order.update(source_column="O", month="November", collection_date="27/11")
+        source["invoices"].append(order)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual("INV-395", tracker.GeneratedInvoice.query.filter_by(source_column="O").one().reference)
+        self.assertEqual("INV-393", self.invoice.reference)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual("INV-395", tracker.GeneratedInvoice.query.filter_by(source_column="O").one().reference)
+
+    def test_manual_references_are_not_replaced_or_issued_to_new_orders(self):
+        earlier = tracker.GeneratedInvoice.query.filter_by(source_column="C").one()
+        earlier.reference = "INV-395"
+        earlier.saved_at = tracker.london_now()
+        tracker.db.session.commit()
+        source = self.incoming()
+        order = copy.deepcopy(source["invoices"][-1])
+        order.update(source_column="O", month="January", collection_date="08/01")
+        source["invoices"].append(order)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual("INV-395", earlier.reference)
+        self.assertEqual("INV-396", tracker.GeneratedInvoice.query.filter_by(source_column="O").one().reference)
+
+    def test_existing_saved_tbc_invoice_receives_number_without_other_changes(self):
+        self.save_invoice("10.00", overrides={"reference": "TBC"})
+        original = (self.invoice.lines_json, self.invoice.saved_at, self.invoice.presentation_json)
+        state = tracker.db.session.get(tracker.InvoiceSheetSyncState, 1)
+        data = json.loads(state.data_json)
+        del data["reference_assignments"]
+        del data["next_reference_number"]
+        state.data_json = json.dumps(data)
+        tracker.db.session.commit()
+        tracker.ensure_invoice_generator_tables()
+        self.assertEqual("INV-393", self.invoice.reference)
+        self.assertEqual(original, (self.invoice.lines_json, self.invoice.saved_at, self.invoice.presentation_json))
+
 
 class SyncCommandTests(unittest.TestCase):
     def test_missing_database_does_not_create_an_empty_database(self):

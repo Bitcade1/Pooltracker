@@ -18,6 +18,14 @@ saved invoices still require review when those quantities have changed.
 Saving a priced invoice also saves its ordered SKU prices for other unsaved
 invoices. Existing saved invoices keep their individual prices.
 
+Invoice references are allocated from INV-391 for the 13 November 2026
+collection, then sequentially for later collections in date order. Existing
+non-placeholder references are preserved and their numbers are reserved.
+Allocation happens once under the SQLite write lock. Subsequent syncs, moved
+columns, deletion and restoration do not renumber invoices or reuse numbers.
+An order inserted later receives the next unused number; existing invoices
+keep their numbers. The Google Sheet itself remains read-only.
+
 ## 1. Google connection
 
 The account is `admin-305@pooltracker-backup.iam.gserviceaccount.com`.

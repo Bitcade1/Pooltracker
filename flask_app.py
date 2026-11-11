@@ -4079,6 +4079,55 @@ def invoice_sheet_lines(order, source, previous_lines=None):
             for product in source["products"]]
 
 
+def invoice_reference_is_placeholder(reference):
+    return not reference or reference.strip().upper() in ("TBC", "TBD")
+
+
+def invoice_reference_number(reference):
+    match = re.fullmatch(r"(?:INV(?:OICE)?[\s#:-]*)?(\d+)", (reference or "").strip(), re.I)
+    return int(match[1]) if match else None
+
+
+def assign_invoice_references(data):
+    """Allocate once, by collection date, while the caller holds the SQLite write lock."""
+    assignments = data.setdefault("reference_assignments", {})
+    next_number = max(391, data.get("next_reference_number", 391))
+    invoices = GeneratedInvoice.query.all()
+    used = {number for number in (invoice_reference_number(invoice.reference) for invoice in invoices) if number is not None}
+    used.update(number for number in (invoice_reference_number(ref) for ref in assignments.values()) if number is not None)
+    dated = []
+    for invoice in invoices:
+        try:
+            collection = source_order_date({"collection_date": invoice.collection_date, "month": invoice.month}, data["source"])[0]
+        except (ValueError, IndexError):
+            continue
+        if collection >= "2026-11-13":
+            dated.append((collection, invoice.id, invoice))
+    for _, invoice_id, invoice in sorted(dated):
+        if str(invoice_id) in assignments:
+            continue
+        if invoice_reference_is_placeholder(invoice.reference):
+            while next_number in used:
+                next_number += 1
+            invoice.reference = f"INV-{next_number}"
+            used.add(next_number)
+            next_number += 1
+        else:
+            number = invoice_reference_number(invoice.reference)
+            if number is not None:
+                next_number = max(next_number, number + 1)
+        assignments[str(invoice_id)] = invoice.reference
+    data["next_reference_number"] = next_number
+
+
+def invoice_reference_from_sheet(invoice, order, data):
+    if str(invoice.id) in data.get("reference_assignments", {}):
+        return invoice.reference
+    if invoice_reference_is_placeholder(order["reference"]) and not invoice_reference_is_placeholder(invoice.reference):
+        return invoice.reference
+    return order["reference"]
+
+
 def ensure_invoice_generator_tables():
     InvoiceItemPrice.__table__.create(db.engine, checkfirst=True)
     GeneratedInvoice.__table__.create(db.engine, checkfirst=True)
@@ -4093,15 +4142,26 @@ def ensure_invoice_generator_tables():
     InvoiceSheetSyncState.__table__.create(db.engine, checkfirst=True)
     state = db.session.get(InvoiceSheetSyncState, 1)
     if state:
-        return json.loads(state.data_json)["source"]
+        data = json.loads(state.data_json)
+        if "reference_assignments" not in data:
+            db.session.rollback()
+            db.session.execute(text("BEGIN IMMEDIATE"))
+            state = db.session.get(InvoiceSheetSyncState, 1, populate_existing=True)
+            data = json.loads(state.data_json)
+            assign_invoice_references(data)
+            state.data_json = json.dumps(data)
+            db.session.commit()
+        return data["source"]
     # Serialize first-run adoption across web workers and the timer process.
     db.session.rollback()
     db.session.execute(text("BEGIN IMMEDIATE"))
     state = db.session.get(InvoiceSheetSyncState, 1, populate_existing=True)
     if state:
-        source = json.loads(state.data_json)["source"]
+        data = json.loads(state.data_json)
+        assign_invoice_references(data)
+        state.data_json = json.dumps(data)
         db.session.commit()
-        return source
+        return data["source"]
     source = invoice_order_seed_source()
     existing_keys = {key for (key,) in db.session.query(GeneratedInvoice.source_key).all()}
     for order in source["invoices"]:
@@ -4122,9 +4182,11 @@ def ensure_invoice_generator_tables():
         invoice = GeneratedInvoice.query.filter_by(source_key=source_key).one()
         bindings[source_order_identity(order, source)] = invoice.id
         accepted[str(invoice.id)] = invoice_order_snapshot(order, source)
-    db.session.add(InvoiceSheetSyncState(id=1, data_json=json.dumps({
+    data = {
         "source": source, "bindings": bindings, "accepted": accepted, "pending": {}, "missing": [],
-    })))
+    }
+    assign_invoice_references(data)
+    db.session.add(InvoiceSheetSyncState(id=1, data_json=json.dumps(data)))
     db.session.commit()
     return source
 
@@ -4181,7 +4243,7 @@ def apply_invoice_sheet_source(source):
             elif invoice.saved_at is None:
                 invoice.collection_date = order["collection_date"]
                 invoice.month = order["month"]
-                invoice.reference = order["reference"]
+                invoice.reference = invoice_reference_from_sheet(invoice, order, data)
                 invoice.expected_quantity = order["expected_quantity"]
                 invoice.lines_json = json.dumps(invoice_sheet_lines(order, source, json.loads(invoice.lines_json)))
                 updated += int(accepted.get(str(invoice.id)) != snapshot)
@@ -4198,6 +4260,7 @@ def apply_invoice_sheet_source(source):
                     missing=sorted(set(data.get("missing", [])) | missing))
         current_ids = {bindings[identity] for identity, _, _ in incoming}
         data["missing"] = [item for item in data["missing"] if item not in current_ids and item not in deleted]
+        assign_invoice_references(data)
         state.data_json = json.dumps(data)
         state.last_attempt_at = state.last_success_at = datetime.utcnow()
         state.last_error = ""
@@ -4399,8 +4462,9 @@ def invoice_generator():
                         products = [p for p in data["source"]["products"] if p["sku"] in order["quantities"]]
                         snapshot = invoice_order_snapshot(order, dict(data["source"], products=products))
                         if invoice.saved_at is None:
-                            for key in ("collection_date", "month", "reference", "expected_quantity"):
+                            for key in ("collection_date", "month", "expected_quantity"):
                                 setattr(invoice, key, order[key])
+                            invoice.reference = invoice_reference_from_sheet(invoice, order, data)
                             invoice.lines_json = json.dumps(invoice_sheet_lines(order, {"products": products}, json.loads(invoice.lines_json)))
                             data["accepted"][str(invoice_id)] = snapshot
                         elif data["accepted"].get(str(invoice_id)) != snapshot:
@@ -4426,8 +4490,9 @@ def invoice_generator():
                     raise ValueError("The sheet changed again. Review its latest quantities before continuing.")
                 if request.form.get("decision") == "apply":
                     order = change["order"]
-                    for key in ("collection_date", "month", "reference", "expected_quantity"):
+                    for key in ("collection_date", "month", "expected_quantity"):
                         setattr(invoice, key, order[key])
+                    invoice.reference = invoice_reference_from_sheet(invoice, order, data)
                     invoice.lines_json = json.dumps(invoice_sheet_lines(order, change, json.loads(invoice.lines_json)))
                     invoice.saved_at = london_now()
                     invoice.saved_by = session["worker"]
