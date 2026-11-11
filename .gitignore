@@ -10,3 +10,5 @@ rclone.conf
 pooltracker-backup.env
 .env.backup
 /giphy_settings.py
+/google-service-account.json
+/pooltracker-invoice-sync.env

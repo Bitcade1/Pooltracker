@@ -36,12 +36,14 @@ class InvoiceGeneratorTests(unittest.TestCase):
 
     def tearDown(self):
         tracker.db.session.remove()
+        tracker.InvoiceSheetSyncState.__table__.drop(tracker.db.engine)
         tracker.GeneratedInvoice.__table__.drop(tracker.db.engine)
         tracker.InvoiceItemPrice.__table__.drop(tracker.db.engine)
         self.context.pop()
 
     def save_prices(self, value="100.10", overrides=None):
-        data = {"action": "save_prices", "csrf_token": self.token}
+        data = {"action": "save_prices", "csrf_token": self.token,
+                "catalogue_version": tracker.invoice_catalogue_version(tracker.invoice_order_source())}
         data.update({"price_" + product["sku"]: value for product in self.products})
         data.update(overrides or {})
         return self.client.post("/invoice_generator", data=data)
@@ -50,6 +52,7 @@ class InvoiceGeneratorTests(unittest.TestCase):
         data = {
             "action": "save_invoice", "csrf_token": self.token,
             "invoice_id": self.invoice.id, "reference": "INV-400",
+            "invoice_version": tracker.invoice_record_version(self.invoice),
             "collection_date": "04/12", "seller_details": "Seller\nAddress",
             "customer_details": "Customer\nAddress", "notes": "Payment on collection",
         }

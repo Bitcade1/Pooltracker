@@ -29,6 +29,7 @@
     .invoice-generator .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
     .invoice-generator .button { display: inline-block; background: #007bff; color: #fff; padding: 12px 16px; border: 0; border-radius: 5px; text-decoration: none; font: inherit; }
     .invoice-generator .secondary { background: #edf2f8; color: #254364; }
+    .invoice-generator button:disabled { opacity: .55; cursor: not-allowed; }
     .invoice-generator .notice { border-radius: 6px; padding: 12px; margin: 12px 0; background: #edf4ff; }
     .invoice-generator .notice.error, .invoice-generator .warning { background: #fff3d7; color: #714d00; }
     .invoice-generator .notice.success { background: #e9f7ec; color: #205a2a; }
@@ -58,12 +59,33 @@
     <div class="notice {{ category }}" role="status">{{ message }}</div>
     {% endfor %}
 
+    <section class="panel" aria-label="Google Sheets sync">
+        <h2>Google Sheets sync</h2>
+        <p class="muted" id="sync-status">
+            {% if sync_state.last_success_at %}
+                Last synced {{ sync_state.last_success_at|london_time('%d/%m/%Y %H:%M') }} (UK time).
+            {% else %}
+                Automatic sync has not run yet. The imported orders are available below.
+            {% endif %}
+            {% if not sync_configured %}The Google connection needs to be configured on the server.{% endif %}
+        </p>
+        {% if sync_state.last_error %}<div class="notice warning" role="status">{{ sync_state.last_error }}</div>
+        {% elif sync_stale %}<div class="notice warning" role="status">No successful sync in the last 15 minutes. Existing invoices and prices are still available.</div>{% endif %}
+        <form method="post" class="sheet-action" action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
+            <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+            <input type="hidden" name="action" value="sync_now">
+            <div class="actions"><button type="submit" {% if not sync_configured %}disabled{% endif %}>Sync now</button>
+                <span class="muted">New orders and draft quantities sync from the sheet. Changes to saved invoices require review.</span></div>
+        </form>
+    </section>
+
     <details class="panel" id="price-list" {% if submitted and submitted.get('action') == 'save_prices' %}open{% endif %}>
         <summary>Saved unit costs by product (GBP)</summary>
         <p class="muted">These prices fill unsaved invoices automatically. Saved invoices keep their own prices. Leave a price blank if it is not known yet; enter 0.00 for a free item.</p>
         <form method="post" action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
             <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
             <input type="hidden" name="action" value="save_prices">
+            <input type="hidden" name="catalogue_version" value="{{ catalogue_version }}">
             <div class="table-scroll">
                 <table class="prices-table">
                     <colgroup><col style="width: 45%"><col style="width: 32%"><col style="width: 23%"></colgroup>
@@ -96,10 +118,12 @@
                 <strong>{{ invoice.record.collection_date }} - {{ invoice.record.reference }}</strong>
                 <span>{{ invoice.quantity }} tables | {{ invoice.record.month }} | Column {{ invoice.record.source_column }}</span>
                 <span class="muted">{% if invoice.record.saved_at %}Saved{% else %}Draft{% endif %}{% if invoice.missing_prices %} - {{ invoice.missing_prices }} unpriced product{% if invoice.missing_prices != 1 %}s{% endif %}{% else %} - {{ invoice.total_pence|invoice_money }}{% endif %}</span>
+                {% if invoice.record.id|string in sync_data.pending %}<span class="warning">Sheet changes to review</span>{% endif %}
+                {% if invoice.record.id in sync_data.missing %}<span class="muted">No longer in the sheet</span>{% endif %}
             </a>
             {% endfor %}
             </div>
-            <p class="muted">Imported {{ source.imported_on }} from <a href="{{ source.source_url }}" target="_blank" rel="noopener">{{ source.source_title }}</a>. Sheet changes are not synced automatically.</p>
+            <p class="muted">Source: <a href="{{ source.source_url }}" target="_blank" rel="noopener">{{ source.source_title }}</a>. Reload this page to see orders updated by the server.</p>
         </aside>
 
         {% if selected %}
@@ -108,6 +132,30 @@
         <section class="panel">
             <h2>Collection {{ record.collection_date }} - {{ selected.quantity }} tables</h2>
             <p class="muted">Orders column {{ record.source_column }} | {% if record.saved_at %}Saved {{ record.saved_at.strftime('%d/%m/%Y %H:%M') }} by {{ record.saved_by }}{% else %}Draft - not saved yet{% endif %}</p>
+            {% if record.id in sync_data.missing %}
+            <div class="notice warning">This order is no longer in the sheet. The invoice and its saved prices have been kept.</div>
+            {% endif %}
+            {% if sheet_change %}
+            <div class="notice warning" id="sheet-change-review">
+                <h2>The sheet has changed</h2>
+                <p>The saved invoice is unchanged. The sheet now shows reference {{ sheet_change.order.reference }}, collection {{ sheet_change.order.collection_date }}, and {{ sheet_change.order.quantities.values()|sum }} tables.</p>
+                <div class="table-scroll"><table style="min-width: 400px">
+                    <thead><tr><th>Product</th><th class="number">Saved qty</th><th class="number">Sheet qty</th></tr></thead>
+                    <tbody>{% for line in sheet_comparison %}
+                        <tr><td>{{ line.description }}</td><td class="number">{{ line.old_quantity }}</td><td class="number">{{ line.new_quantity }}</td></tr>
+                    {% endfor %}</tbody>
+                </table></div>
+                <p>Apply the sheet's quantities, date and reference, or keep this invoice as saved. Your unit costs, addresses and notes are preserved. New products will need pricing.</p>
+                <form method="post" class="sheet-action" action="{{ url_for('invoice_generator', invoice=record.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                    <input type="hidden" name="action" value="review_sheet_change">
+                    <input type="hidden" name="invoice_id" value="{{ record.id }}">
+                    <input type="hidden" name="change_version" value="{{ change_version }}">
+                    <div class="actions"><button type="submit" name="decision" value="apply">Apply sheet changes</button>
+                        <button class="secondary" type="submit" name="decision" value="keep">Keep saved invoice</button></div>
+                </form>
+            </div>
+            {% endif %}
             {% if selected.quantity != record.expected_quantity %}
             <div class="notice warning">The column heading says {{ record.expected_quantity }} tables, but the product quantities add up to {{ selected.quantity }}. This invoice uses the product quantities.</div>
             {% endif %}
@@ -115,6 +163,7 @@
                 <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
                 <input type="hidden" name="action" value="save_invoice">
                 <input type="hidden" name="invoice_id" value="{{ record.id }}">
+                <input type="hidden" name="invoice_version" value="{{ selected.version }}">
                 <div class="fields">
                     <label>Invoice reference
                         <input type="text" name="reference" maxlength="80" required value="{{ submitted.get('reference', '') if editing else record.reference }}">
@@ -158,7 +207,7 @@
                 </label>
                 <div class="actions">
                     <button type="submit">Save invoice</button>
-                    {% if record.saved_at and not selected.missing_prices and not editing %}
+                    {% if record.saved_at and not selected.missing_prices and not editing and not sheet_change %}
                     <a class="button secondary" id="print-link" target="_blank" rel="noopener" href="{{ url_for('print_generated_invoice', invoice_id=record.id) }}">Print / Save PDF</a>
                     {% endif %}
                     <span id="save-status" class="muted" role="status">{% if not record.saved_at %}Save to keep these prices and details.{% endif %}</span>
@@ -223,6 +272,13 @@
         }
         invoiceDirty = priceDirty = false;
     });
+    document.querySelectorAll('.sheet-action').forEach(syncForm => syncForm.addEventListener('submit', event => {
+        if ((invoiceDirty || priceDirty) && !window.confirm('Continue and discard the unsaved edits on this page?')) {
+            event.preventDefault();
+            return;
+        }
+        invoiceDirty = priceDirty = false;
+    }));
     window.addEventListener('beforeunload', event => {
         if (!invoiceDirty && !priceDirty) return;
         event.preventDefault();

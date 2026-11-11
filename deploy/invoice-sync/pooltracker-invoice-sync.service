@@ -1,0 +1,19 @@
+[Unit]
+Description=Read-only Google Sheets invoice sync for Pool Tracker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Matches the documented database owner; confirm against the live app account.
+User=root2
+Group=root2
+WorkingDirectory=/var/www/pooltabletracker.com
+EnvironmentFile=/etc/pooltracker-invoice-sync.env
+# Confirm the app's virtualenv path before installation.
+ExecStart=/var/www/pooltabletracker.com/venv/bin/python /var/www/pooltabletracker.com/sync_invoice_orders.py
+TimeoutStartSec=3min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
