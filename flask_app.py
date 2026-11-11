@@ -4021,6 +4021,187 @@ def component_delta_summary(current_count, previous_count):
     }
 
 
+class InvoiceItemPrice(db.Model):
+    __tablename__ = "invoice_item_price"
+    sku = db.Column(db.String(80), primary_key=True)
+    unit_cost_pence = db.Column(db.BigInteger, nullable=True)
+
+
+class GeneratedInvoice(db.Model):
+    __tablename__ = "generated_invoice"
+    id = db.Column(db.Integer, primary_key=True)
+    source_key = db.Column(db.String(160), unique=True, nullable=False)
+    source_column = db.Column(db.String(10), nullable=False)
+    collection_date = db.Column(db.String(40), nullable=False)
+    month = db.Column(db.String(30), nullable=False)
+    reference = db.Column(db.String(80), nullable=False, default="TBC")
+    expected_quantity = db.Column(db.Integer, nullable=False)
+    lines_json = db.Column(db.Text, nullable=False)
+    seller_details = db.Column(db.Text, nullable=False, default="")
+    customer_details = db.Column(db.Text, nullable=False, default="")
+    notes = db.Column(db.Text, nullable=False, default="")
+    saved_at = db.Column(db.DateTime, nullable=True)
+    saved_by = db.Column(db.String(50), nullable=True)
+
+
+def invoice_order_source():
+    with open(os.path.join(basedir, "invoice_order_source.json"), encoding="ascii") as source:
+        return json.load(source)
+
+
+def ensure_invoice_generator_tables():
+    InvoiceItemPrice.__table__.create(db.engine, checkfirst=True)
+    GeneratedInvoice.__table__.create(db.engine, checkfirst=True)
+    source = invoice_order_source()
+    existing_keys = {key for (key,) in db.session.query(GeneratedInvoice.source_key).all()}
+    for order in source["invoices"]:
+        source_key = f"{source['source_url'].split('/d/')[1].split('/')[0]}:Orders:{order['source_column']}"
+        if source_key in existing_keys:
+            continue
+        lines = [dict(product, quantity=order["quantities"][product["sku"]], unit_cost_pence=None)
+                 for product in source["products"]]
+        db.session.add(GeneratedInvoice(
+            source_key=source_key, source_column=order["source_column"],
+            collection_date=order["collection_date"], month=order["month"],
+            reference=order["reference"], expected_quantity=order["expected_quantity"],
+            lines_json=json.dumps(lines),
+        ))
+    db.session.commit()
+    return source
+
+
+def parse_invoice_unit_cost(value):
+    """Store money as integer pence; a blank price remains unpriced, not zero."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    if not re.fullmatch(r"[0-9]{1,8}(?:\.[0-9]{1,2})?", value):
+        raise ValueError("Enter a positive cost or zero, with at most two decimal places (for example 650.00).")
+    whole, _, fraction = value.partition(".")
+    return int(whole) * 100 + int(fraction.ljust(2, "0"))
+
+
+@app.template_filter("invoice_cost_input")
+def invoice_cost_input(pence):
+    if pence is None:
+        return ""
+    return f"{pence // 100}.{pence % 100:02d}"
+
+
+@app.template_filter("invoice_money")
+def invoice_money(pence):
+    if pence is None:
+        return "Not priced"
+    return f"GBP {pence // 100:,}.{pence % 100:02d}"
+
+
+def generated_invoice_payload(invoice, prices):
+    lines = json.loads(invoice.lines_json)
+    # A saved invoice owns its price snapshot. Defaults only fill unsaved drafts.
+    if invoice.saved_at is None:
+        for line in lines:
+            line["unit_cost_pence"] = prices.get(line["sku"])
+    missing = 0
+    subtotal = 0
+    for line in lines:
+        price = line["unit_cost_pence"]
+        line["total_pence"] = None if price is None else price * line["quantity"]
+        if line["quantity"]:
+            if price is None:
+                missing += 1
+            else:
+                subtotal += line["total_pence"]
+    return {
+        "record": invoice, "lines": lines,
+        "quantity": sum(line["quantity"] for line in lines),
+        "missing_prices": missing, "total_pence": subtotal,
+    }
+
+
+@app.route("/invoice_generator", methods=["GET", "POST"])
+def invoice_generator():
+    if "worker" not in session:
+        return redirect(url_for("login"))
+    source = ensure_invoice_generator_tables()
+    csrf_token = session.setdefault("invoice_generator_csrf", uuid.uuid4().hex)
+    selected_id = request.args.get("invoice", type=int)
+    if request.method == "POST":
+        if request.form.get("csrf_token") != csrf_token:
+            return "This form has expired. Reload the invoice generator and try again.", 400
+        action = request.form.get("action")
+        try:
+            if action == "save_prices":
+                # Validate the entire form before changing any price.
+                parsed = {product["sku"]: parse_invoice_unit_cost(request.form.get("price_" + product["sku"]))
+                          for product in source["products"]}
+                for sku, cost in parsed.items():
+                    price = db.session.get(InvoiceItemPrice, sku)
+                    if price is None:
+                        price = InvoiceItemPrice(sku=sku)
+                        db.session.add(price)
+                    price.unit_cost_pence = cost
+                db.session.commit()
+                flash("Unit costs saved. They apply to unsaved invoices; saved invoices keep their own prices.", "success")
+            elif action == "save_invoice":
+                selected_id = request.form.get("invoice_id", type=int)
+                invoice = db.get_or_404(GeneratedInvoice, selected_id)
+                lines = json.loads(invoice.lines_json)
+                for line in lines:
+                    line["unit_cost_pence"] = parse_invoice_unit_cost(request.form.get("cost_" + line["sku"]))
+                reference = request.form.get("reference", "").strip()
+                collection_date = request.form.get("collection_date", "").strip()
+                if not reference or len(reference) > 80 or not collection_date or len(collection_date) > 40:
+                    raise ValueError("Enter an invoice reference (up to 80 characters) and collection date (up to 40 characters).")
+                details = {key: request.form.get(key, "").strip()
+                           for key in ("seller_details", "customer_details", "notes")}
+                if any(len(value) > 4000 for value in details.values()):
+                    raise ValueError("Keep each address or notes field within 4,000 characters.")
+                invoice.lines_json = json.dumps(lines)
+                invoice.reference = reference
+                invoice.collection_date = collection_date
+                for key, value in details.items():
+                    setattr(invoice, key, value)
+                invoice.saved_at = london_now()
+                invoice.saved_by = session["worker"]
+                db.session.commit()
+                flash("Invoice saved with its quantities and unit costs.", "success")
+            else:
+                return "Unknown invoice action.", 400
+        except ValueError as exc:
+            db.session.rollback()
+            # Render submitted values so a validation error does not discard edits.
+            flash(str(exc), "error")
+            return render_invoice_generator(source, selected_id, request.form), 400
+        return redirect(url_for("invoice_generator", invoice=selected_id))
+    return render_invoice_generator(source, selected_id)
+
+
+def render_invoice_generator(source, selected_id, submitted=None):
+    prices = {price.sku: price.unit_cost_pence for price in InvoiceItemPrice.query.all()}
+    invoices = GeneratedInvoice.query.order_by(GeneratedInvoice.id).all()
+    selected = (db.get_or_404(GeneratedInvoice, selected_id) if selected_id is not None
+                else (invoices[0] if invoices else None))
+    return render_template(
+        "invoice_generator.html", source=source, prices=prices,
+        invoices=[generated_invoice_payload(invoice, prices) for invoice in invoices],
+        selected=generated_invoice_payload(selected, prices) if selected else None,
+        submitted=submitted,
+    )
+
+
+@app.route("/invoice_generator/<int:invoice_id>/print")
+def print_generated_invoice(invoice_id):
+    if "worker" not in session:
+        return redirect(url_for("login"))
+    ensure_invoice_generator_tables()
+    invoice = db.get_or_404(GeneratedInvoice, invoice_id)
+    payload = generated_invoice_payload(invoice, {})
+    if invoice.saved_at is None or payload["missing_prices"]:
+        flash("Save the invoice with a unit cost for every ordered product before printing.", "error")
+        return redirect(url_for("invoice_generator", invoice=invoice_id))
+    return render_template("generated_invoice_print.html", invoice=payload)
+
+
 class InvoicePackagingJob(db.Model):
     __tablename__ = "invoice_packaging_job"
 

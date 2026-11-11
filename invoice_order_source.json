@@ -1,0 +1,310 @@
+{
+  "source_url": "https://docs.google.com/spreadsheets/d/1YTJ4_XkldQtqyfp4McNPXbO7Z9NyIjZCFHCBP9yCyvA/edit",
+  "source_title": "Bitcade Stock Orders 26/27",
+  "source_tab": "Orders",
+  "imported_on": "2026-11-11",
+  "products": [
+    {
+      "sku": "BIL/LEAG/6FT/BLA",
+      "description": "Signature League 6FT Black"
+    },
+    {
+      "sku": "BIL/LEAG/7FT/BLA",
+      "description": "Signature League 7FT Black"
+    },
+    {
+      "sku": "BIL/CHAM/6FT/BLA",
+      "description": "Signature Champion 6FT Black"
+    },
+    {
+      "sku": "BIL/CHAM/6FT/ROAK",
+      "description": "Signature Champion 6FT Rustic Oak"
+    },
+    {
+      "sku": "BIL/CHAM/6FT/GOAK",
+      "description": "Signature Champion 6FT Grey Oak"
+    },
+    {
+      "sku": "BIL/CHAM/6FT/RBLACK",
+      "description": "Signature Champion 6FT Rustic Black"
+    },
+    {
+      "sku": "BIL/CHAM/6FT/STONE",
+      "description": "Signature Champion 6FT Stone"
+    },
+    {
+      "sku": "BIL/CHAM/7FT/BLA",
+      "description": "Signature Champion 7FT Black"
+    },
+    {
+      "sku": "BIL/CHAM/7FT/ROAK",
+      "description": "Signature Champion 7FT Rustic Oak"
+    },
+    {
+      "sku": "BIL/CHAM/7FT/GOAK",
+      "description": "Signature Champion 7FT Grey Oak"
+    },
+    {
+      "sku": "BIL/CHAM/7FT/RBLACK",
+      "description": "Signature Champion 7FT Rustic Black"
+    },
+    {
+      "sku": "BIL/CHAM/7FT/STONE",
+      "description": "Signature Champion 7FT Stone"
+    }
+  ],
+  "invoices": [
+    {
+      "source_column": "C",
+      "collection_date": "14/08",
+      "month": "August",
+      "reference": "INV-380",
+      "expected_quantity": 50,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 10,
+        "BIL/LEAG/7FT/BLA": 10,
+        "BIL/CHAM/6FT/BLA": 0,
+        "BIL/CHAM/6FT/ROAK": 2,
+        "BIL/CHAM/6FT/GOAK": 2,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 2,
+        "BIL/CHAM/7FT/BLA": 15,
+        "BIL/CHAM/7FT/ROAK": 5,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 4,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "D",
+      "collection_date": "28/08",
+      "month": "August",
+      "reference": "TBC",
+      "expected_quantity": 35,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 8,
+        "BIL/LEAG/7FT/BLA": 10,
+        "BIL/CHAM/6FT/BLA": 0,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 5,
+        "BIL/CHAM/7FT/ROAK": 4,
+        "BIL/CHAM/7FT/GOAK": 4,
+        "BIL/CHAM/7FT/RBLACK": 4,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "E",
+      "collection_date": "11/09",
+      "month": "September",
+      "reference": "TBC",
+      "expected_quantity": 50,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 8,
+        "BIL/LEAG/7FT/BLA": 10,
+        "BIL/CHAM/6FT/BLA": 5,
+        "BIL/CHAM/6FT/ROAK": 2,
+        "BIL/CHAM/6FT/GOAK": 2,
+        "BIL/CHAM/6FT/RBLACK": 2,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 11,
+        "BIL/CHAM/7FT/ROAK": 4,
+        "BIL/CHAM/7FT/GOAK": 4,
+        "BIL/CHAM/7FT/RBLACK": 2,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "F",
+      "collection_date": "25/09",
+      "month": "September",
+      "reference": "TBC",
+      "expected_quantity": 35,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 10,
+        "BIL/LEAG/7FT/BLA": 10,
+        "BIL/CHAM/6FT/BLA": 0,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 10,
+        "BIL/CHAM/7FT/ROAK": 5,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "G",
+      "collection_date": "02/10",
+      "month": "October",
+      "reference": "INV-385",
+      "expected_quantity": 35,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 0,
+        "BIL/LEAG/7FT/BLA": 0,
+        "BIL/CHAM/6FT/BLA": 10,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 25,
+        "BIL/CHAM/7FT/ROAK": 0,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "H",
+      "collection_date": "16/10",
+      "month": "October",
+      "reference": "INV-386",
+      "expected_quantity": 50,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 10,
+        "BIL/LEAG/7FT/BLA": 15,
+        "BIL/CHAM/6FT/BLA": 5,
+        "BIL/CHAM/6FT/ROAK": 5,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 15,
+        "BIL/CHAM/7FT/ROAK": 0,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "I",
+      "collection_date": "28/10",
+      "month": "October",
+      "reference": "INV-387",
+      "expected_quantity": 50,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 10,
+        "BIL/LEAG/7FT/BLA": 15,
+        "BIL/CHAM/6FT/BLA": 0,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 20,
+        "BIL/CHAM/7FT/ROAK": 5,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "J",
+      "collection_date": "06/11",
+      "month": "November",
+      "reference": "TBC",
+      "expected_quantity": 50,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 10,
+        "BIL/LEAG/7FT/BLA": 15,
+        "BIL/CHAM/6FT/BLA": 5,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 3,
+        "BIL/CHAM/6FT/RBLACK": 4,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 5,
+        "BIL/CHAM/7FT/ROAK": 0,
+        "BIL/CHAM/7FT/GOAK": 7,
+        "BIL/CHAM/7FT/RBLACK": 3,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "K",
+      "collection_date": "13/11",
+      "month": "November",
+      "reference": "TBC",
+      "expected_quantity": 50,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 15,
+        "BIL/LEAG/7FT/BLA": 5,
+        "BIL/CHAM/6FT/BLA": 10,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 20,
+        "BIL/CHAM/7FT/ROAK": 0,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "L",
+      "collection_date": "20/11",
+      "month": "November",
+      "reference": "TBC",
+      "expected_quantity": 50,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 5,
+        "BIL/LEAG/7FT/BLA": 15,
+        "BIL/CHAM/6FT/BLA": 5,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 20,
+        "BIL/CHAM/7FT/ROAK": 5,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "M",
+      "collection_date": "04/12",
+      "month": "December",
+      "reference": "TBC",
+      "expected_quantity": 35,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 5,
+        "BIL/LEAG/7FT/BLA": 10,
+        "BIL/CHAM/6FT/BLA": 5,
+        "BIL/CHAM/6FT/ROAK": 0,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 15,
+        "BIL/CHAM/7FT/ROAK": 0,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    },
+    {
+      "source_column": "N",
+      "collection_date": "18/12",
+      "month": "December",
+      "reference": "TBC",
+      "expected_quantity": 35,
+      "quantities": {
+        "BIL/LEAG/6FT/BLA": 10,
+        "BIL/LEAG/7FT/BLA": 5,
+        "BIL/CHAM/6FT/BLA": 5,
+        "BIL/CHAM/6FT/ROAK": 5,
+        "BIL/CHAM/6FT/GOAK": 0,
+        "BIL/CHAM/6FT/RBLACK": 0,
+        "BIL/CHAM/6FT/STONE": 0,
+        "BIL/CHAM/7FT/BLA": 5,
+        "BIL/CHAM/7FT/ROAK": 5,
+        "BIL/CHAM/7FT/GOAK": 0,
+        "BIL/CHAM/7FT/RBLACK": 0,
+        "BIL/CHAM/7FT/STONE": 0
+      }
+    }
+  ]
+}

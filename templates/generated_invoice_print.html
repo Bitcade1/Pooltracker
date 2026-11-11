@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{ invoice.record.reference }} - {{ invoice.record.collection_date }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #172336; max-width: 900px; margin: 30px auto; padding: 0 24px; }
+        .toolbar { display: flex; align-items: center; gap: 20px; margin-bottom: 35px; }
+        button { background: #007bff; border: 0; border-radius: 5px; padding: 12px 18px; color: white; cursor: pointer; }
+        a { color: #254364; }
+        header { display: flex; justify-content: space-between; align-items: start; gap: 24px; border-bottom: 2px solid #172336; padding-bottom: 18px; }
+        h1 { margin: 0 0 10px; font-size: 30px; }
+        h2 { font-size: 15px; }
+        .details { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+        .addresses { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin: 24px 0; }
+        table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+        th, td { border-bottom: 1px solid #dfe3eb; padding: 12px 8px; text-align: left; }
+        th { background: #f3f5f8; }
+        .number { text-align: right; font-variant-numeric: tabular-nums; }
+        .sku { display: block; font-size: 11px; color: #596579; margin-top: 5px; overflow-wrap: anywhere; }
+        .total { text-align: right; font-size: 21px; font-weight: bold; margin: 25px 0; }
+        tr { break-inside: avoid; }
+        @media print { .toolbar { display: none; } body { margin: 0; padding: 0; max-width: none; } @page { size: A4; margin: 16mm; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button type="button" onclick="window.print()">Print / Save PDF</button>
+        <a href="{{ url_for('invoice_generator', invoice=invoice.record.id) }}">Back to invoice</a>
+    </div>
+    <header>
+        <div><h1>INVOICE</h1><strong>{{ invoice.record.reference }}</strong></div>
+        <div>Collection: {{ invoice.record.collection_date }}<br>Total tables: {{ invoice.quantity }}</div>
+    </header>
+    <section class="addresses">
+        <div><h2>From</h2><div class="details">{{ invoice.record.seller_details }}</div></div>
+        <div><h2>Bill to</h2><div class="details">{{ invoice.record.customer_details }}</div></div>
+    </section>
+    <table>
+        <colgroup><col style="width: 43%"><col style="width: 10%"><col style="width: 23%"><col style="width: 24%"></colgroup>
+        <thead><tr><th>Product</th><th class="number">Qty</th><th class="number">Unit cost</th><th class="number">Total</th></tr></thead>
+        <tbody>
+        {% for line in invoice.lines if line.quantity %}
+        <tr><td>{{ line.description }}<span class="sku">{{ line.sku }}</span></td>
+            <td class="number">{{ line.quantity }}</td>
+            <td class="number">{{ line.unit_cost_pence|invoice_money }}</td>
+            <td class="number">{{ line.total_pence|invoice_money }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p class="total">Invoice total: {{ invoice.total_pence|invoice_money }}</p>
+    {% if invoice.record.notes %}<section><h2>Notes / payment details</h2><div class="details">{{ invoice.record.notes }}</div></section>{% endif %}
+</body>
+</html>
