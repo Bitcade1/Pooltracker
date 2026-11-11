@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory, jsonify, current_app
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response, send_from_directory, jsonify, current_app, abort
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, OperationalError
 from datetime import datetime, timedelta, date, time, timezone
@@ -4141,6 +4141,7 @@ def apply_invoice_sheet_source(source):
         state = db.session.get(InvoiceSheetSyncState, 1, populate_existing=True)
         data = json.loads(state.data_json)
         bindings, accepted = data["bindings"], data["accepted"]
+        deleted = {int(invoice_id) for invoice_id in data.get("deleted", {})}
         prior_columns = {bindings[source_order_identity(order, data["source"])]: order["source_column"]
                          for order in data["source"]["invoices"]}
         matched, incoming = set(), []
@@ -4157,12 +4158,15 @@ def apply_invoice_sheet_source(source):
             if invoice_id is not None:
                 matched.add(invoice_id)
             incoming.append((identity, invoice_id, order))
-        missing = set(prior_columns) - matched
+        missing = set(prior_columns) - matched - deleted
         for _, invoice_id, order in incoming:
             if invoice_id is None and order["source_column"] in {prior_columns[item] for item in missing}:
                 raise InvoiceSyncError("A collection date or Order ID appears to have been replaced. Sync stopped to avoid creating a duplicate invoice. Restore its date/ID, or add stable Order IDs before changing dates.")
         pending, created, updated = {}, 0, 0
         for identity, invoice_id, order in incoming:
+            if invoice_id in deleted:
+                bindings[identity] = invoice_id
+                continue
             invoice = db.session.get(GeneratedInvoice, invoice_id) if invoice_id is not None else None
             snapshot = invoice_order_snapshot(order, source)
             if invoice is None:
@@ -4193,7 +4197,7 @@ def apply_invoice_sheet_source(source):
         data.update(source=dict(source, products=list(catalogue.values())), pending=pending,
                     missing=sorted(set(data.get("missing", [])) | missing))
         current_ids = {bindings[identity] for identity, _, _ in incoming}
-        data["missing"] = [item for item in data["missing"] if item not in current_ids]
+        data["missing"] = [item for item in data["missing"] if item not in current_ids and item not in deleted]
         state.data_json = json.dumps(data)
         state.last_attempt_at = state.last_success_at = datetime.utcnow()
         state.last_error = ""
@@ -4223,6 +4227,13 @@ def invoice_record_version(invoice):
               invoice.seller_details, invoice.customer_details, invoice.notes,
               invoice.presentation_json, str(invoice.saved_at)]
     return hashlib.sha256(json.dumps(values).encode("utf-8")).hexdigest()
+
+
+def active_generated_invoice(invoice_id):
+    state = db.session.get(InvoiceSheetSyncState, 1)
+    if str(invoice_id) in json.loads(state.data_json).get("deleted", {}):
+        abort(404)
+    return db.get_or_404(GeneratedInvoice, invoice_id)
 
 
 def invoice_catalogue_version(source):
@@ -4362,12 +4373,51 @@ def invoice_generator():
                     flash(f"Sheet synced: {result['created']} new invoices, {result['updated']} updated drafts, {result['review']} saved invoices to review.", "success")
                 except InvoiceSyncError as exc:
                     flash(str(exc), "error")
+            elif action in ("delete_invoice", "restore_invoice"):
+                invoice_id = request.form.get("invoice_id", type=int)
+                invoice = db.get_or_404(GeneratedInvoice, invoice_id)
+                state = db.session.get(InvoiceSheetSyncState, 1, populate_existing=True)
+                data = json.loads(state.data_json)
+                deleted = data.setdefault("deleted", {})
+                if action == "delete_invoice":
+                    if request.form.get("invoice_version") != invoice_record_version(invoice):
+                        raise ValueError("This invoice changed. Reload and review it before deleting.")
+                    deleted[str(invoice_id)] = {"at": london_now().isoformat(), "by": session["worker"]}
+                    data["pending"].pop(str(invoice_id), None)
+                    data["missing"] = [item for item in data["missing"] if item != invoice_id]
+                    if selected_id == invoice_id:
+                        selected_id = None
+                    flash("Invoice deleted from Order columns. Sheet sync will not bring it back. You can restore it under Deleted invoices.", "success")
+                else:
+                    if str(invoice_id) not in deleted:
+                        abort(404)
+                    del deleted[str(invoice_id)]
+                    # Reconcile the latest cached sheet before making a restored invoice available.
+                    order = next((order for order in data["source"]["invoices"]
+                                  if data["bindings"].get(source_order_identity(order, data["source"])) == invoice_id), None)
+                    if order:
+                        products = [p for p in data["source"]["products"] if p["sku"] in order["quantities"]]
+                        snapshot = invoice_order_snapshot(order, dict(data["source"], products=products))
+                        if invoice.saved_at is None:
+                            for key in ("collection_date", "month", "reference", "expected_quantity"):
+                                setattr(invoice, key, order[key])
+                            invoice.lines_json = json.dumps(invoice_sheet_lines(order, {"products": products}, json.loads(invoice.lines_json)))
+                            data["accepted"][str(invoice_id)] = snapshot
+                        elif data["accepted"].get(str(invoice_id)) != snapshot:
+                            data["pending"][str(invoice_id)] = dict(order=order, products=products, snapshot=snapshot)
+                        invoice.source_column = order["source_column"]
+                    else:
+                        data["missing"] = sorted(set(data["missing"]) | {invoice_id})
+                    selected_id = invoice_id
+                    flash("Invoice restored.", "success")
+                state.data_json = json.dumps(data)
+                db.session.commit()
             elif action == "review_sheet_change":
                 # Serialize review with the scheduled job so a newer change cannot be discarded.
                 db.session.rollback()
                 db.session.execute(text("BEGIN IMMEDIATE"))
                 selected_id = request.form.get("invoice_id", type=int)
-                invoice = db.get_or_404(GeneratedInvoice, selected_id)
+                invoice = active_generated_invoice(selected_id)
                 state = db.session.get(InvoiceSheetSyncState, 1, populate_existing=True)
                 data = json.loads(state.data_json)
                 change = data["pending"].get(str(selected_id))
@@ -4404,7 +4454,7 @@ def invoice_generator():
                 flash("Unit costs saved. They apply to unsaved invoices; saved invoices keep their own prices.", "success")
             elif action == "save_invoice":
                 selected_id = request.form.get("invoice_id", type=int)
-                invoice = db.get_or_404(GeneratedInvoice, selected_id)
+                invoice = active_generated_invoice(selected_id)
                 if request.form.get("invoice_version") != invoice_record_version(invoice):
                     raise ValueError("This invoice changed while the form was open. Review the current quantities and save again.")
                 lines = json.loads(invoice.lines_json)
@@ -4425,10 +4475,18 @@ def invoice_generator():
                 invoice.presentation_json = json.dumps(presentation)
                 for key, value in details.items():
                     setattr(invoice, key, value)
+                # Remember entered prices by SKU for other drafts without rewriting saved invoices.
+                for line in lines:
+                    if line["quantity"] and line["unit_cost_pence"] is not None:
+                        price = db.session.get(InvoiceItemPrice, line["sku"])
+                        if price is None:
+                            price = InvoiceItemPrice(sku=line["sku"])
+                            db.session.add(price)
+                        price.unit_cost_pence = line["unit_cost_pence"]
                 invoice.saved_at = london_now()
                 invoice.saved_by = session["worker"]
                 db.session.commit()
-                flash("Invoice saved with its quantities and unit costs.", "success")
+                flash("Invoice saved. Its item prices will also fill other unsaved invoices with the same SKUs.", "success")
             else:
                 return "Unknown invoice action.", 400
         except ValueError as exc:
@@ -4442,11 +4500,13 @@ def invoice_generator():
 
 def render_invoice_generator(source, selected_id, submitted=None):
     prices = {price.sku: price.unit_cost_pence for price in InvoiceItemPrice.query.all()}
-    invoices = GeneratedInvoice.query.order_by(GeneratedInvoice.id).all()
-    selected = (db.get_or_404(GeneratedInvoice, selected_id) if selected_id is not None
-                else (invoices[0] if invoices else None))
     state = db.session.get(InvoiceSheetSyncState, 1)
     sync_data = json.loads(state.data_json)
+    all_invoices = GeneratedInvoice.query.order_by(GeneratedInvoice.id).all()
+    invoices = [invoice for invoice in all_invoices if str(invoice.id) not in sync_data.get("deleted", {})]
+    deleted_invoices = [invoice for invoice in all_invoices if str(invoice.id) in sync_data.get("deleted", {})]
+    selected = (active_generated_invoice(selected_id) if selected_id is not None
+                else (invoices[0] if invoices else None))
     change = sync_data["pending"].get(str(selected.id)) if selected else None
     comparison = []
     if change:
@@ -4464,6 +4524,7 @@ def render_invoice_generator(source, selected_id, submitted=None):
         selected=generated_invoice_payload(selected, prices) if selected else None,
         submitted=submitted,
         sync_state=state, sync_data=sync_data,
+        deleted_invoices=deleted_invoices,
         sync_configured=os.path.isfile(invoice_sync_credentials_path()),
         sync_stale=bool(state.last_success_at and datetime.utcnow() - state.last_success_at > timedelta(minutes=15)),
         catalogue_version=invoice_catalogue_version(source),
@@ -4478,7 +4539,7 @@ def print_generated_invoice(invoice_id):
     if "worker" not in session:
         return redirect(url_for("login"))
     ensure_invoice_generator_tables()
-    invoice = db.get_or_404(GeneratedInvoice, invoice_id)
+    invoice = active_generated_invoice(invoice_id)
     payload = generated_invoice_payload(invoice, {})
     state = db.session.get(InvoiceSheetSyncState, 1)
     if str(invoice_id) in json.loads(state.data_json)["pending"]:

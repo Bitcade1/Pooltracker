@@ -197,6 +197,33 @@ class InvoiceGeneratorTests(unittest.TestCase):
         self.assertEqual(11, payload["vat_pence"])
         self.assertEqual(186, payload["grand_total_pence"])
 
+    def test_saving_invoice_shares_ordered_prices_with_other_drafts(self):
+        self.assertEqual(303, self.save_invoice("123.45").status_code)
+        price = tracker.db.session.get(tracker.InvoiceItemPrice, self.products[0]["sku"])
+        self.assertEqual(12345, price.unit_cost_pence)
+        other = tracker.GeneratedInvoice.query.filter_by(source_column="N").one()
+        prices = {p.sku: p.unit_cost_pence for p in tracker.InvoiceItemPrice.query.all()}
+        line = next(line for line in tracker.generated_invoice_payload(other, prices)["lines"] if line["sku"] == price.sku)
+        self.assertEqual(12345, line["unit_cost_pence"])
+        self.assertIsNone(other.saved_at)
+        self.assertIsNone(tracker.db.session.get(tracker.InvoiceItemPrice, "BIL/CHAM/6FT/ROAK"))
+
+    def test_shared_invoice_prices_do_not_rewrite_other_saved_invoices(self):
+        self.save_invoice("10.00")
+        previous = self.invoice.lines_json
+        self.invoice = tracker.GeneratedInvoice.query.filter_by(source_column="N").one()
+        self.save_invoice("20.00")
+        original = tracker.db.session.get(tracker.GeneratedInvoice, self.invoice_id)
+        self.assertEqual(previous, original.lines_json)
+        self.assertEqual(2000, tracker.db.session.get(tracker.InvoiceItemPrice, self.products[0]["sku"]).unit_cost_pence)
+
+    def test_blank_invoice_prices_do_not_clear_defaults_and_zero_is_shared(self):
+        self.save_invoice("10.00")
+        self.save_invoice("")
+        self.assertEqual(1000, tracker.db.session.get(tracker.InvoiceItemPrice, self.products[0]["sku"]).unit_cost_pence)
+        self.save_invoice("0.00")
+        self.assertEqual(0, tracker.db.session.get(tracker.InvoiceItemPrice, self.products[0]["sku"]).unit_cost_pence)
+
 
 if __name__ == "__main__":
     unittest.main()

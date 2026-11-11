@@ -36,6 +36,13 @@
     .invoice-generator .invoice-link { display: block; padding: 12px; margin: 8px 0; border: 1px solid #dfe3eb; border-radius: 7px; color: #24344a; text-decoration: none; }
     .invoice-generator .invoice-link.active { border-color: #007bff; background: #edf4ff; box-shadow: inset 3px 0 #007bff; }
     .invoice-generator .invoice-link span { display: block; margin-top: 4px; }
+    .invoice-generator .invoice-card { border: 1px solid #dfe3eb; border-radius: 7px; margin: 8px 0; overflow: hidden; }
+    .invoice-generator .invoice-card.active { border-color: #007bff; }
+    .invoice-generator .invoice-card .invoice-link { border: 0; border-radius: 0; margin: 0; }
+    .invoice-generator .invoice-card form { margin: 0; padding: 0 12px 10px; gap: 0; }
+    .invoice-generator .delete-invoice { background: #fff; color: #a32929; border: 1px solid #e4bbbb; padding: 6px 10px; font-size: .85rem; }
+    .invoice-generator .deleted-invoice { border-bottom: 1px solid #e4e7ed; padding: 12px 0; }
+    .invoice-generator .deleted-invoice form { margin-top: 8px; }
     .invoice-generator .sku { display: block; color: #596579; font-size: .8rem; overflow-wrap: anywhere; margin-top: 4px; }
     .invoice-generator .totals { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; background: #f7f7fb; padding: 16px; border-radius: 7px; margin: 12px 0; }
     .invoice-generator .totals strong { font-size: 1.2rem; display: block; margin-top: 5px; }
@@ -48,7 +55,7 @@
     @media (max-width: 1000px) {
         .invoice-generator .layout { grid-template-columns: 1fr; }
         .invoice-generator .invoice-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; max-height: 300px; overflow-y: auto; }
-        .invoice-generator .invoice-link { margin: 0; }
+        .invoice-generator .invoice-link, .invoice-generator .invoice-card { margin: 0; }
     }
     @media (max-width: 600px) { .invoice-generator .fields { grid-template-columns: 1fr; } }
 </style>
@@ -81,7 +88,7 @@
 
     <details class="panel" id="price-list" {% if submitted and submitted.get('action') == 'save_prices' %}open{% endif %}>
         <summary>Saved unit costs by product (GBP)</summary>
-        <p class="muted">These prices fill unsaved invoices automatically. Saved invoices keep their own prices. Leave a price blank if it is not known yet; enter 0.00 for a free item.</p>
+        <p class="muted">These prices fill unsaved invoices automatically. Saving a priced invoice also remembers its ordered items' costs here by SKU. Saved invoices keep their own prices. Leave a price blank if it is not known yet; enter 0.00 for a free item.</p>
         <form method="post" action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
             <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
             <input type="hidden" name="action" value="save_prices">
@@ -112,6 +119,7 @@
             <p class="muted">{{ invoices|length }} invoices from the Orders tab.</p>
             <div class="invoice-list">
             {% for invoice in invoices %}
+            <div class="invoice-card {% if selected and selected.record.id == invoice.record.id %}active{% endif %}">
             <a class="invoice-link {% if selected and selected.record.id == invoice.record.id %}active{% endif %}"
                href="{{ url_for('invoice_generator', invoice=invoice.record.id) }}"
                {% if selected and selected.record.id == invoice.record.id %}aria-current="page"{% endif %}>
@@ -121,8 +129,34 @@
                 {% if invoice.record.id|string in sync_data.pending %}<span class="warning">Sheet changes to review</span>{% endif %}
                 {% if invoice.record.id in sync_data.missing %}<span class="muted">No longer in the sheet</span>{% endif %}
             </a>
+            <form method="post" class="invoice-management" data-deleting="true" data-invoice-label="{{ invoice.record.collection_date }} - {{ invoice.record.reference }}"
+                  action="{{ url_for('invoice_generator', invoice=selected.record.id if selected else None) }}">
+                <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                <input type="hidden" name="action" value="delete_invoice">
+                <input type="hidden" name="invoice_id" value="{{ invoice.record.id }}">
+                <input type="hidden" name="invoice_version" value="{{ invoice.version }}">
+                <button type="submit" class="delete-invoice" aria-label="Delete invoice {{ invoice.record.collection_date }} - {{ invoice.record.reference }}">Delete</button>
+            </form>
+            </div>
             {% endfor %}
             </div>
+            {% if not invoices %}<p class="muted">No active invoices. Deleted invoices stay out of this list after syncing.</p>{% endif %}
+            {% if deleted_invoices %}
+            <details id="deleted-invoices" style="margin-top: 16px">
+                <summary>Deleted invoices ({{ deleted_invoices|length }})</summary>
+                {% for invoice in deleted_invoices %}
+                <div class="deleted-invoice">
+                    <strong>{{ invoice.collection_date }} - {{ invoice.reference }}</strong>
+                    <form method="post" class="invoice-management" action="{{ url_for('invoice_generator') }}">
+                        <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                        <input type="hidden" name="action" value="restore_invoice">
+                        <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
+                        <button type="submit" class="secondary">Restore</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </details>
+            {% endif %}
             <p class="muted">Source: <a href="{{ source.source_url }}" target="_blank" rel="noopener">{{ source.source_title }}</a>. Reload this page to see orders updated by the server.</p>
         </aside>
 
@@ -233,6 +267,18 @@
 <script>
 (() => {
     const form = document.getElementById('invoice-form');
+    let invoiceDirty = {{ 'true' if submitted and submitted.get('action') == 'save_invoice' else 'false' }};
+    let priceDirty = {{ 'true' if submitted and submitted.get('action') == 'save_prices' else 'false' }};
+    document.querySelectorAll('.invoice-management').forEach(managementForm => managementForm.addEventListener('submit', event => {
+        const deleting = managementForm.dataset.deleting === 'true';
+        let message = deleting ? `Delete invoice ${managementForm.dataset.invoiceLabel} from Order columns? It will stay deleted after syncing. You can restore it under Deleted invoices.` : '';
+        if (invoiceDirty || priceDirty) message += '\nUnsaved edits on this page will be discarded.';
+        if (message && !window.confirm(message)) {
+            event.preventDefault();
+            return;
+        }
+        invoiceDirty = priceDirty = false;
+    }));
     if (!form) return;
     const showZero = document.getElementById('show-zero');
     showZero.addEventListener('change', () => {
@@ -265,8 +311,6 @@
             ? `${missing} ordered product(s) still need a unit cost. You can save a draft; printing is available once all ordered products are priced.`
             : 'All ordered products are priced. Save the invoice to keep these costs.';
     }
-    let invoiceDirty = {{ 'true' if submitted and submitted.get('action') == 'save_invoice' else 'false' }};
-    let priceDirty = {{ 'true' if submitted and submitted.get('action') == 'save_prices' else 'false' }};
     form.addEventListener('input', event => {
         if (event.target === showZero) return;
         invoiceDirty = true;

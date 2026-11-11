@@ -98,6 +98,18 @@ class InvoiceSyncTests(unittest.TestCase):
         order["quantities"][self.products[0]["sku"]] += 3
         return order
 
+    def delete_invoice(self, invoice=None, version=None):
+        invoice = invoice or self.invoice
+        return self.client.post(f"/invoice_generator?invoice={invoice.id}", data={
+            "action": "delete_invoice", "invoice_id": invoice.id, "csrf_token": self.token,
+            "invoice_version": version or tracker.invoice_record_version(invoice),
+        })
+
+    def restore_invoice(self, invoice_id=None):
+        return self.client.post("/invoice_generator", data={
+            "action": "restore_invoice", "invoice_id": invoice_id or self.invoice_id, "csrf_token": self.token,
+        })
+
     def review(self, decision, version=None):
         data = json.loads(tracker.db.session.get(tracker.InvoiceSheetSyncState, 1).data_json)
         change = data["pending"][str(self.invoice_id)]
@@ -235,6 +247,76 @@ class InvoiceSyncTests(unittest.TestCase):
         self.assertEqual(12, tracker.GeneratedInvoice.query.count())
         self.assertEqual("INV-400", invoice.reference)
         self.assertEqual(350350, tracker.generated_invoice_payload(invoice, {})["total_pence"])
+
+    def test_deleted_invoice_disappears_and_cannot_be_printed_or_saved(self):
+        self.save_invoice("10.00")
+        original = self.invoice.lines_json
+        self.assertEqual(303, self.delete_invoice().status_code)
+        response = self.client.get("/invoice_generator")
+        self.assertEqual(11, response.data.count(b'class="invoice-link '))
+        self.assertIn(b"Deleted invoices (1)", response.data)
+        self.assertEqual(404, self.client.get(f"/invoice_generator?invoice={self.invoice_id}").status_code)
+        self.assertEqual(404, self.client.get(f"/invoice_generator/{self.invoice_id}/print").status_code)
+        self.assertEqual(404, self.save_invoice("20.00").status_code)
+        self.assertEqual(original, self.invoice.lines_json)
+        self.assertEqual(12, tracker.GeneratedInvoice.query.count())
+        self.assertEqual(1000, tracker.db.session.get(tracker.InvoiceItemPrice, self.products[0]["sku"]).unit_cost_pence)
+
+    def test_sync_does_not_restore_or_update_deleted_invoice_after_columns_move(self):
+        self.save_invoice("10.00")
+        original = self.invoice.lines_json
+        self.delete_invoice()
+        source = self.incoming()
+        self.change_order(source)
+        columns = [order["source_column"] for order in source["invoices"]][::-1]
+        for index, (order, column) in enumerate(zip(source["invoices"], columns)):
+            order["source_column"] = column
+            order["order_id"] = "order-" + str(index)
+        for _ in range(2):
+            result = tracker.apply_invoice_sheet_source(source)
+            self.assertEqual(0, result["created"])
+            self.assertEqual(0, result["review"])
+        self.assertEqual(original, self.invoice.lines_json)
+        self.assertEqual(12, tracker.GeneratedInvoice.query.count())
+        self.assertEqual(11, self.client.get("/invoice_generator").data.count(b'class="invoice-link '))
+
+    def test_restoring_saved_invoice_reviews_sheet_changes_and_keeps_prices(self):
+        self.save_invoice("10.00")
+        original = self.invoice.lines_json
+        self.delete_invoice()
+        source = self.incoming()
+        self.change_order(source)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual(303, self.restore_invoice().status_code)
+        self.assertEqual(original, self.invoice.lines_json)
+        response = self.client.get(f"/invoice_generator?invoice={self.invoice_id}")
+        self.assertIn(b"The sheet has changed", response.data)
+        self.assertEqual(303, self.review("apply").status_code)
+        self.assertEqual(38000, tracker.generated_invoice_payload(self.invoice, {})["total_pence"])
+
+    def test_delete_every_invoice_keeps_empty_page_usable_and_restore_refreshes_draft(self):
+        for invoice in tracker.GeneratedInvoice.query.all():
+            self.assertEqual(303, self.delete_invoice(invoice).status_code)
+        source = self.incoming()
+        self.change_order(source)
+        tracker.apply_invoice_sheet_source(source)
+        response = self.client.get("/invoice_generator")
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(0, response.data.count(b'class="invoice-link '))
+        self.assertIn(b"Deleted invoices (12)", response.data)
+        self.assertEqual(303, self.restore_invoice().status_code)
+        self.assertEqual(38, tracker.generated_invoice_payload(self.invoice, {})["quantity"])
+
+    def test_delete_requires_login_csrf_and_an_unchanged_invoice(self):
+        data = {"action": "delete_invoice", "invoice_id": self.invoice_id}
+        self.assertEqual(303, self.app.test_client().post("/invoice_generator", data=data).status_code)
+        self.assertEqual(400, self.client.post("/invoice_generator", data=data).status_code)
+        version = tracker.invoice_record_version(self.invoice)
+        source = self.incoming()
+        self.change_order(source)
+        tracker.apply_invoice_sheet_source(source)
+        self.assertEqual(400, self.delete_invoice(version=version).status_code)
+        self.assertEqual({}, json.loads(tracker.db.session.get(tracker.InvoiceSheetSyncState, 1).data_json).get("deleted", {}))
 
 
 class SyncCommandTests(unittest.TestCase):

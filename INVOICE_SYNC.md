@@ -10,6 +10,14 @@ notes until someone reviews a sheet change. The page offers Apply sheet changes
 or Keep saved invoice. Applying a change preserves each SKU's saved price;
 new SKUs remain unpriced until entered. Removed columns do not delete invoices.
 
+Use Delete on an Order columns card to remove a completed invoice from the
+active list. Deleted invoices retain their saved contents and sync identity,
+so the sheet does not recreate them. Restore them from the collapsed Deleted
+invoices section if needed. Restoring checks the latest imported quantities;
+saved invoices still require review when those quantities have changed.
+Saving a priced invoice also saves its ordered SKU prices for other unsaved
+invoices. Existing saved invoices keep their individual prices.
+
 ## 1. Google connection
 
 The account is `admin-305@pooltracker-backup.iam.gserviceaccount.com`.
