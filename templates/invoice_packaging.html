@@ -930,11 +930,11 @@
         {% if recent_jobs %}
         <label class="field recent-plans no-print">
             Open a saved plan
-            <select onchange="if (this.value) window.location.href=this.value">
+            <select id="saved-plan-select" onchange="if (this.value) window.location.href=this.value">
                 <option value="">Choose a plan</option>
                 {% for job in recent_jobs %}
-                <option value="{{ url_for('invoice_packaging', plan=job.id) }}" {% if plan and plan.id == job.id %}selected{% endif %}>
-                    #{{ job.id }} - {{ job.title }}{% if job.stock_removed_at %} - STOCK PROCESSED{% endif %} - {{ job.updated_at.strftime('%d/%m/%Y %H:%M') }}
+                <option data-plan-id="{{ job.id }}" value="{{ url_for('invoice_packaging', plan=job.id) }}" {% if plan and plan.id == job.id %}selected{% endif %}>
+                    {{ job.title }} (#{{ job.id }}){% if job.stock_removed_at %} - STOCK PROCESSED{% endif %}
                 </option>
                 {% endfor %}
             </select>
@@ -953,6 +953,64 @@
     {% endwith %}
 
     <div id="status-message" class="status-message no-print" hidden></div>
+
+    {% if hidden_jobs %}
+    <details class="panel no-print">
+        <summary class="panel-heading">Hidden plans ({{ hidden_jobs|length }})</summary>
+        <div class="panel-body">
+            <p class="muted">Hidden plans are kept with their invoices, layouts and stock history. Restore a plan to show it in the saved-plan list.</p>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>Plan name</th><th>Plan number</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        {% for job in hidden_jobs %}
+                        <tr>
+                            <td><a href="{{ url_for('invoice_packaging', plan=job.id) }}">{{ job.title }}</a></td>
+                            <td>#{{ job.id }}</td>
+                            <td>{{ 'Stock processed' if job.stock_removed_at else 'Saved' }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('change_invoice_packaging_visibility', job_id=job.id) }}">
+                                    <button class="small secondary" name="action" value="restore">Restore</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+    {% endif %}
+
+    {% if plan %}
+    <section class="panel no-print" aria-label="Plan name and visibility">
+        <div class="panel-heading">
+            <div>
+                <h2>Plan #{{ plan.id }}{% if plan.is_hidden %} - Hidden{% endif %}</h2>
+                <p>Name this plan so it is easy to find in the saved-plan list.</p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <form class="toolbar" onsubmit="renamePlan(event)">
+                <label class="field" style="flex: 1; min-width: 200px;">
+                    Plan name
+                    <input id="plan-name" type="text" value="{{ plan.title }}" maxlength="160" required
+                        oninput="if (this.value.trim()) state.title = this.value.trim()">
+                </label>
+                <button type="submit">Save name</button>
+            </form>
+            <form method="POST" action="{{ url_for('change_invoice_packaging_visibility', job_id=plan.id) }}"
+                class="toolbar" style="margin-top: 14px;">
+                {% if plan.is_hidden %}
+                <button type="submit" class="secondary" name="action" value="restore">Restore this plan</button>
+                {% else %}
+                <button type="submit" class="secondary" name="action" value="hide">Hide this plan</button>
+                {% endif %}
+                <button type="submit" class="secondary" name="action" value="hide_others">Hide other plans (keep #{{ plan.id }})</button>
+            </form>
+        </div>
+    </section>
+    {% endif %}
 
     <section class="panel no-print" aria-label="Search purchase orders">
         <div class="panel-heading">
@@ -2191,6 +2249,25 @@
         setStatus("Packaging plan saved.", "success");
     }
 
+    async function renamePlan(event) {
+        event.preventDefault();
+        const title = document.getElementById("plan-name").value.trim();
+        const data = await apiRequest(`/api/invoice_packaging/${planId}/rename`, {title});
+        if (!data) return;
+        state.title = data.title;
+        document.getElementById("plan-name").value = data.title;
+        updatePlanTitle();
+        setStatus("Plan name saved.", "success");
+    }
+
+    function updatePlanTitle() {
+        document.querySelector(".print-title").textContent = `${state.title} - Packaging List`;
+        const option = document.querySelector(`#saved-plan-select option[data-plan-id="${planId}"]`);
+        if (option) {
+            option.textContent = `${state.title} (#${planId})${state.stock_removed_at ? " - STOCK PROCESSED" : ""}`;
+        }
+    }
+
     async function generatePlan(replaceManualLayout = false) {
         if (replaceManualLayout && state.pallets.length && !window.confirm(
             "Reset all pallets to the automatic layout? This will discard manual moves and allocations."
@@ -2331,6 +2408,7 @@
     }
 
     function renderAll() {
+        updatePlanTitle();
         renderInvoiceOverview();
         renderExtractionWarnings();
         renderItems();

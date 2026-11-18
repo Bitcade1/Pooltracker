@@ -4688,6 +4688,7 @@ class InvoicePackagingJob(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(160), nullable=False, default="Packaging plan")
+    is_hidden = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
     created_by = db.Column(db.String(50), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -4715,6 +4716,12 @@ def ensure_invoice_packaging_tables():
         ).fetchall()
     }
     migration_changed = False
+    if "is_hidden" not in existing_columns:
+        db.session.execute(text(
+            "ALTER TABLE invoice_packaging_job "
+            "ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT 0"
+        ))
+        migration_changed = True
     if "automatic_items_json" not in existing_columns:
         db.session.execute(text(
             "ALTER TABLE invoice_packaging_job "
@@ -4952,6 +4959,7 @@ def packaging_job_payload(job):
     return {
         "id": job.id,
         "title": job.title,
+        "is_hidden": job.is_hidden,
         "created_by": job.created_by,
         "created_at": job.created_at.isoformat() if job.created_at else "",
         "updated_at": job.updated_at.isoformat() if job.updated_at else "",
@@ -5242,8 +5250,14 @@ def invoice_packaging():
 
     recent_jobs = (
         InvoicePackagingJob.query
+        .filter_by(is_hidden=False)
         .order_by(InvoicePackagingJob.updated_at.desc(), InvoicePackagingJob.id.desc())
-        .limit(25)
+        .all()
+    )
+    hidden_jobs = (
+        InvoicePackagingJob.query
+        .filter_by(is_hidden=True)
+        .order_by(InvoicePackagingJob.updated_at.desc(), InvoicePackagingJob.id.desc())
         .all()
     )
     po_search = (request.args.get("po_search") or "").strip()[:80]
@@ -5252,11 +5266,51 @@ def invoice_packaging():
         "invoice_packaging.html",
         plan=packaging_job_payload(selected_job) if selected_job else None,
         recent_jobs=recent_jobs,
+        hidden_jobs=hidden_jobs,
         item_type_labels=ITEM_TYPE_LABELS,
         max_upload_mb=10,
         po_search=po_search,
         po_search_results=po_search_results,
     )
+
+
+@app.route("/api/invoice_packaging/<int:job_id>/rename", methods=["POST"])
+def rename_invoice_packaging(job_id):
+    if "worker" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    job = packaging_job_or_404(job_id)
+    data = request.get_json(silent=True) or {}
+    title = data.get("title")
+    if not isinstance(title, str) or not title.strip() or len(title.strip()) > 160:
+        return jsonify({"success": False, "error": "Enter a plan name of 1 to 160 characters."}), 400
+    job.title = title.strip()
+    job.updated_at = london_now().replace(tzinfo=None)
+    db.session.commit()
+    return jsonify({"success": True, "title": job.title})
+
+
+@app.route("/invoice_packaging/<int:job_id>/visibility", methods=["POST"])
+def change_invoice_packaging_visibility(job_id):
+    if "worker" not in session:
+        return redirect(url_for("login"))
+
+    job = packaging_job_or_404(job_id)
+    action = request.form.get("action")
+    if action == "hide_others":
+        count = InvoicePackagingJob.query.filter(
+            InvoicePackagingJob.id != job.id,
+            InvoicePackagingJob.is_hidden.is_(False),
+        ).update({"is_hidden": True}, synchronize_session="fetch")
+        job.is_hidden = False
+        flash(f"{count} other plan(s) hidden. Plan #{job.id} is visible.", "success")
+    elif action in ("hide", "restore"):
+        job.is_hidden = action == "hide"
+        flash(f"Plan #{job.id} {'hidden' if job.is_hidden else 'restored'}.", "success")
+    else:
+        abort(400)
+    db.session.commit()
+    return redirect(url_for("invoice_packaging", plan=job.id))
 
 
 @app.route("/api/invoice_packaging/<int:job_id>/add_invoices", methods=["POST"])
