@@ -90,6 +90,9 @@
             <div>
                 <h1>Monthly Body List</h1>
                 <p>Tick one square whenever one body is finished.</p>
+                <p class="help-text">Invoice orders automatically create monthly lists, including draft invoices. Delivery sections use the delivery date at 17:00. Past months start archived.</p>
+                <p class="help-text">Manual lists stay separate. Archive any manual list that covers the same orders to avoid counting that work twice.</p>
+                <a href="{{ url_for('invoice_generator') }}">Open invoice generator</a>
             </div>
             {% if all_lists %}
                 <div class="top-actions">
@@ -233,6 +236,20 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                         </div>
                     </summary>
                     <div class="deadline-body">
+                        {% if deadline.invoice_order %}
+                            <p class="help-text">From invoice order #{{ deadline.invoice_order.invoice_id }}.
+                                {% if deadline.label.startswith('Removed order') %}
+                                The invoice was removed; its completed bodies have been kept.
+                                <a href="{{ url_for('invoice_generator') }}">Open invoice generator</a>.
+                                {% else %}
+                                <a href="{{ url_for('invoice_generator', invoice=deadline.invoice_order.invoice_id) }}">View source invoice</a>.
+                                {% endif %}
+                                Quantities update automatically; completed ticks are kept.
+                            </p>
+                            {% if deadline.invoice_order.warning %}
+                                <p class="flash error">{{ deadline.invoice_order.warning }}</p>
+                            {% endif %}
+                        {% endif %}
                         {% if deadline.items %}
                             {% for item in deadline.items %}
                                 <div class="build-row" data-item-id="{{ item.id }}">
@@ -241,7 +258,7 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                                             <div class="row-title">{{ item.model_name }} &middot; {{ item.size }} &middot; {{ item.colour }}</div>
                                             <div class="row-progress"><span class="line-completed">{{ item.completions|length }}</span> of {{ item.quantity }} finished</div>
                                         </div>
-                                        {% if not selected_list.archived %}
+                                        {% if not selected_list.archived and not deadline.invoice_order %}
                                             <div class="row-actions">
                                                 <button id="edit-button-{{ item.id }}" type="button" class="secondary-button small-button" onclick="toggleEditForm({{ item.id }})">Edit</button>
                                                 <form class="inline-form" method="POST" onsubmit="return confirm('Remove this body row and all of its ticks?');">
@@ -253,7 +270,7 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                                             </div>
                                         {% endif %}
                                     </div>
-                                    {% if not selected_list.archived %}
+                                    {% if not selected_list.archived and not deadline.invoice_order %}
                                         <div id="edit-row-{{ item.id }}" class="edit-row-form">
                                             <form method="POST">
                                                 <input type="hidden" name="action" value="edit_item">
@@ -308,7 +325,7 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                             <div class="empty-state">No body rows in this section yet.</div>
                         {% endif %}
 
-                        {% if not selected_list.archived %}
+                        {% if not selected_list.archived and not deadline.invoice_order %}
                             <details class="add-row" {% if not deadline.items %}open{% endif %}>
                                 <summary>Add a body row</summary>
                                 <form method="POST">

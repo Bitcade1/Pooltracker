@@ -159,6 +159,33 @@ Pause the schedule with:
 sudo systemctl disable --now pooltracker-invoice-sync.timer
 ```
 
+## Automatic monthly body lists
+
+Orders shown in the invoice generator feed directly into monthly lists named
+`November 2026 - Invoice Orders`, including drafts without prices. No invoice
+PDF or document upload is needed. The scheduled sheet sync and visits to either
+page refresh the linked rows from the cached invoice records.
+
+Each delivery gets its own section, due on the delivery date at 17:00. Catalogue
+League and Champion table SKUs supply the model, size, colour and quantity;
+custom invoice extras and services do not create body rows. Unrecognised SKUs
+and unreadable delivery dates are flagged on the invoice page.
+
+Repeated syncs reuse the same rows and keep completed ticks. If a quantity drops
+below a ticked unit, the row keeps that unit and displays a warning. Deleting an
+invoice removes its unfinished rows while preserving completed history. Saved
+invoices awaiting sheet-change review keep their existing quantities until the
+change is applied. Archived lists are frozen; reopen one to apply later changes.
+
+Past months start archived when first created. Manual/imported lists remain
+separate: archive any that cover the same orders before using the automatic
+lists, so completed bodies are not allocated to duplicate work. Linked delivery
+sections take their quantities from the invoice generator; completion squares
+are still editable on the monthly list. Existing stock counts are unaffected.
+
+The feature adds `invoice_build_month` and `invoice_build_order` tables when the
+updated app first uses it. Take the usual database backup before deployment.
+
 Implementation references: [Google Sheets reads](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get),
 [Google read-only scopes](https://developers.google.com/workspace/sheets/api/scopes), and
 [service-account access](https://developers.google.com/workspace/guides/create-credentials#access-google-workspace-files-directly-with-a-service-account).

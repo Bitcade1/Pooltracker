@@ -124,6 +124,16 @@
             <span class="eyebrow editor-eyebrow">INVOICE DETAILS</span>
             <h2 class="editor-title">{{ selected.delivery_label }}</h2>
             <p class="muted editor-meta">{{ selected.quantity }} tables &middot; {% if record.saved_at %}Saved {{ record.saved_at.strftime('%d/%m/%Y %H:%M') }} by {{ record.saved_by }}{% else %}Draft - ready for your prices{% endif %}</p>
+            {% if build_order %}
+            <div class="notice">
+                {% if build_order.deadline %}
+                Body quantities feed automatically into
+                <a href="{{ url_for('monthly_build_list', list_id=build_order.deadline.build_list_id) }}">{{ build_order.deadline.build_list.name }}</a>.
+                No invoice download or upload is needed.
+                {% endif %}
+                {% if build_order.warning %}<p class="warning">{{ build_order.warning }}</p>{% endif %}
+            </div>
+            {% endif %}
             {% if record.id in sync_data.missing %}
             <div class="notice warning">This order is no longer in the sheet. The invoice and its saved prices have been kept.</div>
             {% endif %}

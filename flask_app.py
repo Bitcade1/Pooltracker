@@ -1470,13 +1470,13 @@ class MonthlyBuildCompletion(db.Model):
 
 
 def ensure_monthly_build_list_tables():
-    if app.config.get('_monthly_build_list_tables_ready'):
+    if current_app.config.get('_monthly_build_list_tables_ready'):
         return
     MonthlyBuildList.__table__.create(db.engine, checkfirst=True)
     MonthlyBuildDeadline.__table__.create(db.engine, checkfirst=True)
     MonthlyBuildItem.__table__.create(db.engine, checkfirst=True)
     MonthlyBuildCompletion.__table__.create(db.engine, checkfirst=True)
-    app.config['_monthly_build_list_tables_ready'] = True
+    current_app.config['_monthly_build_list_tables_ready'] = True
 
 
 def monthly_build_model_type(model_name):
@@ -4051,6 +4051,159 @@ class GeneratedInvoice(db.Model):
     saved_by = db.Column(db.String(50), nullable=True)
 
 
+class InvoiceBuildMonth(db.Model):
+    __tablename__ = "invoice_build_month"
+    month_start = db.Column(db.Date, primary_key=True)
+    build_list_id = db.Column(db.Integer, db.ForeignKey('monthly_build_list.id'), nullable=False, unique=True)
+    build_list = db.relationship('MonthlyBuildList')
+
+
+class InvoiceBuildOrder(db.Model):
+    __tablename__ = "invoice_build_order"
+    invoice_id = db.Column(db.Integer, db.ForeignKey('generated_invoice.id'), primary_key=True)
+    deadline_id = db.Column(db.Integer, db.ForeignKey('monthly_build_deadline.id'), nullable=True, unique=True)
+    item_ids_json = db.Column(db.Text, nullable=False, default="{}")
+    snapshot_json = db.Column(db.Text, nullable=False, default="")
+    warning = db.Column(db.Text, nullable=False, default="")
+    deadline = db.relationship('MonthlyBuildDeadline', backref=db.backref('invoice_order', uselist=False))
+
+
+def ensure_invoice_build_tables():
+    ensure_monthly_build_list_tables()
+    InvoiceBuildMonth.__table__.create(db.engine, checkfirst=True)
+    InvoiceBuildOrder.__table__.create(db.engine, checkfirst=True)
+
+
+def invoice_body_rows(invoice):
+    """Only catalogue table SKUs create bodies; extras and services do not."""
+    colours = {'BLA': 'Black', 'ROAK': 'Rustic Oak', 'GOAK': 'Grey Oak',
+               'RBLACK': 'Rustic Black', 'STONE': 'Stone'}
+    rows, unknown = {}, []
+    for line in json.loads(invoice.lines_json):
+        quantity = int(line.get('quantity') or 0)
+        if quantity <= 0:
+            continue
+        sku = line['sku']
+        match = re.fullmatch(r'BIL/(LEAG|CHAM)/(6FT|7FT)/(BLA|ROAK|GOAK|RBLACK|STONE)', sku.upper())
+        if not match:
+            unknown.append(sku)
+            continue
+        rows[sku] = dict(
+            model_name='Signature League' if match[1] == 'LEAG' else 'Signature Champion',
+            size=match[2], colour=colours[match[3]], quantity=quantity,
+        )
+    return rows, unknown
+
+
+def sync_invoice_build_lists():
+    """Reconcile linked production rows in the caller's serialized transaction."""
+    state = db.session.get(InvoiceSheetSyncState, 1)
+    if not state:
+        return
+    data = json.loads(state.data_json)
+    deleted = data.get('deleted', {})
+    created_months = set()
+    for invoice in GeneratedInvoice.query.order_by(GeneratedInvoice.id).all():
+        link = db.session.get(InvoiceBuildOrder, invoice.id)
+        removed = str(invoice.id) in deleted
+        rows, unknown = invoice_body_rows(invoice) if not removed else ({}, [])
+        if not link:
+            if removed:
+                continue
+            link = InvoiceBuildOrder(invoice_id=invoice.id)
+            db.session.add(link)
+        warnings = []
+        if unknown:
+            warnings.append('Not added to the body list: unrecognised table SKU(s) ' + ', '.join(unknown) + '.')
+        try:
+            delivery = date.fromisoformat(source_order_date(
+                {'collection_date': invoice.collection_date, 'month': invoice.month}, data['source'])[0])
+        except (ValueError, IndexError, KeyError):
+            link.warning = 'The delivery date could not be read. Existing body rows have been kept; correct the invoice delivery date.'
+            continue
+        snapshot = json.dumps([delivery.isoformat(), invoice.reference, rows, removed], sort_keys=True)
+        deadline = link.deadline
+        if deadline and deadline.build_list.archived:
+            if link.snapshot_json != snapshot:
+                link.warning = 'This order changed, but its body list is archived. Reopen the list to apply the changes.'
+            continue
+        if not deadline and not rows:
+            link.warning = ' '.join(warnings)
+            continue
+        month_start = delivery.replace(day=1)
+        if rows and (not deadline or deadline.build_list.month_start != month_start):
+            month_link = db.session.get(InvoiceBuildMonth, month_start)
+            if not month_link:
+                build_list = MonthlyBuildList(
+                    name=f"{month_start.strftime('%B %Y')} - Invoice Orders", month_start=month_start,
+                    created_by='Invoice orders', archived=month_start < london_now().date().replace(day=1),
+                )
+                db.session.add(build_list)
+                db.session.flush()
+                month_link = InvoiceBuildMonth(month_start=month_start, build_list=build_list)
+                db.session.add(month_link)
+                db.session.flush()
+                created_months.add(month_start)
+            elif month_link.build_list.archived and month_start not in created_months:
+                link.warning = 'The delivery month body list is archived. Reopen it to apply this order.'
+                continue
+            if deadline:
+                deadline.build_list = month_link.build_list
+            else:
+                deadline = MonthlyBuildDeadline(build_list=month_link.build_list, label='', position=invoice.id)
+                db.session.add(deadline)
+                link.deadline = deadline
+                db.session.flush()
+        deadline.label = f"{'Removed order' if removed else 'Delivery'} {delivery.strftime('%d/%m/%Y')} - {invoice.reference}"[:120]
+        deadline.due_at = datetime.combine(delivery, time(17))
+        item_ids = json.loads(link.item_ids_json or '{}')
+        for sku in list(dict.fromkeys(list(item_ids) + list(rows))):
+            item = db.session.get(MonthlyBuildItem, item_ids[sku]) if sku in item_ids else None
+            # Never follow a stale mapping into a different section.
+            if item and item.deadline_id != deadline.id:
+                item = None
+            wanted = rows.get(sku)
+            highest_tick = max((completion.unit_number for completion in item.completions), default=0) if item else 0
+            quantity = wanted['quantity'] if wanted else 0
+            if quantity < highest_tick:
+                warnings.append(f"{sku}: order now needs {quantity}, but body {highest_tick} is ticked. Completed bodies have been kept; review the ticks.")
+                quantity = highest_tick
+            if not quantity:
+                if item:
+                    db.session.delete(item)
+                item_ids.pop(sku, None)
+                continue
+            if not item:
+                item = MonthlyBuildItem(deadline=deadline, position=len(item_ids) + 1, **wanted)
+                db.session.add(item)
+                db.session.flush()
+                item_ids[sku] = item.id
+            if wanted:
+                for key, value in wanted.items():
+                    setattr(item, key, value)
+            item.quantity = quantity
+        link.item_ids_json = json.dumps(item_ids)
+        link.snapshot_json = snapshot
+        link.warning = ' '.join(warnings)
+        if removed and not item_ids:
+            link.deadline = None
+            db.session.delete(deadline)
+    db.session.flush()
+
+
+def refresh_invoice_build_lists():
+    """Page loads use cached orders; they never need to fetch or price invoices."""
+    ensure_invoice_build_tables()
+    db.session.rollback()
+    db.session.execute(text('BEGIN IMMEDIATE'))
+    try:
+        sync_invoice_build_lists()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+
 class InvoiceSheetSyncState(db.Model):
     __tablename__ = "invoice_sheet_sync_state"
     id = db.Column(db.Integer, primary_key=True)
@@ -4202,6 +4355,7 @@ def invoice_sync_credentials_path():
 
 def apply_invoice_sheet_source(source):
     """Merge one validated sheet snapshot in a single serialized SQLite transaction."""
+    ensure_invoice_build_tables()
     db.session.rollback()
     db.session.execute(text("BEGIN IMMEDIATE"))
     try:
@@ -4269,6 +4423,7 @@ def apply_invoice_sheet_source(source):
         state.data_json = json.dumps(data)
         state.last_attempt_at = state.last_success_at = datetime.utcnow()
         state.last_error = ""
+        sync_invoice_build_lists()
         db.session.commit()
         return {"created": created, "updated": updated, "review": len(pending), "missing": len(data["missing"])}
     except Exception:
@@ -4470,6 +4625,7 @@ def invoice_generator():
     if "worker" not in session:
         return redirect(url_for("login"))
     source = ensure_invoice_generator_tables()
+    ensure_invoice_build_tables()
     csrf_token = session.setdefault("invoice_generator_csrf", uuid.uuid4().hex)
     selected_id = request.args.get("invoice", type=int)
     if request.method == "POST":
@@ -4526,6 +4682,7 @@ def invoice_generator():
                     selected_id = invoice_id
                     flash("Invoice restored.", "success")
                 state.data_json = json.dumps(data)
+                sync_invoice_build_lists()
                 db.session.commit()
             elif action == "review_sheet_change":
                 # Serialize review with the scheduled job so a newer change cannot be discarded.
@@ -4552,6 +4709,7 @@ def invoice_generator():
                 data["accepted"][str(selected_id)] = change["snapshot"]
                 del data["pending"][str(selected_id)]
                 state.data_json = json.dumps(data)
+                sync_invoice_build_lists()
                 db.session.commit()
                 flash("Sheet change reviewed. Your saved unit costs were preserved.", "success")
             elif action == "save_prices":
@@ -4601,6 +4759,7 @@ def invoice_generator():
                         price.unit_cost_pence = line["unit_cost_pence"]
                 invoice.saved_at = london_now()
                 invoice.saved_by = session["worker"]
+                sync_invoice_build_lists()
                 db.session.commit()
                 flash("Invoice saved. Its item prices will also fill other unsaved invoices with the same SKUs.", "success")
             else:
@@ -4611,6 +4770,7 @@ def invoice_generator():
             flash(str(exc), "error")
             return render_invoice_generator(source, selected_id, request.form), 400
         return redirect(url_for("invoice_generator", invoice=selected_id))
+    refresh_invoice_build_lists()
     return render_invoice_generator(source, selected_id)
 
 
@@ -4623,6 +4783,7 @@ def render_invoice_generator(source, selected_id, submitted=None):
     deleted_invoices = [invoice for invoice in all_invoices if str(invoice.id) in sync_data.get("deleted", {})]
     selected = (active_generated_invoice(selected_id) if selected_id is not None
                 else (invoices[0] if invoices else None))
+    build_order = db.session.get(InvoiceBuildOrder, selected.id) if selected else None
     change = sync_data["pending"].get(str(selected.id)) if selected else None
     comparison = []
     if change:
@@ -4642,7 +4803,7 @@ def render_invoice_generator(source, selected_id, submitted=None):
         else:
             custom_rows = [dict(item, cost=invoice_cost_input(item["unit_cost_pence"])) for item in selected_payload["custom_items"]]
     return render_template(
-        "invoice_generator.html", source=source, prices=prices,
+        "invoice_generator.html", source=source, prices=prices, build_order=build_order,
         invoices=[generated_invoice_payload(invoice, prices) for invoice in invoices],
         selected=selected_payload, custom_rows=custom_rows,
         submitted=submitted,
@@ -16243,7 +16404,10 @@ def monthly_build_list():
         flash("Please log in first.", "error")
         return redirect(url_for('login'))
 
-    ensure_monthly_build_list_tables()
+    ensure_invoice_build_tables()
+    if request.method == 'GET':
+        InvoiceSheetSyncState.__table__.create(db.engine, checkfirst=True)
+        refresh_invoice_build_lists()
 
     if request.method == 'POST':
         action = (request.form.get('action') or '').strip()
@@ -16374,6 +16538,16 @@ def monthly_build_list():
             db.session.commit()
             flash("Section added.", "success")
             return monthly_build_list_redirect(build_list.id)
+
+        if action in {'add_item', 'edit_item', 'delete_item', 'delete_deadline'}:
+            if action in {'edit_item', 'delete_item'}:
+                managed_item = db.session.get(MonthlyBuildItem, request.form.get('item_id', type=int))
+                managed_deadline = managed_item.deadline if managed_item else None
+            else:
+                managed_deadline = db.session.get(MonthlyBuildDeadline, request.form.get('deadline_id', type=int))
+            if managed_deadline and managed_deadline.build_list_id == build_list.id and managed_deadline.invoice_order:
+                flash('This section updates from the invoice generator. Change the source order there; completed ticks can still be changed here.', 'error')
+                return monthly_build_list_redirect(build_list.id)
 
         if action == 'add_item':
             try:
@@ -16517,7 +16691,11 @@ def monthly_build_list():
     if requested_id:
         selected_list = db.session.get(MonthlyBuildList, requested_id)
     if not selected_list and all_lists:
-        selected_list = next((item for item in all_lists if not item.archived), all_lists[0])
+        current_month = london_now().date().replace(day=1)
+        selected_list = next(
+            (item for item in all_lists if not item.archived and item.month_start == current_month),
+            next((item for item in all_lists if not item.archived), all_lists[0]),
+        )
 
     total_tables = 0
     completed_tables = 0
