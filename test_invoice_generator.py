@@ -3,6 +3,7 @@ import json
 import unittest
 
 from flask import Flask
+from invoice_email import canonical_invoice_email_request
 
 import flask_app as tracker
 
@@ -20,6 +21,7 @@ class InvoiceGeneratorTests(unittest.TestCase):
         cls.app.url_map = tracker.app.url_map
         cls.app.view_functions.update(tracker.app.view_functions)
         cls.app.jinja_env.filters.update(tracker.app.jinja_env.filters)
+        cls.app.before_request(canonical_invoice_email_request)
         cls.app.after_request(tracker.prevent_stale_count_pages)
 
     def setUp(self):

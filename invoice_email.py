@@ -12,7 +12,7 @@ import threading
 import time
 import uuid
 
-from flask import abort, current_app, flash, jsonify, make_response, redirect, render_template, request, session, url_for
+from flask import abort, current_app, flash, has_request_context, jsonify, make_response, redirect, render_template, request, session, url_for
 import requests
 from sqlalchemy import text
 from sqlalchemy.orm import defer
@@ -22,6 +22,43 @@ CONFIG_PATH = "/etc/pooltracker-invoice-email/config.json"
 SCOPES = ["User.Read", "Mail.Send"]
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}")
 _lock = threading.RLock()
+
+
+def canonical_invoice_email_request():
+    """Start Microsoft sign-in on the host used by its registered callback."""
+    if request.host.partition(':')[0].lower() != 'www.pooltabletracker.com':
+        return None
+    if request.endpoint in ('invoice_generator', 'email_generated_invoice') and request.method == 'GET':
+        return redirect('https://pooltabletracker.com' + request.full_path.rstrip('?'))
+    if request.endpoint == 'connect_invoice_email' and request.method == 'POST':
+        # Do not forward a host-bound login cookie or replay a POST across hosts.
+        return redirect('https://pooltabletracker.com/invoice_generator')
+    return None
+
+
+def keep_callback_for_tracker_login(config):
+    """Keep an OAuth response private until its initiating worker logs in again."""
+    flow_id = request.args.get('state', '')
+    if not re.fullmatch(r'[a-f0-9]{48}', flow_id):
+        return False
+    response = {key: request.args[key] for key in ('code', 'state', 'error', 'error_description', 'session_state')
+                if key in request.args}
+    if not (response.get('code') or response.get('error')) or sum(map(len, response.values())) > 20000:
+        return False
+    with private_store(config) as directory:
+        path = directory / ('flow-' + flow_id + '.json')
+        try:
+            stored = json.loads(path.read_text(encoding='utf-8'))
+        except FileNotFoundError:
+            return False
+        if (not stored.get('worker') or stored.get('flow', {}).get('state') != flow_id
+                or not 0 <= time.time() - stored['created'] <= 600):
+            return False
+        if 'callback_response' not in stored:
+            stored['callback_response'] = response
+            _private_write(path, json.dumps(stored))
+    session['invoice_email_pending_flow'] = flow_id
+    return True
 
 
 class InvoiceEmailError(Exception):
@@ -82,6 +119,12 @@ def record_sign_in_failure(config, stage, error):
     diagnostic = {"time_utc": datetime.now(timezone.utc).isoformat(), "stage": stage,
                   "message": str(error), "microsoft_error_codes": getattr(error, "codes", []),
                   "correlation_id": getattr(error, "correlation_id", None)}
+    if has_request_context():
+        diagnostic.update(
+            request_host=request.host,
+            session_cookie_present=bool(request.cookies.get(current_app.config['SESSION_COOKIE_NAME'])),
+            tracker_login_present='worker' in session,
+        )
     # Log only our static stage and numeric error codes. Never log exception/response bodies.
     current_app.logger.warning("Invoice Microsoft sign-in failed: stage=%s microsoft_codes=%s", stage,
                                ",".join(diagnostic["microsoft_error_codes"]) or "none")
@@ -284,6 +327,7 @@ def submit_message(token, recipient, cc, subject, body, filename, pdf):
 
 
 def register_invoice_email(app, db, helpers):
+    app.before_request(canonical_invoice_email_request)
     class InvoiceEmailAttempt(db.Model):
         __tablename__ = "invoice_email_attempt"
         id = db.Column(db.String(32), primary_key=True)
@@ -348,15 +392,19 @@ def register_invoice_email(app, db, helpers):
             with private_store(config) as directory:
                 client, _ = microsoft_client(config, directory, fresh=True)
                 scopes = SCOPES + ['Mail.Read'] if request.form.get('read_po') == '1' else SCOPES
-                flow = client.initiate_auth_code_flow(scopes, redirect_uri=config["redirect_uri"], login_hint=config["mailbox"], prompt="select_account")
+                flow_id = secrets.token_hex(24)
+                flow = client.initiate_auth_code_flow(scopes, state=flow_id, redirect_uri=config["redirect_uri"], login_hint=config["mailbox"], prompt="select_account")
                 if "auth_uri" not in flow:
                     raise InvoiceEmailError("Microsoft sign-in is unavailable. Check the app registration.")
-                flow_id = secrets.token_hex(24)
                 # The PKCE verifier stays in a private file, never in Flask's readable session cookie.
                 for old in directory.glob("flow-*.json"):
                     if time.time() - old.stat().st_mtime > 600:
                         old.unlink(missing_ok=True)
-                _private_write(directory / ("flow-" + flow_id + ".json"), json.dumps({"flow": flow, "created": time.time()}))
+                _private_write(directory / ("flow-" + flow_id + ".json"), json.dumps({
+                    "flow": flow, "created": time.time(), 'worker': session['worker'],
+                    'invoice_id': request.form.get('invoice_id', type=int),
+                    'read_po': request.form.get('read_po') == '1',
+                }))
                 session["invoice_email_flow"] = flow_id
                 session["invoice_email_return"] = request.form.get("invoice_id", type=int)
             return redirect(flow["auth_uri"])
@@ -364,17 +412,38 @@ def register_invoice_email(app, db, helpers):
             flash("Microsoft 365 could not be connected. Check the server setup and Microsoft app registration.", "error")
             return redirect(url_for("invoice_generator"))
 
-    @app.route("/invoice_email/callback")
-    def invoice_email_callback():
-        if (login := authenticated()):
-            return login
+    def finish_invoice_email_callback(resume=False):
+        if 'worker' not in session:
+            message = (
+                'Microsoft returned to the tracker, but your tracker login was missing. '
+                'Sign in here, then select Connect PO email access or Connect Microsoft 365 again. '
+                'Use https://pooltabletracker.com in the same browser tab throughout.'
+            )
+            session['invoice_email_login_return'] = True
+            config = None
+            try:
+                config = load_config()
+                if not resume and keep_callback_for_tracker_login(config):
+                    message = (
+                        'Microsoft approval was received, but your tracker login was missing. '
+                        'Sign in as the same worker to finish connecting your mailbox.'
+                    )
+            except (InvoiceEmailError, OSError, ValueError, KeyError):
+                pass
+            flash(message, 'error')
+            record_sign_in_failure(config, 'tracker_login', InvoiceSignInError(message))
+            response = redirect(url_for('login'))
+            response.headers['Referrer-Policy'] = 'no-referrer'
+            return response
         invoice_id = session.pop("invoice_email_return", None)
         config = None
+        po_connection = False
         stage = "configuration"
         try:
             config = load_config()
             stage = "browser_session"
-            flow_id = session.pop("invoice_email_flow", "")
+            flow_id = (session.pop('invoice_email_pending_flow', '') if resume
+                       else session.pop("invoice_email_flow", ""))
             if not re.fullmatch(r"[a-f0-9]{48}", flow_id):
                 raise InvoiceSignInError("The Microsoft sign-in session is missing. Open https://pooltabletracker.com, sign in to the tracker, and start Connect Microsoft 365 again in the same browser.")
             stage = "sign_in_request"
@@ -384,13 +453,25 @@ def register_invoice_email(app, db, helpers):
                     stored = json.loads(path.read_text(encoding="utf-8"))
                 except FileNotFoundError:
                     raise InvoiceSignInError("This Microsoft sign-in request expired or has already been used. Return to the email page and start a new connection.") from None
+                po_connection = bool(stored.get('read_po'))
+                if stored.get('worker') and stored['worker'] != session['worker']:
+                    raise InvoiceSignInError('Sign in as the worker who started this Microsoft connection, or start a new connection.')
+                if resume:
+                    if not stored.get('worker') or stored['worker'] != session['worker']:
+                        raise InvoiceSignInError('Sign in as the worker who started this Microsoft connection, or start a new connection.')
+                    auth_response = stored.get('callback_response')
+                    if not auth_response:
+                        raise InvoiceSignInError('The pending Microsoft response is missing. Start Connect PO email access again.')
+                    invoice_id = stored.get('invoice_id')
+                else:
+                    auth_response = request.args.to_dict()
                 path.unlink()
                 if not 0 <= time.time() - stored["created"] <= 600:
                     raise InvoiceSignInError("Microsoft sign-in took longer than 10 minutes. Start a new connection and finish the sign-in within 10 minutes.")
                 stage = "microsoft_app"
                 client, cache = microsoft_client(config, directory, fresh=True)
                 stage = "token_exchange"
-                result = client.acquire_token_by_auth_code_flow(stored["flow"], request.args.to_dict())
+                result = client.acquire_token_by_auth_code_flow(stored["flow"], auth_response)
                 if not isinstance(result, dict) or not result.get("access_token"):
                     raise microsoft_sign_in_error(result)
                 stage = "mailbox_profile"
@@ -411,7 +492,10 @@ def register_invoice_email(app, db, helpers):
                 _private_write(directory / "tokens.json", cache.serialize())
                 _private_write(directory / "account.json", json.dumps({"mailbox": config["mailbox"], "home_account_id": accounts[0]["home_account_id"]}))
                 (directory / "last-sign-in-error.json").unlink(missing_ok=True)
-            flash("Microsoft 365 is connected. Review the email, then select Send invoice.", "success")
+            if stored.get('read_po'):
+                flash('Microsoft 365 is connected for PO email access. Select Sync PO emails on the invoice generator.', 'success')
+            else:
+                flash("Microsoft 365 is connected. Review the email, then select Send invoice.", "success")
         except InvoiceEmailError as exc:
             record_sign_in_failure(config, stage, exc)
             flash(str(exc), "error")
@@ -427,7 +511,17 @@ def register_invoice_email(app, db, helpers):
             error = InvoiceSignInError(message)
             record_sign_in_failure(config, stage, error)
             flash(str(error), "error")
+        if po_connection:
+            return redirect(url_for('invoice_generator', invoice=invoice_id))
         return redirect(url_for("email_generated_invoice", invoice_id=invoice_id) if invoice_id else url_for("invoice_generator"))
+
+    @app.route('/invoice_email/callback')
+    def invoice_email_callback():
+        return finish_invoice_email_callback()
+
+    @app.route('/invoice_email/resume')
+    def resume_invoice_email():
+        return finish_invoice_email_callback(resume=True)
 
     @app.route("/invoice_email/disconnect", methods=["POST"])
     def disconnect_invoice_email():

@@ -3277,6 +3277,10 @@ def login():
         if worker and password == "Bitcade":
             session['worker'] = worker.name
             flash("Logged in successfully!", "success")
+            if session.pop('invoice_email_login_return', False):
+                if session.get('invoice_email_pending_flow'):
+                    return redirect(url_for('resume_invoice_email'))
+                return redirect(url_for('invoice_generator'))
             return redirect(url_for('home'))
         else:
             flash("Invalid worker name or password.", "error")
@@ -4758,6 +4762,7 @@ def generated_invoice_payload(invoice, prices):
 @app.route("/invoice_generator", methods=["GET", "POST"])
 def invoice_generator():
     if "worker" not in session:
+        session['invoice_email_login_return'] = True
         return redirect(url_for("login"))
     source = ensure_invoice_generator_tables()
     ensure_invoice_build_tables()

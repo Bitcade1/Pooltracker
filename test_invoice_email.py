@@ -382,6 +382,131 @@ class InvoiceEmailTests(unittest.TestCase):
             self.client.post('/invoice_email/connect', data={'csrf_token': self.token})
             self.assertEqual(['User.Read', 'Mail.Send'], client.initiate_auth_code_flow.call_args.args[0])
 
+    def test_www_pages_move_to_callback_host_before_starting_microsoft_login(self):
+        with patch('invoice_email.microsoft_client') as client:
+            response = self.client.get('/invoice_generator?invoice=12', base_url='https://www.pooltabletracker.com')
+            self.assertEqual('https://pooltabletracker.com/invoice_generator?invoice=12', response.location)
+            response = self.client.post('/invoice_email/connect', base_url='https://www.pooltabletracker.com',
+                                        data={'csrf_token': self.token, 'read_po': '1'})
+            self.assertEqual('https://pooltabletracker.com/invoice_generator', response.location)
+            client.assert_not_called()
+        self.assertEqual([], list(self.store.glob('flow-*.json')))
+
+    def test_missing_tracker_login_explains_failure_and_returns_to_generator_after_login(self):
+        path = self.callback_flow()
+        with self.client.session_transaction() as cookie:
+            cookie.pop('worker')
+        with patch('invoice_email.microsoft_client') as client, self.assertLogs(self.app.logger, level='WARNING'):
+            response = self.client.get('/invoice_email/callback?code=private-code&state=expected-state')
+        self.assertEqual('/login', response.location)
+        client.assert_not_called()
+        self.assertTrue(path.exists())
+        diagnostic = json.loads((self.store / 'last-sign-in-error.json').read_text())
+        self.assertEqual('tracker_login', diagnostic['stage'])
+        self.assertTrue(diagnostic['session_cookie_present'])
+        self.assertFalse(diagnostic['tracker_login_present'])
+        self.assertNotIn('private-code', json.dumps(diagnostic))
+        tracker.Worker.__table__.create(tracker.db.engine, checkfirst=True)
+        try:
+            tracker.db.session.add(tracker.Worker(name='Invoice Operator'))
+            tracker.db.session.commit()
+            page = self.client.get('/login')
+            self.assertIn(b'your tracker login was missing', page.data)
+            response = self.client.post('/login', data={'worker_name': 'Invoice Operator', 'password': 'Bitcade'})
+            self.assertEqual('/invoice_generator', response.location)
+            with self.client.session_transaction() as cookie:
+                self.assertNotIn('invoice_email_login_return', cookie)
+        finally:
+            tracker.db.session.remove()
+            tracker.Worker.__table__.drop(tracker.db.engine)
+
+    def test_cookie_signed_by_another_server_key_is_reported_without_consuming_oauth(self):
+        path = self.callback_flow()
+        original_key = self.app.secret_key
+        self.app.secret_key = 'different-worker-key-' * 4
+        try:
+            with self.assertLogs(self.app.logger, level='WARNING'):
+                response = self.client.get('/invoice_email/callback?code=private-code&state=expected-state')
+            self.assertEqual('/login', response.location)
+            self.assertTrue(path.exists())
+            diagnostic = json.loads((self.store / 'last-sign-in-error.json').read_text())
+            self.assertEqual('tracker_login', diagnostic['stage'])
+            self.assertTrue(diagnostic['session_cookie_present'])
+            self.assertNotIn(original_key, json.dumps(diagnostic))
+        finally:
+            self.app.secret_key = original_key
+
+    def pending_connection(self, worker='Invoice Operator', age=0):
+        flow_id = 'd' * 48
+        path = self.store / ('flow-' + flow_id + '.json')
+        path.write_text(json.dumps({
+            'flow': {'state': flow_id, 'code_verifier': 'private-verifier'},
+            'created': time.time() - age, 'worker': worker,
+            'invoice_id': self.invoice_id, 'read_po': True,
+        }))
+        return flow_id, path
+
+    def test_lost_browser_session_can_finish_po_connection_after_same_worker_logs_in(self):
+        flow_id, path = self.pending_connection()
+        browser = self.app.test_client()
+        with self.assertLogs(self.app.logger, level='WARNING'), patch('invoice_email.microsoft_client') as token_client:
+            response = browser.get(f'/invoice_email/callback?state={flow_id}&code=private-approval-code')
+        self.assertEqual('/login', response.location)
+        self.assertEqual('no-referrer', response.headers['Referrer-Policy'])
+        token_client.assert_not_called()
+        with browser.session_transaction() as cookie:
+            self.assertNotIn('private-approval-code', json.dumps(dict(cookie)))
+            self.assertNotIn('worker', cookie)
+            self.assertEqual(flow_id, cookie['invoice_email_pending_flow'])
+        tracker.Worker.__table__.create(tracker.db.engine, checkfirst=True)
+        try:
+            tracker.db.session.add(tracker.Worker(name='Invoice Operator'))
+            tracker.db.session.commit()
+            response = browser.post('/login', data={'worker_name': 'Invoice Operator', 'password': 'Bitcade'})
+            self.assertEqual('/invoice_email/resume', response.location)
+            client, cache = Mock(), Mock()
+            client.acquire_token_by_auth_code_flow.return_value = {'access_token': 'private-access-token'}
+            client.get_accounts.return_value = [{'home_account_id': 'account-id'}]
+            cache.serialize.return_value = 'private-token-cache'
+            profile = Mock(status_code=200)
+            profile.json.return_value = {'mail': self.config['mailbox']}
+            with patch('invoice_email.microsoft_client', return_value=(client, cache)), \
+                 patch('invoice_email.requests.get', return_value=profile):
+                response = browser.get('/invoice_email/resume')
+            self.assertEqual(f'/invoice_generator?invoice={self.invoice_id}', response.location)
+            self.assertFalse(path.exists())
+            self.assertTrue(mail.connection_status(self.config))
+            self.assertEqual('private-approval-code', client.acquire_token_by_auth_code_flow.call_args.args[1]['code'])
+            with browser.session_transaction() as cookie:
+                self.assertNotIn('private-access-token', json.dumps(dict(cookie)))
+                self.assertNotIn('invoice_email_pending_flow', cookie)
+        finally:
+            tracker.db.session.remove()
+            tracker.Worker.__table__.drop(tracker.db.engine)
+
+    def test_pending_approval_cannot_be_completed_by_another_worker_or_replayed(self):
+        flow_id, path = self.pending_connection()
+        browser = self.app.test_client()
+        with self.assertLogs(self.app.logger, level='WARNING'):
+            browser.get(f'/invoice_email/callback?state={flow_id}&code=private-approval-code')
+        with browser.session_transaction() as cookie:
+            cookie['worker'] = 'Different Operator'
+        with patch('invoice_email.microsoft_client') as client, self.assertLogs(self.app.logger, level='WARNING'):
+            browser.get('/invoice_email/resume')
+            browser.get('/invoice_email/resume')
+        client.assert_not_called()
+        self.assertTrue(path.exists())
+        self.assertFalse(mail.connection_status(self.config))
+
+    def test_unknown_or_expired_state_never_creates_a_pending_connection(self):
+        browser = self.app.test_client()
+        flow_id, _ = self.pending_connection(age=601)
+        for state in ('e' * 48, flow_id, '../../config'):
+            with self.assertLogs(self.app.logger, level='WARNING'):
+                browser.get('/invoice_email/callback', query_string={'state': state, 'code': 'private-code'})
+            with browser.session_transaction() as cookie:
+                self.assertNotIn('invoice_email_pending_flow', cookie)
+
 
 if __name__ == "__main__":
     unittest.main()
