@@ -373,5 +373,15 @@ class InvoiceEmailTests(unittest.TestCase):
         self.assertLess(content.index("Delivery (Per trip)"), content.index("VAT"))
 
 
+    def test_po_connection_requests_mail_read_without_changing_normal_email_connection(self):
+        client = Mock()
+        client.initiate_auth_code_flow.return_value = {'auth_uri': 'https://login.microsoftonline.com/signin'}
+        with patch('invoice_email.microsoft_client', return_value=(client, Mock())):
+            self.client.post('/invoice_email/connect', data={'csrf_token': self.token, 'read_po': '1'})
+            self.assertEqual(['User.Read', 'Mail.Send', 'Mail.Read'], client.initiate_auth_code_flow.call_args.args[0])
+            self.client.post('/invoice_email/connect', data={'csrf_token': self.token})
+            self.assertEqual(['User.Read', 'Mail.Send'], client.initiate_auth_code_flow.call_args.args[0])
+
+
 if __name__ == "__main__":
     unittest.main()

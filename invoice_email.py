@@ -199,7 +199,7 @@ def connection_status(config):
             return False
 
 
-def access_token(config):
+def access_token(config, read_po=False):
     with private_store(config) as directory:
         client, cache = microsoft_client(config, directory)
         try:
@@ -207,10 +207,13 @@ def access_token(config):
         except (OSError, ValueError):
             account = {}
         accounts = [item for item in client.get_accounts() if item.get("home_account_id") == account.get("home_account_id")]
-        result = client.acquire_token_silent(SCOPES, account=accounts[0]) if accounts else None
+        scopes = SCOPES + ['Mail.Read'] if read_po else SCOPES
+        result = client.acquire_token_silent(scopes, account=accounts[0]) if accounts else None
         if cache.has_state_changed:
             _private_write(directory / "tokens.json", cache.serialize())
         if not result or "access_token" not in result:
+            if read_po:
+                raise InvoiceEmailError("Reconnect Microsoft 365 with PO email access before syncing orders.")
             raise InvoiceEmailError("Reconnect Microsoft 365 before sending this invoice.")
         return result["access_token"]
 
@@ -344,7 +347,8 @@ def register_invoice_email(app, db, helpers):
             config = load_config()
             with private_store(config) as directory:
                 client, _ = microsoft_client(config, directory, fresh=True)
-                flow = client.initiate_auth_code_flow(SCOPES, redirect_uri=config["redirect_uri"], login_hint=config["mailbox"], prompt="select_account")
+                scopes = SCOPES + ['Mail.Read'] if request.form.get('read_po') == '1' else SCOPES
+                flow = client.initiate_auth_code_flow(scopes, redirect_uri=config["redirect_uri"], login_hint=config["mailbox"], prompt="select_account")
                 if "auth_uri" not in flow:
                     raise InvoiceEmailError("Microsoft sign-in is unavailable. Check the app registration.")
                 flow_id = secrets.token_hex(24)

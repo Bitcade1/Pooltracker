@@ -83,6 +83,7 @@
                 <tr>
                     <td class="item-description">{{ line.description }}
                         <div class="item-quantity">{{ line.quantity }} unit{% if line.quantity != 1 %}s{% endif %} x {{ line.unit_cost_pence|invoice_gbp }}/unit</div>
+                        {% for po in line.po_quantities %}<div class="item-quantity">Includes {{ po.quantity }} for {{ po.po_number }}</div>{% endfor %}
                     </td>
                     <td class="number">{{ line.total_pence|invoice_gbp }}</td>
                 </tr>

@@ -1,0 +1,16 @@
+[Unit]
+Description=Read PO emails and delivery replies for Pool Tracker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root2
+Group=root2
+WorkingDirectory=/var/www/pooltabletracker.com
+Environment=POOLTRACKER_DATABASE_PATH=/var/www/pooltabletracker.com/pool_table_tracker.db
+ExecStart=/var/www/pooltabletracker.com/venv/bin/python /var/www/pooltabletracker.com/sync_po_email_orders.py
+TimeoutStartSec=10min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true

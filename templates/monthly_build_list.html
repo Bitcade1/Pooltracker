@@ -246,6 +246,9 @@ Undated heading: STOCK FOR CHRISTMAS</div>
                                 {% endif %}
                                 Quantities update automatically; completed ticks are kept.
                             </p>
+                            {% if deadline.invoice_order.po_numbers %}
+                                <p class="help-text">Includes special orders: {{ deadline.invoice_order.po_numbers|join(', ') }}.</p>
+                            {% endif %}
                             {% if deadline.invoice_order.warning %}
                                 <p class="flash error">{{ deadline.invoice_order.warning }}</p>
                             {% endif %}

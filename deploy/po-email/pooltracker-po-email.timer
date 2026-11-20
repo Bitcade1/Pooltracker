@@ -1,0 +1,10 @@
+[Unit]
+Description=Check PO orders and delivery-date replies every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+Unit=pooltracker-po-email.service
+
+[Install]
+WantedBy=timers.target

@@ -37,7 +37,7 @@ class InvoiceGeneratorTests(unittest.TestCase):
 
     def tearDown(self):
         tracker.db.session.remove()
-        for model in (tracker.InvoiceBuildOrder, tracker.InvoiceBuildMonth, tracker.MonthlyBuildCompletion,
+        for model in (tracker.InvoiceSpecialOrder, tracker.InvoiceBuildOrder, tracker.InvoiceBuildMonth, tracker.MonthlyBuildCompletion,
                       tracker.MonthlyBuildItem, tracker.MonthlyBuildDeadline, tracker.MonthlyBuildList):
             model.__table__.drop(tracker.db.engine, checkfirst=True)
         self.app.config.pop('_monthly_build_list_tables_ready', None)

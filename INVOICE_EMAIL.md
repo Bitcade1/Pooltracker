@@ -11,6 +11,10 @@ Sending uses Microsoft Graph over HTTPS with delegated `Mail.Send` and
 with a Microsoft 365 mailbox sold through GoDaddy, subject to your tenant's app
 registration and consent policies. It does not use the Google service account.
 
+For reading attached purchase orders and your delivery-date replies into the
+correct invoice, see [PO email orders](INVOICE_PO_EMAIL.md). That feature has a
+separate **Connect PO email access** button and also needs delegated `Mail.Read`.
+
 ## 1. Register the Microsoft app
 
 Sign into [Microsoft Entra](https://entra.microsoft.com) as your Microsoft 365

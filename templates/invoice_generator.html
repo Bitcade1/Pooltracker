@@ -42,6 +42,73 @@
         </form>
     </section>
 
+    <section class="panel" aria-label="PO email orders">
+        <h2>PO email orders</h2>
+        <p class="muted">Read attached POs from New Order emails and match your sent delivery-date replies to an invoice. Clear matches update draft invoices; saved invoices and uncertain details appear below for review.</p>
+        <div class="actions">
+            <form method="post" action="{{ url_for('sync_invoice_po_emails') }}">
+                <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                {% if selected %}<input type="hidden" name="invoice_id" value="{{ selected.record.id }}">{% endif %}
+                <button type="submit">Sync PO emails</button>
+            </form>
+            <form method="post" action="{{ url_for('connect_invoice_email') }}">
+                <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                {% if selected %}<input type="hidden" name="invoice_id" value="{{ selected.record.id }}">{% endif %}
+                <input type="hidden" name="read_po" value="1">
+                <button class="secondary" type="submit">Connect PO email access</button>
+            </form>
+        </div>
+        {% if po_orders %}
+        <details style="margin-top: 16px">
+            <summary>PO orders ({{ po_orders|length }}) - {{ po_orders|selectattr('status', 'equalto', 'pending')|list|length }} to review</summary>
+            {% for order in po_orders %}
+            <details class="notice" style="margin-top: 12px">
+                <summary><strong>{{ order.po_number }}</strong> - {{ order.status|capitalize }}{% if order.attached_invoice %} - {{ order.attached_invoice.reference }}{% endif %}</summary>
+                <p>{{ order.subject }}<br><span class="muted">From {{ order.sender }}</span></p>
+                <p>Attachments: {{ order.proposal.get('attachments', [])|join(', ') or 'None found' }}</p>
+                {% if order.proposal.get('reply') %}<blockquote style="white-space: pre-wrap">{{ order.proposal.reply }}</blockquote>{% endif %}
+                {% for warning in order.proposal.get('warnings', []) %}<p class="warning">{{ warning }}</p>{% endfor %}
+                <p class="muted">{{ order.note }}</p>
+                {% if order.status == 'pending' %}
+                <form method="post" action="{{ url_for('review_invoice_po_email', order_id=order.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                    <input type="hidden" name="proposal_hash" value="{{ order.proposal_hash }}">
+                    <label>Delivery invoice
+                        <select name="invoice_id" required>
+                            <option value="">Choose the delivery invoice</option>
+                            {% for invoice in invoices %}
+                            <option value="{{ invoice.record.id }}" {% if invoice.record.id == (order.suggested_invoice_id or order.invoice_id) %}selected{% endif %}>{{ invoice.delivery_label }}{% if invoice.record.saved_at %} (saved invoice){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <p class="muted">Check quantities against the attached PO. These quantities are added to the spreadsheet order and use the invoice's product prices.</p>
+                    <div class="table-scroll"><table>
+                        <thead><tr><th>Product</th><th>PO quantity</th></tr></thead>
+                        <tbody>{% for product in source.products %}
+                            <tr><td>{{ product.description }}</td><td><input type="number" name="po_qty_{{ product.sku }}" aria-label="{{ order.po_number }} quantity for {{ product.description }}" min="0" max="200" step="1" value="{{ order.proposal.get('items', {}).get(product.sku, 0) }}"></td></tr>
+                        {% endfor %}</tbody>
+                    </table></div>
+                    <div class="actions">
+                        <button type="submit" name="action" value="apply">Apply PO to invoice</button>
+                        <button class="secondary" type="submit" name="action" value="ignore" formnovalidate>{{ 'Keep current quantities' if order.invoice_id else 'Ignore PO' }}</button>
+                    </div>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('review_invoice_po_email', order_id=order.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
+                    <input type="hidden" name="proposal_hash" value="{{ order.proposal_hash }}">
+                    <div class="actions">
+                        <button class="secondary" type="submit" name="action" value="reopen">Review / change invoice</button>
+                        {% if order.invoice_id %}<button class="secondary" type="submit" name="action" value="remove">Remove PO from invoice</button>{% endif %}
+                    </div>
+                </form>
+                {% endif %}
+            </details>
+            {% endfor %}
+        </details>
+        {% endif %}
+    </section>
+
     <details class="panel" id="price-list" {% if submitted and submitted.get('action') == 'save_prices' %}open{% endif %}>
         <summary>Product price list <span class="summary-hint">Your saved unit costs &middot; GBP</span></summary>
         <p class="muted">These prices fill unsaved invoices automatically. Saving a priced invoice also remembers its ordered items' costs here by SKU. Saved invoices keep their own prices. Leave a price blank if it is not known yet; enter 0.00 for a free item.</p>
@@ -158,8 +225,8 @@
                 </form>
             </div>
             {% endif %}
-            {% if selected.quantity != record.expected_quantity %}
-            <div class="notice warning">The column heading says {{ record.expected_quantity }} tables, but the product quantities add up to {{ selected.quantity }}. This invoice uses the product quantities.</div>
+            {% if selected.sheet_quantity != record.expected_quantity %}
+            <div class="notice warning">The column heading says {{ record.expected_quantity }} tables, but the spreadsheet product quantities add up to {{ selected.sheet_quantity }}. This invoice uses the product quantities, plus any special PO orders shown below.</div>
             {% endif %}
             <form method="post" id="invoice-form" action="{{ url_for('invoice_generator', invoice=record.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
@@ -201,7 +268,9 @@
                         <tbody>
                         {% for line in selected.lines %}
                         <tr data-quantity="{{ line.quantity }}" {% if not line.quantity %}class="zero-row" hidden{% endif %}>
-                            <td>{{ line.description }}<span class="sku">{{ line.sku }}</span></td>
+                            <td>{{ line.description }}<span class="sku">{{ line.sku }}</span>
+                                {% for po in line.po_quantities %}<span class="sku">Includes {{ po.quantity }} for {{ po.po_number }}</span>{% endfor %}
+                            </td>
                             <td class="number">{{ line.quantity }}</td>
                             <td><input class="unit-cost" type="number" step="0.01" min="0" max="99999999.99" name="cost_{{ line.sku }}"
                                 aria-label="Unit cost for {{ line.description }}" placeholder="Not set"

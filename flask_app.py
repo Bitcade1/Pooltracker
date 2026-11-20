@@ -4051,6 +4051,131 @@ class GeneratedInvoice(db.Model):
     saved_by = db.Column(db.String(50), nullable=True)
 
 
+class InvoiceSpecialOrder(db.Model):
+    __tablename__ = 'invoice_special_order'
+    __table_args__ = (db.UniqueConstraint('mailbox', 'po_number', name='uq_mailbox_special_po'),)
+    id = db.Column(db.Integer, primary_key=True)
+    mailbox = db.Column(db.String(254), nullable=False)
+    po_number = db.Column(db.String(100), nullable=False)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('generated_invoice.id'), nullable=True, index=True)
+    subject = db.Column(db.String(500), nullable=False, default='')
+    source_message_id = db.Column(db.Text, nullable=False, default='')
+    conversation_id = db.Column(db.Text, nullable=False, default='')
+    sender = db.Column(db.String(254), nullable=False, default='')
+    proposal_json = db.Column(db.Text, nullable=False, default='{}')
+    proposal_hash = db.Column(db.String(64), nullable=False, default='')
+    applied_hash = db.Column(db.String(64), nullable=False, default='')
+    applied_items_json = db.Column(db.Text, nullable=False, default='{}')
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    note = db.Column(db.Text, nullable=False, default='')
+    updated_at = db.Column(db.DateTime, nullable=False, default=london_now)
+
+
+def invoice_lines_with_special_orders(invoice):
+    lines = json.loads(invoice.lines_json)
+    by_sku = {line['sku']: line for line in lines}
+    for line in lines:
+        line['sheet_quantity'] = line['quantity']
+        line['po_quantities'] = []
+    catalogue = {product['sku']: product for product in invoice_order_source()['products']}
+    for order in InvoiceSpecialOrder.query.filter_by(invoice_id=invoice.id).order_by(InvoiceSpecialOrder.id).all():
+        for sku, quantity in json.loads(order.applied_items_json).items():
+            if sku not in by_sku:
+                price = db.session.get(InvoiceItemPrice, sku)
+                line = dict(catalogue.get(sku, {'sku': sku, 'description': sku}), quantity=0,
+                            sheet_quantity=0, po_quantities=[], unit_cost_pence=price.unit_cost_pence if price else None)
+                by_sku[sku] = line
+                lines.append(line)
+            line = by_sku[sku]
+            line['quantity'] += quantity
+            line['po_quantities'].append({'po_number': order.po_number, 'quantity': quantity})
+    return lines
+
+
+def special_order_delivery_invoices():
+    data = json.loads(db.session.get(InvoiceSheetSyncState, 1).data_json)
+    matches = defaultdict(list)
+    for invoice in GeneratedInvoice.query.all():
+        if str(invoice.id) in data.get('deleted', {}):
+            continue
+        try:
+            delivery = source_order_date({'collection_date': invoice.collection_date, 'month': invoice.month}, data['source'])[0]
+            matches[delivery].append(invoice)
+        except (ValueError, IndexError):
+            continue
+    return matches
+
+
+def apply_special_order(order, invoice, items, fingerprint):
+    if fingerprint != order.proposal_hash:
+        raise ValueError('This PO changed during review. Reload its latest details before adding it.')
+    available = {product['sku'] for product in invoice_order_source()['products']}
+    if not items or any(sku not in available or type(quantity) is not int or not 1 <= quantity <= 200
+                        for sku, quantity in items.items()):
+        raise ValueError('Choose known table products and enter quantities between 1 and 200.')
+    order.invoice_id = invoice.id
+    order.applied_items_json = json.dumps(items, sort_keys=True)
+    order.applied_hash = order.proposal_hash
+    order.status = 'imported'
+    order.note = 'Added using this invoice\'s SKU prices. Review costs before sending.'
+
+
+def sync_special_po_emails():
+    from invoice_email import access_token, load_config
+    from invoice_po_email import POReader, proposal_hash
+    ensure_invoice_generator_tables()
+    ensure_invoice_build_tables()
+    config = load_config()
+    token = access_token(config, read_po=True)
+    matches = special_order_delivery_invoices()
+    # Read the mailbox outside the write transaction, then resolve against the
+    # latest invoice dates and saved state under the SQLite write lock.
+    deliveries = [date.fromisoformat(value) for value in matches]
+    db.session.rollback()
+    candidates = POReader(token, config['mailbox']).read(invoice_order_source()['products'], deliveries)
+    db.session.rollback()
+    db.session.execute(text('BEGIN IMMEDIATE'))
+    try:
+        matches = special_order_delivery_invoices()
+        counts = {'found': len(candidates), 'added': 0, 'review': 0}
+        for candidate in candidates:
+            order = InvoiceSpecialOrder.query.filter_by(
+                mailbox=config['mailbox'].lower(), po_number=candidate['po_number'],
+            ).first()
+            if not order:
+                order = InvoiceSpecialOrder(mailbox=config['mailbox'].lower(), po_number=candidate['po_number'])
+                db.session.add(order)
+            if order.status == 'ignored':
+                continue
+            proposal = candidate['proposal']
+            fingerprint = proposal_hash(proposal)
+            order.subject = candidate['subject'][:500]
+            order.sender = candidate['sender'][:254]
+            order.source_message_id = candidate['message_id']
+            order.conversation_id = candidate['conversation_id']
+            order.proposal_json = json.dumps(proposal)
+            order.proposal_hash = fingerprint
+            order.updated_at = london_now()
+            if fingerprint == order.applied_hash:
+                continue
+            choices = matches.get(proposal['delivery'], [])
+            if (order.invoice_id is None and len(choices) == 1 and choices[0].saved_at is None
+                    and not proposal['warnings'] and proposal['items']):
+                apply_special_order(order, choices[0], proposal['items'], fingerprint)
+                counts['added'] += 1
+            else:
+                order.status = 'pending'
+                order.note = ('Review the attached PO and delivery date. Existing invoice quantities stay in place until you apply the change.')
+                counts['review'] += 1
+        db.session.flush()
+        sync_invoice_build_lists()
+        db.session.commit()
+        return counts
+    except Exception:
+        db.session.rollback()
+        raise
+
+
 class InvoiceBuildMonth(db.Model):
     __tablename__ = "invoice_build_month"
     month_start = db.Column(db.Date, primary_key=True)
@@ -4067,9 +4192,15 @@ class InvoiceBuildOrder(db.Model):
     warning = db.Column(db.Text, nullable=False, default="")
     deadline = db.relationship('MonthlyBuildDeadline', backref=db.backref('invoice_order', uselist=False))
 
+    @property
+    def po_numbers(self):
+        return [order.po_number for order in InvoiceSpecialOrder.query.filter_by(invoice_id=self.invoice_id)
+                .order_by(InvoiceSpecialOrder.id).all() if json.loads(order.applied_items_json)]
+
 
 def ensure_invoice_build_tables():
     ensure_monthly_build_list_tables()
+    InvoiceSpecialOrder.__table__.create(db.engine, checkfirst=True)
     InvoiceBuildMonth.__table__.create(db.engine, checkfirst=True)
     InvoiceBuildOrder.__table__.create(db.engine, checkfirst=True)
 
@@ -4079,7 +4210,7 @@ def invoice_body_rows(invoice):
     colours = {'BLA': 'Black', 'ROAK': 'Rustic Oak', 'GOAK': 'Grey Oak',
                'RBLACK': 'Rustic Black', 'STONE': 'Stone'}
     rows, unknown = {}, []
-    for line in json.loads(invoice.lines_json):
+    for line in invoice_lines_with_special_orders(invoice):
         quantity = int(line.get('quantity') or 0)
         if quantity <= 0:
             continue
@@ -4289,6 +4420,7 @@ def invoice_reference_from_sheet(invoice, order, data):
 def ensure_invoice_generator_tables():
     InvoiceItemPrice.__table__.create(db.engine, checkfirst=True)
     GeneratedInvoice.__table__.create(db.engine, checkfirst=True)
+    InvoiceSpecialOrder.__table__.create(db.engine, checkfirst=True)
     columns = {row[1] for row in db.session.execute(text("PRAGMA table_info(generated_invoice)"))}
     if "presentation_json" not in columns:
         db.session.rollback()
@@ -4449,6 +4581,8 @@ def invoice_record_version(invoice):
     values = [invoice.lines_json, invoice.reference, invoice.collection_date,
               invoice.seller_details, invoice.customer_details, invoice.notes,
               invoice.presentation_json, str(invoice.saved_at)]
+    values.append([(order.id, order.po_number, order.applied_items_json)
+                   for order in InvoiceSpecialOrder.query.filter_by(invoice_id=invoice.id).order_by(InvoiceSpecialOrder.id).all()])
     return hashlib.sha256(json.dumps(values).encode("utf-8")).hexdigest()
 
 
@@ -4572,7 +4706,7 @@ def parse_invoice_presentation(form, invoice):
 
 
 def generated_invoice_payload(invoice, prices):
-    lines = json.loads(invoice.lines_json)
+    lines = invoice_lines_with_special_orders(invoice)
     # A saved invoice owns its price snapshot. Defaults only fill unsaved drafts.
     if invoice.saved_at is None:
         for line in lines:
@@ -4607,6 +4741,7 @@ def generated_invoice_payload(invoice, prices):
         delivery_date = invoice.collection_date
     return {
         "record": invoice, "lines": lines,
+        "sheet_quantity": sum(line['sheet_quantity'] for line in lines),
         "quantity": sum(line["quantity"] for line in lines),
         "missing_prices": missing, "total_pence": subtotal,
         "version": invoice_record_version(invoice),
@@ -4731,8 +4866,11 @@ def invoice_generator():
                 invoice = active_generated_invoice(selected_id)
                 if request.form.get("invoice_version") != invoice_record_version(invoice):
                     raise ValueError("This invoice changed while the form was open. Review the current quantities and save again.")
-                lines = json.loads(invoice.lines_json)
+                effective_lines = invoice_lines_with_special_orders(invoice)
+                lines = [dict(line, quantity=line['sheet_quantity']) for line in effective_lines]
                 for line in lines:
+                    line.pop('sheet_quantity', None)
+                    line.pop('po_quantities', None)
                     line["unit_cost_pence"] = parse_invoice_unit_cost(request.form.get("cost_" + line["sku"]))
                 reference = request.form.get("reference", "").strip()
                 collection_date = request.form.get("collection_date", "").strip()
@@ -4750,8 +4888,9 @@ def invoice_generator():
                 for key, value in details.items():
                     setattr(invoice, key, value)
                 # Remember entered prices by SKU for other drafts without rewriting saved invoices.
+                ordered_skus = {line['sku'] for line in effective_lines if line['quantity']}
                 for line in lines:
-                    if line["quantity"] and line["unit_cost_pence"] is not None:
+                    if line['sku'] in ordered_skus and line["unit_cost_pence"] is not None:
                         price = db.session.get(InvoiceItemPrice, line["sku"])
                         if price is None:
                             price = InvoiceItemPrice(sku=line["sku"])
@@ -4802,6 +4941,15 @@ def render_invoice_generator(source, selected_id, submitted=None):
             custom_rows = invoice_custom_form_rows(submitted)
         else:
             custom_rows = [dict(item, cost=invoice_cost_input(item["unit_cost_pence"])) for item in selected_payload["custom_items"]]
+    po_orders = InvoiceSpecialOrder.query.order_by(InvoiceSpecialOrder.updated_at.desc(), InvoiceSpecialOrder.id.desc()).all()
+    delivery_matches = special_order_delivery_invoices()
+    for order in po_orders:
+        order.proposal = json.loads(order.proposal_json)
+        order.attached_invoice = db.session.get(GeneratedInvoice, order.invoice_id) if order.invoice_id else None
+        order.suggested_invoice_id = None
+        choices = delivery_matches.get(order.proposal.get('delivery'), [])
+        if len(choices) == 1:
+            order.suggested_invoice_id = choices[0].id
     return render_template(
         "invoice_generator.html", source=source, prices=prices, build_order=build_order,
         invoices=[generated_invoice_payload(invoice, prices) for invoice in invoices],
@@ -4809,6 +4957,7 @@ def render_invoice_generator(source, selected_id, submitted=None):
         submitted=submitted,
         sync_state=state, sync_data=sync_data,
         deleted_invoices=deleted_invoices,
+        po_orders=po_orders,
         sync_configured=os.path.isfile(invoice_sync_credentials_path()),
         sync_stale=bool(state.last_success_at and datetime.utcnow() - state.last_success_at > timedelta(minutes=15)),
         catalogue_version=invoice_catalogue_version(source),
@@ -4816,6 +4965,71 @@ def render_invoice_generator(source, selected_id, submitted=None):
         sheet_comparison=comparison,
         change_version=hashlib.sha256(json.dumps(change, sort_keys=True).encode("utf-8")).hexdigest(),
     )
+
+
+def validate_po_email_form():
+    if 'worker' not in session:
+        abort(401)
+    expected = session.get('invoice_generator_csrf')
+    if not expected or request.form.get('csrf_token') != expected:
+        abort(400, 'This form has expired. Reload the invoice generator.')
+
+
+@app.route('/invoice_generator/po_emails/sync', methods=['POST'])
+def sync_invoice_po_emails():
+    validate_po_email_form()
+    from invoice_email import InvoiceEmailError
+    from invoice_po_email import POEmailError
+    try:
+        result = sync_special_po_emails()
+        flash(f"PO email sync: {result['added']} added automatically, {result['review']} to review.", 'success')
+    except (InvoiceEmailError, POEmailError) as exc:
+        flash(str(exc), 'error')
+    return redirect(url_for('invoice_generator', invoice=request.form.get('invoice_id', type=int)))
+
+
+@app.route('/invoice_generator/po_emails/<int:order_id>', methods=['POST'])
+def review_invoice_po_email(order_id):
+    validate_po_email_form()
+    ensure_invoice_generator_tables()
+    ensure_invoice_build_tables()
+    db.session.rollback()
+    db.session.execute(text('BEGIN IMMEDIATE'))
+    order = db.get_or_404(InvoiceSpecialOrder, order_id)
+    selected_invoice_id = order.invoice_id
+    try:
+        if request.form.get('proposal_hash') != order.proposal_hash:
+            raise ValueError('This PO changed. Reload its latest details before continuing.')
+        action = request.form.get('action')
+        if action == 'apply':
+            invoice = active_generated_invoice(request.form.get('invoice_id', type=int))
+            items = {}
+            for product in invoice_order_source()['products']:
+                value = request.form.get('po_qty_' + product['sku'], '0').strip()
+                if not re.fullmatch(r'\d{1,3}', value) or int(value) > 200:
+                    raise ValueError('PO quantities must be whole numbers from 0 to 200.')
+                if int(value):
+                    items[product['sku']] = int(value)
+            apply_special_order(order, invoice, items, request.form.get('proposal_hash'))
+            selected_invoice_id = invoice.id
+            flash(f'{order.po_number} added to {invoice.reference}. Review its prices before sending.', 'success')
+        elif action in ('ignore', 'remove', 'reopen'):
+            if action == 'remove':
+                order.applied_items_json = '{}'
+                order.applied_hash = ''
+                order.invoice_id = None
+            order.status = 'pending' if action == 'reopen' else 'ignored'
+            flash(f'{order.po_number} updated.', 'success')
+        else:
+            raise ValueError('Choose an action for this PO.')
+        order.updated_at = london_now()
+        db.session.flush()
+        sync_invoice_build_lists()
+        db.session.commit()
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'error')
+    return redirect(url_for('invoice_generator', invoice=selected_invoice_id))
 
 
 @app.route("/invoice_generator/<int:invoice_id>/print")
