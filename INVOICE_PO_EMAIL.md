@@ -1,6 +1,8 @@
 # PO orders from Microsoft 365 email
 
-The Invoice Generator can read original messages titled `New Order - PO12345`,
+The Invoice Generator can read original messages titled `New Order - 251367`
+or `New Order - PO251367`. Both identify the same PO, so repeat scans or a
+subject-format change do not duplicate the order. The reader can
 extract table lines from their attachments and look through Sent Items in the
 same conversation for your delivery-date reply. For example, `Great, we will
 deliver on Dec 4th` matches the existing invoice for 4 December. A date without a

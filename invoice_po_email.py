@@ -47,8 +47,15 @@ def body_text(body):
 
 
 def subject_po(subject):
-    match = re.match(r'^New\s+Order\s*[-:]\s*PO\s*[:#-]?\s*([A-Z0-9][A-Z0-9/_-]*)', subject or '', re.I)
-    return 'PO' + match[1].upper().rstrip('/_-') if match else ''
+    match = re.match(
+        r'^\s*New\s+Order\s*[-:\u2013\u2014]\s*'
+        r'(?:PO\s*[:#-]?\s*(?P<prefixed>[A-Z0-9][A-Z0-9/_-]*)|(?P<numeric>\d[A-Z0-9/_-]*))',
+        subject or '', re.I,
+    )
+    if not match:
+        return ''
+    number = match['prefixed'] or match['numeric']
+    return 'PO' + number.upper().rstrip('/_-')
 
 
 def reply_delivery(text, delivery_dates):

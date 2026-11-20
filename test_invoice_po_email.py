@@ -18,6 +18,28 @@ class POParsingTests(unittest.TestCase):
         self.assertEqual('', subject_po('RE: New Order - PO12345'))
         self.assertEqual('', subject_po('Other message PO12345'))
 
+    def test_real_numeric_order_subject_and_prefixed_version_share_one_po_number(self):
+        for subject in ('New Order - 251367', 'New Order - PO251367',
+                        ' New Order - 251367 (customer)', 'New Order \u2013 251367'):
+            self.assertEqual('PO251367', subject_po(subject), subject)
+        self.assertEqual('', subject_po('New Order - Reminder'))
+        self.assertEqual('', subject_po('RE: New Order - 251367'))
+
+    def test_numeric_subject_is_discovered_without_a_delivery_reply_or_readable_attachment(self):
+        reader = POReader('private-token', 'owner@example.com')
+        def pages(path, params=None):
+            if path == 'me/messages':
+                return iter([{'id': 'today-order', 'subject': 'New Order - 251367', 'conversationId': 'thread',
+                              'receivedDateTime': '2026-11-20T09:00:00Z',
+                              'from': {'emailAddress': {'address': 'customer@example.com'}}}])
+            return iter([])
+        with patch.object(reader, 'pages', side_effect=pages):
+            results = reader.read(tracker.invoice_order_seed_source()['products'], [date(2026, 12, 4)])
+        self.assertEqual(1, len(results))
+        self.assertEqual('PO251367', results[0]['po_number'])
+        self.assertEqual({}, results[0]['proposal']['items'])
+        self.assertTrue(results[0]['proposal']['warnings'])
+
     def test_delivery_wording_and_dates_match_the_existing_delivery_year(self):
         dates = [date(2026, 12, 4), date(2027, 1, 8)]
         for text in ('Great, we will deliver on Dec 4th', 'Delivery on 4th December',
@@ -141,6 +163,17 @@ class POSyncTests(unittest.TestCase):
         self.assertEqual((35 + 2) * 10010, payload['total_pence'])
         printed = self.client.get(f'/invoice_generator/{self.invoice_id}/print').get_data(as_text=True)
         self.assertIn('PO12345', printed)
+
+    def test_numeric_and_prefixed_subjects_cannot_add_the_same_order_twice(self):
+        previous = self.quantity()
+        self.candidate['subject'] = 'New Order - 251367'
+        self.candidate['po_number'] = subject_po(self.candidate['subject'])
+        self.assertEqual(1, self.sync()['added'])
+        self.candidate['subject'] = 'New Order - PO251367'
+        self.candidate['po_number'] = subject_po(self.candidate['subject'])
+        self.assertEqual(0, self.sync()['added'])
+        self.assertEqual(1, tracker.InvoiceSpecialOrder.query.count())
+        self.assertEqual(previous + 2, self.quantity())
 
     def test_saved_invoice_needs_review_before_quantities_change(self):
         self.save_invoice()
