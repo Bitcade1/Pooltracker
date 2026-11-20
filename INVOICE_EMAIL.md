@@ -170,6 +170,20 @@ updated `invoice_email.py` and restart the web service first. Start a fresh
 **Connect Microsoft 365** attempt in one browser tab at
 `https://pooltabletracker.com` and complete it within 10 minutes.
 
+If approval returns to **Login**, the tracker session was missing when Microsoft
+returned. With the updated app, a valid pending response is kept in the private
+server flow file. Sign back into the tracker as the same worker who started the
+connection; login resumes the connection and returns to the invoice generator.
+The approval response expires after 10 minutes, is consumed once, and cannot be
+completed by another worker. Authorization codes never go into the login form,
+Flask session cookie or shareable diagnostic. Older connection attempts made
+before this update need a fresh **Connect PO email access** attempt.
+
+Invoice pages on `www.pooltabletracker.com` now redirect to the registered
+callback's bare domain before starting Microsoft sign-in. No login cookies are
+forwarded or shared across hosts. A missing-session diagnostic records only the
+request host and booleans for cookie/login presence, without cookie values.
+
 The page displays safe Microsoft error codes when returned. A private diagnostic
 also records the latest callback failure. After trying to connect again, read it
 on the Droplet with:
@@ -194,6 +208,11 @@ not share `config.json`, `tokens.json`, or `flow-*.json`.
 - A missing, expired, or unverifiable sign-in request: start a new connection at
   the exact HTTPS domain above, use one browser tab, and check that all web
   workers use the same persistent Flask session key.
+- `tracker_login`: if the cookie-presence flag is false, check that approval
+  returns in the same browser/profile and that cookies are enabled. If the flag
+  is true but the login is absent, check worker restarts, conflicting session
+  cookies and consistent `POOLTRACKER_SECRET_KEY`/private configuration across
+  web workers. A present cookie alone does not prove the signing key changed.
 - Private file errors: check that the web service user can read the configuration
   and write `/var/lib/pooltracker-invoice-email/` (keep the private permissions).
 

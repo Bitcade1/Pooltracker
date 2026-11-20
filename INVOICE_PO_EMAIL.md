@@ -20,6 +20,9 @@ change read/unread status, move mail or delete messages.
 3. Restart the web service using the normal deployment process, open Invoice
    Generator and select **Connect PO email access**. Sign into the same mailbox
    used for invoices and approve the read permission.
+   If Microsoft returns to the tracker login, sign in as the same worker to
+   finish the pending connection within 10 minutes. Start a fresh connection if
+   the approval was made before the callback recovery update was deployed.
 4. Select **Sync PO emails**. Check the extracted quantities against a real PO
    attachment before enabling the timer below. Layouts without an explicit
    `Qty: 2` or `2 x ...` quantity need review rather than being assumed to be one.
