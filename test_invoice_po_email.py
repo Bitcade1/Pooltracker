@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import flask_app as tracker
 import invoice_email
-from invoice_po_email import POEmailError, POReader, attachment_rows, body_text, reply_delivery, subject_po
+from invoice_po_email import POEmailError, POReader, attachment_filename_po, attachment_rows, body_text, reply_delivery, subject_po
 import test_invoice_generator as generator_tests
 
 
@@ -52,6 +52,24 @@ class POParsingTests(unittest.TestCase):
         ])
         self.assertEqual(['PO251367', 'PO251368'], [result['po_number'] for result in results])
         self.assertTrue(all(result['proposal']['items']['BIL/CHAM/6FT/GOAK'] == 2 for result in results))
+
+    def test_customer_purchase_order_filename_supplies_the_po_without_a_document_header(self):
+        filename = 'Home Leisure Direct Purchase Order - 251508.pdf'
+        self.assertEqual('PO251508', attachment_filename_po(filename))
+        results = self.read_special_attachments([
+            self.po_attachment(filename.replace('.pdf', '.txt'), '2 x Signature Champion 6ft Grey Oak'),
+        ])
+        self.assertEqual('PO251508', results[0]['po_number'])
+        self.assertEqual([], results[0]['proposal']['warnings'])
+        self.assertFalse(results[0]['proposal']['reference_missing'])
+
+    def test_purchase_order_filename_labels_and_ambiguous_or_unlabelled_numbers(self):
+        for filename in ('Home Leisure Direct Purchase Order No. 251508.pdf',
+                         'Home_Leisure_Direct_Purchase_Order_-_251508.pdf',
+                         'Home Leisure Direct Purchase Order \u2013 PO251508.pdf'):
+            self.assertEqual('PO251508', attachment_filename_po(filename), filename)
+        for filename in ('Delivery 2026-11-24.pdf', 'PO251508 and PO251509.pdf', 'Purchase Order.pdf'):
+            self.assertEqual('', attachment_filename_po(filename), filename)
 
     def test_missing_po_number_keeps_each_attachment_for_review_with_stable_identity(self):
         attachments = [self.po_attachment('first.txt', '2 x Signature Champion 6ft Grey Oak'),
@@ -309,6 +327,58 @@ class POSyncTests(unittest.TestCase):
         })
         self.assertEqual(303, response.status_code)
         self.assertIsNone(other.invoice_id)
+        self.assertEqual(previous, self.quantity())
+
+    def recognised_filename_candidates(self):
+        parsing = POParsingTests()
+        candidate = parsing.read_special_attachments([
+            parsing.po_attachment('Home Leisure Direct Purchase Order - 251508.txt',
+                                  '2 x Signature Champion 6ft Grey Oak'),
+        ])[0]
+        old_candidate = copy.deepcopy(candidate)
+        old_candidate['po_number'] = 'MISSING-' + candidate['proposal']['source_key']
+        old_candidate['proposal'].update(reference_missing=True, warnings=['Enter the actual PO number.'])
+        return old_candidate, candidate
+
+    def test_better_filename_extraction_fills_existing_review_entry_without_recreating_it(self):
+        old_candidate, candidate = self.recognised_filename_candidates()
+        previous = self.quantity()
+        self.assertEqual(1, self.sync([old_candidate])['review'])
+        original_id = self.order().id
+        self.assertEqual(1, self.sync([candidate])['added'])
+        self.assertEqual(1, tracker.InvoiceSpecialOrder.query.count())
+        self.assertEqual(original_id, self.order().id)
+        self.assertEqual('PO251508', self.order().po_number)
+        self.assertFalse(self.order().reference_missing)
+        self.assertEqual(previous + 2, self.quantity())
+        self.assertEqual(0, self.sync([candidate])['added'])
+        self.assertEqual(previous + 2, self.quantity())
+
+    def test_matching_an_already_imported_po_retires_its_old_missing_reference_entry(self):
+        old_candidate, candidate = self.recognised_filename_candidates()
+        self.candidate['po_number'] = 'PO251508'
+        self.sync()
+        previous = self.quantity()
+        self.sync([old_candidate])
+        placeholder = tracker.InvoiceSpecialOrder.query.filter_by(po_number=old_candidate['po_number']).one()
+        self.assertEqual(0, self.sync([candidate])['added'])
+        self.assertEqual('ignored', placeholder.status)
+        self.assertIn('PO251508', placeholder.note)
+        self.assertEqual(previous, self.quantity())
+
+    def test_newly_detected_reference_does_not_double_add_a_manually_assigned_attachment(self):
+        old_candidate, candidate = self.recognised_filename_candidates()
+        self.sync([old_candidate])
+        response = self.client.post(f'/invoice_generator/po_emails/{self.order().id}', data={
+            'csrf_token': self.token, 'proposal_hash': self.order().proposal_hash, 'action': 'apply',
+            'invoice_id': self.invoice_id, 'po_number': '251507', 'po_qty_' + self.sku: '2',
+        })
+        self.assertEqual(303, response.status_code)
+        previous = self.quantity()
+        self.assertEqual(0, self.sync([candidate])['added'])
+        detected = tracker.InvoiceSpecialOrder.query.filter_by(po_number='PO251508').one()
+        self.assertEqual('pending', detected.status)
+        self.assertIn('PO251507', json.loads(detected.proposal_json)['warnings'][-1])
         self.assertEqual(previous, self.quantity())
 
     def test_saved_invoice_needs_review_before_quantities_change(self):

@@ -17,6 +17,12 @@ Missing or ambiguous numbers appear as **PO number needed** with the attachment
 filename. Enter the actual PO number in review before applying the order; repeat
 scans keep that assignment without recreating the pending attachment.
 
+Customer-prefixed filenames such as
+`Home Leisure Direct Purchase Order - 251508.pdf` identify `PO251508`
+automatically. Rescanning fills the number on an existing missing-reference
+entry instead of creating another order. If that PO already exists, the old
+placeholder is marked ignored; conflicting manual assignments stay in review.
+
 The reader uses GET requests to Microsoft Graph. It does not send replies,
 change read/unread status, move mail or delete messages.
 

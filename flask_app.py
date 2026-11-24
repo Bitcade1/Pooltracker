@@ -4160,12 +4160,28 @@ def sync_special_po_emails():
             order = InvoiceSpecialOrder.query.filter_by(
                 mailbox=config['mailbox'].lower(), po_number=candidate['po_number'],
             ).first()
-            if not order and candidate['po_number'].startswith('MISSING-') and proposal.get('source_key'):
-                # A worker may have supplied this attachment's missing PO number.
-                # Reuse that record after a rescan instead of recreating the placeholder.
-                order = next((existing for existing in InvoiceSpecialOrder.query.filter_by(
+            source_order = None
+            if proposal.get('source_key'):
+                source_order = next((existing for existing in InvoiceSpecialOrder.query.filter_by(
                     mailbox=config['mailbox'].lower()).all()
                     if json.loads(existing.proposal_json).get('source_key') == proposal['source_key']), None)
+            if source_order and source_order.id != (order.id if order else None):
+                if not order and candidate['po_number'].startswith('MISSING-'):
+                    # Keep a PO number already supplied by a worker.
+                    order = source_order
+                elif source_order.reference_missing:
+                    if order:
+                        source_order.status = 'ignored'
+                        source_order.note = f"Identified as {candidate['po_number']}; use its existing PO entry."
+                    else:
+                        # Better extraction should fill the original review entry.
+                        source_order.po_number = candidate['po_number']
+                        order = source_order
+                else:
+                    # An attachment already assigned to a different PO needs review.
+                    proposal = dict(proposal, warnings=proposal['warnings'] + [
+                        f'This attachment was previously assigned to {source_order.po_number}. Review both entries before adding it again.'
+                    ])
             if not order:
                 order = InvoiceSpecialOrder(mailbox=config['mailbox'].lower(), po_number=candidate['po_number'])
                 db.session.add(order)

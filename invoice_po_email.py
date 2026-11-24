@@ -71,9 +71,17 @@ def canonical_po_number(value):
 
 def attachment_filename_po(filename):
     stem = filename.rsplit('.', 1)[0]
-    match = re.search(r'\bPO[ _:#-]*(\d[A-Z0-9/-]*)', stem, re.I)
-    if match:
-        return canonical_po_number(match[1])
+    patterns = (
+        r'(?<![A-Z0-9])purchase[\s_-]+order(?:[\s_-]+(?:number|no\.?|ref(?:erence)?))?'
+        r'[\s_:#\-\u2013\u2014]*(?:PO[\s_:#-]*)?(\d[A-Z0-9/-]*)',
+        r'(?<![A-Z0-9])PO[\s_:#\-\u2013\u2014]*(\d[A-Z0-9/-]*)',
+    )
+    references = {canonical_po_number(match[1]) for pattern in patterns
+                  for match in re.finditer(pattern, stem, re.I)}
+    if len(references) == 1:
+        return references.pop()
+    if references:
+        return ''
     if re.fullmatch(r'\d{5,}', stem):
         return canonical_po_number(stem)
     return ''
