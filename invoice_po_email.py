@@ -58,10 +58,35 @@ def subject_po(subject):
     return 'PO' + number.upper().rstrip('/_-')
 
 
+def is_special_orders_subject(subject):
+    return bool(re.match(r'^\s*Special\s+Orders\b', subject or '', re.I))
+
+
+def canonical_po_number(value):
+    value = re.sub(r'^PO\s*[:#-]?\s*', '', str(value or '').strip(), flags=re.I)
+    if not re.fullmatch(r'[A-Z0-9][A-Z0-9/_-]{1,79}', value, re.I):
+        return ''
+    return 'PO' + value.upper().rstrip('/_-')
+
+
+def attachment_filename_po(filename):
+    stem = filename.rsplit('.', 1)[0]
+    match = re.search(r'\bPO[ _:#-]*(\d[A-Z0-9/-]*)', stem, re.I)
+    if match:
+        return canonical_po_number(match[1])
+    if re.fullmatch(r'\d{5,}', stem):
+        return canonical_po_number(stem)
+    return ''
+
+
+def unquoted_reply(text):
+    return re.split(r'(?im)^\s*(?:From:|Sent:|On .+wrote:|[-_]{4,})', text)[0]
+
+
 def reply_delivery(text, delivery_dates):
     """Resolve only a delivery statement containing one unambiguous date."""
     # Quoted correspondence is not evidence for the author's new promise.
-    text = re.split(r'(?im)^\s*(?:From:|Sent:|On .+wrote:|[-_]{4,})', text)[0]
+    text = unquoted_reply(text)
     if re.search(r'\b(?:cancel(?:led)?|postpon(?:e|ed)|not\s+(?:able|deliver)|cannot|can\x27t)\b', text, re.I):
         return None, 'The latest reply mentions a cancellation or change. Review the delivery date.'
     if not re.search(r'\b(?:deliver(?:y|ing)?|collection|collect|booked|scheduled)\b', text, re.I):
@@ -101,7 +126,7 @@ def reply_delivery(text, delivery_dates):
     return None, 'No single invoice delivery date matches the reply. Choose the invoice below.'
 
 
-def attachment_rows(filename, contents, catalogue, po_number=''):
+def attachment_details(filename, contents, catalogue, po_number=''):
     """Offer parsed rows, but never silently assume the quantity is one."""
     extension = '.' + filename.rsplit('.', 1)[-1].lower()
     if extension not in SUPPORTED_EXTENSIONS or len(contents) > MAX_ATTACHMENT_BYTES:
@@ -111,6 +136,8 @@ def attachment_rows(filename, contents, catalogue, po_number=''):
             if sum(info.file_size for info in archive.infolist()) > 30 * 1024 * 1024:
                 raise POEmailError('The expanded PO attachment is too large to read automatically.')
     items, warnings = extract_invoice_bytes(filename, contents)
+    references = sorted({reference for item in items
+                         if (reference := canonical_po_number(item.get('po_number')))})
     if extension in ('.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'):
         warnings.append('Check the quantities read from this image before adding the PO.')
     rows = {}
@@ -143,6 +170,11 @@ def attachment_rows(filename, contents, catalogue, po_number=''):
             warnings.append(f'Confirm the combined quantity for {sku}; it exceeds 200.')
     if not rows:
         warnings.append('No complete table lines could be read. Enter the PO quantities below.')
+    return rows, warnings, references
+
+
+def attachment_rows(filename, contents, catalogue, po_number=''):
+    rows, warnings, _ = attachment_details(filename, contents, catalogue, po_number)
     return rows, warnings
 
 
@@ -184,76 +216,144 @@ class POReader:
 
     def read(self, catalogue, delivery_dates):
         originals = {}
-        for message in self.pages('me/messages', {
-            '$search': '"subject:New Order"', '$top': 100,
-            '$select': 'id,subject,conversationId,internetMessageId,from,receivedDateTime,hasAttachments,webLink',
-        }):
-            po = subject_po(message.get('subject'))
-            sender = message.get('from', {}).get('emailAddress', {}).get('address', '').lower()
-            if not po or sender == self.mailbox:
-                continue
-            # Several originals/revisions for one PO require human review.
-            originals.setdefault(po, []).append(message)
+        special_messages, seen_ids = [], set()
+        for search in ('"subject:New Order"', '"subject:Special Orders"'):
+            for message in self.pages('me/messages', {
+                '$search': search, '$top': 100,
+                '$select': 'id,subject,conversationId,internetMessageId,from,receivedDateTime,hasAttachments,webLink',
+            }):
+                if message['id'] in seen_ids:
+                    continue
+                seen_ids.add(message['id'])
+                po = subject_po(message.get('subject'))
+                sender = message.get('from', {}).get('emailAddress', {}).get('address', '').lower()
+                if sender == self.mailbox:
+                    continue
+                if po:
+                    originals.setdefault(po, []).append(message)
+                elif is_special_orders_subject(message.get('subject')):
+                    special_messages.append(message)
         results = []
         for po, messages in originals.items():
             message = max(messages, key=lambda value: value.get('receivedDateTime', ''))
             warnings = []
             if len(messages) > 1:
                 warnings.append('More than one order email uses this PO number. Review its latest attachment.')
-            conversation = message.get('conversationId', '')
-            escaped = conversation.replace("'", "''")
-            replies = list(self.pages('me/mailFolders/sentitems/messages', {
-                '$filter': f"conversationId eq '{escaped}'", '$top': 100,
-                '$select': 'id,sentDateTime,uniqueBody,isDraft,from',
-            })) if conversation else []
-            delivery, reply_id, evidence = None, '', ''
-            for reply in sorted(replies, key=lambda value: value.get('sentDateTime', ''), reverse=True):
-                sender = reply.get('from', {}).get('emailAddress', {}).get('address', '').lower()
-                if reply.get('isDraft') or sender != self.mailbox:
-                    continue
-                text = body_text(reply.get('uniqueBody') or {})
-                candidate, warning = reply_delivery(text, delivery_dates)
-                if candidate or warning:
-                    delivery, reply_id, evidence = candidate, reply['id'], text[:500]
-                    if warning:
-                        warnings.append(warning)
-                    break
-            if not delivery:
-                warnings.append('No clear delivery-date reply was found in Sent Items. Choose the invoice below.')
-            rows, attachment_names, digests = {}, [], []
-            for attachment in self.pages(f"me/messages/{quote(message['id'], safe='')}/attachments", {'$top': 50}):
-                if attachment.get('isInline'):
-                    continue
-                if len(attachment_names) >= 5:
-                    warnings.append('More than five PO attachments need manual review.')
-                    break
-                filename = attachment.get('name') or 'PO attachment'
-                attachment_names.append(filename)
-                if attachment.get('size', 0) > MAX_ATTACHMENT_BYTES:
-                    warnings.append(f'{filename}: attachment exceeds 10 MB.')
-                    continue
-                if not attachment.get('contentBytes'):
-                    warnings.append(f'{filename}: attachment content could not be read.')
-                    continue
+            results.extend(self.read_order_message(message, catalogue, delivery_dates, po, warnings))
+        for message in special_messages:
+            results.extend(self.read_order_message(message, catalogue, delivery_dates))
+        return results
+
+    def read_order_message(self, message, catalogue, delivery_dates, subject_reference='', warnings=None):
+        warnings = list(warnings or [])
+        conversation = message.get('conversationId', '')
+        escaped = conversation.replace("'", "''")
+        replies = list(self.pages('me/mailFolders/sentitems/messages', {
+            '$filter': f"conversationId eq '{escaped}'", '$top': 100,
+            '$select': 'id,sentDateTime,uniqueBody,isDraft,from',
+        })) if conversation else []
+        delivery, reply_id, evidence, reply_text = None, '', '', ''
+        for reply in sorted(replies, key=lambda value: value.get('sentDateTime', ''), reverse=True):
+            sender = reply.get('from', {}).get('emailAddress', {}).get('address', '').lower()
+            if reply.get('isDraft') or sender != self.mailbox:
+                continue
+            text = body_text(reply.get('uniqueBody') or {})
+            candidate, warning = reply_delivery(text, delivery_dates)
+            if candidate or warning:
+                delivery, reply_id, evidence = candidate, reply['id'], text[:500]
+                reply_text = unquoted_reply(text)
+                if warning:
+                    warnings.append(warning)
+                break
+        if not delivery:
+            warnings.append('No clear delivery-date reply was found in Sent Items. Choose the invoice below.')
+        groups, name_counts = {}, {}
+        attachment_count = 0
+        maximum = 5 if subject_reference else 20
+        for attachment in self.pages(f"me/messages/{quote(message['id'], safe='')}/attachments", {'$top': 50}):
+            if attachment.get('isInline'):
+                continue
+            if attachment_count >= maximum:
+                warnings.append(f'More than {maximum} PO attachments need manual review.')
+                break
+            attachment_count += 1
+            filename = attachment.get('name') or 'PO attachment'
+            name_counts[filename] = name_counts.get(filename, 0) + 1
+            identity = [message.get('internetMessageId') or message['id'], filename, name_counts[filename]]
+            source_key = hashlib.sha256(json.dumps(identity).encode('utf-8')).hexdigest()[:32]
+            reference = subject_reference or attachment_filename_po(filename)
+            rows, problems, references, digest = {}, [], [], ''
+            if attachment.get('size', 0) > MAX_ATTACHMENT_BYTES:
+                problems.append(f'{filename}: attachment exceeds 10 MB.')
+            elif not attachment.get('contentBytes'):
+                problems.append(f'{filename}: attachment content could not be read.')
+            else:
                 try:
                     contents = base64.b64decode(attachment['contentBytes'], validate=True)
                     digest = hashlib.sha256(contents).hexdigest()
-                    if digest in digests:
-                        continue
-                    digests.append(digest)
-                    parsed, problems = attachment_rows(filename, contents, catalogue, po)
-                    warnings.extend(problems)
-                    for sku, quantity in parsed.items():
-                        rows[sku] = rows.get(sku, 0) + quantity
+                    rows, problems, references = attachment_details(filename, contents, catalogue, subject_reference)
                 except Exception:
-                    warnings.append(f'{filename}: the attachment needs manual review.')
-            if len(digests) > 1:
-                warnings.append('Multiple different attachments need review to avoid counting the same PO twice.')
-            if not rows:
-                warnings.append('Enter the ordered table quantities from the PO attachment.')
-            proposal = {'items': rows, 'delivery': delivery.isoformat() if delivery else '',
-                        'warnings': sorted(set(warnings)), 'reply': evidence, 'attachments': attachment_names,
-                        'attachment_hashes': sorted(digests)}
+                    problems.append(f'{filename}: the attachment needs manual review.')
+            if not subject_reference:
+                if len(references) == 1:
+                    if reference and reference != references[0]:
+                        problems.append('The PO number inside the attachment differs from its filename. Review the attachment.')
+                    reference = references[0]
+                elif len(references) > 1:
+                    reference = ''
+                    problems.append('This attachment contains several PO numbers. Review its contents and quantities.')
+            missing_reference = not reference
+            reference = reference or 'MISSING-' + source_key
+            group = groups.setdefault(reference, {
+                'items': {}, 'attachments': [], 'attachment_hashes': [], 'warnings': [],
+                'source_key': source_key, 'reference_missing': missing_reference,
+            })
+            if digest and digest in group['attachment_hashes']:
+                # The same document can be attached twice; other POs remain separate.
+                continue
+            group['attachments'].append(filename)
+            if digest:
+                group['attachment_hashes'].append(digest)
+            group['warnings'].extend(problems)
+            for sku, quantity in rows.items():
+                group['items'][sku] = group['items'].get(sku, 0) + quantity
+
+        if not groups:
+            key = subject_reference or 'MISSING-' + hashlib.sha256(
+                (message.get('internetMessageId') or message['id']).encode('utf-8')).hexdigest()[:32]
+            groups[key] = {'items': {}, 'attachments': [], 'attachment_hashes': [], 'warnings': [],
+                           'source_key': key, 'reference_missing': not subject_reference}
+        results = []
+        mentioned_pos = set()
+        if not subject_reference:
+            mentioned_pos = {canonical_po_number(match[1]) for match in re.finditer(
+                r'\bPO\s*[:#-]?\s*(\d[A-Z0-9/_-]*)', reply_text, re.I)}
+            for reference in groups:
+                if not reference.startswith('MISSING-') and re.search(
+                        r'(?<!\w)' + re.escape(reference[2:]) + r'(?!\w)', reply_text, re.I):
+                    mentioned_pos.add(reference)
+        for po, group in groups.items():
+            problems = warnings + group['warnings']
+            po_delivery = delivery
+            if mentioned_pos and po not in mentioned_pos:
+                po_delivery = None
+                problems.append('The delivery reply names other POs. Choose the delivery invoice for this attachment.')
+            if len(group['attachment_hashes']) > 1:
+                problems.append('Multiple different attachments for this PO need review to avoid counting it twice.')
+            if group['reference_missing']:
+                problems.append('No single PO number was found. Enter the actual PO number before adding this attachment to an invoice.')
+            if not group['items']:
+                problems.append('Enter the ordered table quantities from the PO attachment.')
+            if any(quantity > 200 for quantity in group['items'].values()):
+                problems.append('A combined PO quantity exceeds 200. Check the quantities before adding it.')
+            proposal = {
+                'items': group['items'], 'delivery': po_delivery.isoformat() if po_delivery else '',
+                'warnings': sorted(set(problems)), 'reply': evidence, 'attachments': group['attachments'],
+                'attachment_hashes': sorted(group['attachment_hashes']),
+            }
+            if not subject_reference:
+                proposal['source_key'] = group['source_key']
+                proposal['reference_missing'] = group['reference_missing']
             results.append({
                 'po_number': po, 'message_id': message['id'], 'conversation_id': conversation,
                 'subject': message.get('subject', ''), 'sender': message.get('from', {}).get('emailAddress', {}).get('address', ''),

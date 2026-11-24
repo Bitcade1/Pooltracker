@@ -4074,6 +4074,17 @@ class InvoiceSpecialOrder(db.Model):
     note = db.Column(db.Text, nullable=False, default='')
     updated_at = db.Column(db.DateTime, nullable=False, default=london_now)
 
+    @property
+    def reference_missing(self):
+        return self.po_number.startswith('MISSING-')
+
+    @property
+    def display_reference(self):
+        if self.reference_missing:
+            filenames = json.loads(self.proposal_json).get('attachments', [])
+            return 'PO number needed' + (f" - {filenames[0]}" if filenames else '')
+        return self.po_number
+
 
 def invoice_lines_with_special_orders(invoice):
     lines = json.loads(invoice.lines_json)
@@ -4111,6 +4122,8 @@ def special_order_delivery_invoices():
 
 
 def apply_special_order(order, invoice, items, fingerprint):
+    if order.reference_missing:
+        raise ValueError('Enter the actual PO number from the attachment before adding this order.')
     if fingerprint != order.proposal_hash:
         raise ValueError('This PO changed during review. Reload its latest details before adding it.')
     available = {product['sku'] for product in invoice_order_source()['products']}
@@ -4143,15 +4156,21 @@ def sync_special_po_emails():
         matches = special_order_delivery_invoices()
         counts = {'found': len(candidates), 'added': 0, 'review': 0}
         for candidate in candidates:
+            proposal = candidate['proposal']
             order = InvoiceSpecialOrder.query.filter_by(
                 mailbox=config['mailbox'].lower(), po_number=candidate['po_number'],
             ).first()
+            if not order and candidate['po_number'].startswith('MISSING-') and proposal.get('source_key'):
+                # A worker may have supplied this attachment's missing PO number.
+                # Reuse that record after a rescan instead of recreating the placeholder.
+                order = next((existing for existing in InvoiceSpecialOrder.query.filter_by(
+                    mailbox=config['mailbox'].lower()).all()
+                    if json.loads(existing.proposal_json).get('source_key') == proposal['source_key']), None)
             if not order:
                 order = InvoiceSpecialOrder(mailbox=config['mailbox'].lower(), po_number=candidate['po_number'])
                 db.session.add(order)
             if order.status == 'ignored':
                 continue
-            proposal = candidate['proposal']
             fingerprint = proposal_hash(proposal)
             order.subject = candidate['subject'][:500]
             order.sender = candidate['sender'][:254]
@@ -5008,6 +5027,15 @@ def review_invoice_po_email(order_id):
         action = request.form.get('action')
         if action == 'apply':
             invoice = active_generated_invoice(request.form.get('invoice_id', type=int))
+            if order.reference_missing:
+                from invoice_po_email import canonical_po_number
+                po_number = canonical_po_number(request.form.get('po_number'))
+                if not po_number:
+                    raise ValueError('Enter the actual PO number from the attachment.')
+                duplicate = InvoiceSpecialOrder.query.filter_by(mailbox=order.mailbox, po_number=po_number).first()
+                if duplicate and duplicate.id != order.id:
+                    raise ValueError(f'{po_number} is already in PO orders. Review that entry to avoid adding it twice.')
+                order.po_number = po_number
             items = {}
             for product in invoice_order_source()['products']:
                 value = request.form.get('po_qty_' + product['sku'], '0').strip()
@@ -5024,7 +5052,7 @@ def review_invoice_po_email(order_id):
                 order.applied_hash = ''
                 order.invoice_id = None
             order.status = 'pending' if action == 'reopen' else 'ignored'
-            flash(f'{order.po_number} updated.', 'success')
+            flash(f'{order.display_reference} updated.', 'success')
         else:
             raise ValueError('Choose an action for this PO.')
         order.updated_at = london_now()

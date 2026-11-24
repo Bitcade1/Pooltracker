@@ -9,6 +9,14 @@ deliver on Dec 4th` matches the existing invoice for 4 December. A date without 
 year is used only when one existing delivery date matches it. Your sent reply's
 unique body is used so quoted customer dates do not become delivery promises.
 
+Messages titled `Special Orders` are also scanned. Each PO attachment becomes
+its own order, using the PO number in its contents or filename. A copy of a PO
+already received through a `New Order` email reuses the same mailbox/PO identity.
+If a delivery reply names only one PO, its date is not assigned to the others.
+Missing or ambiguous numbers appear as **PO number needed** with the attachment
+filename. Enter the actual PO number in review before applying the order; repeat
+scans keep that assignment without recreating the pending attachment.
+
 The reader uses GET requests to Microsoft Graph. It does not send replies,
 change read/unread status, move mail or delete messages.
 
@@ -48,9 +56,10 @@ delivery statement leave the previous confirmation available.
 The importer identifies complete League/Champion tables using catalogue SKUs or
 their model, size and colour. Other products, unreadable/scanned documents and
 layouts it cannot read reliably need review. Attachments are limited to 10 MB
-each, five per original message. Multiple different attachments always require
-review to avoid counting a PO and its copy twice. The search covers up to 1,000
-messages matching `New Order`; exceptionally large histories require a narrower
+each, five per `New Order` message or twenty per `Special Orders` message.
+Multiple different attachments for the same PO require review to avoid counting
+the PO and its copy twice. The search covers up to 1,000 messages for each of
+`New Order` and `Special Orders`; exceptionally large histories require a narrower
 search or folder-specific adaptation before enabling automatic sync.
 
 PO numbers are unique per mailbox. Repeating a sync or saving an invoice does

@@ -44,7 +44,7 @@
 
     <section class="panel" aria-label="PO email orders">
         <h2>PO email orders</h2>
-        <p class="muted">Read attached POs from New Order emails and match your sent delivery-date replies to an invoice. Clear matches update draft invoices; saved invoices and uncertain details appear below for review.</p>
+        <p class="muted">Read attached POs from New Order and Special Orders emails, and match your sent delivery-date replies to an invoice. Each PO is tracked separately. Clear matches update draft invoices; saved invoices and uncertain details appear below for review.</p>
         <div class="actions">
             <form method="post" action="{{ url_for('sync_invoice_po_emails') }}">
                 <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
@@ -63,7 +63,7 @@
             <summary>PO orders ({{ po_orders|length }}) - {{ po_orders|selectattr('status', 'equalto', 'pending')|list|length }} to review</summary>
             {% for order in po_orders %}
             <details class="notice" style="margin-top: 12px">
-                <summary><strong>{{ order.po_number }}</strong> - {{ order.status|capitalize }}{% if order.attached_invoice %} - {{ order.attached_invoice.reference }}{% endif %}</summary>
+                <summary><strong>{{ order.display_reference }}</strong> - {{ order.status|capitalize }}{% if order.attached_invoice %} - {{ order.attached_invoice.reference }}{% endif %}</summary>
                 <p>{{ order.subject }}<br><span class="muted">From {{ order.sender }}</span></p>
                 <p>Attachments: {{ order.proposal.get('attachments', [])|join(', ') or 'None found' }}</p>
                 {% if order.proposal.get('reply') %}<blockquote style="white-space: pre-wrap">{{ order.proposal.reply }}</blockquote>{% endif %}
@@ -73,6 +73,11 @@
                 <form method="post" action="{{ url_for('review_invoice_po_email', order_id=order.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ session['invoice_generator_csrf'] }}">
                     <input type="hidden" name="proposal_hash" value="{{ order.proposal_hash }}">
+                    {% if order.reference_missing %}
+                    <label>PO number
+                        <input type="text" name="po_number" maxlength="80" placeholder="PO number from this attachment" required>
+                    </label>
+                    {% endif %}
                     <label>Delivery invoice
                         <select name="invoice_id" required>
                             <option value="">Choose the delivery invoice</option>
@@ -85,7 +90,7 @@
                     <div class="table-scroll"><table>
                         <thead><tr><th>Product</th><th>PO quantity</th></tr></thead>
                         <tbody>{% for product in source.products %}
-                            <tr><td>{{ product.description }}</td><td><input type="number" name="po_qty_{{ product.sku }}" aria-label="{{ order.po_number }} quantity for {{ product.description }}" min="0" max="200" step="1" value="{{ order.proposal.get('items', {}).get(product.sku, 0) }}"></td></tr>
+                            <tr><td>{{ product.description }}</td><td><input type="number" name="po_qty_{{ product.sku }}" aria-label="{{ order.display_reference }} quantity for {{ product.description }}" min="0" max="200" step="1" value="{{ order.proposal.get('items', {}).get(product.sku, 0) }}"></td></tr>
                         {% endfor %}</tbody>
                     </table></div>
                     <div class="actions">

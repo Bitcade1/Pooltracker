@@ -12,6 +12,84 @@ import test_invoice_generator as generator_tests
 
 
 class POParsingTests(unittest.TestCase):
+    def read_special_attachments(self, attachments, reply='We will deliver on Dec 4th'):
+        reader = POReader('private-token', 'owner@example.com')
+        def pages(path, params=None):
+            if path == 'me/messages':
+                if params['$search'] == '"subject:Special Orders"':
+                    return iter([{'id': 'special-message', 'internetMessageId': '<special@example.com>',
+                                  'subject': 'Special Orders', 'conversationId': 'thread',
+                                  'from': {'emailAddress': {'address': 'customer@example.com'}}}])
+                return iter([])
+            if path.startswith('me/mailFolders/sentitems'):
+                return iter([{'id': 'reply', 'sentDateTime': '2026-11-24T09:00:00Z',
+                              'from': {'emailAddress': {'address': 'owner@example.com'}},
+                              'uniqueBody': {'contentType': 'text', 'content': reply}}])
+            return iter(attachments)
+        with patch.object(reader, 'pages', side_effect=pages):
+            return reader.read(tracker.invoice_order_seed_source()['products'], [date(2026, 12, 4)])
+
+    @staticmethod
+    def po_attachment(filename, text):
+        return {'name': filename, 'contentBytes': base64.b64encode(text.encode('ascii')).decode('ascii')}
+
+    def test_special_orders_attachments_create_separate_pos_using_document_references(self):
+        results = self.read_special_attachments([
+            self.po_attachment('first.txt', 'PO number: 251367\n2 x Signature Champion 6ft Grey Oak'),
+            self.po_attachment('second.txt', 'PO number: 251368\n3 x Signature Champion 6ft Black'),
+        ])
+        self.assertEqual(['PO251367', 'PO251368'], [result['po_number'] for result in results])
+        self.assertEqual({'BIL/CHAM/6FT/GOAK': 2}, results[0]['proposal']['items'])
+        self.assertEqual({'BIL/CHAM/6FT/BLA': 3}, results[1]['proposal']['items'])
+        self.assertTrue(all(not result['proposal']['warnings'] for result in results))
+
+    def test_special_orders_filename_references_and_identical_copies_do_not_duplicate_quantities(self):
+        contents = '2 x Signature Champion 6ft Grey Oak'
+        results = self.read_special_attachments([
+            self.po_attachment('PO251367.txt', contents),
+            self.po_attachment('PO251367 copy.txt', contents),
+            self.po_attachment('251368.txt', contents),
+        ])
+        self.assertEqual(['PO251367', 'PO251368'], [result['po_number'] for result in results])
+        self.assertTrue(all(result['proposal']['items']['BIL/CHAM/6FT/GOAK'] == 2 for result in results))
+
+    def test_missing_po_number_keeps_each_attachment_for_review_with_stable_identity(self):
+        attachments = [self.po_attachment('first.txt', '2 x Signature Champion 6ft Grey Oak'),
+                       self.po_attachment('second.txt', '3 x Signature Champion 6ft Black')]
+        first = self.read_special_attachments(attachments)
+        second = self.read_special_attachments(attachments)
+        self.assertEqual(2, len(first))
+        self.assertNotEqual(first[0]['po_number'], first[1]['po_number'])
+        self.assertEqual([result['po_number'] for result in first], [result['po_number'] for result in second])
+        self.assertTrue(all(result['proposal']['reference_missing'] for result in first))
+        self.assertTrue(all(result['proposal']['warnings'] for result in first))
+
+    def test_one_unreadable_attachment_does_not_hide_other_special_orders(self):
+        results = self.read_special_attachments([
+            {'name': 'PO251367.pdf'},
+            self.po_attachment('PO251368.txt', '2 x Signature Champion 6ft Black'),
+        ])
+        self.assertEqual(2, len(results))
+        self.assertTrue(results[0]['proposal']['warnings'])
+        self.assertEqual([], results[1]['proposal']['warnings'])
+
+    def test_conflicting_document_and_filename_po_numbers_require_review(self):
+        results = self.read_special_attachments([
+            self.po_attachment('PO251367.txt', 'PO number: 251368\n2 x Signature Champion 6ft Black'),
+        ])
+        self.assertEqual('PO251368', results[0]['po_number'])
+        self.assertTrue(any('differs' in warning for warning in results[0]['proposal']['warnings']))
+
+    def test_reply_naming_one_po_does_not_schedule_the_other_attachments(self):
+        results = self.read_special_attachments([
+            self.po_attachment('PO251367.txt', '2 x Signature Champion 6ft Grey Oak'),
+            self.po_attachment('PO251368.txt', '3 x Signature Champion 6ft Black'),
+        ], reply='We will deliver PO251367 on Dec 4th\nFrom: customer\nPlease also check PO251368')
+        self.assertEqual('2026-12-04', results[0]['proposal']['delivery'])
+        self.assertEqual([], results[0]['proposal']['warnings'])
+        self.assertEqual('', results[1]['proposal']['delivery'])
+        self.assertTrue(results[1]['proposal']['warnings'])
+
     def test_subject_identifies_original_orders_and_preserves_distinct_po_numbers(self):
         self.assertEqual('PO12345', subject_po('New Order - PO12345 (customer)'))
         self.assertEqual('PO123-45', subject_po('New Order - PO #123-45'))
@@ -124,10 +202,10 @@ class POSyncTests(unittest.TestCase):
         generator_tests.InvoiceGeneratorTests.tearDown(self)
         self.clock.stop()
 
-    def sync(self):
+    def sync(self, candidates=None):
         with patch('invoice_email.load_config', return_value={'mailbox': 'owner@example.com'}), \
              patch('invoice_email.access_token', return_value='private-token'), \
-             patch('invoice_po_email.POReader.read', return_value=[self.candidate]):
+             patch('invoice_po_email.POReader.read', return_value=candidates if candidates is not None else [self.candidate]):
             return tracker.sync_special_po_emails()
 
     def order(self):
@@ -174,6 +252,64 @@ class POSyncTests(unittest.TestCase):
         self.assertEqual(0, self.sync()['added'])
         self.assertEqual(1, tracker.InvoiceSpecialOrder.query.count())
         self.assertEqual(previous + 2, self.quantity())
+
+    def test_special_orders_split_into_independent_invoice_orders_and_body_quantities(self):
+        parsing = POParsingTests()
+        candidates = parsing.read_special_attachments([
+            parsing.po_attachment('PO251367.txt', '2 x Signature Champion 6ft Grey Oak'),
+            parsing.po_attachment('PO251368.txt', '3 x Signature Champion 6ft Black'),
+        ])
+        result = self.sync(candidates)
+        self.assertEqual(2, result['added'])
+        self.assertEqual(['PO251367', 'PO251368'], [order.po_number for order in tracker.InvoiceSpecialOrder.query.order_by(tracker.InvoiceSpecialOrder.po_number)])
+        self.assertEqual(40, tracker.generated_invoice_payload(self.invoice, {})['quantity'])
+        self.assertEqual(0, self.sync(candidates)['added'])
+        self.assertEqual(40, tracker.generated_invoice_payload(self.invoice, {})['quantity'])
+        link = tracker.db.session.get(tracker.InvoiceBuildOrder, self.invoice_id)
+        self.assertEqual(40, sum(item.quantity for item in link.deadline.items))
+
+    def test_missing_reference_cannot_apply_until_given_actual_po_and_rescan_reuses_it(self):
+        self.candidate['po_number'] = 'MISSING-attachment-key'
+        self.candidate['subject'] = 'Special Orders'
+        self.candidate['proposal'].update(source_key='attachment-key', reference_missing=True,
+                                         warnings=['Enter the actual PO number.'])
+        previous = self.quantity()
+        self.assertEqual(1, self.sync()['review'])
+        order_id = self.order().id
+        self.review()
+        self.assertIsNone(self.order().invoice_id)
+        self.assertEqual(previous, self.quantity())
+        page = self.client.get('/invoice_generator').get_data(as_text=True)
+        self.assertIn('PO number needed', page)
+        self.assertNotIn('MISSING-attachment-key', page)
+        response = self.client.post(f'/invoice_generator/po_emails/{order_id}', data={
+            'csrf_token': self.token, 'proposal_hash': self.order().proposal_hash, 'action': 'apply',
+            'invoice_id': self.invoice_id, 'po_number': '251367', 'po_qty_' + self.sku: '2',
+        })
+        self.assertEqual(303, response.status_code)
+        self.assertEqual('PO251367', self.order().po_number)
+        self.assertEqual(previous + 2, self.quantity())
+        self.sync()
+        self.assertEqual(1, tracker.InvoiceSpecialOrder.query.count())
+        self.assertEqual(order_id, self.order().id)
+        self.assertEqual(previous + 2, self.quantity())
+
+    def test_missing_reference_cannot_be_assigned_to_an_already_imported_po(self):
+        self.sync()
+        original_order_id = self.order().id
+        self.candidate['po_number'] = 'MISSING-other-attachment'
+        self.candidate['proposal'].update(source_key='other-attachment', reference_missing=True,
+                                         warnings=['Enter the actual PO number.'])
+        self.sync()
+        other = tracker.InvoiceSpecialOrder.query.filter(tracker.InvoiceSpecialOrder.id != original_order_id).one()
+        previous = self.quantity()
+        response = self.client.post(f'/invoice_generator/po_emails/{other.id}', data={
+            'csrf_token': self.token, 'proposal_hash': other.proposal_hash, 'action': 'apply',
+            'invoice_id': self.invoice_id, 'po_number': 'PO12345', 'po_qty_' + self.sku: '2',
+        })
+        self.assertEqual(303, response.status_code)
+        self.assertIsNone(other.invoice_id)
+        self.assertEqual(previous, self.quantity())
 
     def test_saved_invoice_needs_review_before_quantities_change(self):
         self.save_invoice()
