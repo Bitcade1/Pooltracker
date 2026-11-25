@@ -48,13 +48,15 @@ def body_text(body):
 
 def subject_po(subject):
     match = re.match(
-        r'^\s*New\s+Order\s*[-:\u2013\u2014]\s*'
+        r'^\s*New\s+Order(?:\s*[-:\u2013\u2014]\s*|\s+)'
         r'(?:PO\s*[:#-]?\s*(?P<prefixed>[A-Z0-9][A-Z0-9/_-]*)|(?P<numeric>\d[A-Z0-9/_-]*))',
         subject or '', re.I,
     )
     if not match:
         return ''
     number = match['prefixed'] or match['numeric']
+    if not re.search(r'\d', number):
+        return ''
     return 'PO' + number.upper().rstrip('/_-')
 
 

@@ -121,6 +121,28 @@ class POParsingTests(unittest.TestCase):
         self.assertEqual('', subject_po('New Order - Reminder'))
         self.assertEqual('', subject_po('RE: New Order - 251367'))
 
+    def test_order_subject_accepts_a_missing_dash_without_matching_general_order_notices(self):
+        for subject in ('New Order 251551', 'New Order PO251551', 'New Order - 251551',
+                        'New Order: PO251551', '  new order   251551 (customer)'):
+            self.assertEqual('PO251551', subject_po(subject), subject)
+        for subject in ('New Order postponed', 'New Order postage', 'New Orders 251551',
+                        'New Order Reminder', 'RE: New Order 251551'):
+            self.assertEqual('', subject_po(subject), subject)
+
+    def test_ellies_order_without_a_dash_is_found_and_queued_without_a_delivery_reply(self):
+        reader = POReader('private-token', 'owner@example.com')
+        def pages(path, params=None):
+            if path == 'me/messages' and params['$search'] == '"subject:New Order"':
+                return iter([{'id': 'ellie-order', 'subject': 'New Order 251551', 'conversationId': 'thread',
+                              'from': {'emailAddress': {'address': 'ellie.de-ville@homeleisuredirect.com'}}}])
+            return iter([])
+        with patch.object(reader, 'pages', side_effect=pages):
+            results = reader.read(tracker.invoice_order_seed_source()['products'], [date(2026, 12, 4)])
+        self.assertEqual(1, len(results))
+        self.assertEqual('PO251551', results[0]['po_number'])
+        self.assertEqual('ellie.de-ville@homeleisuredirect.com', results[0]['sender'])
+        self.assertTrue(results[0]['proposal']['warnings'])
+
     def test_numeric_subject_is_discovered_without_a_delivery_reply_or_readable_attachment(self):
         reader = POReader('private-token', 'owner@example.com')
         def pages(path, params=None):
@@ -269,6 +291,17 @@ class POSyncTests(unittest.TestCase):
         self.candidate['po_number'] = subject_po(self.candidate['subject'])
         self.assertEqual(0, self.sync()['added'])
         self.assertEqual(1, tracker.InvoiceSpecialOrder.query.count())
+        self.assertEqual(previous + 2, self.quantity())
+
+    def test_dashless_subject_and_later_subject_format_change_do_not_duplicate_ellies_order(self):
+        previous = self.quantity()
+        self.candidate['sender'] = 'ellie.de-ville@homeleisuredirect.com'
+        for index, subject in enumerate(('New Order 251551', 'New Order - PO251551')):
+            self.candidate['subject'] = subject
+            self.candidate['po_number'] = subject_po(subject)
+            self.assertEqual(1 if index == 0 else 0, self.sync()['added'])
+        self.assertEqual(1, tracker.InvoiceSpecialOrder.query.count())
+        self.assertEqual('PO251551', self.order().po_number)
         self.assertEqual(previous + 2, self.quantity())
 
     def test_special_orders_split_into_independent_invoice_orders_and_body_quantities(self):
