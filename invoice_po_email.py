@@ -89,6 +89,27 @@ def attachment_filename_po(filename):
     return ''
 
 
+TABLE_SKU_PATTERN = r'BIL/(LEAG|CHAM)/(6FT|7FT)/(BLA|ROAK|GOAK|RBLACK|STONE)(/SPEC)?'
+
+
+def table_product(sku, description=''):
+    """Recognise supported table variants without assigning a price."""
+    if not isinstance(sku, str):
+        return None
+    match = re.fullmatch(TABLE_SKU_PATTERN, sku.upper())
+    if not match:
+        return None
+    colours = {'BLA': 'Black', 'ROAK': 'Rustic Oak', 'GOAK': 'Grey Oak',
+               'RBLACK': 'Rustic Black', 'STONE': 'Stone'}
+    model = 'Signature League' if match[1] == 'LEAG' else 'Signature Champion'
+    if match[1] == 'LEAG' and re.search(r'\bplayers?\s+edition\b', description, re.I):
+        model += ' Players Edition'
+    name = f'{model} {match[2]} {colours[match[3]]}'
+    if match[4]:
+        name += ' (Special order)'
+    return {'sku': sku.upper(), 'description': name, 'special_order': True}
+
+
 def unquoted_reply(text):
     return re.split(r'(?im)^\s*(?:From:|Sent:|On .+wrote:|[-_]{4,})', text)[0]
 
@@ -150,28 +171,40 @@ def attachment_details(filename, contents, catalogue, po_number=''):
                          if (reference := canonical_po_number(item.get('po_number')))})
     if extension in ('.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'):
         warnings.append('Check the quantities read from this image before adding the PO.')
-    rows = {}
+    rows, products = {}, {}
     colours = {'Black': 'BLA', 'Rustic Oak': 'ROAK', 'Grey Oak': 'GOAK', 'Rustic Black': 'RBLACK', 'Stone': 'STONE'}
-    available = {product['sku'] for product in catalogue}
+    available = {product['sku']: product for product in catalogue}
     for item in items:
+        if re.match(r'^(?:size|finish|cloth\s+colours?|coin\s+mechanism\??|delivery\s+method)\s*[-:]',
+                    item['description'], re.I):
+            continue
         if po_number and item.get('po_number'):
             normalise_po = lambda value: re.sub(r'[^A-Z0-9]', '', value.upper()).removeprefix('PO')
             if normalise_po(po_number) != normalise_po(item['po_number']):
                 warnings.append('The PO number inside the attachment differs from the email subject. Review the attachment.')
-        sku_match = re.search(r'\bBIL/(?:CHAM|LEAG)/(?:6FT|7FT)/(?:RBLACK|ROAK|GOAK|STONE|BLA)\b', item['description'], re.I)
+        sku_match = re.search(r'\b' + TABLE_SKU_PATTERN + r'(?=$|[^\w/])', item['description'], re.I)
+        raw_sku = re.search(r'\bBIL/[A-Z0-9/_-]+', item['description'], re.I)
+        if raw_sku and not sku_match:
+            warnings.append(f"Review this PO SKU: {raw_sku[0]}")
+            continue
         model = {'Champion': 'CHAM', 'League': 'LEAG', 'Lite': 'LEAG'}.get(item['model'])
         sku = sku_match[0].upper() if sku_match else (
             f"BIL/{model}/{item['size'].upper()}/{colours.get(item['colour'])}" if model else ''
         )
-        if sku not in available or item['item_type'] != 'complete_table':
+        definition = table_product(sku, item['description']) if sku_match else None
+        if (sku not in available and not definition) or item['item_type'] != 'complete_table':
             warnings.append(f"Review this PO line: {item['description']}")
             continue
+        if definition and (sku not in available or available[sku].get('special_order') or sku.endswith('/SPEC')):
+            products[sku] = available.get(sku, definition)
         # Text extraction defaults missing quantities to one. Require explicit
         # evidence before allowing automatic import, even when the guess is one.
-        explicit = re.search(r'(?:^\s*(?P<leading>\d+)\s*[x*]\s+|\bqty\.?\s*[:x-]?\s*(?P<labelled>\d+)\b)', item['raw_text'], re.I)
+        explicit = re.search(
+            r'(?:^\s*(?P<leading>\d+)\s*[x*]\s+|\bqty\.?\s*[:x-]?\s*(?P<labelled>\d+)\b'
+            r'|^\s*(?P<sku_quantity>\d+)\s+(?=BIL/))', item['raw_text'], re.I)
         if not explicit:
             warnings.append(f"Confirm the quantity for {sku}; the attachment layout needs review.")
-        quantity = int(explicit['leading'] or explicit['labelled']) if explicit else item['quantity']
+        quantity = int(explicit['leading'] or explicit['labelled'] or explicit['sku_quantity']) if explicit else item['quantity']
         if not isinstance(quantity, int) or not 1 <= quantity <= 200:
             warnings.append(f"Confirm the quantity for {sku} (1 to 200 tables per PO row).")
             continue
@@ -180,11 +213,11 @@ def attachment_details(filename, contents, catalogue, po_number=''):
             warnings.append(f'Confirm the combined quantity for {sku}; it exceeds 200.')
     if not rows:
         warnings.append('No complete table lines could be read. Enter the PO quantities below.')
-    return rows, warnings, references
+    return rows, warnings, references, list(products.values())
 
 
 def attachment_rows(filename, contents, catalogue, po_number=''):
-    rows, warnings, _ = attachment_details(filename, contents, catalogue, po_number)
+    rows, warnings, _, _ = attachment_details(filename, contents, catalogue, po_number)
     return rows, warnings
 
 
@@ -292,7 +325,7 @@ class POReader:
             identity = [message.get('internetMessageId') or message['id'], filename, name_counts[filename]]
             source_key = hashlib.sha256(json.dumps(identity).encode('utf-8')).hexdigest()[:32]
             reference = subject_reference or attachment_filename_po(filename)
-            rows, problems, references, digest = {}, [], [], ''
+            rows, problems, references, products, digest = {}, [], [], [], ''
             if attachment.get('size', 0) > MAX_ATTACHMENT_BYTES:
                 problems.append(f'{filename}: attachment exceeds 10 MB.')
             elif not attachment.get('contentBytes'):
@@ -301,7 +334,7 @@ class POReader:
                 try:
                     contents = base64.b64decode(attachment['contentBytes'], validate=True)
                     digest = hashlib.sha256(contents).hexdigest()
-                    rows, problems, references = attachment_details(filename, contents, catalogue, subject_reference)
+                    rows, problems, references, products = attachment_details(filename, contents, catalogue, subject_reference)
                 except Exception:
                     problems.append(f'{filename}: the attachment needs manual review.')
             if not subject_reference:
@@ -316,7 +349,7 @@ class POReader:
             reference = reference or 'MISSING-' + source_key
             group = groups.setdefault(reference, {
                 'items': {}, 'attachments': [], 'attachment_hashes': [], 'warnings': [],
-                'source_key': source_key, 'reference_missing': missing_reference,
+                'source_key': source_key, 'reference_missing': missing_reference, 'products': {},
             })
             if digest and digest in group['attachment_hashes']:
                 # The same document can be attached twice; other POs remain separate.
@@ -325,6 +358,7 @@ class POReader:
             if digest:
                 group['attachment_hashes'].append(digest)
             group['warnings'].extend(problems)
+            group['products'].update({product['sku']: product for product in products})
             for sku, quantity in rows.items():
                 group['items'][sku] = group['items'].get(sku, 0) + quantity
 
@@ -332,7 +366,7 @@ class POReader:
             key = subject_reference or 'MISSING-' + hashlib.sha256(
                 (message.get('internetMessageId') or message['id']).encode('utf-8')).hexdigest()[:32]
             groups[key] = {'items': {}, 'attachments': [], 'attachment_hashes': [], 'warnings': [],
-                           'source_key': key, 'reference_missing': not subject_reference}
+                           'source_key': key, 'reference_missing': not subject_reference, 'products': {}}
         results = []
         mentioned_pos = set()
         if not subject_reference:
@@ -364,6 +398,8 @@ class POReader:
             if not subject_reference:
                 proposal['source_key'] = group['source_key']
                 proposal['reference_missing'] = group['reference_missing']
+            if group['products']:
+                proposal['products'] = list(group['products'].values())
             results.append({
                 'po_number': po, 'message_id': message['id'], 'conversation_id': conversation,
                 'subject': message.get('subject', ''), 'sender': message.get('from', {}).get('emailAddress', {}).get('address', ''),

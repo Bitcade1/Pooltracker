@@ -69,6 +69,15 @@ the PO and its copy twice. The search covers up to 1,000 messages for each of
 `New Order` and `Special Orders`; exceptionally large histories require a narrower
 search or folder-specific adaptation before enabling automatic sync.
 
+Supported table SKU variants ending in `/SPEC` are kept as separate products.
+For example, `BIL/LEAG/7FT/GOAK/SPEC` identifies a 7ft Grey Oak League special
+order; Black cloth does not change the body finish. Recognised variants extend
+the cached invoice catalogue and appear in PO review and product pricing. The
+Google sheet is unchanged. Their prices remain unset until entered; printing
+and emailing still require every ordered product to be priced. Full special
+SKUs, quantities and saved prices survive sheet sync/review, and their model,
+size and body finish feed into the monthly build list.
+
 PO numbers are unique per mailbox. Repeating a sync or saving an invoice does
 not add the order again. Quantities are stored separately from Google Sheets,
 so sheet sync cannot erase them. These are additional special orders: check

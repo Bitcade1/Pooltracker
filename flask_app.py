@@ -4127,9 +4127,12 @@ def apply_special_order(order, invoice, items, fingerprint):
     if fingerprint != order.proposal_hash:
         raise ValueError('This PO changed during review. Reload its latest details before adding it.')
     available = {product['sku'] for product in invoice_order_source()['products']}
-    if not items or any(sku not in available or type(quantity) is not int or not 1 <= quantity <= 200
-                        for sku, quantity in items.items()):
-        raise ValueError('Choose known table products and enter quantities between 1 and 200.')
+    if not items:
+        raise ValueError('Enter a PO quantity beside at least one table before applying the order.')
+    if any(sku not in available for sku in items):
+        raise ValueError('A PO product is missing from the catalogue. Sync PO emails and review the order again.')
+    if any(type(quantity) is not int or not 1 <= quantity <= 200 for quantity in items.values()):
+        raise ValueError('PO quantities must be whole numbers between 1 and 200.')
     order.invoice_id = invoice.id
     order.applied_items_json = json.dumps(items, sort_keys=True)
     order.applied_hash = order.proposal_hash
@@ -4139,7 +4142,7 @@ def apply_special_order(order, invoice, items, fingerprint):
 
 def sync_special_po_emails():
     from invoice_email import access_token, load_config
-    from invoice_po_email import POReader, proposal_hash
+    from invoice_po_email import POEmailError, POReader, proposal_hash, table_product
     ensure_invoice_generator_tables()
     ensure_invoice_build_tables()
     config = load_config()
@@ -4153,6 +4156,24 @@ def sync_special_po_emails():
     db.session.rollback()
     db.session.execute(text('BEGIN IMMEDIATE'))
     try:
+        state = db.session.get(InvoiceSheetSyncState, 1)
+        data = json.loads(state.data_json)
+        catalogue = {product['sku']: product for product in data['source']['products']}
+        catalogue_changed = False
+        for candidate in candidates:
+            for product in candidate['proposal'].get('products', []):
+                definition = table_product(product.get('sku'), product.get('description', ''))
+                if not definition:
+                    raise POEmailError('A PO product could not be matched to a supported table. Review its SKU.')
+                if definition['sku'] not in catalogue:
+                    # Extend the cached invoice catalogue, never the Google sheet.
+                    # Prices remain unset until the operator enters them.
+                    catalogue[definition['sku']] = definition
+                    catalogue_changed = True
+        if catalogue_changed:
+            data['source']['products'] = list(catalogue.values())
+            state.data_json = json.dumps(data)
+            db.session.flush()
         matches = special_order_delivery_invoices()
         counts = {'found': len(candidates), 'added': 0, 'review': 0}
         for candidate in candidates:
@@ -4254,7 +4275,7 @@ def invoice_body_rows(invoice):
         if quantity <= 0:
             continue
         sku = line['sku']
-        match = re.fullmatch(r'BIL/(LEAG|CHAM)/(6FT|7FT)/(BLA|ROAK|GOAK|RBLACK|STONE)', sku.upper())
+        match = re.fullmatch(r'BIL/(LEAG|CHAM)/(6FT|7FT)/(BLA|ROAK|GOAK|RBLACK|STONE)(?:/SPEC)?', sku.upper())
         if not match:
             unknown.append(sku)
             continue
@@ -4403,8 +4424,15 @@ def invoice_order_snapshot(order, source):
 
 def invoice_sheet_lines(order, source, previous_lines=None):
     costs = {line["sku"]: line.get("unit_cost_pence") for line in (previous_lines or [])}
-    return [dict(product, quantity=order["quantities"][product["sku"]], unit_cost_pence=costs.get(product["sku"]))
-            for product in source["products"]]
+    lines = [dict(product, quantity=order["quantities"].get(product["sku"], 0), unit_cost_pence=costs.get(product["sku"]))
+             for product in source["products"]]
+    present = {line['sku'] for line in lines}
+    # Keep a saved special product's own price when reviewing a sheet that does
+    # not list it. PO quantities remain separate from the sheet quantity.
+    for previous in previous_lines or []:
+        if previous.get('special_order') and previous['sku'] not in present:
+            lines.append(dict(previous, quantity=0))
+    return lines
 
 
 def invoice_reference_is_placeholder(reference):

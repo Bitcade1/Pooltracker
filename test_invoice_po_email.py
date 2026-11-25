@@ -4,6 +4,7 @@ import json
 import unittest
 from datetime import date, datetime
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import flask_app as tracker
 import invoice_email
@@ -11,8 +12,20 @@ from invoice_po_email import POEmailError, POReader, attachment_filename_po, att
 import test_invoice_generator as generator_tests
 
 
+SPECIAL_LEAGUE_SKU = 'BIL/LEAG/7FT/GOAK/SPEC'
+SPECIAL_LEAGUE_PO = '''ty SKU Item name
+1 BIL/LEAG/7FT/GOAK/SPEC Signature League Players Edition Pool Table
+Size - 7ft
+Coin Mechanism? - Freeplay
+Finish - Grey Oak
+Delivery Method - Installation Accessory Pack
+Delivery Method - Pool Delivery & Installation
+Cloth Colours - Duke Series Cloth - Black
+Finish: Grey Oak Size: 7f'''
+
+
 class POParsingTests(unittest.TestCase):
-    def read_special_attachments(self, attachments, reply='We will deliver on Dec 4th'):
+    def read_special_attachments(self, attachments, reply='We will deliver on Dec 4th', catalogue=None):
         reader = POReader('private-token', 'owner@example.com')
         def pages(path, params=None):
             if path == 'me/messages':
@@ -27,7 +40,8 @@ class POParsingTests(unittest.TestCase):
                               'uniqueBody': {'contentType': 'text', 'content': reply}}])
             return iter(attachments)
         with patch.object(reader, 'pages', side_effect=pages):
-            return reader.read(tracker.invoice_order_seed_source()['products'], [date(2026, 12, 4)])
+            return reader.read(catalogue if catalogue is not None else tracker.invoice_order_seed_source()['products'],
+                               [date(2026, 12, 4)])
 
     @staticmethod
     def po_attachment(filename, text):
@@ -62,6 +76,26 @@ class POParsingTests(unittest.TestCase):
         self.assertEqual('PO251508', results[0]['po_number'])
         self.assertEqual([], results[0]['proposal']['warnings'])
         self.assertFalse(results[0]['proposal']['reference_missing'])
+
+    def test_real_special_league_sku_keeps_grey_oak_finish_and_explicit_quantity(self):
+        candidate = self.read_special_attachments([
+            self.po_attachment('PO251551.txt', SPECIAL_LEAGUE_PO),
+        ])[0]
+        self.assertEqual({SPECIAL_LEAGUE_SKU: 1}, candidate['proposal']['items'])
+        self.assertEqual([], candidate['proposal']['warnings'])
+        product = candidate['proposal']['products'][0]
+        self.assertEqual(SPECIAL_LEAGUE_SKU, product['sku'])
+        self.assertIn('Players Edition', product['description'])
+        self.assertIn('7FT Grey Oak', product['description'])
+        self.assertNotIn('Black', product['description'])
+        self.assertNotIn('unit_cost_pence', product)
+
+    def test_unknown_sku_suffix_and_replacement_components_cannot_become_standard_tables(self):
+        for text in ('1 BIL/LEAG/7FT/GOAK/UNKNOWN Signature League 7ft Grey Oak',
+                     '1 BIL/LEAG/7FT/GOAK/SPEC Replacement top rail for Signature League 7ft Grey Oak'):
+            rows, warnings = attachment_rows('po.txt', text.encode('ascii'), tracker.invoice_order_seed_source()['products'])
+            self.assertEqual({}, rows)
+            self.assertTrue(warnings)
 
     def test_purchase_order_filename_labels_and_ambiguous_or_unlabelled_numbers(self):
         for filename in ('Home Leisure Direct Purchase Order No. 251508.pdf',
@@ -372,6 +406,86 @@ class POSyncTests(unittest.TestCase):
         old_candidate['po_number'] = 'MISSING-' + candidate['proposal']['source_key']
         old_candidate['proposal'].update(reference_missing=True, warnings=['Enter the actual PO number.'])
         return old_candidate, candidate
+
+    def special_league_candidate(self):
+        parser = POParsingTests()
+        return parser.read_special_attachments([parser.po_attachment('PO251551.txt', SPECIAL_LEAGUE_PO)])[0]
+
+    def test_special_table_is_added_to_local_catalogue_and_invoice_with_no_invented_price(self):
+        self.candidate = self.special_league_candidate()
+        self.assertEqual(1, self.sync()['added'])
+        product = next(product for product in tracker.invoice_order_source()['products'] if product['sku'] == SPECIAL_LEAGUE_SKU)
+        self.assertTrue(product['special_order'])
+        self.assertNotIn(SPECIAL_LEAGUE_SKU, {product['sku'] for product in tracker.invoice_order_seed_source()['products']})
+        line = next(line for line in tracker.generated_invoice_payload(self.invoice, {})['lines'] if line['sku'] == SPECIAL_LEAGUE_SKU)
+        self.assertEqual(1, line['quantity'])
+        self.assertIsNone(line['unit_cost_pence'])
+        self.assertIsNone(tracker.db.session.get(tracker.InvoiceItemPrice, SPECIAL_LEAGUE_SKU))
+        parser = POParsingTests()
+        fresh_candidate = parser.read_special_attachments([
+            parser.po_attachment('PO251551.txt', SPECIAL_LEAGUE_PO),
+        ], catalogue=tracker.invoice_order_source()['products'])[0]
+        self.assertEqual(self.candidate['proposal'], fresh_candidate['proposal'])
+        self.assertEqual(0, self.sync([fresh_candidate])['added'])
+        self.assertEqual('imported', self.order().status)
+
+    def test_special_table_is_available_in_po_review_and_invoice_prices_can_be_saved(self):
+        self.candidate = self.special_league_candidate()
+        self.candidate['proposal']['warnings'] = ['Confirm the delivery date.']
+        self.sync()
+        page = self.client.get(f'/invoice_generator?invoice={self.invoice_id}').get_data(as_text=True)
+        self.assertIn('po_qty_' + SPECIAL_LEAGUE_SKU, page)
+        response = self.client.post(f'/invoice_generator/po_emails/{self.order().id}', data={
+            'csrf_token': self.token, 'proposal_hash': self.order().proposal_hash, 'action': 'apply',
+            'invoice_id': self.invoice_id, 'po_qty_' + SPECIAL_LEAGUE_SKU: '1',
+        })
+        self.assertEqual(303, response.status_code)
+        self.assertEqual(303, self.save_invoice().status_code)
+        self.assertEqual(302, self.client.get(f'/invoice_generator/{self.invoice_id}/print').status_code)
+        self.assertEqual(303, self.save_invoice(overrides={'cost_' + SPECIAL_LEAGUE_SKU: '925.00'}).status_code)
+        payload = tracker.generated_invoice_payload(self.invoice, {})
+        self.assertEqual(36, payload['quantity'])
+        self.assertEqual(35 * 10010 + 92500, payload['total_pence'])
+        self.assertEqual(0, payload['missing_prices'])
+
+    def test_special_league_creates_the_correct_body_row_and_can_be_auto_ticked(self):
+        self.candidate = self.special_league_candidate()
+        self.sync()
+        link = tracker.db.session.get(tracker.InvoiceBuildOrder, self.invoice_id)
+        item = tracker.db.session.get(tracker.MonthlyBuildItem, json.loads(link.item_ids_json)[SPECIAL_LEAGUE_SKU])
+        self.assertEqual(('Signature League', '7FT', 'Grey Oak', 1),
+                         (item.model_name, item.size, item.colour, item.quantity))
+        completion = tracker.auto_tick_monthly_build_body(
+            SimpleNamespace(worker='Alice', serial_number='1001GO'), tracker.TABLE_TYPE_LITE, 'grey_oak',
+        )
+        self.assertIsNotNone(completion)
+        self.assertEqual(item.id, completion.item_id)
+
+    def test_sheet_review_preserves_a_saved_special_table_price_and_its_quantity(self):
+        self.candidate = self.special_league_candidate()
+        self.sync()
+        self.save_invoice(overrides={'cost_' + SPECIAL_LEAGUE_SKU: '925.00'})
+        price = tracker.db.session.get(tracker.InvoiceItemPrice, SPECIAL_LEAGUE_SKU)
+        price.unit_cost_pence = 110000
+        tracker.db.session.commit()
+        incoming = copy.deepcopy(tracker.invoice_order_seed_source())
+        order = next(order for order in incoming['invoices'] if order['source_column'] == 'M')
+        order['quantities']['BIL/LEAG/6FT/BLA'] += 1
+        order['expected_quantity'] += 1
+        tracker.apply_invoice_sheet_source(incoming)
+        data = json.loads(tracker.db.session.get(tracker.InvoiceSheetSyncState, 1).data_json)
+        change = data['pending'][str(self.invoice_id)]
+        version = tracker.hashlib.sha256(json.dumps(change, sort_keys=True).encode('utf-8')).hexdigest()
+        response = self.client.post('/invoice_generator', data={
+            'csrf_token': self.token, 'action': 'review_sheet_change', 'invoice_id': self.invoice_id,
+            'change_version': version, 'decision': 'apply',
+        })
+        self.assertEqual(303, response.status_code)
+        payload = tracker.generated_invoice_payload(self.invoice, {})
+        line = next(line for line in payload['lines'] if line['sku'] == SPECIAL_LEAGUE_SKU)
+        self.assertEqual(1, line['quantity'])
+        self.assertEqual(92500, line['unit_cost_pence'])
+        self.assertIn(SPECIAL_LEAGUE_SKU, {product['sku'] for product in tracker.invoice_order_source()['products']})
 
     def test_better_filename_extraction_fills_existing_review_entry_without_recreating_it(self):
         old_candidate, candidate = self.recognised_filename_candidates()
