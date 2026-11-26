@@ -987,6 +987,7 @@ TABLE_STOCK_ACTION_LABELS = {
     "delete_top_rail": "Top rail deleted",
     "complete_cushion_set": "Cushion set completed",
     "invoice_dispatch": "Invoice dispatch",
+    "invoice_dispatch_undo": "Invoice dispatch undone",
     "correction": "Correction",
 }
 
@@ -5220,7 +5221,7 @@ def packaging_json_load(value, fallback):
     return parsed if isinstance(parsed, type(fallback)) else fallback
 
 
-def packaging_top_rail_balance(exclude_job_id=None):
+def packaging_top_rail_balance(exclude_job_id=None, *, include_deficits=False):
     """Return rails sent early but not yet recovered on processed deliveries."""
     balance = defaultdict(int)
     jobs = InvoicePackagingJob.query.filter(
@@ -5237,7 +5238,8 @@ def packaging_top_rail_balance(exclude_job_id=None):
         for adjustment in config.get("top_rail_carryovers", []):
             balance[(adjustment["size"], adjustment["colour"])] -= adjustment["quantity"]
     return {
-        key: quantity for key, quantity in balance.items() if quantity > 0
+        key: quantity for key, quantity in balance.items()
+        if include_deficits or quantity > 0
     }
 
 
@@ -5535,8 +5537,10 @@ def packaging_stock_requirements(items, config=None):
     return dict(stock_requirements)
 
 
-def packaging_job_or_404(job_id):
+def packaging_job_or_404(job_id, *, for_update=False):
     ensure_invoice_packaging_tables()
+    if for_update:
+        db.session.execute(text("BEGIN IMMEDIATE"))
     return InvoicePackagingJob.query.get_or_404(job_id)
 
 
@@ -5839,7 +5843,7 @@ def save_invoice_packaging(job_id):
     if "worker" not in session:
         return jsonify({"success": False, "error": "Not logged in"}), 401
 
-    job = packaging_job_or_404(job_id)
+    job = packaging_job_or_404(job_id, for_update=True)
     data = request.get_json(silent=True) or {}
     try:
         items = normalise_packaging_items(data.get("items", []))
@@ -5883,7 +5887,7 @@ def generate_invoice_packaging(job_id):
     if "worker" not in session:
         return jsonify({"success": False, "error": "Not logged in"}), 401
 
-    job = packaging_job_or_404(job_id)
+    job = packaging_job_or_404(job_id, for_update=True)
     data = request.get_json(silent=True) or {}
     try:
         items = normalise_packaging_items(data.get("items", []))
@@ -5955,26 +5959,31 @@ def remove_invoice_packaging_from_stock(job_id):
     if "worker" not in session:
         return jsonify({"success": False, "error": "Not logged in"}), 401
 
-    job = packaging_job_or_404(job_id)
+    data = request.get_json(silent=True) or {}
+    confirmed = data.get("confirm") is True
+    if confirmed:
+        ensure_table_stock_log_table()
+    job = packaging_job_or_404(job_id, for_update=confirmed)
     if job.stock_removed_at:
         removed_at = job.stock_removed_at.strftime("%d/%m/%Y %H:%M")
         removed_by = f" by {job.stock_removed_by}" if job.stock_removed_by else ""
+        db.session.rollback()
         return jsonify({
             "success": False,
             "error": f"Stock for this plan was already removed on {removed_at}{removed_by}.",
         }), 409
 
-    data = request.get_json(silent=True) or {}
     try:
         duplicate_po_warnings = packaging_historical_po_warnings(
             packaging_json_load(job.items_json, []),
             job.id,
         )
         if (
-            data.get("confirm") is True
+            confirmed
             and duplicate_po_warnings
             and data.get("confirm_duplicate_pos") is not True
         ):
+            db.session.rollback()
             return jsonify({
                 "success": False,
                 "error": (
@@ -6027,7 +6036,7 @@ def remove_invoice_packaging_from_stock(job_id):
         if shortages:
             raise ValueError("Not enough finished table stock. " + "; ".join(shortages) + ".")
 
-        if data.get("confirm") is not True:
+        if not confirmed:
             skipped_items = [
                 item for item in normalise_packaging_items(
                     packaging_json_load(job.items_json, [])
@@ -6071,6 +6080,80 @@ def remove_invoice_packaging_from_stock(job_id):
     except (TypeError, ValueError) as error:
         db.session.rollback()
         return jsonify({"success": False, "error": str(error)}), 400
+
+
+@app.route("/api/invoice_packaging/<int:job_id>/undo_stock_processing", methods=["POST"])
+def undo_invoice_packaging_stock_processing(job_id):
+    if "worker" not in session:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not data.get("stock_removed_at"):
+        return jsonify({"success": False, "error": "The stock processing date is required."}), 400
+
+    ensure_table_stock_log_table()
+    job = packaging_job_or_404(job_id, for_update=True)
+    if not job.stock_removed_at or job.stock_removed_at.isoformat() != data["stock_removed_at"]:
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": "Stock processing for this plan has changed. Refresh the page before trying again.",
+        }), 409
+
+    try:
+        deductions = json.loads(job.stock_removal_json)
+        if not isinstance(deductions, list) or any(
+            not isinstance(detail, dict)
+            or not isinstance(detail.get("stock_type"), str)
+            or not detail["stock_type"].strip()
+            or type(detail.get("quantity")) is not int
+            or detail["quantity"] <= 0
+            for detail in deductions
+        ):
+            raise ValueError("Invalid stock deduction record")
+    except (TypeError, ValueError):
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": "The original stock deductions could not be read. Stock processing has been kept in place.",
+        }), 409
+
+    config = normalise_packaging_config(packaging_json_load(job.config_json, {}))
+    if config["top_rail_extras"]:
+        remaining = packaging_top_rail_balance(exclude_job_id=job.id, include_deficits=True)
+        if any(remaining.get((rail["size"], rail["colour"]), 0) < 0 for rail in config["top_rail_extras"]):
+            db.session.rollback()
+            return jsonify({
+                "success": False,
+                "error": (
+                    "Another processed plan has used this plan's extra top rails as a delivery deduction. "
+                    "Undo stock processing on the dependent plan first."
+                ),
+            }), 409
+
+    worker_name = session.get("worker") or "Unknown"
+    note = f"Invoice packaging plan #{job.id}: {job.title}"[:200]
+    for detail in deductions:
+        stock_type = detail["stock_type"]
+        quantity = detail["quantity"]
+        stock_entry = _get_or_create_table_stock(stock_type)
+        count_before = stock_entry.count
+        stock_entry.count += quantity
+        record_table_stock_log(
+            stock_type, "invoice_dispatch_undo", worker_name, quantity,
+            count_before, stock_entry.count, note,
+        )
+
+    job.stock_removed_at = None
+    job.stock_removed_by = None
+    job.stock_removal_json = "[]"
+    job.updated_at = london_now().replace(tzinfo=None)
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "restored_quantity": sum(detail["quantity"] for detail in deductions),
+        "outstanding_top_rails": packaging_rail_balance_payload(packaging_top_rail_balance()),
+    })
 
 
 @app.route("/invoice_packaging/<int:job_id>/labels")

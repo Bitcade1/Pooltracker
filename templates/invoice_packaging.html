@@ -952,7 +952,7 @@
         {% endif %}
     {% endwith %}
 
-    <div id="status-message" class="status-message no-print" hidden></div>
+    <div id="status-message" class="status-message no-print" role="status" hidden></div>
 
     {% if hidden_jobs %}
     <details class="panel no-print">
@@ -967,7 +967,7 @@
                         <tr>
                             <td><a href="{{ url_for('invoice_packaging', plan=job.id) }}">{{ job.title }}</a></td>
                             <td>#{{ job.id }}</td>
-                            <td>{{ 'Stock processed' if job.stock_removed_at else 'Saved' }}</td>
+                            <td data-hidden-plan-stock="{{ job.id }}">{{ 'Stock processed' if job.stock_removed_at else 'Saved' }}</td>
                             <td>
                                 <form method="POST" action="{{ url_for('change_invoice_packaging_visibility', job_id=job.id) }}">
                                     <button class="small secondary" name="action" value="restore">Restore</button>
@@ -1053,13 +1053,13 @@
                             <td>#{{ result.job_id }} - {{ result.job_title }}</td>
                             <td>{{ result.source_files|join(', ') if result.source_files else 'Manual item' }}</td>
                             <td>{{ result.quantity }}</td>
-                            <td>
-                                {% if result.stock_removed_at %}
-                                <span class="po-status-processed">PROCESSED {{ result.stock_removed_at.strftime('%d/%m/%Y') }}</span>
-                                {% if result.stock_removed_by %}<br><small>by {{ result.stock_removed_by }}</small>{% endif %}
-                                {% else %}
-                                <span class="po-status-saved">SAVED - NOT PROCESSED</span>
-                                {% endif %}
+                            <td data-po-plan-stock="{{ result.job_id }}">
+                                <span class="{{ 'po-status-processed' if result.stock_removed_at else 'po-status-saved' }}">
+                                    {{ 'PROCESSED ' ~ result.stock_removed_at.strftime('%d/%m/%Y') if result.stock_removed_at else 'SAVED - NOT PROCESSED' }}
+                                </span>
+                                <div class="po-stock-worker" {% if not result.stock_removed_at or not result.stock_removed_by %}hidden{% endif %}>
+                                    <small>by {{ result.stock_removed_by }}</small>
+                                </div>
                             </td>
                             <td>{{ result.updated_at.strftime('%d/%m/%Y %H:%M') if result.updated_at else '-' }}</td>
                             <td><a class="new-plan-link" href="{{ url_for('invoice_packaging', plan=result.job_id, po_search=po_search) }}">Open plan</a></td>
@@ -1116,10 +1116,15 @@
 
     {% if plan %}
     <div id="stock-removed-notice" class="status-message stock-removed-notice no-print"
-        role="status" {% if not plan.stock_removed_at %}hidden{% endif %}>
-        {% if plan.stock_removed_at %}
-        Finished-stock processing was recorded on {{ plan.stock_removed_at_display }}{% if plan.stock_removed_by %} by {{ plan.stock_removed_by }}{% endif %}.
-        {% endif %}
+        {% if not plan.stock_removed_at %}hidden{% endif %}>
+        <div class="toolbar">
+            <span id="stock-removed-message" role="status">
+                {% if plan.stock_removed_at %}
+                Finished-stock processing was recorded on {{ plan.stock_removed_at_display }}{% if plan.stock_removed_by %} by {{ plan.stock_removed_by }}{% endif %}.
+                {% endif %}
+            </span>
+            <button type="button" id="undo-stock-button" class="small warning" onclick="undoPlanStockProcessing()">Undo Stock Processing</button>
+        </div>
     </div>
     <h1 class="print-title">{{ plan.title }} - Packaging List</h1>
 
@@ -1403,6 +1408,8 @@
         const button = document.getElementById("remove-stock-button");
         const notice = document.getElementById("stock-removed-notice");
         const stockWasRemoved = Boolean(state.stock_removed_at);
+        document.getElementById("undo-stock-button").disabled = busy;
+        document.querySelector('#add-invoices-form button[type="submit"]').disabled = busy || stockWasRemoved;
         if (button) {
             button.disabled = busy || stockWasRemoved;
             button.textContent = stockWasRemoved
@@ -1419,9 +1426,21 @@
                 const keptNote = keptQuantity
                     ? ` ${keptQuantity} sent item(s) marked Keep in stock were not deducted.`
                     : "";
-                notice.textContent = `Finished-stock processing was recorded on ${state.stock_removed_at_display}${worker}.${keptNote}`;
+                document.getElementById("stock-removed-message").textContent = `Finished-stock processing was recorded on ${state.stock_removed_at_display}${worker}.${keptNote}`;
             }
         }
+        const hiddenPlanStatus = document.querySelector(`[data-hidden-plan-stock="${planId}"]`);
+        if (hiddenPlanStatus) hiddenPlanStatus.textContent = stockWasRemoved ? "Stock processed" : "Saved";
+        document.querySelectorAll(`[data-po-plan-stock="${planId}"]`).forEach((cell) => {
+            const status = cell.querySelector("span");
+            status.className = stockWasRemoved ? "po-status-processed" : "po-status-saved";
+            status.textContent = stockWasRemoved
+                ? `PROCESSED ${state.stock_removed_at_display.split(" ")[0]}`
+                : "SAVED - NOT PROCESSED";
+            const worker = cell.querySelector(".po-stock-worker");
+            worker.hidden = !stockWasRemoved || !state.stock_removed_by;
+            worker.querySelector("small").textContent = `by ${state.stock_removed_by}`;
+        });
     }
 
     function typeOptions(selected) {
@@ -2338,7 +2357,7 @@
             + stockSummary
             + skippedSummary
             + duplicatePoSummary
-            + "\n\nThis plan can only be processed once."
+            + "\n\nYou can undo stock processing from this plan."
         );
         if (!confirmed) {
             renderAll();
@@ -2363,6 +2382,45 @@
                 : "Sent items recorded without changing finished stock.",
             "success"
         );
+    }
+
+    async function undoPlanStockProcessing() {
+        if (busy || !state.stock_removed_at) return;
+        const deductions = state.stock_removal
+            .filter((detail) => detail?.quantity > 0 && detail.label)
+            .map((detail) => `${detail.quantity} x ${detail.label}`);
+        const stockSummary = deductions.length
+            ? `\n\nReturn to finished stock:\n${deductions.join("\n")}`
+            : "";
+        if (!window.confirm(
+            `Undo stock processing for ${state.title} (#${planId})?`
+            + stockSummary
+            + "\n\nThis plan will be available to process again."
+        )) return;
+
+        const data = await apiRequest(
+            {{ url_for('undo_invoice_packaging_stock_processing', job_id=plan.id)|tojson }},
+            {stock_removed_at: state.stock_removed_at}
+        );
+        if (data) {
+            Object.assign(state, {
+                stock_removed_at: "",
+                stock_removed_at_display: "",
+                stock_removed_by: "",
+                stock_removal: [],
+                outstanding_top_rails: data.outstanding_top_rails
+            });
+            updatePlanTitle();
+            renderRailAdjustments();
+            renderStockRemovalStatus();
+            setStatus(
+                data.restored_quantity
+                    ? "Stock processing undone. Deducted quantities were returned to finished stock."
+                    : "Stock processing undone. The plan is ready to process again.",
+                "success"
+            );
+        }
+        document.getElementById("status-message").scrollIntoView({block: "nearest"});
     }
 
     async function printZebraLabels() {
